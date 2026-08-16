@@ -1,7 +1,8 @@
 package com.kryptx.app.core.designsystem.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,9 +23,9 @@ import androidx.compose.ui.unit.dp
 fun KryptxCard(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(16.dp),
-    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-    borderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-    borderBrush: Brush? = null,
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+    borderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+    borderBrush: Brush? = GlassmorphismSpecularBrush,
     borderWidth: Dp = 1.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
@@ -42,7 +43,7 @@ fun KryptxCard(
                 if (onClick != null) {
                     Modifier
                         .clip(shape)
-                        .clickable { onClick() }
+                        .bounceClick(scaleDown = 0.98f, onClick = onClick)
                 } else {
                     Modifier
                 }
@@ -56,5 +57,33 @@ fun KryptxCard(
         Box(modifier = Modifier.padding(16.dp)) {
             content()
         }
+    }
+}
+
+@Composable
+fun KryptxGlassCard(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(20.dp),
+    backgroundColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+    borderBrush: Brush = GlassmorphismSpecularBrush,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .then(
+                if (onClick != null) {
+                    Modifier.bounceClick(scaleDown = 0.98f, onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
+            .background(backgroundColor)
+            .border(1.dp, borderBrush, shape)
+            .padding(16.dp)
+    ) {
+        content()
     }
 }

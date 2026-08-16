@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -30,13 +31,13 @@ import com.kryptx.app.core.designsystem.theme.KryptxRed
 fun KryptxScoreRing(
     score: Int,
     modifier: Modifier = Modifier,
-    size: Dp = 140.dp,
-    strokeWidth: Dp = 12.dp,
+    size: Dp = 150.dp,
+    strokeWidth: Dp = 14.dp,
     grade: String? = null
 ) {
     val animatedProgress by animateFloatAsState(
         targetValue = (score.coerceIn(0, 100) / 100f),
-        animationSpec = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
         label = "score_ring_animation"
     )
 
@@ -48,16 +49,26 @@ fun KryptxScoreRing(
 
     val gradientBrush = Brush.sweepGradient(
         listOf(
-            arcColor.copy(alpha = 0.6f),
+            arcColor.copy(alpha = 0.5f),
             arcColor,
             if (score >= 80) KryptxCyan else arcColor
         )
     )
 
-    val backgroundRingColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+    val backgroundRingColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
 
     Box(
-        modifier = modifier.size(size),
+        modifier = modifier
+            .size(size)
+            .drawBehind {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(arcColor.copy(alpha = 0.18f), Color.Transparent),
+                        center = center,
+                        radius = size.toPx() / 1.6f
+                    )
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(size)) {
@@ -87,15 +98,15 @@ fun KryptxScoreRing(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "$score",
-                fontSize = (size.value * 0.26f).sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = (size.value * 0.28f).sp,
+                fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (!grade.isNullOrBlank()) {
                 Text(
-                    text = grade,
+                    text = "GRADE $grade",
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     color = arcColor
                 )
             } else {

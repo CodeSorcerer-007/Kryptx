@@ -121,6 +121,42 @@ enum class FeatureGuide(
         whatIsIt = "Real-time camera lens analyzer for scanning 2FA authenticator QR codes.",
         whyUseIt = "Camera frames are decoded strictly in volatile RAM and no images are ever saved or transmitted.",
         proTip = "Hold the camera steady over the QR code for instant auto-capture."
+    ),
+    DURESS_VAULT(
+        key = "duress_vault_feature",
+        title = "Duress Password & Decoy Vault",
+        subtitle = "Coercion & Panic Protection",
+        icon = Icons.Default.Lock,
+        whatIsIt = "A secondary password that unlocks a realistic decoy vault containing dummy accounts.",
+        whyUseIt = "Protects you under forced unlock situations. Real passwords and keys remain completely isolated and invisible.",
+        proTip = "Set up in Settings → Security & Vault Lock."
+    ),
+    EMERGENCY_KIT(
+        key = "emergency_kit_feature",
+        title = "Printable Recovery Kit (PDF)",
+        subtitle = "Physical Safe Custody",
+        icon = Icons.Default.Lock,
+        whatIsIt = "Generates a clean vector PDF sheet with vault crypto specs and an offline recovery QR key.",
+        whyUseIt = "Allows safe offline physical storage in a home safe or bank deposit box for emergency recovery.",
+        proTip = "Print it out and store it offline away from your mobile device."
+    ),
+    ATTACHMENTS(
+        key = "attachments_feature",
+        title = "Encrypted Attachments",
+        subtitle = "Sandboxed AES-256-GCM Files",
+        icon = Icons.Default.Category,
+        whatIsIt = "Attach private photos, driver's licenses, passports, or SSH key files directly to vault entries.",
+        whyUseIt = "Files are encrypted in chunks and stored inside the app sandbox with on-demand zero-knowledge decryption.",
+        proTip = "Tap any attachment to decrypt and open in your preferred viewer."
+    ),
+    LOCAL_SYNC(
+        key = "local_sync_feature",
+        title = "Zero-Cloud Local P2P Sync",
+        subtitle = "Direct Wi-Fi / Hotspot Beam",
+        icon = Icons.Default.Security,
+        whatIsIt = "Transfer and synchronize encrypted credentials directly between nearby devices over local Wi-Fi.",
+        whyUseIt = "No cloud servers, no intermediate storage, and zero internet connection required.",
+        proTip = "Generate a QR code on the sender phone and scan it with the receiver camera."
     )
 }
 

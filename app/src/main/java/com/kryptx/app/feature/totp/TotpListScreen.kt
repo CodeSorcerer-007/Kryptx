@@ -265,20 +265,38 @@ fun TotpAccountCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (code != null) {
                     val isExpiringSoon = code.secondsRemaining <= 5
+                    val sweepProgress = code.secondsRemaining / 30f
+                    val ringColor = when {
+                        code.secondsRemaining <= 5 -> KryptxRed
+                        code.secondsRemaining <= 10 -> com.kryptx.app.core.designsystem.theme.KryptxAmber
+                        else -> KryptxCyan
+                    }
+
                     Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isExpiringSoon) KryptxRed.copy(alpha = 0.2f) else KryptxCyan.copy(alpha = 0.12f)
-                            ),
+                        modifier = Modifier.size(42.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        androidx.compose.foundation.Canvas(modifier = Modifier.size(42.dp)) {
+                            drawArc(
+                                color = ringColor.copy(alpha = 0.18f),
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            )
+                            drawArc(
+                                color = ringColor,
+                                startAngle = -90f,
+                                sweepAngle = 360f * sweepProgress,
+                                useCenter = false,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            )
+                        }
                         Text(
-                            text = "${code.secondsRemaining}s",
+                            text = "${code.secondsRemaining}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isExpiringSoon) KryptxRed else KryptxCyan
+                            color = ringColor
                         )
                     }
                 }
@@ -287,7 +305,7 @@ fun TotpAccountCard(
 
                 IconButton(
                     onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
                         isCopied = true
                         onCopy()
                         scope.launch {

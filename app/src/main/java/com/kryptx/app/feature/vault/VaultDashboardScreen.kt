@@ -3,6 +3,7 @@ package com.kryptx.app.feature.vault
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -56,11 +57,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.ItemTypeBadge
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxEmptyState
+import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
+import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
+import com.kryptx.app.core.designsystem.theme.KryptxBrandDiagonalGradient
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.model.ItemType
@@ -144,16 +149,18 @@ fun VaultDashboardScreen(
         floatingActionButton = {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(com.kryptx.app.core.designsystem.theme.KryptxBrandDiagonalGradient)
-                    .clickable { onNavigateToAddItem() }
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(KryptxBrandDiagonalGradient)
+                    .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(20.dp))
+                    .bounceClick(scaleDown = 0.90f) { onNavigateToAddItem() }
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Add Item",
-                    tint = Color.Black
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -282,11 +289,11 @@ fun CategoryPill(
 ) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(
-                if (isSelected) KryptxCyan else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                if (isSelected) KryptxCyan else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
             )
-            .clickable { onClick() }
+            .bounceClick(scaleDown = 0.94f, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(
@@ -306,10 +313,11 @@ fun FavoriteItemCard(
 ) {
     Box(
         modifier = Modifier
-            .width(140.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .clickable { onClick() }
+            .width(145.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(16.dp))
+            .bounceClick(scaleDown = 0.96f, onClick = onClick)
             .padding(12.dp)
     ) {
         Column {
@@ -353,17 +361,18 @@ fun VaultItemRow(
     onToggleFavorite: () -> Unit,
     onCopySecret: () -> Unit
 ) {
-    val view = LocalView.current
     var isCopied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val view = LocalView.current
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .clickable { onClick() }
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(18.dp))
+            .bounceClick(scaleDown = 0.98f, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Row(
@@ -396,7 +405,7 @@ fun VaultItemRow(
             // Favorite star button
             IconButton(
                 onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    KryptxHaptics.tap(view)
                     onToggleFavorite()
                 },
                 modifier = Modifier.size(36.dp)
@@ -413,7 +422,7 @@ fun VaultItemRow(
             if (item.primarySecret.isNotBlank()) {
                 IconButton(
                     onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        KryptxHaptics.confirm(view)
                         isCopied = true
                         onCopySecret()
                         scope.launch {

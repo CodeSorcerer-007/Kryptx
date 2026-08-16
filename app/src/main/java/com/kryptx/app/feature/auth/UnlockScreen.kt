@@ -27,13 +27,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxLogo
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
+import com.kryptx.app.core.designsystem.components.bounceClick
+import com.kryptx.app.core.designsystem.components.breathingGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBrandDiagonalGradient
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxRed
@@ -137,23 +138,20 @@ fun UnlockScreen(
 
                 Box(
                     modifier = Modifier
-                        .size(68.dp)
-                        .shadow(
-                            elevation = 12.dp,
-                            shape = CircleShape,
-                            ambientColor = KryptxCyan.copy(alpha = 0.5f),
-                            spotColor = KryptxCyan.copy(alpha = 0.5f)
-                        )
+                        .size(72.dp)
+                        .breathingGlow(KryptxCyan, maxRadius = 36.dp)
+                        .bounceClick(scaleDown = 0.90f) {
+                            onTriggerBiometrics()
+                        }
                         .clip(CircleShape)
-                        .background(KryptxBrandDiagonalGradient)
-                        .clickable { onTriggerBiometrics() },
+                        .background(KryptxBrandDiagonalGradient),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Fingerprint,
                         contentDescription = "Biometric Unlock",
                         tint = MaterialTheme.colorScheme.background,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(38.dp)
                     )
                 }
 

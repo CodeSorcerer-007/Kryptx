@@ -2,7 +2,10 @@ package com.kryptx.app.feature.generator
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,19 +47,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxCard
+import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.StrengthBadge
+import com.kryptx.app.core.designsystem.components.bounceClick
+import com.kryptx.app.core.designsystem.theme.KryptxAmber
+import com.kryptx.app.core.designsystem.theme.KryptxBrandGradient
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
 import com.kryptx.app.core.model.GeneratorConfig
 import com.kryptx.app.core.model.GeneratorMode
@@ -96,8 +106,9 @@ fun GeneratorScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                    .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(16.dp))
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -106,10 +117,10 @@ fun GeneratorScreen(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(if (isSelected) KryptxCyan else Color.Transparent)
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            .bounceClick(scaleDown = 0.94f) {
+                                KryptxHaptics.tap(view)
                                 viewModel.updateMode(mode)
                             }
                             .padding(vertical = 10.dp),
@@ -162,6 +173,39 @@ fun GeneratorScreen(
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Animated Entropy Strength Gradient Bar
+                    val entropyRatio = (result.analysis.entropyBits.toFloat() / 128f).coerceIn(0.05f, 1f)
+                    val animatedEntropy by animateFloatAsState(
+                        targetValue = entropyRatio,
+                        animationSpec = spring(dampingRatio = 0.7f),
+                        label = "entropy_bar"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(animatedEntropy)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    when {
+                                        result.analysis.entropyBits >= 90 -> KryptxBrandGradient
+                                        result.analysis.entropyBits >= 60 -> Brush.horizontalGradient(listOf(KryptxEmerald, KryptxCyan))
+                                        result.analysis.entropyBits >= 36 -> Brush.horizontalGradient(listOf(KryptxAmber, KryptxEmerald))
+                                        else -> Brush.horizontalGradient(listOf(KryptxRed, KryptxAmber))
+                                    }
+                                )
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Row(
@@ -181,7 +225,7 @@ fun GeneratorScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                             },
                             onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                KryptxHaptics.tap(view)
                                 viewModel.regenerate()
                             }
                         )
@@ -201,7 +245,7 @@ fun GeneratorScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                             },
                             onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                KryptxHaptics.confirm(view)
                                 viewModel.copyToClipboard()
                                 isCopied = true
                                 scope.launch {
@@ -228,7 +272,13 @@ fun GeneratorScreen(
                     )
                     Slider(
                         value = config.passwordLength.toFloat(),
-                        onValueChange = { viewModel.updatePasswordLength(it.toInt()) },
+                        onValueChange = {
+                            val newLen = it.toInt()
+                            if (newLen != config.passwordLength) {
+                                KryptxHaptics.tick(view)
+                                viewModel.updatePasswordLength(newLen)
+                            }
+                        },
                         valueRange = 8f..64f,
                         steps = 55,
                         colors = SliderDefaults.colors(
@@ -353,21 +403,17 @@ fun GeneratorOptionCheckbox(
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(
-                checkedColor = KryptxCyan,
-                checkmarkColor = Color.Black
-            )
-        )
-        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = label,
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurface
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
         )
     }
 }
