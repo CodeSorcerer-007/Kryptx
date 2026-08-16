@@ -45,6 +45,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.database.IPreferencesRepository
+import com.kryptx.app.core.designsystem.components.FeatureGuide
+import com.kryptx.app.core.designsystem.components.FeatureIntroSheet
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.feature.auth.SetupMasterPasswordScreen
 import com.kryptx.app.feature.auth.UnlockScreen
@@ -70,14 +73,20 @@ import com.kryptx.app.feature.vault.VaultDashboardScreen
 import com.kryptx.app.feature.vault.VaultItemDetailScreen
 import com.kryptx.app.feature.vault.VaultViewModel
 
-enum class BottomNavTab(val label: String, val icon: ImageVector, val screen: Screen) {
-    VAULT("Vault", Icons.Default.Lock, Screen.VaultDashboard),
-    TOTP("2FA", Icons.Default.Key, Screen.TotpList),
-    GENERATOR("Generator", Icons.Default.AutoAwesome, Screen.Generator),
-    SECURITY("Security", Icons.Default.Security, Screen.SecurityCenter),
-    SETTINGS("Settings", Icons.Default.Settings, Screen.Settings)
+enum class BottomNavTab(
+    val label: String,
+    val icon: ImageVector,
+    val screen: Screen,
+    val featureGuide: FeatureGuide
+) {
+    VAULT("Vault", Icons.Default.Lock, Screen.VaultDashboard, FeatureGuide.VAULT),
+    TOTP("2FA", Icons.Default.Key, Screen.TotpList, FeatureGuide.TOTP),
+    GENERATOR("Generator", Icons.Default.AutoAwesome, Screen.Generator, FeatureGuide.GENERATOR),
+    SECURITY("Security", Icons.Default.Security, Screen.SecurityCenter, FeatureGuide.SECURITY),
+    SETTINGS("Settings", Icons.Default.Settings, Screen.Settings, FeatureGuide.SETTINGS)
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun KryptxNavGraph(
     unlockViewModel: UnlockViewModel,
@@ -87,6 +96,7 @@ fun KryptxNavGraph(
     totpViewModel: TotpViewModel,
     searchViewModel: SearchViewModel,
     settingsViewModel: SettingsViewModel,
+    preferencesRepository: IPreferencesRepository,
     onTriggerBiometrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -94,6 +104,20 @@ fun KryptxNavGraph(
     val unlockUiState by unlockViewModel.uiState.collectAsState()
 
     var selectedBottomTab by remember { mutableStateOf(BottomNavTab.VAULT) }
+    var activeIntroFeature by remember { mutableStateOf<FeatureGuide?>(null) }
+
+    fun checkAndShowFeatureIntro(feature: FeatureGuide) {
+        if (!preferencesRepository.hasSeenFeatureIntro(feature.key)) {
+            activeIntroFeature = feature
+        }
+    }
+
+    // Trigger initial Vault intro when unlocked for the first time
+    androidx.compose.runtime.LaunchedEffect(isUnlocked) {
+        if (isUnlocked) {
+            checkAndShowFeatureIntro(BottomNavTab.VAULT.featureGuide)
+        }
+    }
 
     // Navigation back stack
     val backStack = remember {
@@ -182,6 +206,7 @@ fun KryptxNavGraph(
                             selectedBottomTab = tab
                             backStack.clear()
                             backStack.add(tab.screen)
+                            checkAndShowFeatureIntro(tab.featureGuide)
                         }
                     }
                 )
@@ -267,7 +292,11 @@ fun KryptxNavGraph(
                             onNavigateToBackup = { navigateTo(Screen.BackupExport) },
                             onNavigateToPrivacy = { navigateTo(Screen.PrivacyCenter) },
                             onNavigateToAudit = { navigateTo(Screen.SecurityAudit) },
-                            onNavigateToAutofillSetup = { navigateTo(Screen.SecuritySettings) }
+                            onNavigateToAutofillSetup = { navigateTo(Screen.SecuritySettings) },
+                            onReplayGuides = {
+                                preferencesRepository.resetAllFeatureIntros()
+                                activeIntroFeature = FeatureGuide.VAULT
+                            }
                         )
                     }
 
@@ -331,6 +360,16 @@ fun KryptxNavGraph(
                 }
             }
         }
+    }
+
+    activeIntroFeature?.let { feature ->
+        FeatureIntroSheet(
+            feature = feature,
+            onDismiss = {
+                preferencesRepository.markFeatureIntroSeen(feature.key)
+                activeIntroFeature = null
+            }
+        )
     }
 }
 

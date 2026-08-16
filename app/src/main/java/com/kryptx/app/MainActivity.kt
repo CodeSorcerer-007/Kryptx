@@ -83,6 +83,7 @@ class MainActivity : FragmentActivity() {
                     totpViewModel = totpViewModel,
                     searchViewModel = searchViewModel,
                     settingsViewModel = settingsViewModel,
+                    preferencesRepository = app.preferencesRepository,
                     onTriggerBiometrics = {
                         triggerBiometricUnlock()
                     }

@@ -22,4 +22,8 @@ interface IPreferencesRepository {
     fun setFlagSecureEnabled(enabled: Boolean)
     fun setBreachCheckNetworkEnabled(enabled: Boolean)
     fun setOnboardingCompleted(completed: Boolean)
+
+    fun hasSeenFeatureIntro(featureKey: String): Boolean
+    fun markFeatureIntroSeen(featureKey: String)
+    fun resetAllFeatureIntros()
 }

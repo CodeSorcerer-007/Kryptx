@@ -51,6 +51,7 @@ fun SettingsScreen(
     onNavigateToPrivacy: () -> Unit,
     onNavigateToAudit: () -> Unit,
     onNavigateToAutofillSetup: () -> Unit,
+    onReplayGuides: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -153,6 +154,13 @@ fun SettingsScreen(
                 subtitle = "Keystore status, AES-256 cipher parameters, integrity checks",
                 icon = Icons.Default.Security,
                 onClick = onNavigateToAudit
+            )
+
+            SettingsNavRow(
+                title = "Feature Guides & Pro Tips",
+                subtitle = "Replay first-time feature introductions and usage tips",
+                icon = Icons.Default.Info,
+                onClick = onReplayGuides
             )
 
             Spacer(modifier = Modifier.height(32.dp))

@@ -113,4 +113,20 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         prefs.edit().putBoolean(KEY_ONBOARDING_DONE, completed).apply()
         _onboardingCompleted.value = completed
     }
+
+    override fun hasSeenFeatureIntro(featureKey: String): Boolean {
+        return prefs.getBoolean("intro_seen_$featureKey", false)
+    }
+
+    override fun markFeatureIntroSeen(featureKey: String) {
+        prefs.edit().putBoolean("intro_seen_$featureKey", true).apply()
+    }
+
+    override fun resetAllFeatureIntros() {
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith("intro_seen_") }.forEach {
+            editor.remove(it)
+        }
+        editor.apply()
+    }
 }

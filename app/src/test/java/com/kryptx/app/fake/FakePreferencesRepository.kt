@@ -43,4 +43,9 @@ class FakePreferencesRepository : IPreferencesRepository {
     override fun setFlagSecureEnabled(enabled: Boolean) { _flagSecureEnabled.value = enabled }
     override fun setBreachCheckNetworkEnabled(enabled: Boolean) { _breachCheckNetworkEnabled.value = enabled }
     override fun setOnboardingCompleted(completed: Boolean) { _onboardingCompleted.value = completed }
+
+    private val seenIntros = mutableSetOf<String>()
+    override fun hasSeenFeatureIntro(featureKey: String): Boolean = seenIntros.contains(featureKey)
+    override fun markFeatureIntroSeen(featureKey: String) { seenIntros.add(featureKey) }
+    override fun resetAllFeatureIntros() { seenIntros.clear() }
 }
