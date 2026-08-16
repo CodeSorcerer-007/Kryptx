@@ -96,7 +96,30 @@ Kryptx is engineered around a **Zero-Knowledge, Offline-First** security model. 
 - **Biometric Authentication**: Hardware-backed fingerprint and face recognition unlock.
 - **Edge-to-Edge & Gesture Navigation**: Built natively with Jetpack Compose Material 3 Expressive.
 
-### 📦 6. Encrypted Backup & Cross-Platform Migration
+### 🚨 6. Duress Password & Decoy Vault (Panic Mode)
+- **Coercion-Resistant Decoy Partition**: Configure a secondary panic password in Security Settings.
+- **Seamless Camouflage**: Entering the duress password at the unlock screen instantly provisions and displays an isolated, realistic decoy vault (dummy streaming, shopping, Wi-Fi accounts) while keeping the real master vault completely hidden and cryptographically inaccessible.
+
+### 📄 7. Printable Emergency Recovery Kit (PDF Generator)
+- **Offline Master Custody**: Generates a 1-page vector PDF emergency sheet containing vault cryptographic parameters, handwriting boxes, safe deposit custody instructions, and an offline encrypted recovery QR key.
+- Direct share and print integration via Android `FileProvider`.
+
+### 📎 8. Encrypted Document & Photo Attachments
+- **Zero-Knowledge File Sandbox**: Attach passport scans, driver's licenses, `.pem` SSH certificates, or crypto keyfiles directly to any vault entry.
+- All file streams are encrypted with AES-256-GCM using the active Vault Encryption Key and stored in the isolated app sandbox with on-demand decrypted previews.
+
+### ⏰ 9. Password Expiration & Scheduled Rotation Reminders
+- **Custom Policy Rules**: Define rotation intervals per credential (30, 60, 90, 180, 365 days).
+- **Security Radar Flags**: Expired credentials trigger high-priority alerts in the Security Radar with a 1-tap "Rotate Now" remediation action.
+
+### 📡 10. Zero-Cloud Local P2P Vault Sync
+- **Local Wi-Fi & Hotspot Beam**: Directly sync encrypted credentials between nearby Android phones, tablets, or devices without cloud servers or internet connections.
+- **PIN & Dynamic Session Keys**: Secured with ephemeral AES-256-GCM transfer session keys and a 6-digit handshake verification PIN.
+
+### 📷 11. Offline CameraX Real-Time QR Code Scanner
+- Built-in real-time camera viewfinder decoding 2FA TOTP accounts and P2P sync QR codes directly in volatile RAM with zero persistent image caching.
+
+### 📦 12. Encrypted Backup & Cross-Platform Migration
 - **Encrypted JSON Archives**: Password-protected backups encrypted with AES-256-GCM.
 - **Multi-Manager Importer**: Auto-detects and imports credential exports from **Bitwarden** (JSON/CSV), **1Password** (CSV), and **Google Password Manager** (CSV).
 - **RFC 4180 CSV Exporter**: Standard CSV export with explicit confirmation prompts.

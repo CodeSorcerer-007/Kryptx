@@ -97,6 +97,7 @@ fun KryptxNavGraph(
     searchViewModel: SearchViewModel,
     settingsViewModel: SettingsViewModel,
     preferencesRepository: IPreferencesRepository,
+    vaultRepository: com.kryptx.app.core.database.VaultRepository = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.kryptx.app.KryptxApplication).vaultRepository,
     onTriggerBiometrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -290,6 +291,7 @@ fun KryptxNavGraph(
                             onNavigateToSecurity = { navigateTo(Screen.SecuritySettings) },
                             onNavigateToAppearance = { navigateTo(Screen.AppearanceSettings) },
                             onNavigateToBackup = { navigateTo(Screen.BackupExport) },
+                            onNavigateToLocalSync = { navigateTo(Screen.LocalSync) },
                             onNavigateToPrivacy = { navigateTo(Screen.PrivacyCenter) },
                             onNavigateToAudit = { navigateTo(Screen.SecurityAudit) },
                             onNavigateToAutofillSetup = { navigateTo(Screen.SecuritySettings) },
@@ -342,6 +344,13 @@ fun KryptxNavGraph(
                     Screen.BackupExport -> {
                         BackupExportScreen(
                             viewModel = settingsViewModel,
+                            onNavigateBack = { navigateBack() }
+                        )
+                    }
+
+                    Screen.LocalSync -> {
+                        com.kryptx.app.feature.settings.LocalSyncScreen(
+                            vaultRepository = vaultRepository,
                             onNavigateBack = { navigateBack() }
                         )
                     }

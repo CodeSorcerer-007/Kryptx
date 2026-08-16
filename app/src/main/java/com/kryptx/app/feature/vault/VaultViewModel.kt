@@ -112,6 +112,32 @@ class VaultViewModel(
         }
     }
 
+    suspend fun saveAttachment(
+        context: android.content.Context,
+        uri: android.net.Uri,
+        fileName: String,
+        mimeType: String
+    ): com.kryptx.app.core.model.VaultAttachment? {
+        val manager = com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
+        return manager.saveAttachmentFromUri(uri, fileName, mimeType)
+    }
+
+    suspend fun loadDecryptedAttachment(
+        context: android.content.Context,
+        attachment: com.kryptx.app.core.model.VaultAttachment
+    ): ByteArray? {
+        val manager = com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
+        return manager.loadDecryptedAttachment(attachment)
+    }
+
+    suspend fun deleteAttachment(
+        context: android.content.Context,
+        attachment: com.kryptx.app.core.model.VaultAttachment
+    ): Boolean {
+        val manager = com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
+        return manager.deleteAttachment(attachment)
+    }
+
     fun lockVault() {
         sessionManager.lock()
         clipboardSecurityManager.clearNow()

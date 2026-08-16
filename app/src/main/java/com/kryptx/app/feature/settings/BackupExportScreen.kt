@@ -125,6 +125,61 @@ fun BackupExportScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Printable Emergency Kit PDF Card
+            KryptxCard {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = null,
+                            tint = com.kryptx.app.core.designsystem.theme.KryptxEmerald,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Printable Emergency Recovery Kit (PDF)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Generates a 1-page vector PDF with your master vault specs, QR recovery key, and physical custody guidelines.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    KryptxOutlinedButton(
+                        text = "Generate Emergency Kit (PDF)",
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val pdfFile = com.kryptx.app.core.generator.EmergencyKitGenerator.generateEmergencyKitPdf(context)
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        pdfFile
+                                    )
+                                    val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "application/pdf"
+                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(sendIntent, "Share or Print Emergency Kit"))
+                                    snackbarHostState.showSnackbar("Emergency Kit PDF generated!")
+                                } catch (e: Exception) {
+                                    snackbarHostState.showSnackbar("Failed to generate PDF: ${e.message}")
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(

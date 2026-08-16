@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -48,6 +49,7 @@ fun SettingsScreen(
     onNavigateToSecurity: () -> Unit,
     onNavigateToAppearance: () -> Unit,
     onNavigateToBackup: () -> Unit,
+    onNavigateToLocalSync: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
     onNavigateToAudit: () -> Unit,
     onNavigateToAutofillSetup: () -> Unit,
@@ -130,6 +132,13 @@ fun SettingsScreen(
                 subtitle = "Encrypted JSON backup, CSV export, Bitwarden/1Password import",
                 icon = Icons.Default.FolderZip,
                 onClick = onNavigateToBackup
+            )
+
+            SettingsNavRow(
+                title = "Zero-Cloud Local P2P Sync",
+                subtitle = "Beam encrypted credentials device-to-device over Wi-Fi / Hotspot",
+                icon = Icons.Default.Wifi,
+                onClick = onNavigateToLocalSync
             )
 
             Spacer(modifier = Modifier.height(20.dp))

@@ -15,6 +15,7 @@ enum class IssueType {
     WEAK_PASSWORD,
     REUSED_PASSWORD,
     OLD_PASSWORD,
+    EXPIRED_PASSWORD,
     MISSING_2FA
 }
 
@@ -46,6 +47,7 @@ data class SecurityAuditReport(
     val reusedCount: Int,
     val oldPasswordCount: Int,
     val missing2faCount: Int,
+    val expiredCount: Int = 0,
     val issues: List<SecurityIssue>,
     val history: List<SecurityScoreHistoryPoint> = emptyList(),
     val timestamp: Long = System.currentTimeMillis()

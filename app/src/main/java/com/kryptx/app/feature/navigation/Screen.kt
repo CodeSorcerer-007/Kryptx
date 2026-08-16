@@ -28,6 +28,7 @@ sealed class Screen(val route: String) {
     data object SecuritySettings : Screen("security_settings")
     data object AppearanceSettings : Screen("appearance_settings")
     data object BackupExport : Screen("backup_export")
+    data object LocalSync : Screen("local_sync")
     data object PrivacyCenter : Screen("privacy_center")
     data object SecurityAudit : Screen("security_audit")
 }

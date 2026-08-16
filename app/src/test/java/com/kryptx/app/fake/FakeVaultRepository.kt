@@ -56,6 +56,16 @@ class FakeVaultRepository : VaultRepository {
         return true
     }
 
+    private var duressPassword: String? = null
+    override fun hasDuressPassword(): Boolean = duressPassword != null
+    override suspend fun setupDuressPassword(duressPassword: CharArray): Boolean {
+        this.duressPassword = String(duressPassword)
+        return true
+    }
+    override suspend fun removeDuressPassword() {
+        this.duressPassword = null
+    }
+
     override fun getItems(): Flow<List<VaultItem>> = _itemsFlow.asStateFlow()
 
     override suspend fun getItemById(id: String): VaultItem? {

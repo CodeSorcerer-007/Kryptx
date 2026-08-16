@@ -58,6 +58,7 @@ import com.kryptx.app.core.model.GeneratorConfig
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.totp.UriParser
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable
@@ -133,6 +134,32 @@ fun AddEditItemScreen(
         mutableStateListOf<CustomField>().apply {
             if (existingItem != null) {
                 addAll(existingItem.customFields)
+            }
+        }
+    }
+
+    var rotationIntervalDays by remember { mutableStateOf(existingItem?.rotationIntervalDays) }
+    val attachments = remember {
+        mutableStateListOf<com.kryptx.app.core.model.VaultAttachment>().apply {
+            if (existingItem != null) {
+                addAll(existingItem.attachments)
+            }
+        }
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment_${System.currentTimeMillis()}"
+                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
+                if (saved != null) {
+                    attachments.add(saved)
+                }
             }
         }
     }
@@ -437,6 +464,114 @@ fun AddEditItemScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Password Expiration & Rotation Policy
+            Text(
+                text = "PASSWORD ROTATION & EXPIRATION",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    null to "Never",
+                    30 to "30 Days",
+                    60 to "60 Days",
+                    90 to "90 Days",
+                    180 to "180 Days",
+                    365 to "1 Year"
+                ).forEach { (days, label) ->
+                    val isSelected = rotationIntervalDays == days
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) KryptxCyan else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .clickable { rotationIntervalDays = days }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Encrypted Document & Photo Attachments
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ENCRYPTED ATTACHMENTS (${attachments.size})",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { filePickerLauncher.launch("*/*") }) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = KryptxCyan)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add File / Photo", color = KryptxCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (attachments.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    attachments.forEachIndexed { index, att ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = att.fileName,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${att.formattedSize} • AES-256-GCM Encrypted",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.deleteAttachment(context, att)
+                                            attachments.removeAt(index)
+                                        }
+                                    }
+                                ) {
+                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             // Notes field
             KryptxTextField(
                 value = notes,
@@ -464,6 +599,10 @@ fun AddEditItemScreen(
                         errorMessage = "Title cannot be empty"
                         return@KryptxPrimaryButton
                     }
+
+                    val computedExpiry = if (rotationIntervalDays != null && rotationIntervalDays!! > 0) {
+                        System.currentTimeMillis() + rotationIntervalDays!! * 24L * 60 * 60 * 1000L
+                    } else null
 
                     val updatedItem = (existingItem ?: VaultItem(
                         id = UUID.randomUUID().toString(),
@@ -508,6 +647,9 @@ fun AddEditItemScreen(
                         medicalAllergies = medicalAllergies,
                         medicalEmergencyContact = medicalEmergencyContact,
                         customFields = customFields.toList(),
+                        attachments = attachments.toList(),
+                        expiresAt = computedExpiry,
+                        rotationIntervalDays = rotationIntervalDays,
                         updatedAt = System.currentTimeMillis()
                     )
 

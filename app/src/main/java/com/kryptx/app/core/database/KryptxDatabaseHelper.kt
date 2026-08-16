@@ -34,6 +34,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
 
         // Tables
         private const val TABLE_VAULT_ITEMS = "vault_items"
+        private const val TABLE_DECOY_ITEMS = "decoy_vault_items"
         private const val TABLE_VAULT_METADATA = "vault_metadata"
         private const val TABLE_SECURITY_HISTORY = "security_history"
 
@@ -60,6 +61,9 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         const val KEY_BIOMETRIC_WRAPPED_VEK = "biometric_wrapped_vek"
         const val KEY_BIOMETRIC_IV = "biometric_iv"
         const val KEY_HAS_SETUP = "has_completed_setup"
+        const val KEY_DURESS_SALT = "duress_kdf_salt"
+        const val KEY_DURESS_TOKEN = "duress_verification_token"
+        const val KEY_HAS_DURESS = "has_duress_setup"
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -71,6 +75,20 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         db.execSQL(
             """
             CREATE TABLE $TABLE_VAULT_ITEMS (
+                $COL_ID TEXT PRIMARY KEY,
+                $COL_TYPE TEXT NOT NULL,
+                $COL_IS_FAVORITE INTEGER NOT NULL DEFAULT 0,
+                $COL_ENCRYPTED_PAYLOAD TEXT NOT NULL,
+                $COL_CREATED_AT INTEGER NOT NULL,
+                $COL_UPDATED_AT INTEGER NOT NULL,
+                $COL_LAST_USED_AT INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_DECOY_ITEMS (
                 $COL_ID TEXT PRIMARY KEY,
                 $COL_TYPE TEXT NOT NULL,
                 $COL_IS_FAVORITE INTEGER NOT NULL DEFAULT 0,
@@ -380,6 +398,122 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         result
     }
 
+    // ==========================================
+    // Decoy Vault CRUD & Realistic Provisioning
+    // ==========================================
+
+    fun hasDuressSetup(): Boolean {
+        return getMetadata(KEY_HAS_DURESS) == "true" && getMetadata(KEY_DURESS_TOKEN) != null
+    }
+
+    suspend fun loadAllDecoyItems(decoyKey: ByteArray): List<VaultItem> = withContext(Dispatchers.IO) {
+        val items = mutableListOf<VaultItem>()
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_DECOY_ITEMS,
+            arrayOf(COL_ID, COL_TYPE, COL_IS_FAVORITE, COL_ENCRYPTED_PAYLOAD, COL_CREATED_AT, COL_UPDATED_AT, COL_LAST_USED_AT),
+            null,
+            null,
+            null,
+            null,
+            "$COL_UPDATED_AT DESC"
+        )
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val itemId = it.getString(0)
+                val encryptedPayload = it.getString(3)
+                try {
+                    val decryptedJson = CryptoEngine.decryptString(encryptedPayload, decoyKey)
+                    val item = json.decodeFromString<VaultItem>(decryptedJson)
+                    items.add(item)
+                } catch (e: Exception) {
+                    android.util.Log.w("KryptxDatabaseHelper", "Failed to decrypt decoy item $itemId", e)
+                }
+            }
+        }
+
+        _itemsFlow.value = items
+        items
+    }
+
+    suspend fun saveDecoyItem(item: VaultItem, decoyKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
+        val serializedJson = json.encodeToString(item)
+        val encryptedPayload = CryptoEngine.encryptString(serializedJson, decoyKey)
+
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put(COL_ID, item.id)
+            put(COL_TYPE, item.type.name)
+            put(COL_IS_FAVORITE, if (item.isFavorite) 1 else 0)
+            put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
+            put(COL_CREATED_AT, item.createdAt)
+            put(COL_UPDATED_AT, item.updatedAt)
+            put(COL_LAST_USED_AT, item.lastUsedAt)
+        }
+
+        val result = db.insertWithOnConflict(
+            TABLE_DECOY_ITEMS,
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+
+        if (result != -1L) {
+            val currentList = _itemsFlow.value.toMutableList()
+            val index = currentList.indexOfFirst { it.id == item.id }
+            if (index >= 0) {
+                currentList[index] = item
+            } else {
+                currentList.add(0, item)
+            }
+            _itemsFlow.value = currentList
+            true
+        } else {
+            false
+        }
+    }
+
+    suspend fun provisionDefaultDecoyItems(decoyKey: ByteArray) = withContext(Dispatchers.IO) {
+        val existingDecoys = loadAllDecoyItems(decoyKey)
+        if (existingDecoys.isNotEmpty()) return@withContext
+
+        val sampleDecoys = listOf(
+            VaultItem(
+                title = "Netflix",
+                type = ItemType.LOGIN,
+                username = "personal.viewer@gmail.com",
+                password = "Password2024!netflix",
+                website = "https://netflix.com"
+            ),
+            VaultItem(
+                title = "Spotify Music",
+                type = ItemType.LOGIN,
+                username = "music_fan_99",
+                password = "TuneStream!9902",
+                website = "https://spotify.com"
+            ),
+            VaultItem(
+                title = "Home Wi-Fi Network",
+                type = ItemType.WIFI,
+                wifiSsid = "Netgear_Home_5G",
+                wifiPassword = "WirelessPass9876",
+                wifiSecurityType = "WPA2/WPA3 Personal"
+            ),
+            VaultItem(
+                title = "Amazon Shopping",
+                type = ItemType.LOGIN,
+                username = "shopper.user@gmail.com",
+                password = "AmzSecure#Shop2023",
+                website = "https://amazon.com"
+            )
+        )
+
+        for (decoy in sampleDecoys) {
+            saveDecoyItem(decoy, decoyKey)
+        }
+    }
+
     /**
      * Atomically clears all user data across all tables.
      */
@@ -388,6 +522,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         db.beginTransaction()
         try {
             db.execSQL("DELETE FROM $TABLE_VAULT_ITEMS")
+            db.execSQL("DELETE FROM $TABLE_DECOY_ITEMS")
             db.execSQL("DELETE FROM $TABLE_VAULT_METADATA")
             db.execSQL("DELETE FROM $TABLE_SECURITY_HISTORY")
             db.setTransactionSuccessful()

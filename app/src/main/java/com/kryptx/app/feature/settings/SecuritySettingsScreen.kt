@@ -65,6 +65,8 @@ fun SecuritySettingsScreen(
     var showAutoLockDialog by remember { mutableStateOf(false) }
     var showClipboardDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+    val hasDuress by viewModel.hasDuressPassword.collectAsState()
+    var showDuressDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -203,7 +205,7 @@ fun SecuritySettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "MASTER PASSWORD",
+                text = "MASTER PASSWORD & PANIC RECOVERY",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -215,8 +217,41 @@ fun SecuritySettingsScreen(
                 onClick = { showChangePasswordDialog = true }
             )
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            SettingItemCard(
+                title = "Duress Password (Decoy Vault / Panic Mode)",
+                subtitle = if (hasDuress) "Configured • Unlocks isolated decoy vault with dummy accounts" else "Disabled • Set a secondary panic password for forced unlocks",
+                onClick = { showDuressDialog = true }
+            )
+
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    if (showDuressDialog) {
+        DuressPasswordDialog(
+            hasExistingDuress = hasDuress,
+            onDismiss = { showDuressDialog = false },
+            onSetup = { password ->
+                viewModel.setupDuressPassword(
+                    password = password,
+                    onSuccess = {
+                        showDuressDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("Duress Panic Password enabled!") }
+                    },
+                    onError = { err ->
+                        scope.launch { snackbarHostState.showSnackbar(err) }
+                    }
+                )
+            },
+            onRemove = {
+                viewModel.removeDuressPassword {
+                    showDuressDialog = false
+                    scope.launch { snackbarHostState.showSnackbar("Duress password removed.") }
+                }
+            }
+        )
     }
 
     // Auto-lock Dialog
@@ -408,6 +443,84 @@ fun ChangeMasterPasswordDialog(
                 }
             ) {
                 Text("Update Password", color = KryptxCyan, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun DuressPasswordDialog(
+    hasExistingDuress: Boolean,
+    onDismiss: () -> Unit,
+    onSetup: (password: String) -> Unit,
+    onRemove: () -> Unit
+) {
+    var duressPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Duress Panic Password") },
+        text = {
+            Column {
+                Text(
+                    text = "If forced to unlock your phone under duress or threat, entering this password unlocks a realistic decoy vault while keeping your real credentials 100% hidden and secure.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                KryptxTextField(
+                    value = duressPassword,
+                    onValueChange = { duressPassword = it },
+                    label = "Duress Master Password",
+                    isPassword = true
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                KryptxTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = "Confirm Duress Password",
+                    isPassword = true
+                )
+
+                if (localError != null) {
+                    Text(
+                        text = localError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row {
+                if (hasExistingDuress) {
+                    TextButton(onClick = onRemove) {
+                        Text("Disable", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                TextButton(
+                    onClick = {
+                        if (duressPassword.length < 4) {
+                            localError = "Duress password must be at least 4 characters"
+                            return@TextButton
+                        }
+                        if (duressPassword != confirmPassword) {
+                            localError = "Passwords do not match"
+                            return@TextButton
+                        }
+                        onSetup(duressPassword)
+                    }
+                ) {
+                    Text("Save Duress Mode", color = KryptxCyan, fontWeight = FontWeight.Bold)
+                }
             }
         },
         dismissButton = {

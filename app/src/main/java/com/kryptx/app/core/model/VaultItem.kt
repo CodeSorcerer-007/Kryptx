@@ -66,11 +66,27 @@ data class VaultItem(
     val medicalAllergies: String = "",
     val medicalEmergencyContact: String = "",
 
+    // Attachments & Expiration Policy
+    val attachments: List<VaultAttachment> = emptyList(),
+    val expiresAt: Long? = null,
+    val rotationIntervalDays: Int? = null,
+
     // Timestamps
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val lastUsedAt: Long = System.currentTimeMillis()
 ) {
+    /**
+     * Checks if this credential has exceeded its rotation expiry threshold.
+     */
+    val isExpired: Boolean
+        get() = expiresAt != null && expiresAt <= System.currentTimeMillis()
+
+    /**
+     * Days remaining until credential expiration (or negative if already expired).
+     */
+    val daysUntilExpiration: Long?
+        get() = expiresAt?.let { (it - System.currentTimeMillis()) / (24 * 60 * 60 * 1000L) }
     /**
      * Primary display subtitle based on item type.
      */

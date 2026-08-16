@@ -18,6 +18,10 @@ interface VaultRepository {
     suspend fun disableBiometrics()
     suspend fun changeMasterPassword(currentPassword: CharArray, newPassword: CharArray): Boolean
 
+    fun hasDuressPassword(): Boolean
+    suspend fun setupDuressPassword(duressPassword: CharArray): Boolean
+    suspend fun removeDuressPassword()
+
     fun getItems(): Flow<List<VaultItem>>
     suspend fun getItemById(id: String): VaultItem?
     suspend fun saveItem(item: VaultItem): Boolean

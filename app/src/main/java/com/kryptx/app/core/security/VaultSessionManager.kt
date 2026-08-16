@@ -31,6 +31,9 @@ class VaultSessionManager(
     private val _isUnlocked = MutableStateFlow(false)
     val isUnlocked: StateFlow<Boolean> = _isUnlocked.asStateFlow()
 
+    private val _isDecoy = MutableStateFlow(false)
+    val isDecoy: StateFlow<Boolean> = _isDecoy.asStateFlow()
+
     private val _isLockedDueToTimeout = MutableStateFlow(false)
     val isLockedDueToTimeout: StateFlow<Boolean> = _isLockedDueToTimeout.asStateFlow()
 
@@ -56,7 +59,7 @@ class VaultSessionManager(
      * Initializes the session with an unlocked Vault Encryption Key.
      */
     @Synchronized
-    fun unlock(vaultKey: ByteArray) {
+    fun unlock(vaultKey: ByteArray, isDecoy: Boolean = false) {
         // Cancel any pending lockouts or timeouts
         autoLockJob?.cancel()
         autoLockJob = null
@@ -66,6 +69,7 @@ class VaultSessionManager(
         activeVaultKey = vaultKey.copyOf()
 
         _isUnlocked.value = true
+        _isDecoy.value = isDecoy
         _isLockedDueToTimeout.value = false
         _failedAttempts.value = 0
         _lockoutSecondsRemaining.value = 0
@@ -107,6 +111,7 @@ class VaultSessionManager(
         }
 
         _isUnlocked.value = false
+        _isDecoy.value = false
         _isLockedDueToTimeout.value = isTimeout
     }
 

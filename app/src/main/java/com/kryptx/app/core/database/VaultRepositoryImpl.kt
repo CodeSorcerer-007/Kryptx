@@ -87,32 +87,98 @@ class VaultRepositoryImpl(
         true
     }
 
+    override fun hasDuressPassword(): Boolean {
+        return dbHelper.hasDuressSetup()
+    }
+
+    override suspend fun setupDuressPassword(duressPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
+        val salt = KeyDerivation.generateSalt()
+        val derivedDuressKey = KeyDerivation.deriveKey(duressPassword, salt)
+
+        // Generate independent 256-bit Decoy Vault Encryption Key
+        val decoyVek = CryptoEngine.generateVaultKey()
+        val encryptedDecoyPayload = CryptoEngine.encrypt(decoyVek, derivedDuressKey)
+
+        val tokenBase64 = Base64.encodeToString(encryptedDecoyPayload, Base64.NO_WRAP)
+        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_SALT, saltBase64)
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_TOKEN, tokenBase64)
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "true")
+
+        // Pre-provision realistic decoy items
+        dbHelper.provisionDefaultDecoyItems(decoyVek)
+
+        SecureMemory.wipe(decoyVek)
+        SecureMemory.wipe(derivedDuressKey)
+        SecureMemory.wipe(salt)
+        true
+    }
+
+    override suspend fun removeDuressPassword() = withContext(Dispatchers.IO) {
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_SALT, "")
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_TOKEN, "")
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "false")
+    }
+
     override suspend fun unlockWithPassword(masterPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
-        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT) ?: return@withContext false
-        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN) ?: return@withContext false
+        // 1. Try Primary Master Password
+        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT)
+        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN)
 
-        val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
-        val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+        if (saltBase64 != null && tokenBase64 != null) {
+            val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
+            val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+            val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, salt)
 
-        val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, salt)
-
-        try {
-            val vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
-            sessionManager.unlock(vek)
-            sessionManager.getVaultKey()?.let { activeKey ->
-                dbHelper.loadAllItems(activeKey)
+            try {
+                val vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
+                sessionManager.unlock(vek, isDecoy = false)
+                sessionManager.getVaultKey()?.let { activeKey ->
+                    dbHelper.loadAllItems(activeKey)
+                }
+                SecureMemory.wipe(vek)
+                SecureMemory.wipe(derivedMasterKey)
+                SecureMemory.wipe(salt)
+                isAuditDirty = true
+                return@withContext true
+            } catch (_: Exception) {
+                SecureMemory.wipe(derivedMasterKey)
+                SecureMemory.wipe(salt)
             }
-            SecureMemory.wipe(vek)
-            SecureMemory.wipe(derivedMasterKey)
-            SecureMemory.wipe(salt)
-            isAuditDirty = true
-            true
-        } catch (e: Exception) {
-            sessionManager.recordFailedAttempt()
-            SecureMemory.wipe(derivedMasterKey)
-            SecureMemory.wipe(salt)
-            false
         }
+
+        // 2. Try Duress Decoy Password if configured
+        if (hasDuressPassword()) {
+            val duressSaltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_DURESS_SALT)
+            val duressTokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_DURESS_TOKEN)
+
+            if (duressSaltBase64 != null && duressTokenBase64 != null) {
+                val duressSalt = Base64.decode(duressSaltBase64, Base64.NO_WRAP)
+                val duressTokenBytes = Base64.decode(duressTokenBase64, Base64.NO_WRAP)
+                val derivedDuressKey = KeyDerivation.deriveKey(masterPassword, duressSalt)
+
+                try {
+                    val decoyVek = CryptoEngine.decrypt(duressTokenBytes, derivedDuressKey)
+                    sessionManager.unlock(decoyVek, isDecoy = true)
+                    dbHelper.provisionDefaultDecoyItems(decoyVek)
+                    dbHelper.loadAllDecoyItems(decoyVek)
+
+                    SecureMemory.wipe(decoyVek)
+                    SecureMemory.wipe(derivedDuressKey)
+                    SecureMemory.wipe(duressSalt)
+                    isAuditDirty = true
+                    return@withContext true
+                } catch (_: Exception) {
+                    SecureMemory.wipe(derivedDuressKey)
+                    SecureMemory.wipe(duressSalt)
+                }
+            }
+        }
+
+        // 3. Failed Attempt Throttling
+        sessionManager.recordFailedAttempt()
+        false
     }
 
     override suspend fun setupBiometrics(): Boolean = withContext(Dispatchers.Default) {
@@ -233,7 +299,12 @@ class VaultRepositoryImpl(
 
     override suspend fun saveItem(item: VaultItem): Boolean = withContext(Dispatchers.IO) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext false
-        val success = dbHelper.saveItem(item, activeVek)
+        val isDecoy = sessionManager.isDecoy.value
+        val success = if (isDecoy) {
+            dbHelper.saveDecoyItem(item, activeVek)
+        } else {
+            dbHelper.saveItem(item, activeVek)
+        }
         if (success) {
             isAuditDirty = true
         }
@@ -376,7 +447,28 @@ class VaultRepositoryImpl(
             }
         }
 
-        // 5. Compromised check using BreachChecker
+        // 5. Expired / Overdue Rotation Passwords
+        var expiredCount = 0
+        for (item in items) {
+            if (item.isExpired) {
+                expiredCount++
+                issues.add(
+                    SecurityIssue(
+                        id = "expired_${item.id}",
+                        itemId = item.id,
+                        itemTitle = item.title,
+                        itemSubtitle = item.displaySubtitle,
+                        severity = IssueSeverity.CRITICAL,
+                        type = IssueType.EXPIRED_PASSWORD,
+                        title = "Password rotation overdue (Expired)",
+                        description = "This credential has passed its scheduled security rotation date.",
+                        recommendation = "Generate a new password and update your service login."
+                    )
+                )
+            }
+        }
+
+        // 6. Compromised check using BreachChecker
         var compromisedCount = 0
         for (item in loginItems) {
             val breachStatus = com.kryptx.app.core.security.BreachChecker.checkPassword(item.password, enableNetworkCheck = false)
@@ -401,6 +493,7 @@ class VaultRepositoryImpl(
         // Compute overall score
         var score = 100
         score -= (compromisedCount * 30)
+        score -= (expiredCount * 20)
         score -= (weakCount * 15)
         score -= (reusedCount * 8)
         score -= (oldCount * 3)
@@ -428,6 +521,7 @@ class VaultRepositoryImpl(
             reusedCount = reusedCount,
             oldPasswordCount = oldCount,
             missing2faCount = missing2faCount,
+            expiredCount = expiredCount,
             issues = issues.sortedBy { it.severity.ordinal },
             history = history
         )

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -162,6 +163,58 @@ fun VaultItemDetailScreen(
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            if (item.expiresAt != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                if (item.isExpired) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(KryptxRed.copy(alpha = 0.15f))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "🚨 EXPIRED",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = KryptxRed
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Rotation overdue! Tap Edit to update password.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                } else {
+                    val daysLeft = item.daysUntilExpiration ?: 0L
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(KryptxEmerald.copy(alpha = 0.12f))
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "⏳ Rotation Policy:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = KryptxEmerald
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Expires in $daysLeft day${if (daysLeft == 1L) "" else "s"}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
             }
 
@@ -415,6 +468,83 @@ fun VaultItemDetailScreen(
                         color = MaterialTheme.colorScheme.onSurface,
                         lineHeight = 20.sp
                     )
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // Encrypted Attachments Section
+            if (!isFocusMode && item.attachments.isNotEmpty()) {
+                Text(
+                    text = "Encrypted Attachments (${item.attachments.size})",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item.attachments.forEach { att ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .clickable {
+                                    scope.launch {
+                                        try {
+                                            val decryptedBytes = viewModel.loadDecryptedAttachment(context, att)
+                                            if (decryptedBytes != null) {
+                                                val tempFile = java.io.File(context.cacheDir, att.fileName)
+                                                tempFile.writeBytes(decryptedBytes)
+
+                                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                                    context,
+                                                    "${context.packageName}.fileprovider",
+                                                    tempFile
+                                                )
+                                                val viewIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(uri, att.mimeType)
+                                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(viewIntent)
+                                            } else {
+                                                snackbarHostState.showSnackbar("Failed to decrypt attachment.")
+                                            }
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar("Unable to open attachment: ${e.message}")
+                                        }
+                                    }
+                                }
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = att.fileName,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${att.formattedSize} • Tap to Decrypt & View",
+                                        fontSize = 12.sp,
+                                        color = KryptxCyan
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = KryptxCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }

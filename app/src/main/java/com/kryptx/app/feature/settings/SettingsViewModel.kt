@@ -107,6 +107,38 @@ class SettingsViewModel(
         }
     }
 
+    private val _hasDuressPassword = MutableStateFlow(vaultRepository.hasDuressPassword())
+    val hasDuressPassword: StateFlow<Boolean> = _hasDuressPassword.asStateFlow()
+
+    fun setupDuressPassword(password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (password.length < 4) {
+            onError("Duress password must be at least 4 characters")
+            return
+        }
+        viewModelScope.launch {
+            val chars = password.toCharArray()
+            val success = try {
+                vaultRepository.setupDuressPassword(chars)
+            } finally {
+                SecureMemory.wipe(chars)
+            }
+            if (success) {
+                _hasDuressPassword.value = true
+                onSuccess()
+            } else {
+                onError("Failed to setup duress decoy vault")
+            }
+        }
+    }
+
+    fun removeDuressPassword(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            vaultRepository.removeDuressPassword()
+            _hasDuressPassword.value = false
+            onSuccess()
+        }
+    }
+
     suspend fun exportEncryptedBackup(password: String): String? {
         val chars = password.toCharArray()
         return try {
