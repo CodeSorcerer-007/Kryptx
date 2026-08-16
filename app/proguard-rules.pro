@@ -31,8 +31,12 @@
     @androidx.compose.runtime.Composable *;
 }
 
-# ZXing QR Generator
+# ZXing QR Generator & Scanner
 -keep class com.google.zxing.** { *; }
+
+# CameraX
+-keep class androidx.camera.** { *; }
+-dontwarn androidx.camera.**
 
 # Prevent stripping of cryptographic algorithms
 -keepclassmembers class javax.crypto.** { *; }

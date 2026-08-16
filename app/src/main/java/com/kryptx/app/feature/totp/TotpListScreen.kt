@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -53,10 +54,12 @@ import com.kryptx.app.core.designsystem.components.KryptxEmptyState
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
+import com.kryptx.app.core.designsystem.components.QrCodeScannerDialog
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
+import com.kryptx.app.core.totp.UriParser
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -68,15 +71,28 @@ fun TotpListScreen(
     val accounts by viewModel.totpAccounts.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val view = LocalView.current
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var showQrScanner by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            KryptxTopBar(title = "2FA Authenticator")
+            KryptxTopBar(
+                title = "2FA Authenticator",
+                actions = {
+                    IconButton(onClick = { showQrScanner = true }) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = "Scan 2FA QR Code",
+                            tint = KryptxCyan
+                        )
+                    }
+                }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -98,10 +114,10 @@ fun TotpListScreen(
             ) {
                 KryptxEmptyState(
                     title = "No 2FA Codes Configured",
-                    subtitle = "Store time-based one-time password (TOTP) secret keys to generate live verification codes.",
+                    subtitle = "Scan QR codes or store time-based one-time password (TOTP) secret keys to generate live verification codes.",
                     icon = Icons.Default.Key,
-                    actionButtonText = "Add 2FA Key",
-                    onActionClick = { showAddDialog = true }
+                    actionButtonText = "Scan 2FA QR Code",
+                    onActionClick = { showQrScanner = true }
                 )
             }
         } else {
@@ -142,9 +158,47 @@ fun TotpListScreen(
         }
     }
 
+    if (showQrScanner) {
+        QrCodeScannerDialog(
+            onDismiss = { showQrScanner = false },
+            onQrCodeScanned = { scannedContent ->
+                showQrScanner = false
+                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+
+                val parsed = UriParser.parse(scannedContent)
+                if (parsed != null) {
+                    viewModel.addTotpFromUri(
+                        uriString = scannedContent,
+                        onSuccess = {
+                            val name = parsed.issuer.ifBlank { parsed.accountName }
+                            scope.launch { snackbarHostState.showSnackbar("2FA account '$name' added successfully!") }
+                        },
+                        onError = {
+                            scope.launch { snackbarHostState.showSnackbar("Failed to import 2FA account") }
+                        }
+                    )
+                } else if (scannedContent.length >= 16 && scannedContent.all { it.isLetterOrDigit() || it == '=' }) {
+                    viewModel.addTotpManual(
+                        issuer = "Imported 2FA",
+                        account = "User",
+                        secret = scannedContent
+                    ) {
+                        scope.launch { snackbarHostState.showSnackbar("2FA Secret key added successfully!") }
+                    }
+                } else {
+                    scope.launch { snackbarHostState.showSnackbar("Scanned content is not a valid 2FA QR code") }
+                }
+            }
+        )
+    }
+
     if (showAddDialog) {
         AddTotpDialog(
             onDismiss = { showAddDialog = false },
+            onOpenQrScanner = {
+                showAddDialog = false
+                showQrScanner = true
+            },
             onAddManual = { issuer, user, secret ->
                 viewModel.addTotpManual(issuer, user, secret) {
                     showAddDialog = false
@@ -257,6 +311,7 @@ fun TotpAccountCard(
 @Composable
 fun AddTotpDialog(
     onDismiss: () -> Unit,
+    onOpenQrScanner: () -> Unit,
     onAddManual: (issuer: String, user: String, secret: String) -> Unit,
     onAddUri: (String) -> Unit
 ) {
@@ -271,6 +326,22 @@ fun AddTotpDialog(
         title = { Text("Add 2FA Key") },
         text = {
             Column {
+                KryptxPrimaryButton(
+                    text = "Scan QR Code with Camera",
+                    onClick = onOpenQrScanner,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

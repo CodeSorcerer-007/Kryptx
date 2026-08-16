@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,7 @@ import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
+import com.kryptx.app.core.designsystem.components.QrCodeScannerDialog
 import com.kryptx.app.core.designsystem.components.StrengthBadge
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.generator.GeneratorEngine
@@ -55,6 +57,7 @@ import com.kryptx.app.core.model.CustomField
 import com.kryptx.app.core.model.GeneratorConfig
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
+import com.kryptx.app.core.totp.UriParser
 import java.util.UUID
 
 @Composable
@@ -73,6 +76,7 @@ fun AddEditItemScreen(
     var title by remember { mutableStateOf(existingItem?.title ?: "") }
     var isFavorite by remember { mutableStateOf(existingItem?.isFavorite ?: false) }
     var notes by remember { mutableStateOf(existingItem?.notes ?: "") }
+    var showQrScanner by remember { mutableStateOf(false) }
 
     // Login fields
     var username by remember { mutableStateOf(existingItem?.username ?: "") }
@@ -264,7 +268,16 @@ fun AddEditItemScreen(
                     KryptxTextField(
                         value = totpSecret,
                         onValueChange = { totpSecret = it },
-                        label = "2FA / TOTP Secret Key (optional)"
+                        label = "2FA / TOTP Secret Key (optional)",
+                        trailingIcon = {
+                            IconButton(onClick = { showQrScanner = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCodeScanner,
+                                    contentDescription = "Scan 2FA QR Code",
+                                    tint = KryptxCyan
+                                )
+                            }
+                        }
                     )
                 }
 
@@ -504,5 +517,26 @@ fun AddEditItemScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+
+    if (showQrScanner) {
+        QrCodeScannerDialog(
+            onDismiss = { showQrScanner = false },
+            onQrCodeScanned = { scannedContent ->
+                showQrScanner = false
+                val parsed = UriParser.parse(scannedContent)
+                if (parsed != null) {
+                    totpSecret = parsed.secret
+                    if (title.isBlank()) {
+                        title = parsed.issuer.ifBlank { parsed.accountName }
+                    }
+                    if (username.isBlank() && parsed.accountName.isNotBlank()) {
+                        username = parsed.accountName
+                    }
+                } else {
+                    totpSecret = scannedContent.trim()
+                }
+            }
+        )
     }
 }
