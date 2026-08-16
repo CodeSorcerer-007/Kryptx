@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Kryptx</string>
+    <string name="app_tagline">Zero-Knowledge Offline Password Manager</string>
+    <string name="unlock_title">Unlock Kryptx</string>
+    <string name="unlock_subtitle">Touch sensor or enter master password</string>
+    <string name="biometric_prompt_title">Unlock Vault</string>
+    <string name="biometric_prompt_subtitle">Touch fingerprint sensor to decrypt</string>
+    <string name="security_center_title">Security Center</string>
+    <string name="settings_title">Settings</string>
+    <string name="generator_title">Generator</string>
+    <string name="totp_title">2FA Authenticator</string>
+    <string name="vault_title">Vault</string>
+    <string name="btn_save">Save to Vault</string>
+    <string name="btn_cancel">Cancel</string>
+</resources>

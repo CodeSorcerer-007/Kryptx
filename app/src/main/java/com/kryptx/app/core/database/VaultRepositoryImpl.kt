@@ -1,0 +1,511 @@
+package com.kryptx.app.core.database
+
+import android.util.Base64
+import com.kryptx.app.core.crypto.CryptoEngine
+import com.kryptx.app.core.crypto.EntropyCalculator
+import com.kryptx.app.core.crypto.KeyDerivation
+import com.kryptx.app.core.crypto.KeystoreManager
+import com.kryptx.app.core.crypto.SecureMemory
+import com.kryptx.app.core.model.BackupHeader
+import com.kryptx.app.core.model.EncryptedBackupPayload
+import com.kryptx.app.core.model.IssueSeverity
+import com.kryptx.app.core.model.IssueType
+import com.kryptx.app.core.model.ItemType
+import com.kryptx.app.core.model.SecurityAuditReport
+import com.kryptx.app.core.model.SecurityIssue
+import com.kryptx.app.core.model.SecurityScoreHistoryPoint
+import com.kryptx.app.core.model.VaultItem
+import com.kryptx.app.core.security.VaultSessionManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+class VaultRepositoryImpl(
+    private val dbHelper: KryptxDatabaseHelper,
+    private val sessionManager: VaultSessionManager,
+    private val keystoreManager: KeystoreManager
+) : VaultRepository {
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    @Volatile
+    private var cachedAuditReport: SecurityAuditReport? = null
+    @Volatile
+    private var isAuditDirty: Boolean = true
+
+    override fun hasVault(): Boolean {
+        return dbHelper.hasVaultSetup()
+    }
+
+    override fun isBiometricsConfigured(): Boolean {
+        return keystoreManager.hasBiometricKey() &&
+                !dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank() &&
+                !dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV).isNullOrBlank()
+    }
+
+    override fun getBiometricDecryptCipher(): javax.crypto.Cipher? {
+        val ivBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV) ?: return null
+        return try {
+            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
+            keystoreManager.getDecryptCipher(iv)
+        } catch (e: Exception) {
+            android.util.Log.e("VaultRepositoryImpl", "Failed to get biometric decrypt cipher", e)
+            null
+        }
+    }
+
+    override suspend fun setupNewVault(masterPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
+        val salt = KeyDerivation.generateSalt()
+        val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, salt)
+
+        // Generate independent 256-bit Vault Encryption Key (VEK)
+        val vek = CryptoEngine.generateVaultKey()
+
+        // Encrypt VEK with Derived Master Key (Verification Token)
+        val encryptedVekPayload = CryptoEngine.encrypt(vek, derivedMasterKey)
+        val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
+        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, saltBase64)
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, tokenBase64)
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_SETUP, "true")
+
+        // Record initial security score
+        dbHelper.recordSecurityScore(100)
+
+        // Unlock active session
+        sessionManager.unlock(vek)
+
+        // Securely wipe original in-memory buffers
+        SecureMemory.wipe(vek)
+        SecureMemory.wipe(derivedMasterKey)
+        SecureMemory.wipe(salt)
+
+        isAuditDirty = true
+        true
+    }
+
+    override suspend fun unlockWithPassword(masterPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
+        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT) ?: return@withContext false
+        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN) ?: return@withContext false
+
+        val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
+        val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+
+        val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, salt)
+
+        try {
+            val vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
+            sessionManager.unlock(vek)
+            sessionManager.getVaultKey()?.let { activeKey ->
+                dbHelper.loadAllItems(activeKey)
+            }
+            SecureMemory.wipe(vek)
+            SecureMemory.wipe(derivedMasterKey)
+            SecureMemory.wipe(salt)
+            isAuditDirty = true
+            true
+        } catch (e: Exception) {
+            sessionManager.recordFailedAttempt()
+            SecureMemory.wipe(derivedMasterKey)
+            SecureMemory.wipe(salt)
+            false
+        }
+    }
+
+    override suspend fun setupBiometrics(): Boolean = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+        try {
+            val (wrappedVek, iv) = keystoreManager.wrapVek(activeVek)
+            val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
+            val ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP)
+
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV, ivBase64)
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("VaultRepositoryImpl", "Failed to setup biometrics", e)
+            false
+        }
+    }
+
+    override suspend fun unlockWithBiometrics(): Boolean = withContext(Dispatchers.Default) {
+        val wrappedBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK) ?: return@withContext false
+        val ivBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV) ?: return@withContext false
+
+        try {
+            val wrappedBytes = Base64.decode(wrappedBase64, Base64.NO_WRAP)
+            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
+
+            val vek = keystoreManager.unwrapVek(wrappedBytes, iv)
+
+            sessionManager.unlock(vek)
+            sessionManager.getVaultKey()?.let { activeKey ->
+                dbHelper.loadAllItems(activeKey)
+            }
+            SecureMemory.wipe(vek)
+            isAuditDirty = true
+            true
+        } catch (e: Exception) {
+            sessionManager.recordFailedAttempt()
+            false
+        }
+    }
+
+    override suspend fun unlockWithBiometricCipher(cipher: javax.crypto.Cipher): Boolean = withContext(Dispatchers.Default) {
+        val wrappedBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK) ?: return@withContext false
+        try {
+            val wrappedBytes = Base64.decode(wrappedBase64, Base64.NO_WRAP)
+            val vek = keystoreManager.unwrapWithCipher(cipher, wrappedBytes)
+
+            sessionManager.unlock(vek)
+            sessionManager.getVaultKey()?.let { activeKey ->
+                dbHelper.loadAllItems(activeKey)
+            }
+            SecureMemory.wipe(vek)
+            isAuditDirty = true
+            true
+        } catch (e: Exception) {
+            sessionManager.recordFailedAttempt()
+            false
+        }
+    }
+
+    override suspend fun disableBiometrics() = withContext(Dispatchers.IO) {
+        keystoreManager.removeBiometricKey()
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK, "")
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV, "")
+    }
+
+    override suspend fun changeMasterPassword(
+        currentPassword: CharArray,
+        newPassword: CharArray
+    ): Boolean = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+
+        // Verify current password first
+        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT) ?: return@withContext false
+        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN) ?: return@withContext false
+        val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
+        val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+
+        val currentDerivedKey = KeyDerivation.deriveKey(currentPassword, salt)
+        val verifiedVek = try {
+            CryptoEngine.decrypt(tokenBytes, currentDerivedKey)
+        } catch (e: Exception) {
+            SecureMemory.wipe(currentDerivedKey)
+            SecureMemory.wipe(salt)
+            return@withContext false
+        }
+        SecureMemory.wipe(currentDerivedKey)
+        SecureMemory.wipe(salt)
+        SecureMemory.wipe(verifiedVek)
+
+        // Generate new salt and re-wrap VEK
+        val newSalt = KeyDerivation.generateSalt()
+        val newDerivedKey = KeyDerivation.deriveKey(newPassword, newSalt)
+        val newEncryptedVek = CryptoEngine.encrypt(activeVek, newDerivedKey)
+
+        val newSaltBase64 = Base64.encodeToString(newSalt, Base64.NO_WRAP)
+        val newTokenBase64 = Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP)
+
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, newSaltBase64)
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, newTokenBase64)
+
+        // Re-wrap biometric key if biometrics is active
+        if (isBiometricsConfigured()) {
+            setupBiometrics()
+        }
+
+        SecureMemory.wipe(newDerivedKey)
+        SecureMemory.wipe(newSalt)
+        true
+    }
+
+    override fun getItems(): Flow<List<VaultItem>> = dbHelper.itemsFlow
+
+    override suspend fun getItemById(id: String): VaultItem? = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext null
+        dbHelper.loadItemById(id, activeVek)
+    }
+
+    override suspend fun saveItem(item: VaultItem): Boolean = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+        val success = dbHelper.saveItem(item, activeVek)
+        if (success) {
+            isAuditDirty = true
+        }
+        success
+    }
+
+    override suspend fun deleteItem(itemId: String): Boolean = withContext(Dispatchers.IO) {
+        val success = dbHelper.deleteItem(itemId)
+        if (success) {
+            isAuditDirty = true
+        }
+        success
+    }
+
+    override suspend fun toggleFavorite(itemId: String): Boolean = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+        dbHelper.toggleFavorite(itemId, activeVek)
+    }
+
+    override suspend fun recordItemUsage(itemId: String): Boolean = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+        dbHelper.recordItemUsage(itemId, activeVek)
+    }
+
+    override suspend fun computeSecurityAudit(): SecurityAuditReport = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext SecurityAuditReport(
+            overallScore = 100,
+            healthGrade = "A+",
+            compromisedCount = 0,
+            weakCount = 0,
+            reusedCount = 0,
+            oldPasswordCount = 0,
+            missing2faCount = 0,
+            issues = emptyList()
+        )
+
+        // Return cached audit report if state hasn't changed
+        if (!isAuditDirty && cachedAuditReport != null) {
+            return@withContext cachedAuditReport!!
+        }
+
+        val items = dbHelper.loadAllItems(activeVek)
+        val loginItems = items.filter { it.type == ItemType.LOGIN && it.password.isNotBlank() }
+
+        val issues = mutableListOf<SecurityIssue>()
+        val sixMonthsAgo = System.currentTimeMillis() - (180L * 24 * 60 * 60 * 1000L)
+
+        // 1. Password reuse detection
+        val passwordToItems = loginItems.groupBy { it.password }
+        var reusedCount = 0
+        for ((_, matchingItems) in passwordToItems) {
+            if (matchingItems.size > 1) {
+                reusedCount += matchingItems.size
+                for (item in matchingItems) {
+                    issues.add(
+                        SecurityIssue(
+                            id = "reused_${item.id}",
+                            itemId = item.id,
+                            itemTitle = item.title,
+                            itemSubtitle = item.displaySubtitle,
+                            severity = IssueSeverity.WARNING,
+                            type = IssueType.REUSED_PASSWORD,
+                            title = "Password reused across ${matchingItems.size} accounts",
+                            description = "Using the same password on multiple services creates a single point of failure.",
+                            recommendation = "Generate a unique, random password for this account."
+                        )
+                    )
+                }
+            }
+        }
+
+        // 2. Weak passwords & entropy
+        var weakCount = 0
+        for (item in loginItems) {
+            val analysis = EntropyCalculator.analyze(item.password)
+            if (analysis.strength == EntropyCalculator.StrengthScore.VERY_WEAK ||
+                analysis.strength == EntropyCalculator.StrengthScore.WEAK ||
+                item.password.length < 10
+            ) {
+                weakCount++
+                issues.add(
+                    SecurityIssue(
+                        id = "weak_${item.id}",
+                        itemId = item.id,
+                        itemTitle = item.title,
+                        itemSubtitle = item.displaySubtitle,
+                        severity = IssueSeverity.CRITICAL,
+                        type = IssueType.WEAK_PASSWORD,
+                        title = "Weak password (${analysis.entropyBits} bits entropy)",
+                        description = "This password is susceptible to automated dictionary and brute-force guessing.",
+                        recommendation = "Upgrade to a 20+ character password or 4-word passphrase."
+                    )
+                )
+            }
+        }
+
+        // 3. Old passwords
+        var oldCount = 0
+        for (item in loginItems) {
+            if (item.updatedAt < sixMonthsAgo) {
+                oldCount++
+                issues.add(
+                    SecurityIssue(
+                        id = "old_${item.id}",
+                        itemId = item.id,
+                        itemTitle = item.title,
+                        itemSubtitle = item.displaySubtitle,
+                        severity = IssueSeverity.INFO,
+                        type = IssueType.OLD_PASSWORD,
+                        title = "Password not changed in over 6 months",
+                        description = "Older passwords have a higher probability of unnoticed credential leaks.",
+                        recommendation = "Review and rotate credentials if necessary."
+                    )
+                )
+            }
+        }
+
+        // 4. Missing 2FA on high-priority domains
+        var missing2faCount = 0
+        val popular2faDomains = listOf("google.com", "github.com", "apple.com", "amazon.com", "microsoft.com", "twitter.com", "x.com", "binance.com", "coinbase.com", "paypal.com", "bank")
+        for (item in loginItems) {
+            if (item.totpSecret.isBlank()) {
+                val isHighPriority = popular2faDomains.any { item.website.contains(it, ignoreCase = true) || item.title.contains(it, ignoreCase = true) }
+                if (isHighPriority) {
+                    missing2faCount++
+                    issues.add(
+                        SecurityIssue(
+                            id = "2fa_${item.id}",
+                            itemId = item.id,
+                            itemTitle = item.title,
+                            itemSubtitle = item.displaySubtitle,
+                            severity = IssueSeverity.WARNING,
+                            type = IssueType.MISSING_2FA,
+                            title = "2FA / TOTP Authenticator not configured",
+                            description = "This service supports multi-factor authentication for vital account security.",
+                            recommendation = "Add a 2FA TOTP secret key to activate real-time login codes."
+                        )
+                    )
+                }
+            }
+        }
+
+        // 5. Compromised check using BreachChecker
+        var compromisedCount = 0
+        for (item in loginItems) {
+            val breachStatus = com.kryptx.app.core.security.BreachChecker.checkPassword(item.password, enableNetworkCheck = false)
+            if (breachStatus.isBreached) {
+                compromisedCount++
+                issues.add(
+                    SecurityIssue(
+                        id = "comp_${item.id}",
+                        itemId = item.id,
+                        itemTitle = item.title,
+                        itemSubtitle = item.displaySubtitle,
+                        severity = IssueSeverity.CRITICAL,
+                        type = IssueType.COMPROMISED,
+                        title = "Known breached credential",
+                        description = "This password was identified in public security breaches (${breachStatus.source}).",
+                        recommendation = "Change this password immediately on the service website."
+                    )
+                )
+            }
+        }
+
+        // Compute overall score
+        var score = 100
+        score -= (compromisedCount * 30)
+        score -= (weakCount * 15)
+        score -= (reusedCount * 8)
+        score -= (oldCount * 3)
+        score -= (missing2faCount * 5)
+        if (loginItems.isEmpty()) score = 100
+        score = score.coerceIn(0, 100)
+
+        val grade = when {
+            score >= 90 -> "A+"
+            score >= 80 -> "A"
+            score >= 70 -> "B"
+            score >= 60 -> "C"
+            score >= 45 -> "D"
+            else -> "F"
+        }
+
+        val rawHistory = dbHelper.getSecurityScoreHistory()
+        val history = rawHistory.map { SecurityScoreHistoryPoint(it.first, it.second) }
+
+        val report = SecurityAuditReport(
+            overallScore = score,
+            healthGrade = grade,
+            compromisedCount = compromisedCount,
+            weakCount = weakCount,
+            reusedCount = reusedCount,
+            oldPasswordCount = oldCount,
+            missing2faCount = missing2faCount,
+            issues = issues.sortedBy { it.severity.ordinal },
+            history = history
+        )
+
+        cachedAuditReport = report
+        isAuditDirty = false
+        dbHelper.recordSecurityScore(score)
+        report
+    }
+
+    override suspend fun exportEncryptedBackup(exportPassword: CharArray): EncryptedBackupPayload? = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext null
+        val items = dbHelper.loadAllItems(activeVek)
+
+        val salt = KeyDerivation.generateSalt()
+        val derivedKey = KeyDerivation.deriveKey(exportPassword, salt)
+
+        val plaintextJson = json.encodeToString(items)
+        val ciphertext = CryptoEngine.encrypt(plaintextJson.toByteArray(Charsets.UTF_8), derivedKey)
+
+        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+        val ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
+
+        SecureMemory.wipe(derivedKey)
+
+        val header = BackupHeader(
+            app = "Kryptx",
+            version = "1.0.0",
+            formatVersion = 1,
+            exportedAt = System.currentTimeMillis(),
+            isEncrypted = true,
+            kdfAlgorithm = "PBKDF2WithHmacSHA256",
+            kdfIterations = KeyDerivation.DEFAULT_ITERATIONS,
+            saltBase64 = saltBase64,
+            ivBase64 = ""
+        )
+
+        EncryptedBackupPayload(header, ciphertextBase64)
+    }
+
+    override suspend fun exportPlaintextJson(): String? = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext null
+        val items = dbHelper.loadAllItems(activeVek)
+        json.encodeToString(items)
+    }
+
+    override suspend fun importEncryptedBackup(
+        payload: EncryptedBackupPayload,
+        importPassword: CharArray
+    ): Int = withContext(Dispatchers.Default) {
+        val salt = Base64.decode(payload.header.saltBase64, Base64.NO_WRAP)
+        val derivedKey = KeyDerivation.deriveKey(importPassword, salt, payload.header.kdfIterations)
+        val ciphertext = Base64.decode(payload.ciphertextBase64, Base64.NO_WRAP)
+
+        val decryptedBytes = try {
+            CryptoEngine.decrypt(ciphertext, derivedKey)
+        } catch (e: Exception) {
+            SecureMemory.wipe(derivedKey)
+            return@withContext -1
+        }
+        SecureMemory.wipe(derivedKey)
+
+        val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
+        val items = json.decodeFromString<List<VaultItem>>(plaintextJson)
+        importItems(items)
+    }
+
+    override suspend fun importItems(items: List<VaultItem>): Int = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext 0
+        val count = dbHelper.saveItemsBatch(items, activeVek)
+        val report = computeSecurityAudit()
+        dbHelper.recordSecurityScore(report.overallScore)
+        count
+    }
+
+    override suspend fun resetVault() = withContext(Dispatchers.IO) {
+        sessionManager.lock()
+        keystoreManager.removeBiometricKey()
+        dbHelper.clearAllData()
+    }
+}

@@ -1,0 +1,373 @@
+package com.kryptx.app.feature.generator
+
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.KryptxCard
+import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
+import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
+import com.kryptx.app.core.designsystem.components.KryptxTopBar
+import com.kryptx.app.core.designsystem.components.StrengthBadge
+import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.MonospaceFont
+import com.kryptx.app.core.model.GeneratorConfig
+import com.kryptx.app.core.model.GeneratorMode
+import com.kryptx.app.core.model.UsernameStyle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+@Composable
+fun GeneratorScreen(
+    viewModel: GeneratorViewModel,
+    modifier: Modifier = Modifier
+) {
+    val config by viewModel.config.collectAsState()
+    val result by viewModel.result.collectAsState()
+
+    val view = LocalView.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var isCopied by remember { mutableStateOf(false) }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            KryptxTopBar(title = "Generator")
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Mode Selector Tabs
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                GeneratorMode.entries.forEach { mode ->
+                    val isSelected = config.mode == mode
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) KryptxCyan else Color.Transparent)
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                viewModel.updateMode(mode)
+                            }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = mode.title,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Live Credential Display Card
+            KryptxCard(
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                borderColor = KryptxCyan.copy(alpha = 0.3f)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        StrengthBadge(strength = result.analysis.strength)
+                        Text(
+                            text = "${result.analysis.entropyBits} bits entropy",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    AnimatedContent(targetState = result.value, label = "generated_text_anim") { text ->
+                        Text(
+                            text = text,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = MonospaceFont,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                            lineHeight = 28.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        KryptxOutlinedButton(
+                            text = "Regenerate",
+                            modifier = Modifier.weight(1f),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            },
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                viewModel.regenerate()
+                            }
+                        )
+
+                        KryptxPrimaryButton(
+                            text = if (isCopied) "Copied!" else "Copy",
+                            modifier = Modifier.weight(1f),
+                            containerColor = if (isCopied) KryptxEmerald else KryptxCyan,
+                            contentColor = Color.Black,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            },
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.copyToClipboard()
+                                isCopied = true
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Copied to clipboard (auto-clears soon)")
+                                    delay(2000L)
+                                    isCopied = false
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Configuration Controls
+            when (config.mode) {
+                GeneratorMode.PASSWORD -> {
+                    Text(
+                        text = "Length: ${config.passwordLength} characters",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = config.passwordLength.toFloat(),
+                        onValueChange = { viewModel.updatePasswordLength(it.toInt()) },
+                        valueRange = 8f..64f,
+                        steps = 55,
+                        colors = SliderDefaults.colors(
+                            thumbColor = KryptxCyan,
+                            activeTrackColor = KryptxCyan
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    GeneratorOptionCheckbox(
+                        label = "Include Uppercase (A-Z)",
+                        checked = config.includeUppercase,
+                        onCheckedChange = { viewModel.toggleUppercase(it) }
+                    )
+                    GeneratorOptionCheckbox(
+                        label = "Include Lowercase (a-z)",
+                        checked = config.includeLowercase,
+                        onCheckedChange = { viewModel.toggleLowercase(it) }
+                    )
+                    GeneratorOptionCheckbox(
+                        label = "Include Numbers (0-9)",
+                        checked = config.includeNumbers,
+                        onCheckedChange = { viewModel.toggleNumbers(it) }
+                    )
+                    GeneratorOptionCheckbox(
+                        label = "Include Symbols (!@#$%)",
+                        checked = config.includeSymbols,
+                        onCheckedChange = { viewModel.toggleSymbols(it) }
+                    )
+                    GeneratorOptionCheckbox(
+                        label = "Avoid Ambiguous Characters (0, O, 1, l, I)",
+                        checked = config.avoidAmbiguous,
+                        onCheckedChange = { viewModel.toggleAvoidAmbiguous(it) }
+                    )
+                }
+
+                GeneratorMode.PASSPHRASE -> {
+                    Text(
+                        text = "Word Count: ${config.wordCount} words",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = config.wordCount.toFloat(),
+                        onValueChange = { viewModel.updateWordCount(it.toInt()) },
+                        valueRange = 3f..8f,
+                        steps = 4,
+                        colors = SliderDefaults.colors(
+                            thumbColor = KryptxCyan,
+                            activeTrackColor = KryptxCyan
+                        )
+                    )
+                }
+
+                GeneratorMode.PIN -> {
+                    Text(
+                        text = "PIN Digits: ${config.pinLength}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = config.pinLength.toFloat(),
+                        onValueChange = { viewModel.updatePinLength(it.toInt()) },
+                        valueRange = 4f..12f,
+                        steps = 7,
+                        colors = SliderDefaults.colors(
+                            thumbColor = KryptxCyan,
+                            activeTrackColor = KryptxCyan
+                        )
+                    )
+                }
+
+                GeneratorMode.USERNAME -> {
+                    Text(
+                        text = "Username Style",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    UsernameStyle.entries.forEach { style ->
+                        val isSelected = config.usernameStyle == style
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
+                                )
+                                .clickable { viewModel.updateUsernameStyle(style) }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = style.title,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+fun GeneratorOptionCheckbox(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = KryptxCyan,
+                checkmarkColor = Color.Black
+            )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
