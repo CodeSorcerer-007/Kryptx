@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Kryptx Offline Password Vault</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #080A10;
+            --surface: #111420;
+            --surface-glass: rgba(17, 20, 32, 0.75);
+            --border: rgba(255, 255, 255, 0.08);
+            --cyan: #00D4FF;
+            --emerald: #10B981;
+            --text-main: #F1F5F9;
+            --text-muted: #94A3B8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.7;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 48px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 212, 255, 0.05);
+        }
+
+        .header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 28px;
+            margin-bottom: 36px;
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--cyan);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 800;
+            color: #FFFFFF;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .meta {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--cyan);
+            margin-top: 36px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #FFFFFF;
+            margin-top: 20px;
+            margin-bottom: 8px;
+        }
+
+        p, ul {
+            color: var(--text-muted);
+            font-size: 15px;
+            margin-bottom: 16px;
+        }
+
+        ul {
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        strong {
+            color: var(--text-main);
+        }
+
+        .highlight-card {
+            background: rgba(0, 212, 255, 0.04);
+            border-left: 4px solid var(--cyan);
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin: 24px 0;
+        }
+
+        .highlight-card p {
+            margin-bottom: 0;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        td {
+            color: var(--text-muted);
+        }
+
+        code {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--cyan);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        a {
+            color: var(--cyan);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 28px 20px;
+                border-radius: 16px;
+            }
+            h1 {
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="brand-badge">🛡️ Kryptx Security</div>
+            <h1>Privacy Policy</h1>
+            <div class="meta">Last Updated: August 16, 2026 &bull; Effective Date: August 16, 2026</div>
+        </div>
+
+        <div class="highlight-card">
+            <p><strong>Core Privacy Guarantee:</strong> Kryptx is a 100% offline-first, zero-knowledge password vault. We do not own servers, collect zero data, and have zero access to your master password or encryption keys.</p>
+        </div>
+
+        <h2>1. Zero Data Collection Architecture</h2>
+        <p>Kryptx operates entirely on your device with no cloud backends:</p>
+        <ul>
+            <li><strong>Zero Plaintext Storage:</strong> We do not collect, view, transmit, or log passwords, credentials, notes, payment cards, crypto seed phrases, TOTP secrets, or file attachments.</li>
+            <li><strong>Local AES-256-GCM Encryption:</strong> All items are encrypted on-device with a 256-bit key derived via PBKDF2-HMAC-SHA256 (600,000+ iterations).</li>
+            <li><strong>Zero Analytics & Trackers:</strong> Kryptx contains 0 advertising trackers, 0 diagnostic telemetry, and 0 third-party analytics SDKs.</li>
+        </ul>
+
+        <h2>2. Android Device Permissions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Permission</th>
+                    <th>Purpose & Scope</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>USE_BIOMETRIC</code></td>
+                    <td>Used solely for hardware-backed fingerprint / face unlock via Android Keystore. Biometrics remain strictly isolated in your phone's hardware enclave.</td>
+                </tr>
+                <tr>
+                    <td><code>CAMERA</code></td>
+                    <td>Used exclusively for the real-time offline viewfinder to scan 2FA QR codes or P2P sync codes. No photos or video are recorded or uploaded.</td>
+                </tr>
+                <tr>
+                    <td><code>BIND_AUTOFILL_SERVICE</code></td>
+                    <td>Enables Android system autofill to match domain names and fill passwords directly inside your apps when unlocked.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>3. Data Retention & Erasure</h2>
+        <p>Because all data resides strictly inside your phone's encrypted sandboxed storage, you maintain 100% custody:</p>
+        <ul>
+            <li><strong>Instant Vault Wipe:</strong> You can permanently wipe your entire vault with 1 tap via <code>Settings → Privacy & Security → Erase Vault</code>.</li>
+            <li><strong>Uninstallation:</strong> Uninstalling the app permanently erases all vault records from the operating system.</li>
+        </ul>
+
+        <h2>4. Contact & Open Source Verification</h2>
+        <p>Kryptx is open-source. You can inspect the cryptographic implementation and source code directly on GitHub:</p>
+        <ul>
+            <li><strong>Source Code:</strong> <a href="https://github.com/CodeSorcerer-007/Kryptx" target="_blank" rel="noopener">github.com/CodeSorcerer-007/Kryptx</a></li>
+            <li><strong>Security & Issues:</strong> <a href="https://github.com/CodeSorcerer-007/Kryptx/issues" target="_blank" rel="noopener">github.com/CodeSorcerer-007/Kryptx/issues</a></li>
+        </ul>
+
+        <div class="footer">
+            &copy; 2026 Kryptx Contributors &bull; Built with Zero-Knowledge Architecture
+        </div>
+    </div>
+</body>
+</html>
