@@ -14,13 +14,11 @@ import android.service.autofill.FillResponse
 import android.service.autofill.SaveCallback
 import android.service.autofill.SaveInfo
 import android.service.autofill.SaveRequest
-import android.view.View
 import android.view.autofill.AutofillId
 import android.view.autofill.AutofillValue
 import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
 import com.kryptx.app.KryptxApplication
-import com.kryptx.app.R
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
 import kotlinx.coroutines.CoroutineScope
@@ -31,10 +29,8 @@ import java.net.URI
 import java.util.UUID
 
 /**
- * Native Android AutofillService implementation.
- * Traverses AssistStructure with advanced heuristics to detect login/password fields
- * and browser address bars, matches credentials from the encrypted vault,
- * and securely fills credentials into third-party apps and browsers.
+ * Native Android AutofillService implementation with strict cryptographic domain matching
+ * and anti-phishing protections.
  */
 @RequiresApi(Build.VERSION_CODES.O)
 @Suppress("DEPRECATION")
@@ -105,7 +101,7 @@ class KryptxAutofillService : AutofillService() {
             return
         }
 
-        // Vault is unlocked - query matching credentials
+        // Vault is unlocked - query matching credentials with strict domain verification
         serviceScope.launch {
             val allItems = app.vaultRepository.getItems().firstOrNull() ?: emptyList()
             val loginItems = allItems.filter { it.type == ItemType.LOGIN }
@@ -114,9 +110,7 @@ class KryptxAutofillService : AutofillService() {
             val matchingItems = loginItems.filter { item ->
                 if (cleanDomain.isNotBlank()) {
                     val itemDomain = sanitizeDomain(item.website.ifBlank { item.domain })
-                    itemDomain.contains(cleanDomain, ignoreCase = true) ||
-                            cleanDomain.contains(itemDomain, ignoreCase = true) ||
-                            item.title.contains(cleanDomain, ignoreCase = true)
+                    isDomainMatch(cleanDomain, itemDomain) || (item.domain.isBlank() && item.title.equals(cleanDomain, ignoreCase = true))
                 } else true
             }.sortedWith(
                 compareByDescending<VaultItem> { it.isFavorite }
@@ -203,18 +197,32 @@ class KryptxAutofillService : AutofillService() {
         }
     }
 
-    private fun sanitizeDomain(urlOrDomain: String): String {
-        if (urlOrDomain.isBlank()) return ""
-        return try {
-            val url = if (!urlOrDomain.startsWith("http://") && !urlOrDomain.startsWith("https://")) {
-                "https://$urlOrDomain"
-            } else {
-                urlOrDomain
+    companion object {
+        fun sanitizeDomain(urlOrDomain: String): String {
+            if (urlOrDomain.isBlank()) return ""
+            return try {
+                val url = if (!urlOrDomain.startsWith("http://") && !urlOrDomain.startsWith("https://")) {
+                    "https://$urlOrDomain"
+                } else {
+                    urlOrDomain
+                }
+                val host = URI(url).host ?: urlOrDomain
+                host.removePrefix("www.").lowercase().trim()
+            } catch (_: Exception) {
+                urlOrDomain.removePrefix("www.").lowercase().trim()
             }
-            val host = URI(url).host ?: urlOrDomain
-            host.removePrefix("www.").lowercase()
-        } catch (_: Exception) {
-            urlOrDomain.removePrefix("www.").lowercase()
+        }
+
+        /**
+         * Anti-phishing domain matching: requires exact host match or legitimate subdomain relation.
+         * Prevents substring spoofing (e.g., 'attacker-google.com' matching 'google.com').
+         */
+        fun isDomainMatch(targetDomain: String, candidateDomain: String): Boolean {
+            val t = sanitizeDomain(targetDomain)
+            val c = sanitizeDomain(candidateDomain)
+            if (t.isBlank() || c.isBlank()) return false
+            if (t == c) return true
+            return t.endsWith(".$c") || c.endsWith(".$t")
         }
     }
 }
@@ -249,14 +257,20 @@ class AutofillFieldDetector {
         val className = node.className?.lowercase().orEmpty()
 
         if (!webDomain.isNullOrBlank() && detectedDomain.isBlank()) {
-            detectedDomain = webDomain
+            val sanitized = KryptxAutofillService.sanitizeDomain(webDomain)
+            if (sanitized.contains(".")) {
+                detectedDomain = sanitized
+            }
         }
 
         // Browser address bar heuristic (Chrome, Firefox, Brave, Samsung Internet, Edge, etc.)
         if (detectedDomain.isBlank() && (idEntry.contains("url_bar") || idEntry.contains("location_bar") || idEntry.contains("address_bar"))) {
             val text = node.text?.toString()?.trim().orEmpty()
             if (text.isNotBlank() && (text.contains(".") || text.contains("http"))) {
-                detectedDomain = text
+                val sanitized = KryptxAutofillService.sanitizeDomain(text)
+                if (sanitized.contains(".") && !sanitized.contains(" ")) {
+                    detectedDomain = sanitized
+                }
             }
         }
 

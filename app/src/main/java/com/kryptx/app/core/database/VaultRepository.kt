@@ -4,6 +4,7 @@ import com.kryptx.app.core.model.EncryptedBackupPayload
 import com.kryptx.app.core.model.SecurityAuditReport
 import com.kryptx.app.core.model.VaultItem
 import kotlinx.coroutines.flow.Flow
+import javax.crypto.Cipher
 
 interface VaultRepository {
     fun hasVault(): Boolean
@@ -12,9 +13,11 @@ interface VaultRepository {
     suspend fun setupNewVault(masterPassword: CharArray): Boolean
     suspend fun unlockWithPassword(masterPassword: CharArray): Boolean
     suspend fun setupBiometrics(): Boolean
+    suspend fun setupBiometricsWithCipher(cipher: Cipher): Boolean
     suspend fun unlockWithBiometrics(): Boolean
-    suspend fun unlockWithBiometricCipher(cipher: javax.crypto.Cipher): Boolean
-    fun getBiometricDecryptCipher(): javax.crypto.Cipher?
+    suspend fun unlockWithBiometricCipher(cipher: Cipher): Boolean
+    fun getBiometricDecryptCipher(): Cipher?
+    fun getBiometricEncryptCipher(): Cipher?
     suspend fun disableBiometrics()
     suspend fun changeMasterPassword(currentPassword: CharArray, newPassword: CharArray): Boolean
 

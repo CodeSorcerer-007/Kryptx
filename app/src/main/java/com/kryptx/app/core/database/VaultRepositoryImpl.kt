@@ -50,10 +50,13 @@ class VaultRepositoryImpl(
         return try {
             val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
             keystoreManager.getDecryptCipher(iv)
-        } catch (e: Exception) {
-            android.util.Log.e("VaultRepositoryImpl", "Failed to get biometric decrypt cipher", e)
+        } catch (_: Exception) {
             null
         }
+    }
+
+    override fun getBiometricEncryptCipher(): javax.crypto.Cipher? {
+        return keystoreManager.getEncryptCipher()
     }
 
     override suspend fun setupNewVault(masterPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
@@ -182,42 +185,28 @@ class VaultRepositoryImpl(
     }
 
     override suspend fun setupBiometrics(): Boolean = withContext(Dispatchers.Default) {
+        val cipher = keystoreManager.getEncryptCipher() ?: return@withContext false
+        setupBiometricsWithCipher(cipher)
+    }
+
+    override suspend fun setupBiometricsWithCipher(cipher: javax.crypto.Cipher): Boolean = withContext(Dispatchers.Default) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext false
         try {
-            val (wrappedVek, iv) = keystoreManager.wrapVek(activeVek)
+            val (wrappedVek, iv) = keystoreManager.wrapWithCipher(cipher, activeVek)
             val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
             val ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP)
 
             dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
             dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV, ivBase64)
             true
-        } catch (e: Exception) {
-            android.util.Log.e("VaultRepositoryImpl", "Failed to setup biometrics", e)
+        } catch (_: Exception) {
             false
         }
     }
 
     override suspend fun unlockWithBiometrics(): Boolean = withContext(Dispatchers.Default) {
-        val wrappedBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK) ?: return@withContext false
-        val ivBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV) ?: return@withContext false
-
-        try {
-            val wrappedBytes = Base64.decode(wrappedBase64, Base64.NO_WRAP)
-            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
-
-            val vek = keystoreManager.unwrapVek(wrappedBytes, iv)
-
-            sessionManager.unlock(vek)
-            sessionManager.getVaultKey()?.let { activeKey ->
-                dbHelper.loadAllItems(activeKey)
-            }
-            SecureMemory.wipe(vek)
-            isAuditDirty = true
-            true
-        } catch (e: Exception) {
-            sessionManager.recordFailedAttempt()
-            false
-        }
+        val cipher = getBiometricDecryptCipher() ?: return@withContext false
+        unlockWithBiometricCipher(cipher)
     }
 
     override suspend fun unlockWithBiometricCipher(cipher: javax.crypto.Cipher): Boolean = withContext(Dispatchers.Default) {
@@ -233,7 +222,7 @@ class VaultRepositoryImpl(
             SecureMemory.wipe(vek)
             isAuditDirty = true
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             sessionManager.recordFailedAttempt()
             false
         }

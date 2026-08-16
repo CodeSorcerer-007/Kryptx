@@ -126,8 +126,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
                 // Ensure table structures are robust and indices are applied
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
-            } catch (e: Exception) {
-                android.util.Log.e("KryptxDatabaseHelper", "Database migration to v2 failed", e)
+            } catch (_: Exception) {
             }
         }
     }
@@ -198,8 +197,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
                 try {
                     val decryptedJson = CryptoEngine.decryptString(encryptedPayload, vaultKey)
                     json.decodeFromString<VaultItem>(decryptedJson)
-                } catch (e: Exception) {
-                    android.util.Log.e("KryptxDatabaseHelper", "Failed to decrypt single item $itemId", e)
+                } catch (_: Exception) {
                     null
                 }
             } else null
@@ -227,8 +225,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
                     val decryptedJson = CryptoEngine.decryptString(encryptedPayload, vaultKey)
                     val item = json.decodeFromString<VaultItem>(decryptedJson)
                     items.add(item)
-                } catch (e: Exception) {
-                    android.util.Log.w("KryptxDatabaseHelper", "Failed to decrypt item $itemId during loadAll", e)
+                } catch (_: Exception) {
                 }
             }
         }
@@ -427,8 +424,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
                     val decryptedJson = CryptoEngine.decryptString(encryptedPayload, decoyKey)
                     val item = json.decodeFromString<VaultItem>(decryptedJson)
                     items.add(item)
-                } catch (e: Exception) {
-                    android.util.Log.w("KryptxDatabaseHelper", "Failed to decrypt decoy item $itemId", e)
+                } catch (_: Exception) {
                 }
             }
         }

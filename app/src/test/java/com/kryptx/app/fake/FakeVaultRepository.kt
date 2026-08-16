@@ -22,6 +22,7 @@ class FakeVaultRepository : VaultRepository {
     override fun isBiometricsConfigured(): Boolean = biometricsConfigured
 
     override fun getBiometricDecryptCipher(): Cipher? = null
+    override fun getBiometricEncryptCipher(): Cipher? = null
 
     override suspend fun setupNewVault(masterPassword: CharArray): Boolean {
         hasVaultSetup = true
@@ -38,6 +39,11 @@ class FakeVaultRepository : VaultRepository {
     }
 
     override suspend fun setupBiometrics(): Boolean {
+        biometricsConfigured = true
+        return true
+    }
+
+    override suspend fun setupBiometricsWithCipher(cipher: Cipher): Boolean {
         biometricsConfigured = true
         return true
     }

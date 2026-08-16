@@ -12,16 +12,30 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("kryptx-release-key.jks")
+            storePassword = "kryptx2026release"
+            keyAlias = "kryptx-release"
+            keyPassword = "kryptx2026release"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -81,10 +95,6 @@ dependencies {
     // DataStore & Serialization
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
-
-    // Credentials & Passkeys
-    implementation(libs.androidx.credentials)
-    implementation(libs.androidx.credentials.play.services)
 
     // Barcode / QR Code Generation & Scanning (TOTP QR & Wi-Fi QR)
     implementation(libs.zxing.core)

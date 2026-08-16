@@ -50,8 +50,7 @@ class AttachmentManager(
                 encryptedFileName = encryptedFileName,
                 createdAt = System.currentTimeMillis()
             )
-        } catch (e: Exception) {
-            android.util.Log.e("AttachmentManager", "Failed to encrypt and save attachment", e)
+        } catch (_: Exception) {
             null
         }
     }
@@ -66,7 +65,7 @@ class AttachmentManager(
     ): VaultAttachment? = withContext(Dispatchers.IO) {
         val rawBytes = try {
             context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         } ?: return@withContext null
 
@@ -84,8 +83,7 @@ class AttachmentManager(
         try {
             val encryptedBytes = encryptedFile.readBytes()
             CryptoEngine.decrypt(encryptedBytes, activeVek)
-        } catch (e: Exception) {
-            android.util.Log.e("AttachmentManager", "Failed to decrypt attachment ${attachment.id}", e)
+        } catch (_: Exception) {
             null
         }
     }

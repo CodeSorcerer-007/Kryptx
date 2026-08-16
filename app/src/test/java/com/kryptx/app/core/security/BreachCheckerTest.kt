@@ -13,7 +13,7 @@ class BreachCheckerTest {
         val result = BreachChecker.checkPassword("password", enableNetworkCheck = false)
         assertTrue(result.isBreached)
         assertTrue(result.breachCount > 0)
-        assertEquals("Offline Breach Dataset", result.source)
+        assertEquals("Offline Compromised Dictionary", result.source)
     }
 
     @Test

@@ -86,7 +86,7 @@ data class VaultItem(
      * Days remaining until credential expiration (or negative if already expired).
      */
     val daysUntilExpiration: Long?
-        get() = expiresAt?.let { (it - System.currentTimeMillis()) / (24 * 60 * 60 * 1000L) }
+        get() = expiresAt?.let { kotlin.math.ceil((it - System.currentTimeMillis()).toDouble() / (24.0 * 60 * 60 * 1000.0)).toLong() }
     /**
      * Primary display subtitle based on item type.
      */

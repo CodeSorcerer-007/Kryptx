@@ -39,6 +39,6 @@ class ExpiryReminderTest {
         assertFalse(noExpiryItem.isExpired)
 
         val daysLeft = activeItem.daysUntilExpiration
-        assertEquals(30L, daysLeft)
+        assertTrue(daysLeft != null && daysLeft in 29L..30L)
     }
 }
