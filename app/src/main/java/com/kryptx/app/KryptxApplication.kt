@@ -44,8 +44,8 @@ class KryptxApplication : Application() {
         dbHelper = KryptxDatabaseHelper(this)
         sessionManager = VaultSessionManager()
         keystoreManager = KeystoreManager()
-        vaultRepository = VaultRepositoryImpl(dbHelper, sessionManager, keystoreManager)
         preferencesRepository = PreferencesRepository(this)
+        vaultRepository = VaultRepositoryImpl(dbHelper, sessionManager, keystoreManager, preferencesRepository)
         clipboardManager = ClipboardSecurityManager(this)
         biometricManager = BiometricAuthManager(this)
 

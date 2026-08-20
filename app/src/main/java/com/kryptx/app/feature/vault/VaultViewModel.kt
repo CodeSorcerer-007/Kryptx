@@ -94,11 +94,37 @@ class VaultViewModel(
         }
     }
 
+    private var lastDeletedItem: VaultItem? = null
+
     fun deleteItem(itemId: String, onDeleted: () -> Unit) {
         viewModelScope.launch {
+            val item = vaultRepository.getItemById(itemId)
+            lastDeletedItem = item
             if (vaultRepository.deleteItem(itemId)) {
                 refreshSecurityReport()
                 onDeleted()
+            }
+        }
+    }
+
+    fun deleteItemWithUndo(itemId: String, onDeleted: (VaultItem?) -> Unit) {
+        viewModelScope.launch {
+            val item = vaultRepository.getItemById(itemId)
+            lastDeletedItem = item
+            if (vaultRepository.deleteItem(itemId)) {
+                refreshSecurityReport()
+                onDeleted(item)
+            }
+        }
+    }
+
+    fun undoLastDelete(onRestored: ((VaultItem) -> Unit)? = null) {
+        val itemToRestore = lastDeletedItem ?: return
+        viewModelScope.launch {
+            if (vaultRepository.saveItem(itemToRestore)) {
+                lastDeletedItem = null
+                refreshSecurityReport()
+                onRestored?.invoke(itemToRestore)
             }
         }
     }

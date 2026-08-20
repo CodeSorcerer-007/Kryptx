@@ -25,7 +25,8 @@ import kotlinx.serialization.json.Json
 class VaultRepositoryImpl(
     private val dbHelper: KryptxDatabaseHelper,
     private val sessionManager: VaultSessionManager,
-    private val keystoreManager: KeystoreManager
+    private val keystoreManager: KeystoreManager,
+    private val preferencesRepository: IPreferencesRepository? = null
 ) : VaultRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -459,8 +460,12 @@ class VaultRepositoryImpl(
 
         // 6. Compromised check using BreachChecker
         var compromisedCount = 0
+        val isNetworkBreachEnabled = preferencesRepository?.breachCheckNetworkEnabled?.value ?: false
         for (item in loginItems) {
-            val breachStatus = com.kryptx.app.core.security.BreachChecker.checkPassword(item.password, enableNetworkCheck = false)
+            val breachStatus = com.kryptx.app.core.security.BreachChecker.checkPassword(
+                item.password,
+                enableNetworkCheck = isNetworkBreachEnabled
+            )
             if (breachStatus.isBreached) {
                 compromisedCount++
                 issues.add(

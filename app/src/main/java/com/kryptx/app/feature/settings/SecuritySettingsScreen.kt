@@ -58,6 +58,7 @@ fun SecuritySettingsScreen(
     val lockOnBackground by viewModel.lockOnBackground.collectAsState()
     val clipboardTimeout by viewModel.clipboardTimeout.collectAsState()
     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsState()
+    val breachCheckNetworkEnabled by viewModel.breachCheckNetworkEnabled.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -198,6 +199,42 @@ fun SecuritySettingsScreen(
                     Switch(
                         checked = flagSecureEnabled,
                         onCheckedChange = { viewModel.setFlagSecureEnabled(it) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Have I Been Pwned k-Anonymity Breach Check
+            KryptxCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Have I Been Pwned Breach Check",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Zero-knowledge check (RFC k-Anonymity). Only 5 SHA-1 prefix characters leave device with padded response matching.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = breachCheckNetworkEnabled,
+                        onCheckedChange = { enabled ->
+                            viewModel.setBreachCheckNetworkEnabled(enabled)
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (enabled) "HIBP k-Anonymity breach check enabled"
+                                    else "Offline-only breach check active"
+                                )
+                            }
+                        }
                     )
                 }
             }

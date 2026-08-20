@@ -29,6 +29,7 @@ class SettingsViewModel(
     val biometricEnabled = preferencesRepository.biometricEnabled
     val clipboardTimeout = preferencesRepository.clipboardTimeout
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
+    val breachCheckNetworkEnabled = preferencesRepository.breachCheckNetworkEnabled
 
     private val _exportStatus = MutableStateFlow<String?>(null)
     val exportStatus: StateFlow<String?> = _exportStatus.asStateFlow()
@@ -75,6 +76,10 @@ class SettingsViewModel(
 
     fun setFlagSecureEnabled(enabled: Boolean) {
         preferencesRepository.setFlagSecureEnabled(enabled)
+    }
+
+    fun setBreachCheckNetworkEnabled(enabled: Boolean) {
+        preferencesRepository.setBreachCheckNetworkEnabled(enabled)
     }
 
     fun changeMasterPassword(

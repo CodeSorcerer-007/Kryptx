@@ -67,3 +67,7 @@ google-services.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# IDE & Release artifacts
+.vscode/
+release-artifacts/

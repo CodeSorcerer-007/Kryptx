@@ -35,8 +35,8 @@ val ObsidianSurfaceVariant = Color(0xFF141924)
 val ObsidianCard = Color(0xFF1A2130)
 val ObsidianCardBorder = Color(0xFF242E42)
 val ObsidianTextPrimary = Color(0xFFF8FAFC)
-val ObsidianTextSecondary = Color(0xFF94A3B8)
-val ObsidianTextTertiary = Color(0xFF64748B)
+val ObsidianTextSecondary = Color(0xFFCBD5E1)
+val ObsidianTextTertiary = Color(0xFF94A3B8)
 
 // AMOLED Pure Black Theme
 val AmoledBackground = Color(0xFF000000)
@@ -52,8 +52,8 @@ val SolarSurfaceVariant = Color(0xFFF1F5F9)
 val SolarCard = Color(0xFFFFFFFF)
 val SolarCardBorder = Color(0xFFE2E8F0)
 val SolarTextPrimary = Color(0xFF0F172A)
-val SolarTextSecondary = Color(0xFF475569)
-val SolarTextTertiary = Color(0xFF94A3B8)
+val SolarTextSecondary = Color(0xFF334155)
+val SolarTextTertiary = Color(0xFF64748B)
 
 val ObsidianDarkColorScheme = darkColorScheme(
     primary = KryptxCyan,

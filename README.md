@@ -8,7 +8,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Security Audited](https://img.shields.io/badge/Security-AES--256--GCM%20%7C%20PBKDF2-00D4FF?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/CodeSorcerer-007/Kryptx)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(72%2F72)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/CodeSorcerer-007/Kryptx/actions)
+[![Unit Tests](https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(77%2F77)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/CodeSorcerer-007/Kryptx/actions)
 [![Zero Trackers](https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge)](https://github.com/CodeSorcerer-007/Kryptx)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 
@@ -57,7 +57,7 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 - **Key Derivation Function (KDF)**: `PBKDF2WithHmacSHA256` running **600,000+ iterations** (exceeding OWASP 2024 standards) with 256-bit key output.
 - **Hardware-Backed Biometrics**: Cryptographic `BiometricPrompt.CryptoObject` backed by Android Keystore StrongBox Keymaster / TEE hardware isolation.
 - **In-Memory Zeroization (`SecureMemory`)**: Raw keys, derived keys, and unencrypted byte buffers are allocated in `CharArray`/`ByteArray` and immediately wiped (`Arrays.fill(..., 0)`) after execution.
-- **Privacy-Preserving Breach Detection**: RFC-compliant k-Anonymity breach detection engine querying the Have I Been Pwned API (only 5 characters of SHA-1 prefix leave the device with response padding) plus an instant offline dictionary.
+- **Privacy-Preserving Breach Detection (k-Anonymity)**: RFC-compliant Have I Been Pwned Range API query engine with `Add-Padding: true` (only the first 5 characters of SHA-1 leave the device with padded response matching) backed by a 200+ item local offline dictionary.
 - **Runtime Anti-Tamper**: Real-time scanner checking `/proc/self/maps` for Frida/Xposed/Substrate hooking frameworks, active debugger detection, su/magisk binaries, and test-keys.
 - **Strict Network Isolation**: Zero cleartext traffic allowed across all network stacks (`cleartextTrafficPermitted="false"`).
 - **Anti-Screen & Clipboard Shield**: Dynamic `FLAG_SECURE` window protection and auto-clearing sensitive clipboard copy timers (30s).
@@ -78,23 +78,29 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 - **Zero-Knowledge File Sandbox**: Attach passport scans, driver's licenses, `.pem` SSH certificates, or crypto keyfiles directly to any vault entry.
 - All file streams are encrypted with AES-256-GCM using the active Vault Encryption Key and stored in the isolated app sandbox with on-demand decrypted previews.
 
-### ⏰ 4. Password Expiration & Scheduled Rotation Reminders
+### 🎯 4. Vault Power UX (Swipe-to-Delete, Undo & Quick Actions)
+- **Swipe-to-Delete (`SwipeToDismissBox`)**: Fluid gesture with red glassmorphic trash indicator and haptic feedback.
+- **Interactive Undo Snackbar**: Instant recovery safety net for accidental deletions.
+- **Long-Press Quick Actions**: Instant bottom sheet on card long-press with Copy Password, Copy Username, Star/Favorite, Edit, Open URL, and Delete actions.
+- **Inline Instant Search**: Header search bar filtering logins, usernames, domains, and tags in real time without screen transitions.
+
+### ⏰ 5. Password Expiration & Scheduled Rotation Reminders
 - **Custom Policy Rules**: Define rotation intervals per credential (30, 60, 90, 180, 365 days).
 - **Security Radar Flags**: Expired credentials trigger high-priority alerts in the Security Radar with a 1-tap "Rotate Now" remediation action.
 
-### 📡 5. Zero-Cloud Local P2P Vault Sync
+### 📡 6. Zero-Cloud Local P2P Vault Sync
 - **Local Wi-Fi & Hotspot Beam**: Directly sync encrypted credentials between nearby Android phones, tablets, or devices without cloud servers or internet connections.
 - **PIN & Dynamic Session Keys**: Secured with ephemeral AES-256-GCM transfer session keys and a 6-digit handshake verification PIN.
 
-### 🔑 6. Built-in Real-Time TOTP 2FA Authenticator (RFC 6238)
+### 🔑 7. Built-in Real-Time TOTP 2FA Authenticator (RFC 6238)
 - Real-time animated circular progress countdown rings with 30-second time steps and color-coded expiration warnings.
-- Supports SHA-1, SHA-256, and SHA-512 with 6 and 8-digit codes.
+- Supports SHA-1, SHA-256, and SHA-512 with 6 and 8-digit codes in high-readability monospace font.
 - Direct parsing of `otpauth://totp/` QR/URIs and manual secret entry.
 
-### 📷 7. Offline CameraX Real-Time QR Code Scanner
+### 📷 8. Offline CameraX Real-Time QR Code Scanner
 - Built-in real-time camera viewfinder decoding 2FA TOTP accounts and P2P sync QR codes directly in volatile RAM with zero persistent image caching.
 
-### 🗂️ 8. 11 Multi-Category Vault Records
+### 🗂️ 9. 11 Multi-Category Vault Records
 1. 🔑 **Logins**: Website/URL, Username/Email, Password, Real-time TOTP Authenticator, Notes, Tags.
 2. 💳 **Credit & Debit Cards**: Cardholder, Card Number (Luhn validation), Expiry, CVV, Card PIN.
 3. 🪪 **Identities**: Full Name, Email, Phone, Physical Address, DOB, Passport / National ID number.
@@ -107,23 +113,23 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 10. 🩺 **Medical & Emergency Data**: Patient Name, Blood Type, Allergies & Conditions, Emergency Contacts.
 11. 🧩 **Custom Fields**: User-defined key-value fields with masked secret visibility toggles.
 
-### 📊 9. Security Pulse & Health Radar
+### 📊 10. Security Pulse & Health Radar
 - **0–100 Vault Health Score** with letter grades (`A+`, `A`, `B`, `C`, `D`, `F`).
 - Mathematical entropy analysis (NIST/Shannon entropy scoring).
 - Identifies **weak passwords**, **password reuse**, **stale passwords (>180 days)**, **expired rotations**, and **breached credentials**.
 
-### ⚡ 10. Advanced Credential Generator
+### ⚡ 11. Advanced Credential Generator
 - **Password Mode**: 8 to 64 characters with uppercase, lowercase, numbers, symbols, and ambiguous character filter (`0, O, 1, l, I`).
 - **Passphrase Mode**: Memorable EFF Diceware wordlists with customizable separators and capitalized words.
 - **PIN Mode**: 4 to 12 digits with cryptographically secure randomness.
 - **Username Mode**: Anonymous alphanumeric identifiers and memorable adjective-noun combinations.
 
-### 🤖 11. Native Android System Integrations
+### 🤖 12. Native Android System Integrations
 - **Autofill Framework (`AutofillService`)**: Native autofill provider matching package names and web domains to fill usernames and passwords directly in apps and Chrome.
 - **Biometric Authentication**: Hardware-backed fingerprint and face recognition unlock.
 - **Edge-to-Edge & Gesture Navigation**: Built natively with Jetpack Compose Material 3 Expressive.
 
-### 📦 12. Encrypted Backup & Cross-Platform Migration
+### 📦 13. Encrypted Backup & Cross-Platform Migration
 - **Encrypted JSON Archives**: Password-protected backups encrypted with AES-256-GCM.
 - **Multi-Manager Importer**: Auto-detects and imports credential exports from **Bitwarden** (JSON/CSV), **1Password** (CSV), and **Google Password Manager** (CSV).
 - **RFC 4180 CSV Exporter**: Standard CSV export with explicit confirmation prompts.
@@ -207,7 +213,7 @@ app/src/main/java/com/kryptx/app/
 ```bash
 ./gradlew testDebugUnitTest
 ```
-*Current test suite: **72 / 72 tests passing (100% success)** across cryptographic engines, duress isolation, PDF generators, attachments, P2P sync, and TOTP algorithms.*
+*Current test suite: **77 / 77 tests passing (100% success)** across cryptographic engines, duress isolation, RFC k-Anonymity breach detection, soft delete with undo, PDF generators, attachments, P2P sync, and TOTP algorithms.*
 
 ### Build Debug APK
 ```bash

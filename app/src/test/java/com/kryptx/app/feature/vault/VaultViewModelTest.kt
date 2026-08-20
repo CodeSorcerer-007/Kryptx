@@ -119,7 +119,34 @@ class VaultViewModelTest {
         testScheduler.runCurrent()
 
         assertTrue(deleted)
-        assertEquals(0, fakeVaultRepository.getItems().toString().let { viewModel.rawItems.value.size })
+        assertEquals(0, viewModel.rawItems.value.size)
+    }
+
+    @Test
+    fun testDeleteItemWithUndoAndRestore() = runTest(testDispatcher) {
+        val item = VaultItem(id = "undo_1", title = "Proton Mail", username = "user@pm.me")
+        viewModel.saveItem(item) {}
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.rawItems.value.size)
+
+        var deletedItemTitle: String? = null
+        viewModel.deleteItemWithUndo("undo_1") { deleted ->
+            deletedItemTitle = deleted?.title
+        }
+        testScheduler.runCurrent()
+
+        assertEquals("Proton Mail", deletedItemTitle)
+        assertEquals(0, viewModel.rawItems.value.size)
+
+        var restoredTitle: String? = null
+        viewModel.undoLastDelete { restored ->
+            restoredTitle = restored.title
+        }
+        testScheduler.runCurrent()
+
+        assertEquals("Proton Mail", restoredTitle)
+        assertEquals(1, viewModel.rawItems.value.size)
+        assertEquals("undo_1", viewModel.rawItems.value.first().id)
     }
 
     @Test

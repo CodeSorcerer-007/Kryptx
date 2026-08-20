@@ -8,6 +8,30 @@ import androidx.compose.ui.unit.sp
 
 val MonospaceFont = FontFamily.Monospace
 
+val MonospaceSecret = TextStyle(
+    fontFamily = MonospaceFont,
+    fontWeight = FontWeight.Medium,
+    fontSize = 15.sp,
+    lineHeight = 20.sp,
+    letterSpacing = 1.2.sp
+)
+
+val MonospaceTotp = TextStyle(
+    fontFamily = MonospaceFont,
+    fontWeight = FontWeight.Bold,
+    fontSize = 26.sp,
+    lineHeight = 32.sp,
+    letterSpacing = 3.sp
+)
+
+val MonospaceCode = TextStyle(
+    fontFamily = MonospaceFont,
+    fontWeight = FontWeight.Normal,
+    fontSize = 13.sp,
+    lineHeight = 18.sp,
+    letterSpacing = 0.5.sp
+)
+
 val KryptxTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,

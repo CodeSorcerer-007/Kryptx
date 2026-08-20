@@ -33,7 +33,7 @@ import com.kryptx.app.core.designsystem.theme.MonospaceFont
 fun KryptxTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String = "",
     modifier: Modifier = Modifier,
     placeholder: String = "",
     isPassword: Boolean = false,
@@ -54,7 +54,7 @@ fun KryptxTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(label) },
+            label = if (label.isNotEmpty()) { { Text(label) } } else null,
             placeholder = { if (placeholder.isNotEmpty()) Text(placeholder) },
             singleLine = singleLine,
             maxLines = maxLines,
