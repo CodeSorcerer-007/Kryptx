@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
 
 @Composable
@@ -59,7 +60,7 @@ fun KryptxTextField(
             singleLine = singleLine,
             maxLines = maxLines,
             isError = isError,
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(22.dp),
             textStyle = TextStyle(
                 fontFamily = if (isMonospace) MonospaceFont else FontFamily.Default,
                 fontSize = 15.sp,
@@ -87,12 +88,12 @@ fun KryptxTextField(
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                focusedBorderColor = KryptxBlue,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
                 errorBorderColor = MaterialTheme.colorScheme.error,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                focusedLabelColor = KryptxBlue,
                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
@@ -102,8 +103,9 @@ fun KryptxTextField(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 12.sp,
-                modifier = Modifier.padding(start = 12.dp, top = 4.dp)
+                modifier = Modifier.padding(start = 14.dp, top = 4.dp)
             )
         }
     }
 }
+

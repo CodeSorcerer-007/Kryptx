@@ -1,0 +1,21 @@
+{
+  "name": "Kryptx — Zero-Knowledge Offline Password Vault",
+  "short_name": "Kryptx",
+  "icons": [
+    {
+      "src": "assets/favicons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/favicons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#080A10",
+  "background_color": "#080A10",
+  "display": "standalone",
+  "start_url": "./index.html",
+  "description": "Ultra-secure, 100% offline-first Android password manager with AES-256-GCM encryption, hardware-backed Keystore, real-time TOTP MFA, and zero telemetry."
+}

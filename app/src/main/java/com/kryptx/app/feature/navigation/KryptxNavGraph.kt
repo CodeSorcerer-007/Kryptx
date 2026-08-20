@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -54,7 +55,6 @@ import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.database.IPreferencesRepository
 import com.kryptx.app.core.designsystem.components.FeatureGuide
 import com.kryptx.app.core.designsystem.components.FeatureIntroSheet
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.feature.auth.SetupMasterPasswordScreen
 import com.kryptx.app.feature.auth.UnlockScreen
 import com.kryptx.app.feature.auth.UnlockViewModel
@@ -399,36 +399,28 @@ fun KryptxBottomNavBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 24.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
-                .border(1.dp, com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush, RoundedCornerShape(24.dp))
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .height(64.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(Color(0xFF0A0F1A).copy(alpha = 0.92f))
+                .border(1.dp, com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush, RoundedCornerShape(32.dp))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
             BottomNavTab.entries.forEach { tab ->
                 val isSelected = selectedTab == tab
-                val bgAlpha by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isSelected) 0.15f else 0f,
-                    animationSpec = androidx.compose.animation.core.spring(
-                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-                    ),
-                    label = "tab_bg"
-                )
 
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(KryptxCyan.copy(alpha = bgAlpha))
+                        .size(if (isSelected) 46.dp else 40.dp)
+                        .clip(RoundedCornerShape(if (isSelected) 18.dp else 12.dp))
+                        .background(if (isSelected) Color.White else Color.Transparent)
                         .clickable {
                             com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
                             onTabSelected(tab)
@@ -441,26 +433,15 @@ fun KryptxBottomNavBar(
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = tab.label,
-                            fontSize = 10.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
+                    Icon(
+                        imageVector = tab.icon,
+                        contentDescription = tab.label,
+                        tint = if (isSelected) Color(0xFF070A12) else Color(0xFF8E9CAE),
+                        modifier = Modifier.size(if (isSelected) 22.dp else 20.dp)
+                    )
                 }
             }
         }
     }
 }
+

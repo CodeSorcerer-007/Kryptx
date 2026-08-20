@@ -57,9 +57,12 @@ import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.QrCodeScannerDialog
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
+import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.sync.LocalP2PSyncManager
 import kotlinx.coroutines.launch
 
@@ -85,8 +88,10 @@ fun LocalSyncScreen(
     var isReceiving by remember { mutableStateOf(false) }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
@@ -112,13 +117,13 @@ fun LocalSyncScreen(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(KryptxCyan.copy(alpha = 0.15f)),
+                            .background(KryptxBlue.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Wifi,
                             contentDescription = null,
-                            tint = KryptxCyan,
+                            tint = KryptxBlue,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -128,12 +133,12 @@ fun LocalSyncScreen(
                             text = "Zero-Cloud Direct Transfer",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = "Sync your encrypted vault directly between devices over the same local Wi-Fi or Hotspot network.",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = KryptxIceBlue.copy(alpha = 0.7f),
                             lineHeight = 16.sp
                         )
                     }
@@ -146,15 +151,15 @@ fun LocalSyncScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
                     .padding(4.dp)
             ) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selectedMode == SyncMode.SEND) KryptxCyan else Color.Transparent)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selectedMode == SyncMode.SEND) KryptxBlue else Color.Transparent)
                         .clickable {
                             selectedMode = SyncMode.SEND
                             scope.launch {
@@ -181,7 +186,7 @@ fun LocalSyncScreen(
                         Icon(
                             imageVector = Icons.Default.Upload,
                             contentDescription = null,
-                            tint = if (selectedMode == SyncMode.SEND) Color.Black else MaterialTheme.colorScheme.onSurface,
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -189,7 +194,7 @@ fun LocalSyncScreen(
                             text = "Send Vault",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (selectedMode == SyncMode.SEND) Color.Black else MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                     }
                 }
@@ -197,8 +202,8 @@ fun LocalSyncScreen(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selectedMode == SyncMode.RECEIVE) KryptxCyan else Color.Transparent)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selectedMode == SyncMode.RECEIVE) KryptxBlue else Color.Transparent)
                         .clickable {
                             selectedMode = SyncMode.RECEIVE
                             senderSession = null
@@ -210,7 +215,7 @@ fun LocalSyncScreen(
                         Icon(
                             imageVector = Icons.Default.Download,
                             contentDescription = null,
-                            tint = if (selectedMode == SyncMode.RECEIVE) Color.Black else MaterialTheme.colorScheme.onSurface,
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -218,7 +223,7 @@ fun LocalSyncScreen(
                             text = "Receive Vault",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (selectedMode == SyncMode.RECEIVE) Color.Black else MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                     }
                 }
@@ -244,7 +249,7 @@ fun LocalSyncScreen(
                             Text(
                                 text = "Scan this QR code from the receiving device:",
                                 fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = KryptxIceBlue.copy(alpha = 0.7f)
                             )
 
                             Spacer(modifier = Modifier.height(16.dp))
@@ -274,9 +279,9 @@ fun LocalSyncScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                    .border(1.dp, KryptxCyan.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .border(1.dp, KryptxBlue.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                                     .padding(16.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -285,7 +290,7 @@ fun LocalSyncScreen(
                                         text = "TRANSFER VERIFICATION PIN",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Color.White.copy(alpha = 0.6f)
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
@@ -293,13 +298,13 @@ fun LocalSyncScreen(
                                         fontSize = 28.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = MonospaceFont,
-                                        color = KryptxCyan
+                                        color = KryptxBlue
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "Server IP: ${session.ipAddress}:${session.port}",
                                         fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = KryptxIceBlue.copy(alpha = 0.7f)
                                     )
                                 }
                             }
@@ -311,13 +316,13 @@ fun LocalSyncScreen(
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(16.dp),
                                         strokeWidth = 2.dp,
-                                        color = KryptxCyan
+                                        color = KryptxBlue
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "Waiting for nearby device to connect...",
                                         fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Color.White.copy(alpha = 0.6f)
                                     )
                                 }
                             }
@@ -329,12 +334,14 @@ fun LocalSyncScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         KryptxPrimaryButton(
                             text = "Scan Sender's QR Code",
+                            containerColor = KryptxBlue,
+                            contentColor = Color.White,
                             onClick = { showQrScanner = true },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.QrCodeScanner,
                                     contentDescription = null,
-                                    tint = Color.Black,
+                                    tint = Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
                             },
@@ -347,7 +354,7 @@ fun LocalSyncScreen(
                             text = "OR ENTER TRANSFER DETAILS MANUALLY",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
 
@@ -377,13 +384,13 @@ fun LocalSyncScreen(
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
-                                    color = KryptxCyan
+                                    color = KryptxBlue
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Connecting and importing vault...",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.White.copy(alpha = 0.6f)
                                 )
                             }
                         }
@@ -394,7 +401,7 @@ fun LocalSyncScreen(
                     Text(
                         text = "Select 'Send Vault' to beam credentials from this device, or 'Receive Vault' to import credentials from another nearby device.",
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = KryptxIceBlue.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp,
                         modifier = Modifier.padding(24.dp)
@@ -405,6 +412,7 @@ fun LocalSyncScreen(
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
+
 
     if (showQrScanner) {
         QrCodeScannerDialog(

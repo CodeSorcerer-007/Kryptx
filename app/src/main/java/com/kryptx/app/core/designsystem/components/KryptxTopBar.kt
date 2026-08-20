@@ -1,6 +1,8 @@
 package com.kryptx.app.core.designsystem.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -11,19 +13,52 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
+
+@Composable
+fun KryptxCircleIconButton(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+    iconSize: Dp = 20.dp,
+    iconTint: Color = Color.White
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+            .bounceClick(scaleDown = 0.90f, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = iconTint,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
 
 @Composable
 fun KryptxTopBar(
@@ -39,27 +74,23 @@ fun KryptxTopBar(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .height(58.dp)
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 8.dp)
+            .height(60.dp)
+            .background(Color.Transparent)
+            .padding(horizontal = 16.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (showBackButton) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                KryptxCircleIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    onClick = onBackClick
+                )
+                Spacer(modifier = Modifier.width(14.dp))
             } else if (showBrandLogo) {
-                Spacer(modifier = Modifier.width(8.dp))
-                KryptxLogo(size = 32.dp, showGlow = false)
-                Spacer(modifier = Modifier.width(10.dp))
-            } else {
+                KryptxLogo(size = 36.dp, showGlow = false)
                 Spacer(modifier = Modifier.width(12.dp))
             }
 
@@ -68,22 +99,22 @@ fun KryptxTopBar(
                     androidx.compose.foundation.layout.Column {
                         Text(
                             text = title,
-                            fontSize = 17.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = subtitle,
-                            fontSize = 11.sp,
-                            color = KryptxCyan
+                            fontSize = 12.sp,
+                            color = KryptxIceBlue
                         )
                     }
                 } else {
                     Text(
                         text = title,
-                        fontSize = 18.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = Color.White
                     )
                 }
             }
@@ -92,3 +123,4 @@ fun KryptxTopBar(
         }
     }
 }
+

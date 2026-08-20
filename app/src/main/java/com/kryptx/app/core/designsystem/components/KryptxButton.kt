@@ -25,30 +25,34 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxBrandDiagonalGradient
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 
+/**
+ * Full-width capsule pill primary action button in WorkONE #1F75FE styling.
+ */
 @Composable
 fun KryptxPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    useBrandGradient: Boolean = true,
-    containerColor: Color = MaterialTheme.colorScheme.primary,
-    contentColor: Color = Color.Black,
+    useBrandGradient: Boolean = false,
+    containerColor: Color = KryptxBlue,
+    contentColor: Color = Color.White,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(28.dp)
 
     if (useBrandGradient && enabled) {
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(54.dp)
+                .height(56.dp)
                 .bounceClick(scaleDown = 0.96f, onClick = onClick)
                 .clip(shape)
-                .background(KryptxBrandDiagonalGradient)
+                .background(KryptxElectricBlueGradient)
                 .border(1.dp, GlassmorphismSpecularBrush, shape),
             contentAlignment = Alignment.Center
         ) {
@@ -60,8 +64,8 @@ fun KryptxPrimaryButton(
                 Text(
                     text = text,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = Color.Black
+                    fontSize = 16.sp,
+                    color = Color.White
                 )
             }
         }
@@ -70,14 +74,14 @@ fun KryptxPrimaryButton(
             onClick = onClick,
             modifier = modifier
                 .fillMaxWidth()
-                .height(54.dp)
+                .height(56.dp)
                 .bounceClick(scaleDown = 0.96f, onClick = onClick),
             enabled = enabled,
             shape = shape,
             colors = ButtonDefaults.buttonColors(
                 containerColor = containerColor,
                 contentColor = contentColor,
-                disabledContainerColor = containerColor.copy(alpha = 0.25f),
+                disabledContainerColor = containerColor.copy(alpha = 0.35f),
                 disabledContentColor = contentColor.copy(alpha = 0.4f)
             )
         ) {
@@ -88,7 +92,8 @@ fun KryptxPrimaryButton(
             Text(
                 text = text,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                fontSize = 16.sp,
+                color = if (enabled) contentColor else contentColor.copy(alpha = 0.5f)
             )
         }
     }
@@ -104,7 +109,7 @@ fun KryptxOutlinedButton(
     textColor: Color = MaterialTheme.colorScheme.onSurface,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(26.dp)
     OutlinedButton(
         onClick = onClick,
         modifier = modifier
@@ -134,9 +139,9 @@ fun KryptxGlassButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
+    shape: Shape = RoundedCornerShape(26.dp),
     backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-    textColor: Color = KryptxCyan,
+    textColor: Color = KryptxBlue,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     Box(
@@ -164,3 +169,4 @@ fun KryptxGlassButton(
         }
     }
 }
+

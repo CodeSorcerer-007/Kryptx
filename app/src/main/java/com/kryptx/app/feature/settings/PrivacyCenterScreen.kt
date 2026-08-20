@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,14 +30,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
+import com.kryptx.app.core.designsystem.theme.OledBackground
 
 @Composable
 fun PrivacyCenterScreen(
@@ -44,8 +50,10 @@ fun PrivacyCenterScreen(
     modifier: Modifier = Modifier
 ) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         topBar = {
             KryptxTopBar(
                 title = "Privacy Center",
@@ -63,9 +71,13 @@ fun PrivacyCenterScreen(
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
-            KryptxCard(
-                backgroundColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
-                borderColor = KryptxCyan.copy(alpha = 0.3f)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF0C1424).copy(alpha = 0.75f))
+                    .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(22.dp))
+                    .padding(18.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -75,13 +87,13 @@ fun PrivacyCenterScreen(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(KryptxCyan.copy(alpha = 0.15f)),
+                            .background(KryptxBlue.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.PrivacyTip,
                             contentDescription = null,
-                            tint = KryptxCyan,
+                            tint = KryptxBlue,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -91,12 +103,12 @@ fun PrivacyCenterScreen(
                             text = "Zero-Knowledge Guarantee",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = "Your master password is never stored or sent anywhere.",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KryptxIceBlue.copy(alpha = 0.8f)
                         )
                     }
                 }
@@ -108,7 +120,7 @@ fun PrivacyCenterScreen(
                 text = "CORE PRIVACY PRINCIPLES",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -136,23 +148,30 @@ fun PrivacyCenterScreen(
                 text = "PERMISSIONS EXPLAINED",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            KryptxCard {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
                 Column {
                     Text(
                         text = "• USE_BIOMETRIC: Required to communicate with Android BiometricPrompt hardware for fingerprint and face unlock.",
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White.copy(alpha = 0.85f),
                         lineHeight = 18.sp
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "• BIND_AUTOFILL_SERVICE: Required by Android to let Kryptx fill credentials into apps and browsers when requested by you.",
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White.copy(alpha = 0.85f),
                         lineHeight = 18.sp
                     )
                 }
@@ -169,7 +188,15 @@ fun PrivacyPrincipleItem(
     title: String,
     description: String
 ) {
-    KryptxCard(modifier = Modifier.padding(vertical = 4.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Box(
                 modifier = Modifier
@@ -191,16 +218,17 @@ fun PrivacyPrincipleItem(
                     text = title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = description,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.65f),
                     lineHeight = 17.sp
                 )
             }
         }
     }
 }
+

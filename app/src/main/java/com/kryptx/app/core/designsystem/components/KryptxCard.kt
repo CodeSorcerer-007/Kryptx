@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun KryptxCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
-    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+    shape: Shape = RoundedCornerShape(22.dp),
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
     borderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
     borderBrush: Brush? = GlassmorphismSpecularBrush,
     borderWidth: Dp = 1.dp,
@@ -63,7 +63,7 @@ fun KryptxCard(
 @Composable
 fun KryptxGlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(20.dp),
+    shape: Shape = RoundedCornerShape(22.dp),
     backgroundColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
     borderBrush: Brush = GlassmorphismSpecularBrush,
     onClick: (() -> Unit)? = null,
@@ -87,3 +87,4 @@ fun KryptxGlassCard(
         content()
     }
 }
+

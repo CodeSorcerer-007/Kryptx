@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.crypto.EntropyCalculator
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.model.IssueSeverity
@@ -40,7 +40,7 @@ import com.kryptx.app.core.model.ItemType
 @Composable
 fun ItemTypeBadge(type: ItemType, modifier: Modifier = Modifier) {
     val (icon, color) = when (type) {
-        ItemType.LOGIN -> Pair(Icons.Default.Lock, KryptxCyan)
+        ItemType.LOGIN -> Pair(Icons.Default.Lock, KryptxBlue)
         ItemType.CREDIT_CARD -> Pair(Icons.Default.CreditCard, KryptxAmber)
         ItemType.IDENTITY -> Pair(Icons.Default.Person, Color(0xFFAB47BC))
         ItemType.SECURE_NOTE -> Pair(Icons.AutoMirrored.Filled.Note, Color(0xFF26A69A))
@@ -75,7 +75,7 @@ fun SeverityBadge(severity: IssueSeverity, modifier: Modifier = Modifier) {
     val (bgColor, textColor, label) = when (severity) {
         IssueSeverity.CRITICAL -> Triple(KryptxRed.copy(alpha = 0.15f), KryptxRed, "CRITICAL")
         IssueSeverity.WARNING -> Triple(KryptxAmber.copy(alpha = 0.15f), KryptxAmber, "WARNING")
-        IssueSeverity.INFO -> Triple(KryptxCyan.copy(alpha = 0.15f), KryptxCyan, "INFO")
+        IssueSeverity.INFO -> Triple(KryptxBlue.copy(alpha = 0.15f), KryptxBlue, "INFO")
     }
 
     Box(

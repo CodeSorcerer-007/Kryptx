@@ -1,6 +1,7 @@
 package com.kryptx.app.core.designsystem.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,12 +20,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 
 @Composable
 fun KryptxEmptyState(
@@ -46,13 +49,14 @@ fun KryptxEmptyState(
             modifier = Modifier
                 .size(72.dp)
                 .clip(CircleShape)
-                .background(KryptxCyan.copy(alpha = 0.1f)),
+                .background(KryptxBlue.copy(alpha = 0.12f))
+                .border(1.dp, KryptxBlue.copy(alpha = 0.25f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = KryptxCyan,
+                tint = KryptxBlue,
                 modifier = Modifier.size(36.dp)
             )
         }
@@ -62,8 +66,8 @@ fun KryptxEmptyState(
         Text(
             text = title,
             fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             textAlign = TextAlign.Center
         )
 
@@ -72,7 +76,7 @@ fun KryptxEmptyState(
         Text(
             text = subtitle,
             fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = KryptxIceBlue.copy(alpha = 0.75f),
             textAlign = TextAlign.Center,
             lineHeight = 20.sp
         )
@@ -81,9 +85,12 @@ fun KryptxEmptyState(
             Spacer(modifier = Modifier.height(24.dp))
             KryptxPrimaryButton(
                 text = actionButtonText,
+                containerColor = KryptxBlue,
+                contentColor = Color.White,
                 onClick = onActionClick,
-                modifier = Modifier.fillMaxWidth(0.8f)
+                modifier = Modifier.fillMaxWidth(0.85f)
             )
         }
     }
 }
+

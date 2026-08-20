@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,7 +46,11 @@ import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.components.bounceClick
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
+import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.launch
 
@@ -70,8 +77,10 @@ fun SecuritySettingsScreen(
     var showDuressDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
@@ -91,7 +100,14 @@ fun SecuritySettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Biometrics Section
-            KryptxCard {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -101,12 +117,12 @@ fun SecuritySettingsScreen(
                             text = "Biometric Authentication",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = "Unlock vault with fingerprint or face recognition",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KryptxIceBlue.copy(alpha = 0.7f)
                         )
                     }
                     Switch(
@@ -121,7 +137,11 @@ fun SecuritySettingsScreen(
                                     }
                                 }
                             }
-                        }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = KryptxBlue
+                        )
                     )
                 }
             }
@@ -141,7 +161,14 @@ fun SecuritySettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Lock on background
-            KryptxCard {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -151,17 +178,21 @@ fun SecuritySettingsScreen(
                             text = "Lock on Background",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = "Lock immediately when Kryptx leaves foreground",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KryptxIceBlue.copy(alpha = 0.7f)
                         )
                     }
                     Switch(
                         checked = lockOnBackground,
-                        onCheckedChange = { viewModel.setLockOnBackground(it) }
+                        onCheckedChange = { viewModel.setLockOnBackground(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = KryptxBlue
+                        )
                     )
                 }
             }
@@ -178,7 +209,14 @@ fun SecuritySettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // FLAG_SECURE
-            KryptxCard {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -188,17 +226,21 @@ fun SecuritySettingsScreen(
                             text = "Screenshot & Recents Protection",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = "Blocks screenshots and hides vault previews in app switcher (FLAG_SECURE)",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KryptxIceBlue.copy(alpha = 0.7f)
                         )
                     }
                     Switch(
                         checked = flagSecureEnabled,
-                        onCheckedChange = { viewModel.setFlagSecureEnabled(it) }
+                        onCheckedChange = { viewModel.setFlagSecureEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = KryptxBlue
+                        )
                     )
                 }
             }
@@ -245,12 +287,14 @@ fun SecuritySettingsScreen(
                 text = "MASTER PASSWORD & PANIC RECOVERY",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
             KryptxOutlinedButton(
                 text = "Change Master Password",
+                borderColor = KryptxBlue,
+                textColor = KryptxBlue,
                 onClick = { showChangePasswordDialog = true }
             )
 
@@ -315,7 +359,7 @@ fun SecuritySettingsScreen(
                                     viewModel.setAutoLockSeconds(timeout.seconds)
                                     showAutoLockDialog = false
                                 },
-                                colors = RadioButtonDefaults.colors(selectedColor = KryptxCyan)
+                                colors = RadioButtonDefaults.colors(selectedColor = KryptxBlue)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(text = timeout.label, fontSize = 14.sp)
@@ -324,7 +368,7 @@ fun SecuritySettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAutoLockDialog = false }) { Text("Close") }
+                TextButton(onClick = { showAutoLockDialog = false }) { Text("Close", color = KryptxBlue) }
             }
         )
     }
@@ -353,7 +397,7 @@ fun SecuritySettingsScreen(
                                     viewModel.setClipboardTimeout(sec)
                                     showClipboardDialog = false
                                 },
-                                colors = RadioButtonDefaults.colors(selectedColor = KryptxCyan)
+                                colors = RadioButtonDefaults.colors(selectedColor = KryptxBlue)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(text = label, fontSize = 14.sp)
@@ -362,7 +406,7 @@ fun SecuritySettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showClipboardDialog = false }) { Text("Close") }
+                TextButton(onClick = { showClipboardDialog = false }) { Text("Close", color = KryptxBlue) }
             }
         )
     }
@@ -397,9 +441,10 @@ fun SettingItemCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .clickable { onClick() }
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+            .bounceClick(scaleDown = 0.98f, onClick = onClick)
             .padding(16.dp)
     ) {
         Column {
@@ -407,13 +452,13 @@ fun SettingItemCard(
                 text = title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = Color.White
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
                 fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color.White.copy(alpha = 0.65f)
             )
         }
     }
@@ -479,7 +524,7 @@ fun ChangeMasterPasswordDialog(
                     onSubmit(currentPassword, newPassword)
                 }
             ) {
-                Text("Update Password", color = KryptxCyan, fontWeight = FontWeight.Bold)
+                Text("Update Password", color = KryptxBlue, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -556,7 +601,7 @@ fun DuressPasswordDialog(
                         onSetup(duressPassword)
                     }
                 ) {
-                    Text("Save Duress Mode", color = KryptxCyan, fontWeight = FontWeight.Bold)
+                    Text("Save Duress Mode", color = KryptxBlue, fontWeight = FontWeight.Bold)
                 }
             }
         },
@@ -565,3 +610,4 @@ fun DuressPasswordDialog(
         }
     )
 }
+

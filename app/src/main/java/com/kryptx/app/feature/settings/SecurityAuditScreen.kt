@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,15 +29,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
+import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.security.RootDetector
 
 @Composable
@@ -47,8 +53,10 @@ fun SecurityAuditScreen(
     val securityStatus = remember { RootDetector.checkDeviceSecurity() }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         topBar = {
             KryptxTopBar(
                 title = "Security Diagnostics",
@@ -67,9 +75,17 @@ fun SecurityAuditScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Diagnostic Header
-            KryptxCard(
-                backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                borderColor = if (securityStatus.isRooted) KryptxAmber.copy(alpha = 0.4f) else KryptxEmerald.copy(alpha = 0.4f)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF0C1424).copy(alpha = 0.75f))
+                    .border(
+                        1.dp,
+                        if (securityStatus.isRooted) androidx.compose.ui.graphics.SolidColor(KryptxAmber.copy(alpha = 0.4f)) else GlassmorphismSpecularBrush,
+                        RoundedCornerShape(22.dp)
+                    )
+                    .padding(18.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -97,12 +113,12 @@ fun SecurityAuditScreen(
                             text = if (securityStatus.isRooted) "Device Risk Detected" else "System Integrity Verified",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = if (securityStatus.isRooted) "Root binaries or test-keys detected" else "Keystore & crypto hardware fully operational",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KryptxIceBlue.copy(alpha = 0.8f)
                         )
                     }
                 }
@@ -114,7 +130,7 @@ fun SecurityAuditScreen(
                 text = "CRYPTOGRAPHIC ENGINE PARAMETERS",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -132,11 +148,18 @@ fun SecurityAuditScreen(
                 text = "SYSTEM INTEGRITY SCAN RESULTS",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            KryptxCard {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
                 Column {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -146,7 +169,7 @@ fun SecurityAuditScreen(
                             text = "Root Privilege Status",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = Color.White,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
@@ -163,13 +186,13 @@ fun SecurityAuditScreen(
                             text = "Detected Indicators:",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KryptxIceBlue.copy(alpha = 0.8f)
                         )
                         securityStatus.detectedIndicators.forEach { indicator ->
                             Text(
                                 text = "• $indicator",
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = Color.White.copy(alpha = 0.65f),
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
@@ -188,8 +211,9 @@ fun CryptoParamRow(name: String, value: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(
@@ -200,7 +224,7 @@ fun CryptoParamRow(name: String, value: String) {
                 text = name,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = Color.White,
                 modifier = Modifier.weight(1f)
             )
             Text(
@@ -208,8 +232,9 @@ fun CryptoParamRow(name: String, value: String) {
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = MonospaceFont,
-                color = KryptxCyan
+                color = KryptxBlue
             )
         }
     }
 }
+

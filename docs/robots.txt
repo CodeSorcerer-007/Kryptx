@@ -1,0 +1,8 @@
+# robots.txt for Kryptx Documentation & Showcase
+User-agent: *
+Allow: /
+Disallow: /scratch/
+Disallow: /drafts/
+
+# Sitemap index location
+Sitemap: https://codesorcerer-007.github.io/Kryptx/sitemap.xml

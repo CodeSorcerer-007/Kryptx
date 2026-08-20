@@ -43,8 +43,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
+import com.kryptx.app.core.designsystem.theme.OledBackground
 
 /**
  * Feature registry containing short, sweet, beginner-friendly introductions
@@ -173,7 +175,7 @@ fun FeatureIntroSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = Color(0xFF0C1424),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = {
             Box(
@@ -182,7 +184,7 @@ fun FeatureIntroSheet(
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                    .background(Color.White.copy(alpha = 0.3f))
             )
         }
     ) {
@@ -201,14 +203,14 @@ fun FeatureIntroSheet(
                     modifier = Modifier
                         .size(52.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(KryptxCyan.copy(alpha = 0.15f))
-                        .border(1.dp, KryptxCyan.copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+                        .background(KryptxBlue.copy(alpha = 0.15f))
+                        .border(1.dp, KryptxBlue.copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = feature.icon,
                         contentDescription = feature.title,
-                        tint = KryptxCyan,
+                        tint = KryptxBlue,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -220,13 +222,13 @@ fun FeatureIntroSheet(
                         text = feature.title,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = Color.White
                     )
                     Text(
                         text = feature.subtitle,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = KryptxCyan
+                        color = KryptxBlue
                     )
                 }
             }
@@ -246,7 +248,7 @@ fun FeatureIntroSheet(
             // Why use it?
             FeatureInfoRow(
                 icon = Icons.Default.CheckCircle,
-                iconTint = KryptxCyan,
+                iconTint = KryptxBlue,
                 title = "WHY USE IT?",
                 description = feature.whyUseIt
             )
@@ -283,7 +285,7 @@ fun FeatureIntroSheet(
                         Text(
                             text = feature.proTip,
                             fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = Color.White.copy(alpha = 0.9f),
                             lineHeight = 18.sp
                         )
                     }
@@ -295,6 +297,8 @@ fun FeatureIntroSheet(
             // Action Button
             KryptxPrimaryButton(
                 text = "Got It, Explore!",
+                containerColor = KryptxBlue,
+                contentColor = Color.White,
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth()
             )

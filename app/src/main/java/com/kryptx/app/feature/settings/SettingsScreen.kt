@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,9 +41,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.components.bounceClick
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
+import com.kryptx.app.core.designsystem.theme.OledBackground
 
 @Composable
 fun SettingsScreen(
@@ -57,8 +63,10 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         topBar = {
             KryptxTopBar(title = "Settings")
         }
@@ -73,7 +81,14 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // App Identity Hero Card
-            KryptxCard {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF0C1424).copy(alpha = 0.75f))
+                    .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(22.dp))
+                    .padding(18.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -85,12 +100,12 @@ fun SettingsScreen(
                             text = "Kryptx Password Manager",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = "Version 1.0.0 • Zero-Knowledge Architecture",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KryptxIceBlue.copy(alpha = 0.8f)
                         )
                     }
                 }
@@ -102,7 +117,7 @@ fun SettingsScreen(
                 text = "PREFERENCES & CONFIGURATION",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -115,7 +130,7 @@ fun SettingsScreen(
 
             SettingsNavRow(
                 title = "Appearance & Theme",
-                subtitle = "Obsidian Dark, Pure Black AMOLED, Solar Light, Dynamic Color",
+                subtitle = "OLED Black, WorkONE Blue, Solar Light, Dynamic Color",
                 icon = Icons.Default.ColorLens,
                 onClick = onNavigateToAppearance
             )
@@ -147,7 +162,7 @@ fun SettingsScreen(
                 text = "TRANSPARENCY & AUDIT",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -188,9 +203,10 @@ fun SettingsNavRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .clickable { onClick() }
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .bounceClick(scaleDown = 0.98f, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
@@ -200,14 +216,14 @@ fun SettingsNavRow(
             Box(
                 modifier = Modifier
                     .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(KryptxCyan.copy(alpha = 0.1f)),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(KryptxBlue.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = KryptxCyan,
+                    tint = KryptxBlue,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -219,13 +235,13 @@ fun SettingsNavRow(
                     text = title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.65f),
                     lineHeight = 16.sp
                 )
             }
@@ -233,9 +249,10 @@ fun SettingsNavRow(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                tint = Color.White.copy(alpha = 0.4f),
                 modifier = Modifier.size(14.dp)
             )
         }
     }
 }
+

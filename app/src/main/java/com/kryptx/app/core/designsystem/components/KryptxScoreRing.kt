@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 
@@ -51,11 +51,11 @@ fun KryptxScoreRing(
         listOf(
             arcColor.copy(alpha = 0.5f),
             arcColor,
-            if (score >= 80) KryptxCyan else arcColor
+            if (score >= 80) KryptxBlue else arcColor
         )
     )
 
-    val backgroundRingColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+    val backgroundRingColor = Color.White.copy(alpha = 0.12f)
 
     Box(
         modifier = modifier

@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.securitycenter
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -34,15 +34,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxCard
+import com.kryptx.app.core.designsystem.components.KryptxCircleIconButton
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxScoreRing
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.SeverityBadge
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
+import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.model.SecurityIssue
 
 @Composable
@@ -55,19 +60,19 @@ fun SecurityCenterScreen(
     val isLoading by viewModel.isLoading.collectAsState()
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         topBar = {
             KryptxTopBar(
-                title = "Security Center",
+                title = "Security Pulse",
                 actions = {
-                    IconButton(onClick = { viewModel.runAudit() }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh Audit",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    KryptxCircleIconButton(
+                        icon = Icons.Default.Refresh,
+                        contentDescription = "Refresh Audit",
+                        onClick = { viewModel.runAudit() }
+                    )
                 }
             )
         }
@@ -79,7 +84,7 @@ fun SecurityCenterScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Analyzing vault security...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Analyzing vault security...", color = Color.White.copy(alpha = 0.6f))
             }
         } else {
             val r = report!!
@@ -93,9 +98,13 @@ fun SecurityCenterScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Main Health Score Hero Card
-                    KryptxCard(
-                        backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        borderColor = if (r.overallScore >= 80) KryptxEmerald.copy(alpha = 0.3f) else KryptxAmber.copy(alpha = 0.3f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Color(0xFF0C1424).copy(alpha = 0.75f))
+                            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(22.dp))
+                            .padding(20.dp)
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -104,7 +113,7 @@ fun SecurityCenterScreen(
                             KryptxScoreRing(
                                 score = r.overallScore,
                                 grade = "Grade ${r.healthGrade}",
-                                size = 150.dp
+                                size = 140.dp
                             )
 
                             Spacer(modifier = Modifier.height(16.dp))
@@ -117,7 +126,7 @@ fun SecurityCenterScreen(
                                 },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.White
                             )
 
                             Spacer(modifier = Modifier.height(4.dp))
@@ -125,7 +134,7 @@ fun SecurityCenterScreen(
                             Text(
                                 text = "${r.issues.size} security findings require your attention",
                                 fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = KryptxIceBlue.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -158,7 +167,7 @@ fun SecurityCenterScreen(
                         AuditStatBox(
                             count = r.missing2faCount,
                             label = "No 2FA",
-                            color = KryptxCyan,
+                            color = KryptxBlue,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -169,14 +178,21 @@ fun SecurityCenterScreen(
                         text = "SECURITY FINDINGS",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                 }
 
                 if (r.issues.isEmpty()) {
                     item {
-                        KryptxCard {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+                                .padding(16.dp)
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -193,12 +209,12 @@ fun SecurityCenterScreen(
                                         text = "No Security Issues Found",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = Color.White
                                     )
                                     Text(
                                         text = "All passwords meet high-entropy standards.",
                                         fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Color.White.copy(alpha = 0.65f)
                                     )
                                 }
                             }
@@ -231,8 +247,9 @@ fun AuditStatBox(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
             .padding(vertical = 12.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -241,13 +258,13 @@ fun AuditStatBox(
                 text = "$count",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (count > 0) color else MaterialTheme.colorScheme.onSurface
+                color = if (count > 0) color else Color.White
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = label,
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color.White.copy(alpha = 0.6f)
             )
         }
     }
@@ -258,7 +275,14 @@ fun SecurityIssueCard(
     issue: SecurityIssue,
     onFix: () -> Unit
 ) {
-    KryptxCard {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+            .padding(16.dp)
+    ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -270,7 +294,7 @@ fun SecurityIssueCard(
                     text = issue.itemTitle,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
             }
 
@@ -280,7 +304,7 @@ fun SecurityIssueCard(
                 text = issue.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -288,7 +312,7 @@ fun SecurityIssueCard(
             Text(
                 text = issue.description,
                 fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.65f),
                 lineHeight = 17.sp
             )
 
@@ -301,9 +325,12 @@ fun SecurityIssueCard(
                 KryptxOutlinedButton(
                     text = "Fix Now",
                     modifier = Modifier.width(110.dp).height(38.dp),
+                    borderColor = KryptxBlue,
+                    textColor = KryptxBlue,
                     onClick = onFix
                 )
             }
         }
     }
 }
+

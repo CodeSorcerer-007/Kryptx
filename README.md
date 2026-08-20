@@ -1,9 +1,8 @@
 # 🛡️ Kryptx — Flagship Zero-Knowledge Android Password Fortress
 
 <div align="center">
-
-![Kryptx Banner](Logo.png)
-
+<img src="Logo.png" alt="Kryptx Logo" width="180" />
+<br><br>
 [![Android 16](https://img.shields.io/badge/Android-16%20(API%2036)-00E676?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)

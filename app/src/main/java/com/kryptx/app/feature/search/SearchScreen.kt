@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -41,7 +42,10 @@ import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxEmptyState
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.components.bounceClick
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.feature.vault.VaultItemRow
 import kotlinx.coroutines.launch
 
@@ -60,8 +64,10 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
@@ -86,7 +92,7 @@ fun SearchScreen(
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = null,
-                            tint = KryptxCyan
+                            tint = KryptxBlue
                         )
                     },
                     trailingIcon = {
@@ -95,7 +101,7 @@ fun SearchScreen(
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Clear",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = Color.White.copy(alpha = 0.7f)
                                 )
                             }
                         }
@@ -108,8 +114,8 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 SearchFilterPill(
                     label = "⭐ Favorites",
@@ -133,7 +139,7 @@ fun SearchScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Search Results List
             if (results.isEmpty()) {
@@ -147,7 +153,11 @@ fun SearchScreen(
                     )
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     items(results, key = { it.id }) { item ->
                         VaultItemRow(
                             item = item,
@@ -175,18 +185,24 @@ fun SearchFilterPill(
 ) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(
-                if (isSelected) KryptxCyan else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.08f)
             )
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .border(
+                1.dp,
+                if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.15f),
+                RoundedCornerShape(14.dp)
+            )
+            .bounceClick(scaleDown = 0.94f, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(
             text = label,
             fontSize = 12.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f)
         )
     }
 }
+

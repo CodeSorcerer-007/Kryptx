@@ -20,8 +20,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kryptx.app.R
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
-import com.kryptx.app.core.designsystem.theme.KryptxViolet
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 
 @Composable
 fun KryptxLogo(
@@ -40,19 +40,19 @@ fun KryptxLogo(
                     Modifier.shadow(
                         elevation = 16.dp,
                         shape = shape,
-                        ambientColor = KryptxCyan.copy(alpha = 0.4f),
-                        spotColor = KryptxViolet.copy(alpha = 0.5f)
+                        ambientColor = KryptxBlue.copy(alpha = 0.4f),
+                        spotColor = KryptxBlue.copy(alpha = 0.5f)
                     )
                 } else Modifier
             )
             .clip(shape)
-            .background(Color(0xFF0C0E14))
+            .background(Color(0xFF0C1424))
             .border(
                 width = 1.dp,
                 brush = Brush.linearGradient(
                     listOf(
-                        KryptxCyan.copy(alpha = 0.6f),
-                        KryptxViolet.copy(alpha = 0.4f),
+                        KryptxBlue.copy(alpha = 0.6f),
+                        KryptxBlue.copy(alpha = 0.2f),
                         Color.Transparent
                     )
                 ),
@@ -63,7 +63,7 @@ fun KryptxLogo(
         Image(
             painter = painterResource(id = R.drawable.kryptx_logo),
             contentDescription = "Kryptx Logo",
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize()
         )
     }

@@ -71,7 +71,7 @@ import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import java.util.concurrent.Executors
 
@@ -213,7 +213,7 @@ private fun CameraPreviewWithScanner(
                 modifier = Modifier
                     .size(260.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .border(2.dp, KryptxCyan, RoundedCornerShape(24.dp))
+                    .border(2.dp, KryptxBlue, RoundedCornerShape(24.dp))
             ) {
                 // Animated laser beam
                 Box(
@@ -221,7 +221,7 @@ private fun CameraPreviewWithScanner(
                         .fillMaxWidth()
                         .height(3.dp)
                         .offset(y = laserPosition.dp)
-                        .background(KryptxCyan)
+                        .background(KryptxBlue)
                 )
             }
         }
@@ -309,13 +309,13 @@ private fun CameraPermissionRationale(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(KryptxCyan.copy(alpha = 0.15f)),
+                    .background(KryptxBlue.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.CameraAlt,
                     contentDescription = "Camera Icon",
-                    tint = KryptxCyan,
+                    tint = KryptxBlue,
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -345,12 +345,14 @@ private fun CameraPermissionRationale(
 
             KryptxPrimaryButton(
                 text = "Grant Camera Permission",
+                containerColor = KryptxBlue,
+                contentColor = Color.White,
                 onClick = onRequestPermission,
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.QrCodeScanner,
                         contentDescription = null,
-                        tint = Color.Black,
+                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                 },
@@ -361,6 +363,8 @@ private fun CameraPermissionRationale(
 
             KryptxOutlinedButton(
                 text = "Cancel",
+                borderColor = KryptxBlue,
+                textColor = KryptxBlue,
                 onClick = onClose,
                 modifier = Modifier.fillMaxWidth()
             )

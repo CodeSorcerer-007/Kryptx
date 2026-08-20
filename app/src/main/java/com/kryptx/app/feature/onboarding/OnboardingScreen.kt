@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,10 +15,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Fingerprint
@@ -38,12 +41,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxLogo
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
-import com.kryptx.app.core.designsystem.theme.KryptxViolet
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
+import com.kryptx.app.core.designsystem.theme.OledBackground
 import kotlinx.coroutines.launch
 
 data class OnboardingPageData(
@@ -63,25 +69,25 @@ fun OnboardingScreen(
             title = "Zero-Knowledge Architecture",
             description = "Your master password is never stored or sent anywhere. Everything is encrypted locally with AES-256-GCM and 600,000 PBKDF2 rounds.",
             icon = Icons.Default.Shield,
-            accentColor = KryptxCyan
+            accentColor = KryptxBlue
         ),
         OnboardingPageData(
             title = "Hardware Biometric Vault",
             description = "Unlock your credentials instantly with fingerprint or facial recognition protected by Android Keystore hardware security.",
             icon = Icons.Default.Fingerprint,
-            accentColor = KryptxViolet
+            accentColor = KryptxBlue
         ),
         OnboardingPageData(
             title = "Built-in 2FA Authenticator",
             description = "Generate RFC 6238 TOTP codes directly inside Kryptx with real-time synchronized countdown timers and 1-tap copy.",
             icon = Icons.Default.Key,
-            accentColor = KryptxEmerald
+            accentColor = KryptxBlue
         ),
         OnboardingPageData(
             title = "Security Pulse & Autofill",
             description = "Audit compromised passwords, generate high-entropy passphrases, and fill credentials automatically across all Android apps.",
             icon = Icons.Default.AutoAwesome,
-            accentColor = KryptxCyan
+            accentColor = KryptxBlue
         )
     )
 
@@ -89,13 +95,16 @@ fun OnboardingScreen(
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .statusBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
@@ -103,23 +112,23 @@ fun OnboardingScreen(
             // Brand Header with official logo
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 24.dp)
+                modifier = Modifier.padding(top = 20.dp)
             ) {
-                KryptxLogo(size = 92.dp, showGlow = true)
+                KryptxLogo(size = 88.dp, showGlow = true)
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = "K R Y P T X",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 4.sp,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = Color.White
                 )
                 Text(
                     text = "FLAGSHIP NATIVE VAULT",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp,
-                    color = KryptxCyan
+                    color = KryptxBlue
                 )
             }
 
@@ -135,31 +144,34 @@ fun OnboardingScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    KryptxCard(
-                        backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        borderColor = page.accentColor.copy(alpha = 0.3f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color(0xFF0C1424).copy(alpha = 0.75f))
+                            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(24.dp))
+                            .padding(24.dp)
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(60.dp)
+                                    .size(64.dp)
                                     .clip(CircleShape)
-                                    .background(page.accentColor.copy(alpha = 0.15f)),
+                                    .background(KryptxBlue.copy(alpha = 0.15f))
+                                    .border(1.dp, KryptxBlue.copy(alpha = 0.35f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = page.icon,
                                     contentDescription = null,
-                                    tint = page.accentColor,
+                                    tint = KryptxBlue,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -168,14 +180,14 @@ fun OnboardingScreen(
                                 text = page.title,
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = Color.White,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = page.description,
                                 fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = Color.White.copy(alpha = 0.65f),
                                 textAlign = TextAlign.Center,
                                 lineHeight = 19.sp
                             )
@@ -202,7 +214,7 @@ fun OnboardingScreen(
                                 .width(if (isSelected) 24.dp else 6.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isSelected) KryptxCyan else MaterialTheme.colorScheme.surfaceVariant
+                                    if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.2f)
                                 )
                         )
                     }
@@ -210,7 +222,8 @@ fun OnboardingScreen(
 
                 KryptxPrimaryButton(
                     text = if (pagerState.currentPage == pages.size - 1) "Create Your Vault" else "Continue",
-                    useBrandGradient = true,
+                    containerColor = KryptxBlue,
+                    contentColor = Color.White,
                     onClick = {
                         if (pagerState.currentPage < pages.size - 1) {
                             coroutineScope.launch {
@@ -226,3 +239,4 @@ fun OnboardingScreen(
         }
     }
 }
+

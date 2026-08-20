@@ -2,6 +2,7 @@ package com.kryptx.app.feature.totp
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,16 +50,24 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxCard
+import com.kryptx.app.core.designsystem.components.KryptxCircleIconButton
 import com.kryptx.app.core.designsystem.components.KryptxEmptyState
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.QrCodeScannerDialog
-import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.components.bounceClick
+import com.kryptx.app.core.designsystem.theme.KryptxAmber
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
+import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.totp.UriParser
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -77,31 +86,39 @@ fun TotpListScreen(
     var showQrScanner by remember { mutableStateOf(false) }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxSize()
+            .atmosphericTopGlow(),
+        containerColor = OledBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
                 title = "2FA Authenticator",
                 actions = {
-                    IconButton(onClick = { showQrScanner = true }) {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = "Scan 2FA QR Code",
-                            tint = KryptxCyan
-                        )
-                    }
+                    KryptxCircleIconButton(
+                        icon = Icons.Default.QrCodeScanner,
+                        contentDescription = "Scan 2FA QR Code",
+                        onClick = { showQrScanner = true }
+                    )
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = KryptxCyan,
-                contentColor = Color.Black,
-                shape = RoundedCornerShape(16.dp)
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(KryptxElectricBlueGradient)
+                    .border(1.dp, GlassmorphismSpecularBrush, CircleShape)
+                    .bounceClick(scaleDown = 0.90f) { showAddDialog = true },
+                contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add 2FA Account")
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add 2FA Account",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
     ) { paddingValues ->
@@ -133,7 +150,7 @@ fun TotpListScreen(
                         text = "${accounts.size} ACTIVE 2FA ACCOUNTS",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                 }
@@ -232,7 +249,14 @@ fun TotpAccountCard(
 
     val code = account.code
 
-    KryptxCard {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF0C1424).copy(alpha = 0.75f))
+            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(20.dp))
+            .padding(18.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -243,13 +267,13 @@ fun TotpAccountCard(
                     text = account.item.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 if (account.item.username.isNotBlank()) {
                     Text(
                         text = account.item.username,
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = KryptxIceBlue.copy(alpha = 0.7f)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -258,18 +282,17 @@ fun TotpAccountCard(
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MonospaceFont,
-                    color = KryptxCyan
+                    color = KryptxBlue
                 )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (code != null) {
-                    val isExpiringSoon = code.secondsRemaining <= 5
                     val sweepProgress = code.secondsRemaining / 30f
                     val ringColor = when {
                         code.secondsRemaining <= 5 -> KryptxRed
-                        code.secondsRemaining <= 10 -> com.kryptx.app.core.designsystem.theme.KryptxAmber
-                        else -> KryptxCyan
+                        code.secondsRemaining <= 10 -> KryptxAmber
+                        else -> KryptxBlue
                     }
 
                     Box(
@@ -317,7 +340,7 @@ fun TotpAccountCard(
                     Icon(
                         imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
                         contentDescription = "Copy 2FA Code",
-                        tint = if (isCopied) KryptxEmerald else KryptxCyan,
+                        tint = if (isCopied) KryptxEmerald else KryptxBlue,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -347,11 +370,13 @@ fun AddTotpDialog(
                 KryptxPrimaryButton(
                     text = "Scan QR Code with Camera",
                     onClick = onOpenQrScanner,
+                    containerColor = KryptxBlue,
+                    contentColor = Color.White,
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.QrCodeScanner,
                             contentDescription = null,
-                            tint = Color.Black,
+                            tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                     },
@@ -363,15 +388,15 @@ fun AddTotpDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
                         .padding(4.dp)
                 ) {
                     Text(
                         text = "Manual Entry",
                         fontSize = 12.sp,
                         fontWeight = if (!isUriMode) FontWeight.Bold else FontWeight.Normal,
-                        color = if (!isUriMode) KryptxCyan else MaterialTheme.colorScheme.onSurface,
+                        color = if (!isUriMode) KryptxBlue else Color.White.copy(alpha = 0.7f),
                         modifier = Modifier
                             .weight(1f)
                             .clickable { isUriMode = false }
@@ -382,7 +407,7 @@ fun AddTotpDialog(
                         text = "otpauth:// URI",
                         fontSize = 12.sp,
                         fontWeight = if (isUriMode) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isUriMode) KryptxCyan else MaterialTheme.colorScheme.onSurface,
+                        color = if (isUriMode) KryptxBlue else Color.White.copy(alpha = 0.7f),
                         modifier = Modifier
                             .weight(1f)
                             .clickable { isUriMode = true }
@@ -431,7 +456,7 @@ fun AddTotpDialog(
                     }
                 }
             ) {
-                Text("Add Key", color = KryptxCyan, fontWeight = FontWeight.Bold)
+                Text("Add Key", color = KryptxBlue, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -441,3 +466,4 @@ fun AddTotpDialog(
         }
     )
 }
+
