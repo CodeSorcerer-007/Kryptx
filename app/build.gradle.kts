@@ -18,16 +18,19 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val releaseKeyStore = file("kryptx-release-key.jks")
     signingConfigs {
-        create("release") {
-            storeFile = file("kryptx-release-key.jks")
-            storePassword = "kryptx2026release"
-            keyAlias = "kryptx-release"
-            keyPassword = "kryptx2026release"
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = true
-            enableV4Signing = true
+        if (releaseKeyStore.exists()) {
+            create("release") {
+                storeFile = releaseKeyStore
+                storePassword = "kryptx2026release"
+                keyAlias = "kryptx-release"
+                keyPassword = "kryptx2026release"
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
         }
     }
 
@@ -35,7 +38,11 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (releaseKeyStore.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
