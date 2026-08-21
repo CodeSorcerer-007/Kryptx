@@ -2,7 +2,6 @@ package com.kryptx.app.core.designsystem.theme
 
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
@@ -33,33 +32,6 @@ val KryptxElectricBlueGradient = Brush.linearGradient(
     listOf(Color(0xFF1F75FE), Color(0xFF388BFF))
 )
 
-// Atmospheric Ambient Top Glow (WorkONE Screen Mesh Halo)
-val KryptxAtmosphericGlowBrush = Brush.verticalGradient(
-    colors = listOf(
-        KryptxBlue.copy(alpha = 0.40f),
-        KryptxDeepBlue.copy(alpha = 0.22f),
-        Color(0xFF000000).copy(alpha = 0.95f),
-        Color(0xFF000000)
-    ),
-    startY = 0f,
-    endY = 1200f
-)
-
-// Specular Glassmorphism 1px Rim Stroke
-val KryptxGlassBorderBrush = Brush.linearGradient(
-    listOf(
-        KryptxBlue.copy(alpha = 0.65f),
-        Color.White.copy(alpha = 0.18f),
-        Color.Transparent
-    ),
-    start = Offset(0f, 0f),
-    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-)
-
-val KryptxCardGlowBorder = Brush.linearGradient(
-    listOf(KryptxBlue.copy(alpha = 0.7f), KryptxDeepBlue.copy(alpha = 0.35f), Color.Transparent)
-)
-
 // OLED Black Theme Tokens
 val OledBackground = Color(0xFF000000)
 val OledSurface = Color(0xFF070A12)
@@ -87,15 +59,14 @@ val AmoledSurfaceVariant = Color(0xFF0C101C)
 val AmoledCard = Color(0xFF101524)
 val AmoledCardBorder = Color(0xFF18233C)
 
-// Solar Light Theme
-val SolarBackground = Color(0xFFF8FAFC)
+val SolarBackground = Color(0xFFF6F8FA)
 val SolarSurface = Color(0xFFFFFFFF)
-val SolarSurfaceVariant = Color(0xFFF1F5F9)
+val SolarSurfaceVariant = Color(0xFFEEF2F6)
 val SolarCard = Color(0xFFFFFFFF)
 val SolarCardBorder = Color(0xFFE2E8F0)
 val SolarTextPrimary = Color(0xFF0F172A)
-val SolarTextSecondary = Color(0xFF334155)
-val SolarTextTertiary = Color(0xFF64748B)
+val SolarTextSecondary = Color(0xFF475569)
+val SolarTextTertiary = Color(0xFF94A3B8)
 
 val ObsidianDarkColorScheme = darkColorScheme(
     primary = KryptxBlue,

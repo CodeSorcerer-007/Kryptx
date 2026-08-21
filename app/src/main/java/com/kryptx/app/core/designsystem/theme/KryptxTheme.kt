@@ -1,12 +1,16 @@
 package com.kryptx.app.core.designsystem.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import com.kryptx.app.core.database.AppThemeMode
 
 @Composable
@@ -16,6 +20,7 @@ fun KryptxTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val systemInDark = isSystemInDarkTheme()
 
     val isDark = when (themeMode) {
@@ -31,6 +36,17 @@ fun KryptxTheme(
         themeMode == AppThemeMode.AMOLED -> AmoledDarkColorScheme
         isDark -> ObsidianDarkColorScheme
         else -> SolarLightColorScheme
+    }
+
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (context as? Activity)?.window
+            if (window != null) {
+                val insetsController = WindowCompat.getInsetsController(window, view)
+                insetsController.isAppearanceLightStatusBars = !isDark
+                insetsController.isAppearanceLightNavigationBars = !isDark
+            }
+        }
     }
 
     MaterialTheme(

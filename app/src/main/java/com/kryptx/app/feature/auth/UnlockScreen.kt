@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.designsystem.components.KryptxCircleIconButton
 import com.kryptx.app.core.designsystem.components.KryptxLogo
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
@@ -52,9 +50,7 @@ import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.components.breathingGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
-import com.kryptx.app.core.designsystem.theme.OledBackground
 
 @Composable
 fun UnlockScreen(
@@ -72,7 +68,7 @@ fun UnlockScreen(
             .fillMaxSize()
             .atmosphericTopGlow()
             .imePadding(),
-        containerColor = OledBackground
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -102,7 +98,7 @@ fun UnlockScreen(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -123,7 +119,7 @@ fun UnlockScreen(
                 text = "Welcome Back",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -131,7 +127,7 @@ fun UnlockScreen(
             Text(
                 text = "Secure access to your encrypted vault\nanytime anywhere.",
                 fontSize = 13.sp,
-                color = Color.White.copy(alpha = 0.65f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 lineHeight = 18.sp
             )
@@ -191,8 +187,8 @@ fun UnlockScreen(
                         modifier = Modifier
                             .size(20.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (rememberMe) KryptxBlue else Color.White.copy(alpha = 0.1f))
-                            .border(1.dp, if (rememberMe) KryptxBlue else Color.White.copy(alpha = 0.3f), RoundedCornerShape(6.dp)),
+                            .background(if (rememberMe) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(1.dp, if (rememberMe) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(6.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         if (rememberMe) {
@@ -208,7 +204,7 @@ fun UnlockScreen(
                     Text(
                         text = "Remember Me",
                         fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
@@ -247,17 +243,17 @@ fun UnlockScreen(
                 ) {
                     HorizontalDivider(
                         modifier = Modifier.weight(1f),
-                        color = Color.White.copy(alpha = 0.15f)
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
                     )
                     Text(
                         text = "or",
                         fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 14.dp)
                     )
                     HorizontalDivider(
                         modifier = Modifier.weight(1f),
-                        color = Color.White.copy(alpha = 0.15f)
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
                     )
                 }
 
@@ -273,8 +269,8 @@ fun UnlockScreen(
                         modifier = Modifier
                             .size(54.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), CircleShape)
                             .bounceClick(scaleDown = 0.90f) {
                                 onTriggerBiometrics()
                             },
@@ -294,4 +290,3 @@ fun UnlockScreen(
         }
     }
 }
-

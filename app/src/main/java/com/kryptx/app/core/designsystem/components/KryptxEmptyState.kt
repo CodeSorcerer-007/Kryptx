@@ -67,7 +67,7 @@ fun KryptxEmptyState(
             text = title,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
 
@@ -76,7 +76,7 @@ fun KryptxEmptyState(
         Text(
             text = subtitle,
             fontSize = 14.sp,
-            color = KryptxIceBlue.copy(alpha = 0.75f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             lineHeight = 20.sp
         )

@@ -1,6 +1,5 @@
 package com.kryptx.app.core.designsystem.components
 
-import android.view.View
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -13,6 +12,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,20 +21,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.kryptx.app.core.designsystem.theme.KryptxAtmosphericGlowBrush
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
 import com.kryptx.app.core.designsystem.theme.KryptxDeepBlue
@@ -111,21 +107,30 @@ fun Modifier.breathingGlow(
 }
 
 /**
- * Ambient OLED top gradient glow halo (WorkONE styling backdrop).
+ * Ambient top gradient glow halo (WorkONE styling backdrop), dynamically adapting
+ * between vibrant OLED dark mode glow and subtle daylight theme radiance.
  */
-fun Modifier.atmosphericTopGlow(): Modifier = this.drawBehind {
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(
-                KryptxBlue.copy(alpha = 0.35f),
-                KryptxDeepBlue.copy(alpha = 0.18f),
-                Color.Transparent
+fun Modifier.atmosphericTopGlow(): Modifier = composed {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val topAlpha = if (isDark) 0.35f else 0.08f
+    val midAlpha = if (isDark) 0.18f else 0.03f
+    val topColor = KryptxBlue.copy(alpha = topAlpha)
+    val midColor = if (isDark) KryptxDeepBlue.copy(alpha = midAlpha) else KryptxBrightBlue.copy(alpha = midAlpha)
+
+    this.drawBehind {
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    topColor,
+                    midColor,
+                    Color.Transparent
+                ),
+                startY = 0f,
+                endY = size.height * 0.45f
             ),
-            startY = 0f,
-            endY = size.height * 0.45f
-        ),
-        size = Size(size.width, size.height * 0.45f)
-    )
+            size = Size(size.width, size.height * 0.45f)
+        )
+    }
 }
 
 /**

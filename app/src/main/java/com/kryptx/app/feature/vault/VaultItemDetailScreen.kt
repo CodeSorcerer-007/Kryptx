@@ -43,7 +43,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -63,23 +62,18 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.ItemTypeBadge
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxCircleIconButton
 import com.kryptx.app.core.designsystem.components.KryptxFolderCard
-import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
-import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.totp.TotpGenerator
@@ -114,7 +108,7 @@ fun VaultItemDetailScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
@@ -125,7 +119,7 @@ fun VaultItemDetailScreen(
                     KryptxCircleIconButton(
                         icon = if (item.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
                         contentDescription = "Favorite",
-                        iconTint = if (item.isFavorite) KryptxAmber else Color.White,
+                        iconTint = if (item.isFavorite) KryptxAmber else MaterialTheme.colorScheme.onSurface,
                         onClick = { viewModel.toggleFavorite(item.id) }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -188,8 +182,8 @@ fun VaultItemDetailScreen(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(Color(0xFF0C1628))
-                        .border(1.5.dp, KryptxBlue.copy(alpha = 0.5f), RoundedCornerShape(24.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(24.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     ItemTypeBadge(type = item.type, modifier = Modifier.size(54.dp))
@@ -201,13 +195,13 @@ fun VaultItemDetailScreen(
                     text = item.title,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Text(
                     text = item.type.displayName,
                     fontSize = 12.sp,
-                    color = KryptxIceBlue
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -224,13 +218,13 @@ fun VaultItemDetailScreen(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
                     )
                     Box(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
                     )
                 }
             }
@@ -257,7 +251,7 @@ fun VaultItemDetailScreen(
                             Text(
                                 text = "Rotation overdue! Tap Edit to update.",
                                 fontSize = 12.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -282,7 +276,7 @@ fun VaultItemDetailScreen(
                             Text(
                                 text = "Expires in $daysLeft day${if (daysLeft == 1L) "" else "s"}",
                                 fontSize = 12.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -485,7 +479,7 @@ fun VaultItemDetailScreen(
                     text = "Custom Fields",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 item.customFields.forEach { field ->
@@ -506,14 +500,14 @@ fun VaultItemDetailScreen(
                     text = "Notes",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 KryptxCard {
                     Text(
                         text = item.notes,
                         fontSize = 14.sp,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         lineHeight = 20.sp
                     )
                 }
@@ -526,7 +520,7 @@ fun VaultItemDetailScreen(
                     text = "Encrypted Attachments (${item.attachments.size})",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
 
@@ -536,35 +530,35 @@ fun VaultItemDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Color.White.copy(alpha = 0.06f))
-                                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                                .clickable {
-                                    scope.launch {
-                                        try {
-                                            val decryptedBytes = viewModel.loadDecryptedAttachment(context, att)
-                                            if (decryptedBytes != null) {
-                                                val tempFile = java.io.File(context.cacheDir, att.fileName)
-                                                tempFile.writeBytes(decryptedBytes)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                            .clickable {
+                                scope.launch {
+                                    try {
+                                        val decryptedBytes = viewModel.loadDecryptedAttachment(context, att)
+                                        if (decryptedBytes != null) {
+                                            val tempFile = java.io.File(context.cacheDir, att.fileName)
+                                            tempFile.writeBytes(decryptedBytes)
 
-                                                val uri = androidx.core.content.FileProvider.getUriForFile(
-                                                    context,
-                                                    "${context.packageName}.fileprovider",
-                                                    tempFile
-                                                )
-                                                val viewIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                                    setDataAndType(uri, att.mimeType)
-                                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
-                                                context.startActivity(viewIntent)
-                                            } else {
-                                                snackbarHostState.showSnackbar("Failed to decrypt attachment.")
+                                            val uri = androidx.core.content.FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                tempFile
+                                            )
+                                            val viewIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                setDataAndType(uri, att.mimeType)
+                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }
-                                        } catch (e: Exception) {
-                                            snackbarHostState.showSnackbar("Unable to open attachment: ${e.message}")
+                                            context.startActivity(viewIntent)
+                                        } else {
+                                            snackbarHostState.showSnackbar("Failed to decrypt attachment.")
                                         }
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("Unable to open attachment: ${e.message}")
                                     }
                                 }
-                                .padding(14.dp)
+                            }
+                            .padding(14.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -576,7 +570,7 @@ fun VaultItemDetailScreen(
                                         text = att.fileName,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
@@ -645,8 +639,8 @@ fun DetailFieldCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(
@@ -658,7 +652,7 @@ fun DetailFieldCard(
                     text = label,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -666,7 +660,7 @@ fun DetailFieldCard(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = if (revealed && isSecret) MonospaceFont else androidx.compose.ui.text.font.FontFamily.Default,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -675,7 +669,7 @@ fun DetailFieldCard(
                     Icon(
                         imageVector = if (revealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         contentDescription = if (revealed) "Hide" else "Reveal",
-                        tint = Color.White.copy(alpha = 0.6f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -737,8 +731,8 @@ fun TotpCountdownCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF0D1B36))
-            .border(1.dp, KryptxBlue.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
             .padding(14.dp)
     ) {
         Row(
@@ -759,7 +753,7 @@ fun TotpCountdownCard(
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MonospaceFont,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -804,4 +798,3 @@ fun TotpCountdownCard(
         }
     }
 }
-

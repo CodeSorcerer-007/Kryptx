@@ -41,15 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
-import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxLogo
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
-import com.kryptx.app.core.designsystem.theme.KryptxEmerald
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import kotlinx.coroutines.launch
 
 data class OnboardingPageData(
@@ -98,7 +93,7 @@ fun OnboardingScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -121,7 +116,7 @@ fun OnboardingScreen(
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 4.sp,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "FLAGSHIP NATIVE VAULT",
@@ -152,8 +147,8 @@ fun OnboardingScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
-                            .background(Color(0xFF0C1424).copy(alpha = 0.75f))
-                            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
                             .padding(24.dp)
                     ) {
                         Column(
@@ -180,14 +175,14 @@ fun OnboardingScreen(
                                 text = page.title,
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = page.description,
                                 fontSize = 13.sp,
-                                color = Color.White.copy(alpha = 0.65f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 19.sp
                             )
@@ -214,7 +209,7 @@ fun OnboardingScreen(
                                 .width(if (isSelected) 24.dp else 6.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.2f)
+                                    if (isSelected) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
                                 )
                         )
                     }
@@ -239,4 +234,3 @@ fun OnboardingScreen(
         }
     }
 }
-

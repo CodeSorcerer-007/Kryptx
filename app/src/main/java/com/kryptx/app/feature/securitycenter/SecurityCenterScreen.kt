@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -34,8 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
-import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxCircleIconButton
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxScoreRing
@@ -45,9 +42,7 @@ import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.model.SecurityIssue
 
 @Composable
@@ -63,7 +58,7 @@ fun SecurityCenterScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             KryptxTopBar(
                 title = "Security Pulse",
@@ -84,7 +79,7 @@ fun SecurityCenterScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Analyzing vault security...", color = Color.White.copy(alpha = 0.6f))
+                Text("Analyzing vault security...", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             val r = report!!
@@ -102,8 +97,8 @@ fun SecurityCenterScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(22.dp))
-                            .background(Color(0xFF0C1424).copy(alpha = 0.75f))
-                            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(22.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(22.dp))
                             .padding(20.dp)
                     ) {
                         Column(
@@ -126,7 +121,7 @@ fun SecurityCenterScreen(
                                 },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
 
                             Spacer(modifier = Modifier.height(4.dp))
@@ -134,7 +129,7 @@ fun SecurityCenterScreen(
                             Text(
                                 text = "${r.issues.size} security findings require your attention",
                                 fontSize = 13.sp,
-                                color = KryptxIceBlue.copy(alpha = 0.8f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -178,7 +173,7 @@ fun SecurityCenterScreen(
                         text = "SECURITY FINDINGS",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                 }
@@ -189,8 +184,8 @@ fun SecurityCenterScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
-                                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
                                 .padding(16.dp)
                         ) {
                             Row(
@@ -209,12 +204,12 @@ fun SecurityCenterScreen(
                                         text = "No Security Issues Found",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "All passwords meet high-entropy standards.",
                                         fontSize = 12.sp,
-                                        color = Color.White.copy(alpha = 0.65f)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -248,8 +243,8 @@ fun AuditStatBox(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
             .padding(vertical = 12.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -258,13 +253,13 @@ fun AuditStatBox(
                 text = "$count",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (count > 0) color else Color.White
+                color = if (count > 0) color else MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = label,
                 fontSize = 11.sp,
-                color = Color.White.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -279,8 +274,8 @@ fun SecurityIssueCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -294,7 +289,7 @@ fun SecurityIssueCard(
                     text = issue.itemTitle,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -304,7 +299,7 @@ fun SecurityIssueCard(
                 text = issue.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -312,7 +307,7 @@ fun SecurityIssueCard(
             Text(
                 text = issue.description,
                 fontSize = 12.sp,
-                color = Color.White.copy(alpha = 0.65f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 17.sp
             )
 
@@ -333,4 +328,3 @@ fun SecurityIssueCard(
         }
     }
 }
-

@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +50,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
-import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxCircleIconButton
 import com.kryptx.app.core.designsystem.components.KryptxEmptyState
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
@@ -64,10 +62,8 @@ import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.totp.UriParser
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -89,7 +85,7 @@ fun TotpListScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
@@ -150,7 +146,7 @@ fun TotpListScreen(
                         text = "${accounts.size} ACTIVE 2FA ACCOUNTS",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                 }
@@ -253,8 +249,8 @@ fun TotpAccountCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF0C1424).copy(alpha = 0.75f))
-            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
             .padding(18.dp)
     ) {
         Row(
@@ -267,13 +263,13 @@ fun TotpAccountCard(
                     text = account.item.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 if (account.item.username.isNotBlank()) {
                     Text(
                         text = account.item.username,
                         fontSize = 12.sp,
-                        color = KryptxIceBlue.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -389,14 +385,14 @@ fun AddTotpDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.08f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                         .padding(4.dp)
                 ) {
                     Text(
                         text = "Manual Entry",
                         fontSize = 12.sp,
                         fontWeight = if (!isUriMode) FontWeight.Bold else FontWeight.Normal,
-                        color = if (!isUriMode) KryptxBlue else Color.White.copy(alpha = 0.7f),
+                        color = if (!isUriMode) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .weight(1f)
                             .clickable { isUriMode = false }
@@ -407,7 +403,7 @@ fun AddTotpDialog(
                         text = "otpauth:// URI",
                         fontSize = 12.sp,
                         fontWeight = if (isUriMode) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isUriMode) KryptxBlue else Color.White.copy(alpha = 0.7f),
+                        color = if (isUriMode) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .weight(1f)
                             .clickable { isUriMode = true }
@@ -466,4 +462,3 @@ fun AddTotpDialog(
         }
     )
 }
-

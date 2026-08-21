@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -394,6 +395,12 @@ fun KryptxBottomNavBar(
     onTabSelected: (BottomNavTab) -> Unit
 ) {
     val view = androidx.compose.ui.platform.LocalView.current
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val navBg = if (isDark) Color(0xFF0A0F1A).copy(alpha = 0.94f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+    val navBorder = if (isDark) com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+    val selectedPillBg = if (isDark) Color.White else com.kryptx.app.core.designsystem.theme.KryptxBlue
+    val selectedIconTint = if (isDark) Color(0xFF070A12) else Color.White
+    val unselectedIconTint = if (isDark) Color(0xFF8E9CAE) else MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
         modifier = Modifier
@@ -407,8 +414,8 @@ fun KryptxBottomNavBar(
                 .fillMaxWidth()
                 .height(64.dp)
                 .clip(RoundedCornerShape(32.dp))
-                .background(Color(0xFF0A0F1A).copy(alpha = 0.92f))
-                .border(1.dp, com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush, RoundedCornerShape(32.dp))
+                .background(navBg)
+                .border(1.dp, navBorder, RoundedCornerShape(32.dp))
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
@@ -420,7 +427,7 @@ fun KryptxBottomNavBar(
                     modifier = Modifier
                         .size(if (isSelected) 46.dp else 40.dp)
                         .clip(RoundedCornerShape(if (isSelected) 18.dp else 12.dp))
-                        .background(if (isSelected) Color.White else Color.Transparent)
+                        .background(if (isSelected) selectedPillBg else Color.Transparent)
                         .clickable {
                             com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
                             onTabSelected(tab)
@@ -436,7 +443,7 @@ fun KryptxBottomNavBar(
                     Icon(
                         imageVector = tab.icon,
                         contentDescription = tab.label,
-                        tint = if (isSelected) Color(0xFF070A12) else Color(0xFF8E9CAE),
+                        tint = if (isSelected) selectedIconTint else unselectedIconTint,
                         modifier = Modifier.size(if (isSelected) 22.dp else 20.dp)
                     )
                 }

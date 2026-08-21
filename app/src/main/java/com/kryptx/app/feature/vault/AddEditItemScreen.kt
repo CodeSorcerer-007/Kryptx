@@ -56,8 +56,6 @@ import com.kryptx.app.core.designsystem.components.StrengthBadge
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.generator.GeneratorEngine
 import com.kryptx.app.core.model.CustomField
 import com.kryptx.app.core.model.GeneratorConfig
@@ -180,7 +178,7 @@ fun AddEditItemScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             KryptxTopBar(
                 title = if (existingItem != null) "Edit Item" else "New Vault Item",
@@ -202,7 +200,7 @@ fun AddEditItemScreen(
                     text = "ITEM TYPE",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 Row(
@@ -217,11 +215,11 @@ fun AddEditItemScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(
-                                    if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.08f)
+                                    if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                 )
                                 .border(
                                     1.dp,
-                                    if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.12f),
+                                    if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                                     RoundedCornerShape(14.dp)
                                 )
                                 .bounceClick(scaleDown = 0.94f) { selectedType = type }
@@ -231,7 +229,7 @@ fun AddEditItemScreen(
                                 text = type.displayName,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f)
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -248,7 +246,6 @@ fun AddEditItemScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
 
             // Type-specific Form Inputs
             when (selectedType) {
@@ -291,7 +288,7 @@ fun AddEditItemScreen(
                             Text(
                                 text = "${passwordAnalysis.entropyBits} bits entropy",
                                 fontSize = 11.sp,
-                                color = KryptxIceBlue.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -430,7 +427,7 @@ fun AddEditItemScreen(
                     text = "CUSTOM FIELDS",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TextButton(onClick = {
                     customFields.add(CustomField(UUID.randomUUID().toString(), "Field ${customFields.size + 1}", "", false))
@@ -461,7 +458,7 @@ fun AddEditItemScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                Text("Secure / Masked", fontSize = 12.sp, color = Color.White.copy(alpha = 0.65f))
+                                Text("Secure / Masked", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Switch(
                                     checked = field.isSecured,
@@ -487,7 +484,7 @@ fun AddEditItemScreen(
                 text = "PASSWORD ROTATION & EXPIRATION",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 6.dp)
             )
 
@@ -509,7 +506,8 @@ fun AddEditItemScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.08f))
+                            .background(if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(1.dp, if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
                             .clickable { rotationIntervalDays = days }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
@@ -517,7 +515,7 @@ fun AddEditItemScreen(
                             text = label,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f)
+                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -535,7 +533,7 @@ fun AddEditItemScreen(
                     text = "ENCRYPTED ATTACHMENTS (${attachments.size})",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TextButton(onClick = { filePickerLauncher.launch("*/*") }) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = KryptxBlue)
@@ -551,7 +549,8 @@ fun AddEditItemScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
                                 .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Row(

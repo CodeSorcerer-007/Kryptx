@@ -1,27 +1,38 @@
-# 🛡️ Kryptx — Flagship Zero-Knowledge Android Password Fortress
-
 <div align="center">
-<img src="Logo.png" alt="Kryptx Logo" width="180" />
-<br><br>
-[![Android 16](https://img.shields.io/badge/Android-16%20(API%2036)-00E676?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Security Audited](https://img.shields.io/badge/Security-AES--256--GCM%20%7C%20PBKDF2-00D4FF?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/CodeSorcerer-007/Kryptx)
-[![Unit Tests](https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(77%2F77)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/CodeSorcerer-007/Kryptx/actions)
-[![Zero Trackers](https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge)](https://github.com/CodeSorcerer-007/Kryptx)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
+
+<img src="Logo.png" alt="Kryptx Logo" width="160" />
+
+# Kryptx
+### Zero-Knowledge • Offline-First Native Android Password Fortress
+
+<p align="center">
+  <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-16%20(API%2036)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="Android 16" /></a>
+  <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
+  <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20%7C%20PBKDF2-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Security Audited" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(77%2F77)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="Unit Tests" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge" alt="Zero Trackers" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
+</p>
 
 **Kryptx is an ultra-secure, zero-knowledge, offline-first native Android password manager, multi-factor authenticator, and encrypted document vault engineered for Android 16.**
 
 *Built from the ground up for privacy maximalists, security professionals, and users who refuse to surrender their cryptographic keys to cloud servers.*
 
-[Key Features](#-industry-defining-flagship-features) • [Cryptographic Architecture](#-cryptographic-foundations--security-architecture) • [Threat Matrix](#-threat-model--defense-matrix) • [Design System](#-frosted-glassmorphism--tactile-physics) • [Build & Test](#-building--testing)
+<p align="center">
+  <a href="#-cryptographic-architecture">Cryptographic Architecture</a> •
+  <a href="#-key-features">Key Features</a> •
+  <a href="#-threat-model--defense-matrix">Threat Matrix</a> •
+  <a href="#-design-system--tactile-physics">Design System</a> •
+  <a href="#-building--testing">Build & Test</a>
+</p>
 
 </div>
 
 ---
 
-## 🏛️ Cryptographic Foundations & Security Architecture
+<a id="cryptographic-architecture"></a>
+## 🏛️ Cryptographic Architecture
 
 Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security model. Plaintext credentials, private keys, TOTP seeds, attachments, and biometric states are **never transmitted over the internet, never logged to logcat, and never stored in unencrypted persistent flash memory**.
 
@@ -63,7 +74,8 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 
 ---
 
-## 🚀 Industry-Defining Flagship Features
+<a id="key-features"></a>
+## 🚀 Key Features
 
 ### 🚨 1. Duress Password & Decoy Vault (Panic Mode)
 - **Coercion-Resistant Decoy Partition**: Set an independent secondary panic password in Security Settings.
@@ -135,7 +147,8 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 
 ---
 
-## 💎 Frosted Glassmorphism & Tactile Physics
+<a id="design-system"></a>
+## 💎 Design System & Tactile Physics
 
 Kryptx is engineered to deliver a sensory, ultra-premium user experience that feels alive, responsive, and tactile:
 
@@ -151,6 +164,7 @@ Kryptx is engineered to deliver a sensory, ultra-premium user experience that fe
 
 ---
 
+<a id="threat-matrix"></a>
 ## 🛡️ Threat Model & Defense Matrix
 
 | Attack Vector | Vulnerability in Standard Apps | Kryptx Cryptographic Defense |
@@ -201,6 +215,7 @@ app/src/main/java/com/kryptx/app/
 
 ---
 
+<a id="build--test"></a>
 ## 🧪 Building & Testing
 
 ### Prerequisites

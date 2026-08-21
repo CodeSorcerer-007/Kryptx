@@ -49,9 +49,7 @@ import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import kotlinx.coroutines.launch
 
 @Composable
@@ -72,7 +70,7 @@ fun BackupExportScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
@@ -95,7 +93,7 @@ fun BackupExportScreen(
                 text = "ENCRYPTED EXPORT (RECOMMENDED)",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -114,12 +112,12 @@ fun BackupExportScreen(
                                 text = "Encrypted Kryptx Archive",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Protects all credentials with AES-256-GCM using an export passphrase.",
                                 fontSize = 12.sp,
-                                color = KryptxIceBlue.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -151,12 +149,12 @@ fun BackupExportScreen(
                                 text = "Printable Emergency Recovery Kit (PDF)",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Generates a 1-page vector PDF with your master vault specs, QR recovery key, and physical custody guidelines.",
                                 fontSize = 12.sp,
-                                color = KryptxIceBlue.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -196,7 +194,7 @@ fun BackupExportScreen(
                 text = "IMPORT & MIGRATION",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -215,12 +213,12 @@ fun BackupExportScreen(
                                 text = "Import External Vault",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Seamlessly import from Bitwarden, 1Password, Google, or Kryptx backup.",
                                 fontSize = 12.sp,
-                                color = KryptxIceBlue.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -259,12 +257,12 @@ fun BackupExportScreen(
                                 text = "Export Plaintext CSV",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Warning: Exported CSV file contains your passwords in readable form.",
                                 fontSize = 12.sp,
-                                color = KryptxIceBlue.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -293,7 +291,7 @@ fun BackupExportScreen(
                     Text(
                         text = "Enter a password to encrypt this backup archive. You will need this password to restore the backup.",
                         fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     KryptxTextField(
@@ -376,7 +374,7 @@ fun BackupExportScreen(
                     Text(
                         text = "Paste Bitwarden JSON/CSV, 1Password CSV, Google Passwords CSV, or Kryptx encrypted backup text below:",
                         fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     KryptxTextField(
@@ -415,4 +413,3 @@ fun BackupExportScreen(
         )
     }
 }
-

@@ -148,7 +148,7 @@ fun VaultDashboardScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             Box(
@@ -195,14 +195,14 @@ fun VaultDashboardScreen(
                             modifier = Modifier
                                 .size(46.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF0F1B33))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(1.5.dp, KryptxBlue, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = "Profile",
-                                tint = KryptxIceBlue,
+                                tint = KryptxBlue,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -213,13 +213,13 @@ fun VaultDashboardScreen(
                             Text(
                                 text = "Welcome Back",
                                 fontSize = 12.sp,
-                                color = KryptxIceBlue.copy(alpha = 0.8f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = "Kryptx Vault",
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -283,8 +283,8 @@ fun VaultDashboardScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
                             .clickable {
                                 isSearchExpanded = !isSearchExpanded
                                 if (!isSearchExpanded) {
@@ -305,14 +305,14 @@ fun VaultDashboardScreen(
                                 Icon(
                                     imageVector = Icons.Default.Search,
                                     contentDescription = "Search items",
-                                    tint = if (isSearchExpanded || searchQuery.isNotBlank()) KryptxCyan else Color.White.copy(alpha = 0.7f),
+                                    tint = if (isSearchExpanded || searchQuery.isNotBlank()) KryptxCyan else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     text = if (searchQuery.isNotBlank()) searchQuery else "Search vault items, credentials...",
                                     fontSize = 14.sp,
-                                    color = if (searchQuery.isNotBlank()) Color.White else Color.White.copy(alpha = 0.55f),
+                                    color = if (searchQuery.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -327,7 +327,7 @@ fun VaultDashboardScreen(
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Clear search",
-                                            tint = Color.White.copy(alpha = 0.7f),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -336,15 +336,15 @@ fun VaultDashboardScreen(
                                     modifier = Modifier
                                         .size(32.dp)
                                         .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.12f))
-                                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), CircleShape)
                                         .clickable { onNavigateToSearch() },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Tune,
                                         contentDescription = "Open Advanced Search",
-                                        tint = Color.White,
+                                        tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -454,7 +454,7 @@ fun VaultDashboardScreen(
                             text = "Favorites",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                         )
                         LazyRow(
@@ -493,15 +493,15 @@ fun VaultDashboardScreen(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), CircleShape)
                                     .clickable { onNavigateToSearch() },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Search,
                                     contentDescription = "Search Items",
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -561,7 +561,7 @@ fun VaultDashboardScreen(
                                                             duration = SnackbarDuration.Short
                                                         )
                                                         if (result == SnackbarResult.ActionPerformed) {
-                                                            viewModel.undoLastDelete { restored ->
+                                                            viewModel.undoLastDelete {
                                                                 KryptxHaptics.confirm(view)
                                                             }
                                                         }
@@ -639,8 +639,8 @@ fun VaultDashboardScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
                         .clip(RoundedCornerShape(22.dp))
-                        .background(Color(0xFF0C1424).copy(alpha = 0.70f))
-                        .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(22.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(22.dp))
                         .padding(18.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -653,14 +653,14 @@ fun VaultDashboardScreen(
                                 text = "Storage",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
 
                             Text(
                                 text = "${items.size} / ${allItems.size.coerceAtLeast(1)} Items",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = KryptxIceBlue
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
@@ -672,8 +672,8 @@ fun VaultDashboardScreen(
                                 .fillMaxWidth()
                                 .height(22.dp)
                                 .clip(RoundedCornerShape(11.dp))
-                                .background(Color(0xFF070E1A))
-                                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(11.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(11.dp))
                                 .diagonalStripedMeter(
                                     progress = storageRatio,
                                     stripeColor = KryptxBlue,
@@ -699,7 +699,7 @@ fun VaultDashboardScreen(
                                 text = "${(storageRatio * 100).toInt()}%",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -944,11 +944,11 @@ fun FloatingCategoryBadge(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (isSelected) color.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f)
+                if (isSelected) color.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             )
             .border(
                 1.dp,
-                if (isSelected) color else Color.White.copy(alpha = 0.12f),
+                if (isSelected) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                 RoundedCornerShape(16.dp)
             )
             .bounceClick(scaleDown = 0.94f, onClick = onClick)
@@ -978,7 +978,7 @@ fun FloatingCategoryBadge(
                 text = "$label ($count)",
                 fontSize = 11.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f)
+                color = if (isSelected) color else MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -994,8 +994,8 @@ fun FavoriteItemCard(
         modifier = Modifier
             .width(145.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF0C1424).copy(alpha = 0.70f))
-            .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
             .bounceClick(scaleDown = 0.96f, onClick = onClick)
             .padding(12.dp)
             .semantics {
@@ -1022,14 +1022,14 @@ fun FavoriteItemCard(
                 text = item.title,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = item.displaySubtitle,
                 fontSize = 11.sp,
-                color = KryptxIceBlue.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1054,8 +1054,8 @@ fun VaultItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -1079,7 +1079,7 @@ fun VaultItemRow(
                     text = item.title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1087,7 +1087,7 @@ fun VaultItemRow(
                 Text(
                     text = item.displaySubtitle,
                     fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.65f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1104,7 +1104,7 @@ fun VaultItemRow(
                 Icon(
                     imageVector = if (item.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
                     contentDescription = if (item.isFavorite) "Remove favorite" else "Add favorite",
-                    tint = if (item.isFavorite) KryptxAmber else Color.White.copy(alpha = 0.4f),
+                    tint = if (item.isFavorite) KryptxAmber else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.size(18.dp)
                 )
             }

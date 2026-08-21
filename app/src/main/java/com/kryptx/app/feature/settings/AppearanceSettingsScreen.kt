@@ -34,12 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.database.AppThemeMode
-import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
-import com.kryptx.app.core.designsystem.theme.OledBackground
 
 @Composable
 fun AppearanceSettingsScreen(
@@ -54,7 +51,7 @@ fun AppearanceSettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             KryptxTopBar(
                 title = "Appearance & Theme",
@@ -76,7 +73,7 @@ fun AppearanceSettingsScreen(
                 text = "THEME MODE",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -84,8 +81,8 @@ fun AppearanceSettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
                     .padding(16.dp)
             ) {
                 Column {
@@ -108,7 +105,7 @@ fun AppearanceSettingsScreen(
                                     text = mode.title,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = when (mode) {
@@ -118,7 +115,7 @@ fun AppearanceSettingsScreen(
                                         AppThemeMode.SYSTEM -> "Match device system dark/light configuration"
                                     },
                                     fontSize = 12.sp,
-                                    color = KryptxIceBlue.copy(alpha = 0.7f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -133,8 +130,8 @@ fun AppearanceSettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                        .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
                         .padding(16.dp)
                 ) {
                     Row(
@@ -146,12 +143,12 @@ fun AppearanceSettingsScreen(
                                 text = "Dynamic Color (Material You)",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Harmonize accents with your system wallpaper palette",
                                 fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.65f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(
@@ -170,4 +167,3 @@ fun AppearanceSettingsScreen(
         }
     }
 }
-

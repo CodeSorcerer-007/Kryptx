@@ -55,7 +55,7 @@ fun KryptxScoreRing(
         )
     )
 
-    val backgroundRingColor = Color.White.copy(alpha = 0.12f)
+    val backgroundRingColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
 
     Box(
         modifier = modifier

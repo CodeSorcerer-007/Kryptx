@@ -45,7 +45,6 @@ import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.feature.vault.VaultItemRow
 import kotlinx.coroutines.launch
 
@@ -67,7 +66,7 @@ fun SearchScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(
@@ -101,7 +100,7 @@ fun SearchScreen(
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Clear",
-                                    tint = Color.White.copy(alpha = 0.7f)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -187,11 +186,11 @@ fun SearchFilterPill(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.08f)
+                if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             )
             .border(
                 1.dp,
-                if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.15f),
+                if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                 RoundedCornerShape(14.dp)
             )
             .bounceClick(scaleDown = 0.94f, onClick = onClick)
@@ -201,8 +200,7 @@ fun SearchFilterPill(
             text = label,
             fontSize = 12.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f)
+            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
         )
     }
 }
-

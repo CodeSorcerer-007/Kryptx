@@ -1,6 +1,5 @@
 package com.kryptx.app.feature.generator
 
-import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -52,8 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
-import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
@@ -64,10 +61,8 @@ import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
-import com.kryptx.app.core.designsystem.theme.KryptxIceBlue
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.designsystem.theme.MonospaceFont
-import com.kryptx.app.core.designsystem.theme.OledBackground
 import com.kryptx.app.core.model.GeneratorConfig
 import com.kryptx.app.core.model.GeneratorMode
 import com.kryptx.app.core.model.UsernameStyle
@@ -91,7 +86,7 @@ fun GeneratorScreen(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
-        containerColor = OledBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             KryptxTopBar(title = "Generator")
@@ -109,8 +104,8 @@ fun GeneratorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -132,7 +127,7 @@ fun GeneratorScreen(
                             text = mode.title,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f)
+                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -145,8 +140,8 @@ fun GeneratorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xFF0C1424).copy(alpha = 0.75f))
-                    .border(1.dp, GlassmorphismSpecularBrush, RoundedCornerShape(22.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(22.dp))
                     .padding(20.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -160,7 +155,7 @@ fun GeneratorScreen(
                             text = "${result.analysis.entropyBits} bits entropy",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = KryptxIceBlue.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -172,7 +167,7 @@ fun GeneratorScreen(
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = MonospaceFont,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth(),
                             lineHeight = 28.sp
@@ -194,7 +189,7 @@ fun GeneratorScreen(
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp))
-                            .background(Color.White.copy(alpha = 0.10f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Box(
                             modifier = Modifier
@@ -221,13 +216,13 @@ fun GeneratorScreen(
                         KryptxOutlinedButton(
                             text = "Regenerate",
                             modifier = Modifier.weight(1f),
-                            borderColor = Color.White.copy(alpha = 0.2f),
-                            textColor = Color.White,
+                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                            textColor = MaterialTheme.colorScheme.onSurface,
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Refresh,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -276,7 +271,7 @@ fun GeneratorScreen(
                         text = "Length: ${config.passwordLength} characters",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Slider(
                         value = config.passwordLength.toFloat(),
@@ -292,7 +287,7 @@ fun GeneratorScreen(
                         colors = SliderDefaults.colors(
                             thumbColor = KryptxBlue,
                             activeTrackColor = KryptxBlue,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     )
 
@@ -330,7 +325,7 @@ fun GeneratorScreen(
                         text = "Word Count: ${config.wordCount} words",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Slider(
                         value = config.wordCount.toFloat(),
@@ -340,7 +335,7 @@ fun GeneratorScreen(
                         colors = SliderDefaults.colors(
                             thumbColor = KryptxBlue,
                             activeTrackColor = KryptxBlue,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     )
                 }
@@ -350,7 +345,7 @@ fun GeneratorScreen(
                         text = "PIN Digits: ${config.pinLength}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Slider(
                         value = config.pinLength.toFloat(),
@@ -360,7 +355,7 @@ fun GeneratorScreen(
                         colors = SliderDefaults.colors(
                             thumbColor = KryptxBlue,
                             activeTrackColor = KryptxBlue,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     )
                 }
@@ -370,7 +365,7 @@ fun GeneratorScreen(
                         text = "Username Style",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                     UsernameStyle.entries.forEach { style ->
@@ -381,11 +376,11 @@ fun GeneratorScreen(
                                 .padding(vertical = 6.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(
-                                    if (isSelected) KryptxBlue.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.05f)
+                                    if (isSelected) KryptxBlue.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                                 )
                                 .border(
                                     1.dp,
-                                    if (isSelected) KryptxBlue else Color.White.copy(alpha = 0.10f),
+                                    if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                                     RoundedCornerShape(14.dp)
                                 )
                                 .clickable { viewModel.updateUsernameStyle(style) }
@@ -396,7 +391,7 @@ fun GeneratorScreen(
                                 text = style.title,
                                 fontSize = 14.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f)
+                                color = if (isSelected) KryptxBlue else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -425,7 +420,7 @@ fun GeneratorOptionCheckbox(
         Text(
             text = label,
             fontSize = 14.sp,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
         Switch(
             checked = checked,
@@ -437,4 +432,3 @@ fun GeneratorOptionCheckbox(
         )
     }
 }
-
