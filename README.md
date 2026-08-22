@@ -10,7 +10,7 @@
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20%7C%20Argon2id%20%7C%20PBKDF2-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Security Audited" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(92%2F92)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="Unit Tests" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(108%2F108)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="Unit Tests" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge" alt="Zero Trackers" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
@@ -229,7 +229,7 @@ app/src/main/java/com/kryptx/app/
 ```bash
 ./gradlew testDebugUnitTest
 ```
-*Current test suite: **92 / 92 tests passing (100% success)** across cryptographic engines, duress isolation, RFC k-Anonymity breach detection, soft delete with undo, PDF generators, attachments, P2P sync, dashboard analytics, and TOTP algorithms.*
+*Current test suite: **108 / 108 tests passing (100% success)** across cryptographic engines, RFC 9106 Argon2id vectors, duress isolation, RFC k-Anonymity breach detection, soft delete with undo, PDF generators, attachments, P2P sync, dashboard analytics, and TOTP algorithms.*
 
 ### Build Debug APK
 ```bash
