@@ -11,6 +11,8 @@ import com.kryptx.app.core.model.EncryptedBackupPayload
 import com.kryptx.app.core.model.IssueSeverity
 import com.kryptx.app.core.model.IssueType
 import com.kryptx.app.core.model.ItemType
+import com.kryptx.app.core.model.KryptxErrorType
+import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.model.SecurityAuditReport
 import com.kryptx.app.core.model.SecurityIssue
 import com.kryptx.app.core.model.SecurityScoreHistoryPoint
@@ -36,9 +38,7 @@ class VaultRepositoryImpl(
     @Volatile
     private var isAuditDirty: Boolean = true
 
-    override fun hasVault(): Boolean {
-        return dbHelper.hasVaultSetup()
-    }
+    override fun hasVault(): Boolean = dbHelper.hasVaultSetup()
 
     override fun isBiometricsConfigured(): Boolean {
         return keystoreManager.hasBiometricKey() &&
@@ -56,67 +56,61 @@ class VaultRepositoryImpl(
         }
     }
 
-    override fun getBiometricEncryptCipher(): javax.crypto.Cipher? {
-        return keystoreManager.getEncryptCipher()
+    override fun getBiometricEncryptCipher(): javax.crypto.Cipher? = keystoreManager.getEncryptCipher()
+
+    override suspend fun setupNewVault(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        try {
+            val salt = KeyDerivation.generateSalt()
+            val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, salt)
+            val vek = CryptoEngine.generateVaultKey()
+
+            val encryptedVekPayload = CryptoEngine.encrypt(vek, derivedMasterKey)
+            val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
+            val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, saltBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, tokenBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_SETUP, "true")
+
+            dbHelper.recordSecurityScore(100)
+            sessionManager.unlock(vek)
+
+            SecureMemory.wipe(vek)
+            SecureMemory.wipe(derivedMasterKey)
+            SecureMemory.wipe(salt)
+
+            isAuditDirty = true
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to create vault", e)
+        }
     }
 
-    override suspend fun setupNewVault(masterPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
-        val salt = KeyDerivation.generateSalt()
-        val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, salt)
+    override fun hasDuressPassword(): Boolean = dbHelper.hasDuressSetup()
 
-        // Generate independent 256-bit Vault Encryption Key (VEK)
-        val vek = CryptoEngine.generateVaultKey()
+    override suspend fun setupDuressPassword(duressPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        try {
+            val salt = KeyDerivation.generateSalt()
+            val derivedDuressKey = KeyDerivation.deriveKey(duressPassword, salt)
+            val decoyVek = CryptoEngine.generateVaultKey()
+            val encryptedDecoyPayload = CryptoEngine.encrypt(decoyVek, derivedDuressKey)
 
-        // Encrypt VEK with Derived Master Key (Verification Token)
-        val encryptedVekPayload = CryptoEngine.encrypt(vek, derivedMasterKey)
-        val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
-        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val tokenBase64 = Base64.encodeToString(encryptedDecoyPayload, Base64.NO_WRAP)
+            val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
 
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, saltBase64)
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, tokenBase64)
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_SETUP, "true")
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_SALT, saltBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_TOKEN, tokenBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "true")
 
-        // Record initial security score
-        dbHelper.recordSecurityScore(100)
+            dbHelper.provisionDefaultDecoyItems(decoyVek)
 
-        // Unlock active session
-        sessionManager.unlock(vek)
-
-        // Securely wipe original in-memory buffers
-        SecureMemory.wipe(vek)
-        SecureMemory.wipe(derivedMasterKey)
-        SecureMemory.wipe(salt)
-
-        isAuditDirty = true
-        true
-    }
-
-    override fun hasDuressPassword(): Boolean {
-        return dbHelper.hasDuressSetup()
-    }
-
-    override suspend fun setupDuressPassword(duressPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
-        val salt = KeyDerivation.generateSalt()
-        val derivedDuressKey = KeyDerivation.deriveKey(duressPassword, salt)
-
-        // Generate independent 256-bit Decoy Vault Encryption Key
-        val decoyVek = CryptoEngine.generateVaultKey()
-        val encryptedDecoyPayload = CryptoEngine.encrypt(decoyVek, derivedDuressKey)
-
-        val tokenBase64 = Base64.encodeToString(encryptedDecoyPayload, Base64.NO_WRAP)
-        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
-
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_SALT, saltBase64)
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_TOKEN, tokenBase64)
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "true")
-
-        // Pre-provision realistic decoy items
-        dbHelper.provisionDefaultDecoyItems(decoyVek)
-
-        SecureMemory.wipe(decoyVek)
-        SecureMemory.wipe(derivedDuressKey)
-        SecureMemory.wipe(salt)
-        true
+            SecureMemory.wipe(decoyVek)
+            SecureMemory.wipe(derivedDuressKey)
+            SecureMemory.wipe(salt)
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to setup duress vault", e)
+        }
     }
 
     override suspend fun removeDuressPassword() = withContext(Dispatchers.IO) {
@@ -125,7 +119,7 @@ class VaultRepositoryImpl(
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "false")
     }
 
-    override suspend fun unlockWithPassword(masterPassword: CharArray): Boolean = withContext(Dispatchers.Default) {
+    override suspend fun unlockWithPassword(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         // 1. Try Primary Master Password
         val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT)
         val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN)
@@ -145,7 +139,7 @@ class VaultRepositoryImpl(
                 SecureMemory.wipe(derivedMasterKey)
                 SecureMemory.wipe(salt)
                 isAuditDirty = true
-                return@withContext true
+                return@withContext KryptxResult.Success(Unit)
             } catch (_: Exception) {
                 SecureMemory.wipe(derivedMasterKey)
                 SecureMemory.wipe(salt)
@@ -172,7 +166,7 @@ class VaultRepositoryImpl(
                     SecureMemory.wipe(derivedDuressKey)
                     SecureMemory.wipe(duressSalt)
                     isAuditDirty = true
-                    return@withContext true
+                    return@withContext KryptxResult.Success(Unit)
                 } catch (_: Exception) {
                     SecureMemory.wipe(derivedDuressKey)
                     SecureMemory.wipe(duressSalt)
@@ -180,39 +174,43 @@ class VaultRepositoryImpl(
             }
         }
 
-        // 3. Failed Attempt Throttling
+        // 3. Record failed attempt throttling
         sessionManager.recordFailedAttempt()
-        false
+        KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Incorrect master password")
     }
 
-    override suspend fun setupBiometrics(): Boolean = withContext(Dispatchers.Default) {
-        val cipher = keystoreManager.getEncryptCipher() ?: return@withContext false
+    override suspend fun setupBiometrics(): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val cipher = keystoreManager.getEncryptCipher()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.BIOMETRICS_NOT_AVAILABLE, "Could not initialize biometric cipher")
         setupBiometricsWithCipher(cipher)
     }
 
-    override suspend fun setupBiometricsWithCipher(cipher: javax.crypto.Cipher): Boolean = withContext(Dispatchers.Default) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
-        try {
+    override suspend fun setupBiometricsWithCipher(cipher: javax.crypto.Cipher): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
             val (wrappedVek, iv) = keystoreManager.wrapWithCipher(cipher, activeVek)
             val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
             val ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP)
 
             dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
             dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV, ivBase64)
-            true
-        } catch (_: Exception) {
-            false
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Failed to enroll biometric key", e)
         }
     }
 
-    override suspend fun unlockWithBiometrics(): Boolean = withContext(Dispatchers.Default) {
-        val cipher = getBiometricDecryptCipher() ?: return@withContext false
+    override suspend fun unlockWithBiometrics(): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val cipher = getBiometricDecryptCipher()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.KEYSTORE_INVALIDATED, "Biometric key invalidated — please re-enroll")
         unlockWithBiometricCipher(cipher)
     }
 
-    override suspend fun unlockWithBiometricCipher(cipher: javax.crypto.Cipher): Boolean = withContext(Dispatchers.Default) {
-        val wrappedBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK) ?: return@withContext false
-        try {
+    override suspend fun unlockWithBiometricCipher(cipher: javax.crypto.Cipher): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val wrappedBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_WRAPPED_VEK)
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.BIOMETRICS_NOT_AVAILABLE, "No biometric key stored")
+        return@withContext try {
             val wrappedBytes = Base64.decode(wrappedBase64, Base64.NO_WRAP)
             val vek = keystoreManager.unwrapWithCipher(cipher, wrappedBytes)
 
@@ -222,10 +220,10 @@ class VaultRepositoryImpl(
             }
             SecureMemory.wipe(vek)
             isAuditDirty = true
-            true
-        } catch (_: Exception) {
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
             sessionManager.recordFailedAttempt()
-            false
+            KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Biometric decryption failed", e)
         }
     }
 
@@ -238,22 +236,25 @@ class VaultRepositoryImpl(
     override suspend fun changeMasterPassword(
         currentPassword: CharArray,
         newPassword: CharArray
-    ): Boolean = withContext(Dispatchers.Default) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+    ): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
 
-        // Verify current password first
-        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT) ?: return@withContext false
-        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN) ?: return@withContext false
+        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT)
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault salt not found")
+        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN)
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault token not found")
+
         val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
         val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
-
         val currentDerivedKey = KeyDerivation.deriveKey(currentPassword, salt)
+
         val verifiedVek = try {
             CryptoEngine.decrypt(tokenBytes, currentDerivedKey)
         } catch (e: Exception) {
             SecureMemory.wipe(currentDerivedKey)
             SecureMemory.wipe(salt)
-            return@withContext false
+            return@withContext KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Incorrect current master password")
         }
         SecureMemory.wipe(currentDerivedKey)
         SecureMemory.wipe(salt)
@@ -264,20 +265,16 @@ class VaultRepositoryImpl(
         val newDerivedKey = KeyDerivation.deriveKey(newPassword, newSalt)
         val newEncryptedVek = CryptoEngine.encrypt(activeVek, newDerivedKey)
 
-        val newSaltBase64 = Base64.encodeToString(newSalt, Base64.NO_WRAP)
-        val newTokenBase64 = Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP)
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, Base64.encodeToString(newSalt, Base64.NO_WRAP))
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP))
 
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, newSaltBase64)
-        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, newTokenBase64)
-
-        // Re-wrap biometric key if biometrics is active
         if (isBiometricsConfigured()) {
             setupBiometrics()
         }
 
         SecureMemory.wipe(newDerivedKey)
         SecureMemory.wipe(newSalt)
-        true
+        KryptxResult.Success(Unit)
     }
 
     override fun getItems(): Flow<List<VaultItem>> = dbHelper.itemsFlow
@@ -287,36 +284,63 @@ class VaultRepositoryImpl(
         dbHelper.loadItemById(id, activeVek)
     }
 
-    override suspend fun saveItem(item: VaultItem): Boolean = withContext(Dispatchers.IO) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+    override suspend fun saveItem(item: VaultItem): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
         val isDecoy = sessionManager.isDecoy.value
-        val success = if (isDecoy) {
-            dbHelper.saveDecoyItem(item, activeVek)
-        } else {
-            dbHelper.saveItem(item, activeVek)
+        return@withContext try {
+            val success = if (isDecoy) {
+                dbHelper.saveDecoyItem(item, activeVek)
+            } else {
+                dbHelper.saveItem(item, activeVek)
+            }
+            if (success) {
+                isAuditDirty = true
+                KryptxResult.Success(Unit)
+            } else {
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to save item")
+            }
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to save item", e)
         }
-        if (success) {
-            isAuditDirty = true
-        }
-        success
     }
 
-    override suspend fun deleteItem(itemId: String): Boolean = withContext(Dispatchers.IO) {
-        val success = dbHelper.deleteItem(itemId)
-        if (success) {
-            isAuditDirty = true
+    override suspend fun deleteItem(itemId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val success = dbHelper.deleteItem(itemId)
+            if (success) {
+                isAuditDirty = true
+                KryptxResult.Success(Unit)
+            } else {
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found or could not be deleted")
+            }
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to delete item", e)
         }
-        success
     }
 
-    override suspend fun toggleFavorite(itemId: String): Boolean = withContext(Dispatchers.IO) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
-        dbHelper.toggleFavorite(itemId, activeVek)
+    override suspend fun toggleFavorite(itemId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val success = dbHelper.toggleFavorite(itemId, activeVek)
+            if (success) KryptxResult.Success(Unit)
+            else KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to toggle favorite", e)
+        }
     }
 
-    override suspend fun recordItemUsage(itemId: String): Boolean = withContext(Dispatchers.IO) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
-        dbHelper.recordItemUsage(itemId, activeVek)
+    override suspend fun recordItemUsage(itemId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val success = dbHelper.recordItemUsage(itemId, activeVek)
+            if (success) KryptxResult.Success(Unit)
+            else KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to record usage", e)
+        }
     }
 
     override suspend fun computeSecurityAudit(): SecurityAuditReport = withContext(Dispatchers.Default) {
@@ -331,14 +355,12 @@ class VaultRepositoryImpl(
             issues = emptyList()
         )
 
-        // Return cached audit report if state hasn't changed
         if (!isAuditDirty && cachedAuditReport != null) {
             return@withContext cachedAuditReport!!
         }
 
         val items = dbHelper.loadAllItems(activeVek)
         val loginItems = items.filter { it.type == ItemType.LOGIN && it.password.isNotBlank() }
-
         val issues = mutableListOf<SecurityIssue>()
         val sixMonthsAgo = System.currentTimeMillis() - (180L * 24 * 60 * 60 * 1000L)
 
@@ -349,19 +371,17 @@ class VaultRepositoryImpl(
             if (matchingItems.size > 1) {
                 reusedCount += matchingItems.size
                 for (item in matchingItems) {
-                    issues.add(
-                        SecurityIssue(
-                            id = "reused_${item.id}",
-                            itemId = item.id,
-                            itemTitle = item.title,
-                            itemSubtitle = item.displaySubtitle,
-                            severity = IssueSeverity.WARNING,
-                            type = IssueType.REUSED_PASSWORD,
-                            title = "Password reused across ${matchingItems.size} accounts",
-                            description = "Using the same password on multiple services creates a single point of failure.",
-                            recommendation = "Generate a unique, random password for this account."
-                        )
-                    )
+                    issues.add(SecurityIssue(
+                        id = "reused_${item.id}",
+                        itemId = item.id,
+                        itemTitle = item.title,
+                        itemSubtitle = item.displaySubtitle,
+                        severity = IssueSeverity.WARNING,
+                        type = IssueType.REUSED_PASSWORD,
+                        title = "Password reused across ${matchingItems.size} accounts",
+                        description = "Using the same password on multiple services creates a single point of failure.",
+                        recommendation = "Generate a unique, random password for this account."
+                    ))
                 }
             }
         }
@@ -375,19 +395,17 @@ class VaultRepositoryImpl(
                 item.password.length < 10
             ) {
                 weakCount++
-                issues.add(
-                    SecurityIssue(
-                        id = "weak_${item.id}",
-                        itemId = item.id,
-                        itemTitle = item.title,
-                        itemSubtitle = item.displaySubtitle,
-                        severity = IssueSeverity.CRITICAL,
-                        type = IssueType.WEAK_PASSWORD,
-                        title = "Weak password (${analysis.entropyBits} bits entropy)",
-                        description = "This password is susceptible to automated dictionary and brute-force guessing.",
-                        recommendation = "Upgrade to a 20+ character password or 4-word passphrase."
-                    )
-                )
+                issues.add(SecurityIssue(
+                    id = "weak_${item.id}",
+                    itemId = item.id,
+                    itemTitle = item.title,
+                    itemSubtitle = item.displaySubtitle,
+                    severity = IssueSeverity.CRITICAL,
+                    type = IssueType.WEAK_PASSWORD,
+                    title = "Weak password (${analysis.entropyBits} bits entropy)",
+                    description = "This password is susceptible to automated dictionary and brute-force guessing.",
+                    recommendation = "Upgrade to a 20+ character password or 4-word passphrase."
+                ))
             }
         }
 
@@ -396,43 +414,44 @@ class VaultRepositoryImpl(
         for (item in loginItems) {
             if (item.updatedAt < sixMonthsAgo) {
                 oldCount++
-                issues.add(
-                    SecurityIssue(
-                        id = "old_${item.id}",
-                        itemId = item.id,
-                        itemTitle = item.title,
-                        itemSubtitle = item.displaySubtitle,
-                        severity = IssueSeverity.INFO,
-                        type = IssueType.OLD_PASSWORD,
-                        title = "Password not changed in over 6 months",
-                        description = "Older passwords have a higher probability of unnoticed credential leaks.",
-                        recommendation = "Review and rotate credentials if necessary."
-                    )
-                )
+                issues.add(SecurityIssue(
+                    id = "old_${item.id}",
+                    itemId = item.id,
+                    itemTitle = item.title,
+                    itemSubtitle = item.displaySubtitle,
+                    severity = IssueSeverity.INFO,
+                    type = IssueType.OLD_PASSWORD,
+                    title = "Password not changed in over 6 months",
+                    description = "Older passwords have a higher probability of unnoticed credential leaks.",
+                    recommendation = "Review and rotate credentials if necessary."
+                ))
             }
         }
 
         // 4. Missing 2FA on high-priority domains
         var missing2faCount = 0
-        val popular2faDomains = listOf("google.com", "github.com", "apple.com", "amazon.com", "microsoft.com", "twitter.com", "x.com", "binance.com", "coinbase.com", "paypal.com", "bank")
+        val popular2faDomains = listOf(
+            "google.com", "github.com", "apple.com", "amazon.com", "microsoft.com",
+            "twitter.com", "x.com", "binance.com", "coinbase.com", "paypal.com", "bank"
+        )
         for (item in loginItems) {
             if (item.totpSecret.isBlank()) {
-                val isHighPriority = popular2faDomains.any { item.website.contains(it, ignoreCase = true) || item.title.contains(it, ignoreCase = true) }
+                val isHighPriority = popular2faDomains.any {
+                    item.website.contains(it, ignoreCase = true) || item.title.contains(it, ignoreCase = true)
+                }
                 if (isHighPriority) {
                     missing2faCount++
-                    issues.add(
-                        SecurityIssue(
-                            id = "2fa_${item.id}",
-                            itemId = item.id,
-                            itemTitle = item.title,
-                            itemSubtitle = item.displaySubtitle,
-                            severity = IssueSeverity.WARNING,
-                            type = IssueType.MISSING_2FA,
-                            title = "2FA / TOTP Authenticator not configured",
-                            description = "This service supports multi-factor authentication for vital account security.",
-                            recommendation = "Add a 2FA TOTP secret key to activate real-time login codes."
-                        )
-                    )
+                    issues.add(SecurityIssue(
+                        id = "2fa_${item.id}",
+                        itemId = item.id,
+                        itemTitle = item.title,
+                        itemSubtitle = item.displaySubtitle,
+                        severity = IssueSeverity.WARNING,
+                        type = IssueType.MISSING_2FA,
+                        title = "2FA / TOTP Authenticator not configured",
+                        description = "This service supports multi-factor authentication for vital account security.",
+                        recommendation = "Add a 2FA TOTP secret key to activate real-time login codes."
+                    ))
                 }
             }
         }
@@ -442,23 +461,21 @@ class VaultRepositoryImpl(
         for (item in items) {
             if (item.isExpired) {
                 expiredCount++
-                issues.add(
-                    SecurityIssue(
-                        id = "expired_${item.id}",
-                        itemId = item.id,
-                        itemTitle = item.title,
-                        itemSubtitle = item.displaySubtitle,
-                        severity = IssueSeverity.CRITICAL,
-                        type = IssueType.EXPIRED_PASSWORD,
-                        title = "Password rotation overdue (Expired)",
-                        description = "This credential has passed its scheduled security rotation date.",
-                        recommendation = "Generate a new password and update your service login."
-                    )
-                )
+                issues.add(SecurityIssue(
+                    id = "expired_${item.id}",
+                    itemId = item.id,
+                    itemTitle = item.title,
+                    itemSubtitle = item.displaySubtitle,
+                    severity = IssueSeverity.CRITICAL,
+                    type = IssueType.EXPIRED_PASSWORD,
+                    title = "Password rotation overdue (Expired)",
+                    description = "This credential has passed its scheduled security rotation date.",
+                    recommendation = "Generate a new password and update your service login."
+                ))
             }
         }
 
-        // 6. Compromised check using BreachChecker
+        // 6. Compromised check via BreachChecker
         var compromisedCount = 0
         val isNetworkBreachEnabled = preferencesRepository?.breachCheckNetworkEnabled?.value ?: false
         for (item in loginItems) {
@@ -468,19 +485,17 @@ class VaultRepositoryImpl(
             )
             if (breachStatus.isBreached) {
                 compromisedCount++
-                issues.add(
-                    SecurityIssue(
-                        id = "comp_${item.id}",
-                        itemId = item.id,
-                        itemTitle = item.title,
-                        itemSubtitle = item.displaySubtitle,
-                        severity = IssueSeverity.CRITICAL,
-                        type = IssueType.COMPROMISED,
-                        title = "Known breached credential",
-                        description = "This password was identified in public security breaches (${breachStatus.source}).",
-                        recommendation = "Change this password immediately on the service website."
-                    )
-                )
+                issues.add(SecurityIssue(
+                    id = "comp_${item.id}",
+                    itemId = item.id,
+                    itemTitle = item.title,
+                    itemSubtitle = item.displaySubtitle,
+                    severity = IssueSeverity.CRITICAL,
+                    type = IssueType.COMPROMISED,
+                    title = "Known breached credential",
+                    description = "This password was identified in public security breaches (${breachStatus.source}).",
+                    recommendation = "Change this password immediately on the service website."
+                ))
             }
         }
 
@@ -526,69 +541,99 @@ class VaultRepositoryImpl(
         report
     }
 
-    override suspend fun exportEncryptedBackup(exportPassword: CharArray): EncryptedBackupPayload? = withContext(Dispatchers.Default) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext null
-        val items = dbHelper.loadAllItems(activeVek)
+    override suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload> = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val items = dbHelper.loadAllItems(activeVek)
+            val salt = KeyDerivation.generateSalt()
+            val derivedKey = KeyDerivation.deriveKey(exportPassword, salt)
 
-        val salt = KeyDerivation.generateSalt()
-        val derivedKey = KeyDerivation.deriveKey(exportPassword, salt)
+            val plaintextBytes = json.encodeToString(items).toByteArray(Charsets.UTF_8)
+            val ciphertext = try {
+                CryptoEngine.encrypt(plaintextBytes, derivedKey)
+            } finally {
+                SecureMemory.wipe(plaintextBytes)
+            }
 
-        val plaintextJson = json.encodeToString(items)
-        val ciphertext = CryptoEngine.encrypt(plaintextJson.toByteArray(Charsets.UTF_8), derivedKey)
+            val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
 
-        val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
-        val ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
+            SecureMemory.wipe(derivedKey)
+            SecureMemory.wipe(salt)
 
-        SecureMemory.wipe(derivedKey)
+            val header = BackupHeader(
+                app = "Kryptx",
+                version = "1.1.0",
+                formatVersion = 1,
+                exportedAt = System.currentTimeMillis(),
+                isEncrypted = true,
+                kdfAlgorithm = "PBKDF2WithHmacSHA256",
+                kdfIterations = KeyDerivation.DEFAULT_ITERATIONS,
+                saltBase64 = saltBase64,
+                ivBase64 = ""
+            )
 
-        val header = BackupHeader(
-            app = "Kryptx",
-            version = "1.0.0",
-            formatVersion = 1,
-            exportedAt = System.currentTimeMillis(),
-            isEncrypted = true,
-            kdfAlgorithm = "PBKDF2WithHmacSHA256",
-            kdfIterations = KeyDerivation.DEFAULT_ITERATIONS,
-            saltBase64 = saltBase64,
-            ivBase64 = ""
-        )
-
-        EncryptedBackupPayload(header, ciphertextBase64)
+            KryptxResult.Success(EncryptedBackupPayload(header, ciphertextBase64))
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export encrypted backup", e)
+        }
     }
 
-    override suspend fun exportPlaintextJson(): String? = withContext(Dispatchers.Default) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext null
-        val items = dbHelper.loadAllItems(activeVek)
-        json.encodeToString(items)
+    override suspend fun exportPlaintextJson(): KryptxResult<String> = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val items = dbHelper.loadAllItems(activeVek)
+            KryptxResult.Success(json.encodeToString(items))
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export vault", e)
+        }
     }
 
     override suspend fun importEncryptedBackup(
         payload: EncryptedBackupPayload,
         importPassword: CharArray
-    ): Int = withContext(Dispatchers.Default) {
-        val salt = Base64.decode(payload.header.saltBase64, Base64.NO_WRAP)
-        val derivedKey = KeyDerivation.deriveKey(importPassword, salt, payload.header.kdfIterations)
-        val ciphertext = Base64.decode(payload.ciphertextBase64, Base64.NO_WRAP)
+    ): KryptxResult<Int> = withContext(Dispatchers.Default) {
+        return@withContext try {
+            val salt = Base64.decode(payload.header.saltBase64, Base64.NO_WRAP)
+            val derivedKey = KeyDerivation.deriveKey(importPassword, salt, payload.header.kdfIterations)
+            val ciphertext = Base64.decode(payload.ciphertextBase64, Base64.NO_WRAP)
 
-        val decryptedBytes = try {
-            CryptoEngine.decrypt(ciphertext, derivedKey)
-        } catch (e: Exception) {
+            val decryptedBytes = try {
+                CryptoEngine.decrypt(ciphertext, derivedKey)
+            } catch (e: Exception) {
+                SecureMemory.wipe(derivedKey)
+                return@withContext KryptxResult.Error(KryptxErrorType.DECRYPTION_FAILED, "Wrong import password or corrupted backup")
+            }
             SecureMemory.wipe(derivedKey)
-            return@withContext -1
-        }
-        SecureMemory.wipe(derivedKey)
 
-        val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
-        val items = json.decodeFromString<List<VaultItem>>(plaintextJson)
-        importItems(items)
+            val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
+            SecureMemory.wipe(decryptedBytes)
+
+            val items = try {
+                json.decodeFromString<List<VaultItem>>(plaintextJson)
+            } catch (e: Exception) {
+                return@withContext KryptxResult.Error(KryptxErrorType.IMPORT_PARSE_FAILED, "Backup file is corrupted or incompatible", e)
+            }
+
+            importItems(items)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.IMPORT_PARSE_FAILED, "Failed to import backup", e)
+        }
     }
 
-    override suspend fun importItems(items: List<VaultItem>): Int = withContext(Dispatchers.IO) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext 0
-        val count = dbHelper.saveItemsBatch(items, activeVek)
-        val report = computeSecurityAudit()
-        dbHelper.recordSecurityScore(report.overallScore)
-        count
+    override suspend fun importItems(items: List<VaultItem>): KryptxResult<Int> = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val count = dbHelper.saveItemsBatch(items, activeVek)
+            val report = computeSecurityAudit()
+            dbHelper.recordSecurityScore(report.overallScore)
+            KryptxResult.Success(count)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to import items", e)
+        }
     }
 
     override suspend fun resetVault() = withContext(Dispatchers.IO) {

@@ -68,7 +68,7 @@ class TotpViewModel(
                 totpSecret = parsed.secret
             )
             viewModelScope.launch {
-                if (vaultRepository.saveItem(newItem)) {
+                if (vaultRepository.saveItem(newItem).isSuccess) {
                     onSuccess()
                 } else {
                     onError()

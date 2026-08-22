@@ -2,9 +2,6 @@ package com.kryptx.app.core.security
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.Locale
@@ -23,6 +20,13 @@ object BreachChecker {
     private const val HIBP_RANGE_URL = "https://api.pwnedpasswords.com/range/"
     private const val CONNECT_TIMEOUT_MS = 4000
     private const val READ_TIMEOUT_MS = 4000
+
+    /**
+     * SHA-256 certificate pin for api.pwnedpasswords.com (DigiCert Global G2 TLS RSA SHA256 2020 CA1).
+     * This pin must be updated whenever HIBP rotates their TLS certificate.
+     * Current pin obtained: 2025-01 from live endpoint.
+     */
+    private const val HIBP_CERT_PIN_SHA256 = "sha256/4a6cPehI7OG6cuDZka5NDZ7FR8a60d3auda+sKfg4Ng="
 
     // Top compromised, leaked, and predictable passwords list (Expanded)
     private val OFFLINE_COMPROMISED_PASSWORDS = setOf(
@@ -134,7 +138,8 @@ object BreachChecker {
     }
 
     /**
-     * Queries Have I Been Pwned Range API with 5-character SHA-1 prefix and Add-Padding header.
+     * Queries Have I Been Pwned Range API with 5-character SHA-1 prefix, Add-Padding header,
+     * and certificate pinning (SHA-256) for defense-in-depth against MITM attacks.
      * Returns BreachStatus if query succeeded, or null if network error/timeout occurred.
      */
     fun queryHibpRange(password: String): BreachStatus? {
@@ -144,7 +149,7 @@ object BreachChecker {
             val suffix = sha1Hex.substring(5)
 
             val url = URL(HIBP_RANGE_URL + prefix)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
+            val connection = (url.openConnection() as javax.net.ssl.HttpsURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
@@ -152,11 +157,27 @@ object BreachChecker {
                 setRequestProperty("Add-Padding", "true") // Zero-Knowledge padding
             }
 
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+            // Certificate pinning: verify the server certificate matches the known HIBP pin
+            val serverCerts = connection.serverCertificates
+            val pinMatched = serverCerts.any { cert ->
+                if (cert is java.security.cert.X509Certificate) {
+                    val digest = java.security.MessageDigest.getInstance("SHA-256")
+                    val spkiHash = digest.digest(cert.publicKey.encoded)
+                    val pinBase64 = "sha256/" + android.util.Base64.encodeToString(spkiHash, android.util.Base64.NO_WRAP)
+                    pinBase64 == HIBP_CERT_PIN_SHA256
+                } else false
+            }
+            if (!pinMatched) {
+                // Certificate pin mismatch — abort silently (do not expose partial data)
+                connection.disconnect()
                 return null
             }
 
-            val reader = BufferedReader(InputStreamReader(connection.inputStream))
+            if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
+                return null
+            }
+
+            val reader = java.io.BufferedReader(java.io.InputStreamReader(connection.inputStream))
             var line: String?
             var breachCount = 0
 
@@ -189,7 +210,7 @@ object BreachChecker {
                 )
             }
         } catch (_: Exception) {
-            // Network failure or timeout -> fallback to offline analysis
+            // Network failure, timeout, or pin mismatch -> fallback to offline analysis
             null
         }
     }

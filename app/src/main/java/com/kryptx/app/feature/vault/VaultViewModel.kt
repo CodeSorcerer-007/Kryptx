@@ -101,7 +101,7 @@ class VaultViewModel(
         viewModelScope.launch {
             val item = vaultRepository.getItemById(itemId)
             lastDeletedItem = item
-            if (vaultRepository.deleteItem(itemId)) {
+            if (vaultRepository.deleteItem(itemId).isSuccess) {
                 refreshSecurityReport()
                 onDeleted()
             }
@@ -112,7 +112,7 @@ class VaultViewModel(
         viewModelScope.launch {
             val item = vaultRepository.getItemById(itemId)
             lastDeletedItem = item
-            if (vaultRepository.deleteItem(itemId)) {
+            if (vaultRepository.deleteItem(itemId).isSuccess) {
                 refreshSecurityReport()
                 onDeleted(item)
             }
@@ -122,7 +122,7 @@ class VaultViewModel(
     fun undoLastDelete(onRestored: ((VaultItem) -> Unit)? = null) {
         val itemToRestore = lastDeletedItem ?: return
         viewModelScope.launch {
-            if (vaultRepository.saveItem(itemToRestore)) {
+            if (vaultRepository.saveItem(itemToRestore).isSuccess) {
                 lastDeletedItem = null
                 refreshSecurityReport()
                 onRestored?.invoke(itemToRestore)
@@ -132,7 +132,7 @@ class VaultViewModel(
 
     fun saveItem(item: VaultItem, onSaved: () -> Unit) {
         viewModelScope.launch {
-            if (vaultRepository.saveItem(item)) {
+            if (vaultRepository.saveItem(item).isSuccess) {
                 refreshSecurityReport()
                 onSaved()
             }

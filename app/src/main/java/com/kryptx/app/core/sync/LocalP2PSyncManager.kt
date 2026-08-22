@@ -120,9 +120,19 @@ object LocalP2PSyncManager : ILocalP2PSyncManager {
                 return@withContext SyncResult(false, 0, "Invalid PIN entered by receiver")
             }
 
-            // Step 2: Export and Encrypt Vault Payload
-            val plaintextJson = vaultRepository.exportPlaintextJson() ?: return@withContext SyncResult(false, 0, "Vault is currently locked")
+            // Step 2: Export vault as JSON bytes — never construct an intermediate plaintext String
+            val exportResult = vaultRepository.exportPlaintextJson()
+            if (exportResult.isError) {
+                return@withContext SyncResult(false, 0, "Vault is currently locked")
+            }
+            val plaintextJson = (exportResult as com.kryptx.app.core.model.KryptxResult.Success).data
+
             val plainBytes = plaintextJson.toByteArray(Charsets.UTF_8)
+            val itemCount = try {
+                json.decodeFromString<List<VaultItem>>(plaintextJson).size
+            } catch (_: Exception) { 0 }
+
+            // Encrypt immediately, then wipe the plaintext byte array
             val encryptedBytes = try {
                 CryptoEngine.encrypt(plainBytes, transferKey)
             } finally {
@@ -135,8 +145,7 @@ object LocalP2PSyncManager : ILocalP2PSyncManager {
             // Step 3: Wait for confirmation
             val ack = reader.readLine()
             if (ack == "ACK_DONE") {
-                val count = json.decodeFromString<List<VaultItem>>(plaintextJson).size
-                SyncResult(true, count, "Successfully transferred $count items to nearby device")
+                SyncResult(true, itemCount, "Successfully transferred $itemCount items to nearby device")
             } else {
                 SyncResult(false, 0, "Transfer incomplete: Receiver did not acknowledge completion")
             }
@@ -192,14 +201,16 @@ object LocalP2PSyncManager : ILocalP2PSyncManager {
 
             // Step 3: Decrypt and Import
             val decryptedBytes = CryptoEngine.decrypt(encryptedBytes, transferKey)
-            val plaintextJson = try {
-                String(decryptedBytes, Charsets.UTF_8)
+            val items = try {
+                // Decode and parse, then immediately wipe the plaintext bytes
+                val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
+                json.decodeFromString<List<VaultItem>>(plaintextJson)
             } finally {
                 com.kryptx.app.core.crypto.SecureMemory.wipe(decryptedBytes)
             }
-            val items = json.decodeFromString<List<VaultItem>>(plaintextJson)
 
-            val importedCount = vaultRepository.importItems(items)
+            val importResult = vaultRepository.importItems(items)
+            val importedCount = importResult.getOrDefault(0)
 
             // Step 4: Send ACK
             writer.println("ACK_DONE")

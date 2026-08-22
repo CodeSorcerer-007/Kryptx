@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.database.IPreferencesRepository
 import com.kryptx.app.core.database.VaultRepository
+import com.kryptx.app.core.model.KryptxErrorType
+import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,7 +64,7 @@ class UnlockViewModel(
 
         viewModelScope.launch {
             val chars = password.toCharArray()
-            val success = try {
+            val result = try {
                 vaultRepository.unlockWithPassword(chars)
             } finally {
                 SecureMemory.wipe(chars)
@@ -70,12 +72,16 @@ class UnlockViewModel(
 
             _uiState.value = _uiState.value.copy(isLoading = false)
 
-            if (success) {
-                onSuccess()
-            } else {
-                _uiState.value = _uiState.value.copy(
-                    errorMessage = "Incorrect master password. Please try again."
-                )
+            when (result) {
+                is KryptxResult.Success -> onSuccess()
+                is KryptxResult.Error -> {
+                    val message = when (result.type) {
+                        KryptxErrorType.WRONG_PASSWORD -> "Incorrect master password. Please try again."
+                        KryptxErrorType.VAULT_NOT_FOUND -> "Vault data not found. Please reset the app."
+                        else -> "Failed to unlock vault. Please try again."
+                    }
+                    _uiState.value = _uiState.value.copy(errorMessage = message)
+                }
             }
         }
     }
@@ -94,42 +100,55 @@ class UnlockViewModel(
 
         viewModelScope.launch {
             val chars = password.toCharArray()
-            val success = try {
+            val result = try {
                 vaultRepository.setupNewVault(chars)
             } finally {
                 SecureMemory.wipe(chars)
             }
 
-            if (success) {
-                if (enableBiometrics) {
-                    vaultRepository.setupBiometrics()
-                    preferencesRepository.setBiometricEnabled(true)
+            when (result) {
+                is KryptxResult.Success -> {
+                    if (enableBiometrics) {
+                        vaultRepository.setupBiometrics()
+                        preferencesRepository.setBiometricEnabled(true)
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        hasVault = true,
+                        password = "",
+                        isLoading = false,
+                        isBiometricsAvailable = enableBiometrics
+                    )
+                    onSuccess()
                 }
-                _uiState.value = _uiState.value.copy(
-                    hasVault = true,
-                    password = "",
-                    isBiometricsAvailable = enableBiometrics
-                )
-                onSuccess()
-            } else {
-                _uiState.value = _uiState.value.copy(errorMessage = "Failed to create vault")
+                is KryptxResult.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to create vault. Please try again."
+                    )
+                }
             }
-            _uiState.value = _uiState.value.copy(isLoading = false)
         }
     }
 
     fun unlockWithBiometrics(onSuccess: () -> Unit) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val success = vaultRepository.unlockWithBiometrics()
+            val result = vaultRepository.unlockWithBiometrics()
             _uiState.value = _uiState.value.copy(isLoading = false)
-            if (success) {
-                _uiState.value = _uiState.value.copy(password = "")
-                onSuccess()
-            } else {
-                _uiState.value = _uiState.value.copy(
-                    errorMessage = "Biometric authentication failed to unlock vault"
-                )
+
+            when (result) {
+                is KryptxResult.Success -> {
+                    _uiState.value = _uiState.value.copy(password = "")
+                    onSuccess()
+                }
+                is KryptxResult.Error -> {
+                    val message = when (result.type) {
+                        KryptxErrorType.KEYSTORE_INVALIDATED -> "Biometric enrollment changed. Please use your master password to re-enroll."
+                        KryptxErrorType.BIOMETRICS_NOT_AVAILABLE -> "Biometric unlock not configured."
+                        else -> "Biometric authentication failed. Please try again."
+                    }
+                    _uiState.value = _uiState.value.copy(errorMessage = message)
+                }
             }
         }
     }

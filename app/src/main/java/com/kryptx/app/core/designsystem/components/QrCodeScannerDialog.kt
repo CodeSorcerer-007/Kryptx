@@ -484,7 +484,7 @@ private fun decodeQrCode(
         if (planes.isEmpty()) return null
 
         val plane = planes[0]
-        val buffer = plane.buffer ?: return null
+        val buffer = plane.buffer
         val remaining = buffer.remaining()
         if (remaining <= 0) return null
 

@@ -1,1 +1,6 @@
 /build
+
+# Release signing keystore — never commit signing credentials to version control.
+# Store the .jks file out of the repository and provide it via CI secrets or local.properties.
+*.jks
+*.keystore

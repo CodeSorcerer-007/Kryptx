@@ -1,10 +1,8 @@
 package com.kryptx.app.core
 
-import com.kryptx.app.core.crypto.CryptoEngine
-import com.kryptx.app.core.crypto.KeyDerivation
-import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.model.CustomField
 import com.kryptx.app.core.model.ItemType
+import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.model.PasswordHistoryEntry
 import com.kryptx.app.core.model.VaultAttachment
 import com.kryptx.app.core.model.VaultItem
@@ -14,17 +12,16 @@ import com.kryptx.app.fake.FakeVaultRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.util.UUID
 
 /**
  * Flagship End-to-End Cryptographic & Vault Lifecycle Integration Test.
  * Validates complete user journey: Vault Initialization -> 12 Multi-Category Population ->
- * Real-Time TOTP -> AES-256-GCM Backup Export -> Integrity Checksum -> DB Wipe -> Decrypted Import -> Data Verification.
+ * Real-Time TOTP -> AES-256-GCM Backup Export -> Integrity Checksum -> DB Wipe ->
+ * Decrypted Import -> Data Verification.
  */
 class EndToEndVaultLifecycleTest {
 
@@ -43,8 +40,8 @@ class EndToEndVaultLifecycleTest {
         val backupPassword = "BackupEncryptionPassword999!".toCharArray()
 
         // 1. Vault Setup
-        val setupSuccess = repository.setupNewVault(masterPassword)
-        assertTrue("Vault setup must succeed", setupSuccess)
+        val setupResult = repository.setupNewVault(masterPassword)
+        assertTrue("Vault setup must succeed", setupResult.isSuccess)
         assertTrue("Repository must confirm active vault", repository.hasVault())
 
         // 2. Populate 12 Distinct Multi-Category Items
@@ -56,7 +53,7 @@ class EndToEndVaultLifecycleTest {
                 username = "octocat_sec",
                 password = "P@sswordGithubSuperSecure2026!",
                 website = "https://github.com",
-                totpSecret = "JBSWY3DPEHPK3PXP", // Standard TOTP test vector
+                totpSecret = "JBSWY3DPEHPK3PXP",
                 tags = listOf("Dev", "2FA"),
                 passwordHistory = listOf(PasswordHistoryEntry("OldGithubPassword2025!"))
             ),
@@ -167,8 +164,8 @@ class EndToEndVaultLifecycleTest {
 
         // Save each item
         for (item in testItems) {
-            val saved = repository.saveItem(item)
-            assertTrue("Item ${item.title} must be saved successfully", saved)
+            val saveResult = repository.saveItem(item)
+            assertTrue("Item ${item.title} must be saved successfully", saveResult.isSuccess)
         }
 
         // Verify all 12 items present in repository flow
@@ -189,8 +186,9 @@ class EndToEndVaultLifecycleTest {
         assertTrue("Security score must be calculated", audit.overallScore in 0..100)
 
         // 5. Export Encrypted AES-256-GCM Backup
-        val backupPayload = repository.exportEncryptedBackup(backupPassword)
-        assertNotNull("Encrypted backup payload must be generated", backupPayload)
+        val exportResult = repository.exportEncryptedBackup(backupPassword)
+        assertTrue("Encrypted backup export must succeed", exportResult.isSuccess)
+        val backupPayload = (exportResult as KryptxResult.Success).data
         assertEquals("PBKDF2WithHmacSHA256", backupPayload.header.kdfAlgorithm)
         assertTrue("Ciphertext must be present", backupPayload.ciphertextBase64.isNotBlank())
 
@@ -200,7 +198,9 @@ class EndToEndVaultLifecycleTest {
         assertEquals("Vault must be completely empty after reset", 0, emptyItems.size)
 
         // 7. Import Encrypted Backup with Decryption Key
-        val importedCount = repository.importEncryptedBackup(backupPayload, backupPassword)
+        val importResult = repository.importEncryptedBackup(backupPayload, backupPassword)
+        assertTrue("Import must succeed", importResult.isSuccess)
+        val importedCount = (importResult as KryptxResult.Success).data
         assertEquals("Must restore all 12 items exactly", 12, importedCount)
 
         // 8. Assert Complete Cryptographic & Data Integrity

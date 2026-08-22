@@ -128,8 +128,9 @@ class MainActivity : FragmentActivity() {
                 val authenticatedCipher = result.cryptoObject?.cipher
                 if (authenticatedCipher != null) {
                     lifecycleScope.launch {
-                        val success = app.vaultRepository.unlockWithBiometricCipher(authenticatedCipher)
-                        if (!success) {
+                        val unlockResult = app.vaultRepository.unlockWithBiometricCipher(authenticatedCipher)
+                        if (unlockResult.isError) {
+                            // Cipher-based unlock failed — fall back to the software biometric path
                             unlockViewModel.unlockWithBiometrics(onSuccess = {})
                         }
                     }

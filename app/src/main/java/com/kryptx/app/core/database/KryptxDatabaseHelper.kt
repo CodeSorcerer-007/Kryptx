@@ -30,7 +30,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "kryptx_vault.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         // Tables
         private const val TABLE_VAULT_ITEMS = "vault_items"
@@ -117,18 +117,29 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
             )
             """.trimIndent()
         )
+
+        // Performance indices — created at table creation time for fresh installs
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_decoy_items_updated ON $TABLE_DECOY_ITEMS($COL_UPDATED_AT DESC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Schema migrations for future version upgrades
+        // Version 2: Add performance indices on vault_items and decoy_vault_items.
+        // No schema column changes — purely additive index creation.
         if (oldVersion < 2) {
             try {
-                // Ensure table structures are robust and indices are applied
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_decoy_items_updated ON $TABLE_DECOY_ITEMS($COL_UPDATED_AT DESC)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
             } catch (_: Exception) {
+                // Index creation failures are non-fatal — the database remains consistent
             }
         }
+        // Future schema versions: add sequential if (oldVersion < N) blocks here.
+        // Never use DROP TABLE — always use ALTER TABLE ADD COLUMN or CREATE TABLE for new tables.
     }
 
     // ==========================================
@@ -252,13 +263,16 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         val encryptedPayload = CryptoEngine.encryptString(serializedJson, vaultKey, aad)
 
         val db = writableDatabase
+        // Store a random opaque sort token instead of real timestamp to prevent
+        // metadata leakage (actual timestamps are inside the encrypted payload only).
+        val opaqueToken = secureRandom.nextLong()
         val values = ContentValues().apply {
             put(COL_ID, item.id)
-            put(COL_TYPE, "ENCRYPTED") // Opaque marker to prevent plaintext type leaking on disk
+            put(COL_TYPE, "ENCRYPTED") // Opaque marker — no plaintext type on disk
             put(COL_IS_FAVORITE, 0)
             put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
             put(COL_CREATED_AT, 0L)
-            put(COL_UPDATED_AT, item.updatedAt)
+            put(COL_UPDATED_AT, opaqueToken) // Opaque random token — not a real timestamp
             put(COL_LAST_USED_AT, 0L)
         }
 
@@ -306,7 +320,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
                     put(COL_IS_FAVORITE, 0)
                     put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
                     put(COL_CREATED_AT, 0L)
-                    put(COL_UPDATED_AT, item.updatedAt)
+                    put(COL_UPDATED_AT, secureRandom.nextLong()) // Opaque random token — no plaintext timestamp
                     put(COL_LAST_USED_AT, 0L)
                 }
 
@@ -464,7 +478,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
             put(COL_IS_FAVORITE, 0)
             put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
             put(COL_CREATED_AT, 0L)
-            put(COL_UPDATED_AT, item.updatedAt)
+            put(COL_UPDATED_AT, secureRandom.nextLong()) // Opaque random token — no plaintext timestamp
             put(COL_LAST_USED_AT, 0L)
         }
 

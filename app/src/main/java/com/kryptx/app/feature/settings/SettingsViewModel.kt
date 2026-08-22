@@ -65,7 +65,8 @@ class SettingsViewModel(
     fun setBiometricEnabled(enabled: Boolean, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             if (enabled) {
-                val success = vaultRepository.setupBiometrics()
+                val result = vaultRepository.setupBiometrics()
+                val success = result.isSuccess
                 preferencesRepository.setBiometricEnabled(success)
                 onResult(success)
             } else {
@@ -103,17 +104,23 @@ class SettingsViewModel(
             val currChars = currentPass.toCharArray()
             val newChars = newPass.toCharArray()
 
-            val success = try {
+            val result = try {
                 vaultRepository.changeMasterPassword(currChars, newChars)
             } finally {
                 SecureMemory.wipe(currChars)
                 SecureMemory.wipe(newChars)
             }
 
-            if (success) {
-                onSuccess()
-            } else {
-                onError("Incorrect current master password")
+            when (result) {
+                is com.kryptx.app.core.model.KryptxResult.Success -> onSuccess()
+                is com.kryptx.app.core.model.KryptxResult.Error -> {
+                    val message = when (result.type) {
+                        com.kryptx.app.core.model.KryptxErrorType.WRONG_PASSWORD -> "Incorrect current master password"
+                        com.kryptx.app.core.model.KryptxErrorType.VAULT_LOCKED -> "Vault is locked — please unlock first"
+                        else -> "Failed to change master password"
+                    }
+                    onError(message)
+                }
             }
         }
     }
@@ -128,16 +135,17 @@ class SettingsViewModel(
         }
         viewModelScope.launch {
             val chars = password.toCharArray()
-            val success = try {
+            val result = try {
                 vaultRepository.setupDuressPassword(chars)
             } finally {
                 SecureMemory.wipe(chars)
             }
-            if (success) {
-                _hasDuressPassword.value = true
-                onSuccess()
-            } else {
-                onError("Failed to setup duress decoy vault")
+            when (result) {
+                is com.kryptx.app.core.model.KryptxResult.Success -> {
+                    _hasDuressPassword.value = true
+                    onSuccess()
+                }
+                is com.kryptx.app.core.model.KryptxResult.Error -> onError("Failed to setup duress decoy vault")
             }
         }
     }
@@ -153,19 +161,23 @@ class SettingsViewModel(
     suspend fun exportEncryptedBackup(password: String): String? {
         val chars = password.toCharArray()
         return try {
-            val payload = vaultRepository.exportEncryptedBackup(chars)
-            if (payload != null) {
+            val result = vaultRepository.exportEncryptedBackup(chars)
+            result.getOrNull()?.let { payload ->
                 json.encodeToString(EncryptedBackupPayload.serializer(), payload)
-            } else null
+            }
         } finally {
             SecureMemory.wipe(chars)
         }
     }
 
     suspend fun exportPlaintextCsv(): String? {
-        val plaintextJson = vaultRepository.exportPlaintextJson() ?: return null
-        val items = json.decodeFromString<List<com.kryptx.app.core.model.VaultItem>>(plaintextJson)
-        return VaultExporter.exportToCsv(items)
+        return when (val result = vaultRepository.exportPlaintextJson()) {
+            is com.kryptx.app.core.model.KryptxResult.Success -> {
+                val items = json.decodeFromString<List<com.kryptx.app.core.model.VaultItem>>(result.data)
+                VaultExporter.exportToCsv(items)
+            }
+            is com.kryptx.app.core.model.KryptxResult.Error -> null
+        }
     }
 
     fun importContent(content: String, password: String?, onResult: (count: Int) -> Unit) {
@@ -175,22 +187,22 @@ class SettingsViewModel(
                 try {
                     val payload = json.decodeFromString<EncryptedBackupPayload>(content)
                     val chars = password.toCharArray()
-                    val count = try {
+                    val result = try {
                         vaultRepository.importEncryptedBackup(payload, chars)
                     } finally {
                         SecureMemory.wipe(chars)
                     }
-                    onResult(count)
+                    onResult(result.getOrDefault(0))
                     return@launch
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Fallthrough to plain importer
                 }
             }
 
             // Plain CSV/JSON importer (Bitwarden, 1Password, Google, etc.)
             val parsedItems = VaultImporter.importAutoDetect(content)
-            val count = vaultRepository.importItems(parsedItems)
-            onResult(count)
+            val result = vaultRepository.importItems(parsedItems)
+            onResult(result.getOrDefault(0))
         }
     }
 
