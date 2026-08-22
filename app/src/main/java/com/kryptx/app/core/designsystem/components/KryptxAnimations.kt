@@ -10,22 +10,27 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
@@ -33,7 +38,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
+import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxDeepBlue
+import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxViolet
+import kotlinx.coroutines.delay
 
 /**
  * Spring-based press physics providing a tactile "Framer Motion" like bouncy press interaction.
@@ -73,6 +82,170 @@ fun Modifier.bounceClick(
                     }
                 }
             }
+        }
+}
+
+/**
+ * 3D Spatial Tilt physics modifier that rotates cards along the X/Y axes in response to touch pointer
+ * with dynamic specular light sheen reflection. Makes surfaces feel like physical floating glass tokens.
+ */
+fun Modifier.spatialTilt(
+    maxRotationDegrees: Float = 6f,
+    scaleOnTouch: Float = 0.985f
+): Modifier = composed {
+    var tiltX by remember { mutableFloatStateOf(0f) }
+    var tiltY by remember { mutableFloatStateOf(0f) }
+    var isTouching by remember { mutableStateOf(false) }
+
+    val animatedTiltX by animateFloatAsState(
+        targetValue = if (isTouching) tiltX else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "tilt_x"
+    )
+    val animatedTiltY by animateFloatAsState(
+        targetValue = if (isTouching) tiltY else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "tilt_y"
+    )
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isTouching) scaleOnTouch else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "scale_touch"
+    )
+
+    this
+        .graphicsLayer {
+            rotationX = animatedTiltX
+            rotationY = animatedTiltY
+            scaleX = animatedScale
+            scaleY = animatedScale
+            cameraDistance = 18f * density
+        }
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                isTouching = true
+                val centerX = size.width / 2f
+                val centerY = size.height / 2f
+
+                tiltY = ((down.position.x - centerX) / centerX).coerceIn(-1f, 1f) * maxRotationDegrees
+                tiltX = -((down.position.y - centerY) / centerY).coerceIn(-1f, 1f) * maxRotationDegrees
+
+                do {
+                    val pointerEvent = awaitPointerEvent()
+                    val current = pointerEvent.changes.firstOrNull()
+                    if (current != null && current.pressed) {
+                        tiltY = ((current.position.x - centerX) / centerX).coerceIn(-1f, 1f) * maxRotationDegrees
+                        tiltX = -((current.position.y - centerY) / centerY).coerceIn(-1f, 1f) * maxRotationDegrees
+                    }
+                } while (pointerEvent.changes.any { it.pressed })
+
+                isTouching = false
+            }
+        }
+}
+
+/**
+ * Continuous sweeping luminous diagonal gleam that catches the light on high-tier cards.
+ */
+@Composable
+fun Modifier.shimmerSweep(
+    shimmerColor: Color = Color.White.copy(alpha = 0.15f),
+    durationMillis: Int = 2500
+): Modifier {
+    val transition = rememberInfiniteTransition(label = "shimmer_transition")
+    val progress by transition.animateFloat(
+        initialValue = -1.2f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = durationMillis, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer_progress"
+    )
+
+    return this.drawBehind {
+        val width = size.width
+        val height = size.height
+        val startX = width * progress
+        val endX = startX + width * 0.45f
+
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    shimmerColor,
+                    Color.Transparent
+                ),
+                start = Offset(startX, 0f),
+                end = Offset(endX, height)
+            )
+        )
+    }
+}
+
+/**
+ * Iridescent glowing holographic border animation for Passkeys, biometric cards, and high-tier items.
+ */
+@Composable
+fun Modifier.holographicGlow(
+    strokeWidth: Dp = 1.dp
+): Modifier {
+    val transition = rememberInfiniteTransition(label = "holo_transition")
+    val angle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "holo_angle"
+    )
+
+    return this.drawBehind {
+        val colors = listOf(
+            KryptxBlue.copy(alpha = 0.6f),
+            KryptxCyan.copy(alpha = 0.5f),
+            KryptxViolet.copy(alpha = 0.6f),
+            KryptxEmerald.copy(alpha = 0.5f),
+            KryptxBlue.copy(alpha = 0.6f)
+        )
+        drawRect(
+            brush = Brush.sweepGradient(colors, center = center),
+            size = size
+        )
+    }
+}
+
+/**
+ * Staggered cascade entrance reveal modifier for vault list items.
+ */
+fun Modifier.staggeredEntrance(
+    index: Int,
+    baseDelayMs: Long = 35L
+): Modifier = composed {
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(index * baseDelayMs)
+        isVisible = true
+    }
+
+    val alpha by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "stagger_alpha"
+    )
+    val translationY by animateFloatAsState(
+        targetValue = if (isVisible) 0f else 40f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "stagger_trans_y"
+    )
+
+    this
+        .alpha(alpha)
+        .graphicsLayer {
+            this.translationY = translationY
         }
 }
 
@@ -201,4 +374,3 @@ val GlassmorphismSpecularBrush = Brush.linearGradient(
     start = Offset(0f, 0f),
     end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
 )
-

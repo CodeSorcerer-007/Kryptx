@@ -34,16 +34,20 @@ class ClipboardSecurityManager(private val context: Context) : IClipboardSecurit
     ) {
         if (clipboardManager == null) return
 
-        val clip = ClipData.newPlainText(label, text).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                description.extras = PersistableBundle().apply {
-                    putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+        try {
+            val clip = ClipData.newPlainText(label, text).apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    description.extras = PersistableBundle().apply {
+                        putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                    }
                 }
             }
-        }
 
-        clipboardManager.setPrimaryClip(clip)
-        lastCopiedText = text
+            clipboardManager.setPrimaryClip(clip)
+            lastCopiedText = text
+        } catch (_: Exception) {
+            return
+        }
 
         // Schedule auto-clear
         clearJob?.cancel()
@@ -60,19 +64,21 @@ class ClipboardSecurityManager(private val context: Context) : IClipboardSecurit
      */
     override fun clearIfMatching(text: String) {
         if (clipboardManager == null) return
-        val currentClip = clipboardManager.primaryClip
-        if (currentClip != null && currentClip.itemCount > 0) {
-            val currentText = currentClip.getItemAt(0).text?.toString()
-            if (currentText == text || currentText == lastCopiedText) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    clipboardManager.clearPrimaryClip()
-                } else {
-                    val emptyClip = ClipData.newPlainText("", "")
-                    clipboardManager.setPrimaryClip(emptyClip)
+        try {
+            val currentClip = clipboardManager.primaryClip
+            if (currentClip != null && currentClip.itemCount > 0) {
+                val currentText = currentClip.getItemAt(0).text?.toString()
+                if (currentText == text || currentText == lastCopiedText) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        clipboardManager.clearPrimaryClip()
+                    } else {
+                        val emptyClip = ClipData.newPlainText("", "")
+                        clipboardManager.setPrimaryClip(emptyClip)
+                    }
+                    lastCopiedText = null
                 }
-                lastCopiedText = null
             }
-        }
+        } catch (_: Exception) {}
     }
 
     /**

@@ -30,21 +30,26 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -98,6 +103,7 @@ fun VaultItemDetailScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isFocusMode by remember { mutableStateOf(false) }
+    var showPasswordHistorySheet by remember { mutableStateOf(false) }
 
     if (item == null) {
         onNavigateBack()
@@ -336,6 +342,46 @@ fun VaultItemDetailScreen(
                                         scope.launch { snackbarHostState.showSnackbar("Password copied! Clears in 30s.") }
                                     }
                                 )
+
+                                if (item.passwordHistory.isNotEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(KryptxBlue.copy(alpha = 0.08f))
+                                            .border(1.dp, KryptxBlue.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                            .clickable { showPasswordHistorySheet = true }
+                                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.History,
+                                                    contentDescription = null,
+                                                    tint = KryptxBlue,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "View Password History (${item.passwordHistory.size})",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = KryptxBlue
+                                                )
+                                            }
+                                            Text(
+                                                text = "Review",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = KryptxBlue
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
                             if (item.website.isNotBlank()) {
@@ -344,13 +390,21 @@ fun VaultItemDetailScreen(
                                     value = item.website,
                                     trailingActionIcon = Icons.AutoMirrored.Filled.OpenInNew,
                                     onTrailingAction = {
-                                        val url = if (item.website.startsWith("http://") || item.website.startsWith("https://")) {
-                                            item.website
-                                        } else {
-                                            "https://${item.website}"
+                                        try {
+                                            val url = if (item.website.startsWith("http://") || item.website.startsWith("https://")) {
+                                                item.website
+                                            } else {
+                                                "https://${item.website}"
+                                            }
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Unable to open browser: ${e.localizedMessage ?: "Invalid URL"}")
+                                            }
                                         }
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                        context.startActivity(intent)
                                     },
                                     onCopy = {
                                         viewModel.copySecret("Website", item.website)
@@ -367,6 +421,47 @@ fun VaultItemDetailScreen(
                                         viewModel.copySecret("2FA Code", code)
                                         scope.launch { snackbarHostState.showSnackbar("2FA code copied!") }
                                     }
+                                )
+                            }
+                        }
+
+                        ItemType.PASSKEY -> {
+                            if (item.passkeyRpId.isNotBlank()) {
+                                DetailFieldCard(
+                                    label = "Relying Party ID (Domain)",
+                                    value = item.passkeyRpId,
+                                    onCopy = {
+                                        viewModel.copySecret("RP ID", item.passkeyRpId)
+                                        scope.launch { snackbarHostState.showSnackbar("RP ID copied!") }
+                                    }
+                                )
+                            }
+                            if (item.username.isNotBlank()) {
+                                DetailFieldCard(
+                                    label = "User Identifier / Email",
+                                    value = item.username,
+                                    onCopy = {
+                                        viewModel.copySecret("User", item.username)
+                                        scope.launch { snackbarHostState.showSnackbar("User identifier copied!") }
+                                    }
+                                )
+                            }
+                            if (item.passkeyCredentialId.isNotBlank()) {
+                                DetailFieldCard(
+                                    label = "Credential ID (FIDO2)",
+                                    value = item.passkeyCredentialId,
+                                    isSecret = true,
+                                    onCopy = {
+                                        viewModel.copySecret("Credential ID", item.passkeyCredentialId)
+                                        scope.launch { snackbarHostState.showSnackbar("Credential ID copied!") }
+                                    }
+                                )
+                            }
+                            if (item.passkeyAlgorithm.isNotBlank()) {
+                                DetailFieldCard(
+                                    label = "Cryptographic Algorithm",
+                                    value = item.passkeyAlgorithm,
+                                    onCopy = {}
                                 )
                             }
                         }
@@ -618,6 +713,137 @@ fun VaultItemDetailScreen(
             }
         )
     }
+
+    if (showPasswordHistorySheet) {
+        PasswordHistorySheet(
+            history = item.passwordHistory,
+            onDismiss = { showPasswordHistorySheet = false },
+            onCopyPassword = { pass ->
+                viewModel.copySecret("Previous Password", pass)
+                scope.launch { snackbarHostState.showSnackbar("Historical password copied! Clears in 30s.") }
+            },
+            onRestorePassword = { restoredPassword ->
+                val updated = item.copy(
+                    password = restoredPassword,
+                    passwordHistory = listOf(com.kryptx.app.core.model.PasswordHistoryEntry(item.password, System.currentTimeMillis())) + item.passwordHistory.filter { it.password != restoredPassword },
+                    updatedAt = System.currentTimeMillis()
+                )
+                viewModel.saveItem(updated) {
+                    showPasswordHistorySheet = false
+                    scope.launch { snackbarHostState.showSnackbar("Password restored!") }
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PasswordHistorySheet(
+    history: List<com.kryptx.app.core.model.PasswordHistoryEntry>,
+    onDismiss: () -> Unit,
+    onCopyPassword: (String) -> Unit,
+    onRestorePassword: (String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dateFormat = remember { java.text.SimpleDateFormat("MMM dd, yyyy • HH:mm", java.util.Locale.getDefault()) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 36.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Password History",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${history.size} saved",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = KryptxBlue
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                history.forEachIndexed { index, entry ->
+                    var revealed by remember { mutableStateOf(false) }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (index == 0) "Previous Password" else "Older Password (#${index + 1})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = dateFormat.format(java.util.Date(entry.changedAt)),
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = if (revealed) entry.password else "••••••••••••",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = if (revealed) MonospaceFont else androidx.compose.ui.text.font.FontFamily.Default,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { revealed = !revealed }) {
+                                    Text(text = if (revealed) "Hide" else "Reveal", fontSize = 12.sp)
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                TextButton(onClick = { onCopyPassword(entry.password) }) {
+                                    Text(text = "Copy", fontSize = 12.sp, color = KryptxBlue)
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                TextButton(onClick = { onRestorePassword(entry.password) }) {
+                                    Text(text = "Restore", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = KryptxEmerald)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -639,8 +865,14 @@ fun DetailFieldCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .background(
+                if (copied) KryptxEmerald.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            )
+            .border(
+                1.dp,
+                if (copied) KryptxEmerald.copy(alpha = 0.8f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                RoundedCornerShape(16.dp)
+            )
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(
@@ -688,7 +920,7 @@ fun DetailFieldCard(
 
             IconButton(
                 onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
                     copied = true
                     onCopy()
                     scope.launch {
@@ -731,8 +963,14 @@ fun TotpCountdownCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .background(
+                if (copied) KryptxEmerald.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            )
+            .border(
+                1.dp,
+                if (copied) KryptxEmerald.copy(alpha = 0.8f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                RoundedCornerShape(16.dp)
+            )
             .padding(14.dp)
     ) {
         Row(
@@ -778,7 +1016,7 @@ fun TotpCountdownCard(
 
                 IconButton(
                     onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
                         copied = true
                         onCopyCode(totpCode!!.code)
                         scope.launch {

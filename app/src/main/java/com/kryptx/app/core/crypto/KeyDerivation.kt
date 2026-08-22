@@ -9,7 +9,7 @@ import javax.crypto.spec.PBEKeySpec
 
 /**
  * Key derivation utility implementing OWASP-compliant PBKDF2WithHmacSHA256
- * for deriving cryptographic vault keys from user master passwords.
+ * and Argon2id (RFC 9106) for deriving cryptographic vault keys from master passwords.
  */
 object KeyDerivation {
 
@@ -21,6 +21,11 @@ object KeyDerivation {
     const val MIN_SALT_LENGTH_BYTES = 16
 
     private val secureRandom = SecureRandom()
+
+    enum class KdfAlgorithm(val displayName: String, val identifier: String) {
+        PBKDF2_HMAC_SHA256("PBKDF2-HMAC-SHA256 (600,000 rounds)", "pbkdf2_sha256"),
+        ARGON2ID("Argon2id (Memory-Hard RFC 9106)", "argon2id")
+    }
 
     /**
      * Generates a cryptographically secure random salt of [lengthBytes] bytes.
@@ -62,6 +67,34 @@ object KeyDerivation {
             throw IllegalStateException("Failed to derive cryptographic key from master password", e)
         } finally {
             (keySpec as? PBEKeySpec)?.clearPassword()
+        }
+    }
+
+    /**
+     * Derives a 256-bit symmetric encryption key using Argon2id (RFC 9106).
+     */
+    fun deriveKeyArgon2(
+        password: CharArray,
+        salt: ByteArray,
+        params: Argon2Engine.Argon2Params = Argon2Engine.Argon2Params.DEFAULT
+    ): ByteArray {
+        require(salt.size >= MIN_SALT_LENGTH_BYTES) { "Salt must be at least $MIN_SALT_LENGTH_BYTES bytes for secure key derivation" }
+        return Argon2Engine.deriveKey(password, salt, params)
+    }
+
+    /**
+     * Derives a key using the specified [KdfAlgorithm].
+     */
+    fun deriveKeyWithAlgorithm(
+        password: CharArray,
+        salt: ByteArray,
+        algorithm: KdfAlgorithm = KdfAlgorithm.PBKDF2_HMAC_SHA256,
+        iterations: Int = DEFAULT_ITERATIONS,
+        argon2Params: Argon2Engine.Argon2Params = Argon2Engine.Argon2Params.DEFAULT
+    ): ByteArray {
+        return when (algorithm) {
+            KdfAlgorithm.PBKDF2_HMAC_SHA256 -> deriveKey(password, salt, iterations)
+            KdfAlgorithm.ARGON2ID -> deriveKeyArgon2(password, salt, argon2Params)
         }
     }
 }

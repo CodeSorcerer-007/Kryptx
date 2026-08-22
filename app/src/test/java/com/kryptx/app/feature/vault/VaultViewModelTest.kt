@@ -158,4 +158,113 @@ class VaultViewModelTest {
         assertFalse(sessionManager.isUnlocked.value)
         assertTrue(fakeClipboard.isCleared)
     }
+
+    @Test
+    fun testDashboardCategoryAndTotpCounting() = runTest(testDispatcher) {
+        val login1 = VaultItem(id = "1", title = "Google", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP")
+        val login2 = VaultItem(id = "2", title = "GitHub", type = ItemType.LOGIN, totpSecret = "")
+        val card = VaultItem(id = "3", title = "Visa", type = ItemType.CREDIT_CARD, cardNumber = "4111222233334444")
+        val note = VaultItem(id = "4", title = "Recovery Keys", type = ItemType.SECURE_NOTE, notes = "Secret note text")
+        val wifi = VaultItem(id = "5", title = "Home Wi-Fi", type = ItemType.WIFI, wifiSsid = "HomeNet")
+
+        viewModel.saveItem(login1) {}
+        viewModel.saveItem(login2) {}
+        viewModel.saveItem(card) {}
+        viewModel.saveItem(note) {}
+        viewModel.saveItem(wifi) {}
+        testScheduler.runCurrent()
+
+        val all = viewModel.rawItems.value
+        assertEquals(5, all.size)
+
+        val loginsCount = all.count { it.type == ItemType.LOGIN }
+        val cardsCount = all.count { it.type == ItemType.CREDIT_CARD }
+        val notesCount = all.count { it.type == ItemType.SECURE_NOTE }
+        val totpCount = all.count { it.totpSecret.isNotBlank() }
+
+        assertEquals(2, loginsCount)
+        assertEquals(1, cardsCount)
+        assertEquals(1, notesCount)
+        assertEquals(1, totpCount)
+    }
+
+    @Test
+    fun testSearchFilteringMatchesMultipleFields() = runTest(testDispatcher) {
+        val item1 = VaultItem(
+            id = "s1",
+            title = "Personal Email",
+            type = ItemType.LOGIN,
+            username = "alice@example.com",
+            website = "https://mail.example.com",
+            tags = listOf("work", "important")
+        )
+        val item2 = VaultItem(
+            id = "s2",
+            title = "Crypto Wallet",
+            type = ItemType.CRYPTO_WALLET,
+            notes = "Stored in cold storage vault"
+        )
+
+        viewModel.saveItem(item1) {}
+        viewModel.saveItem(item2) {}
+        testScheduler.runCurrent()
+
+        // Match by username
+        viewModel.updateSearchQuery("alice")
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.filteredItems.value.size)
+        assertEquals("Personal Email", viewModel.filteredItems.value.first().title)
+
+        // Match by tag
+        viewModel.updateSearchQuery("important")
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.filteredItems.value.size)
+
+        // Match by note content
+        viewModel.updateSearchQuery("cold storage")
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.filteredItems.value.size)
+        assertEquals("Crypto Wallet", viewModel.filteredItems.value.first().title)
+
+        // Clear query
+        viewModel.updateSearchQuery("")
+        testScheduler.runCurrent()
+        assertEquals(2, viewModel.filteredItems.value.size)
+    }
+
+    @Test
+    fun testStorageRatioMath() {
+        val emptyTotal = 0
+        val emptyRatio = if (emptyTotal <= 0) 0.05f else (0f / emptyTotal).coerceIn(0.1f, 1f)
+        assertEquals(0.05f, emptyRatio, 0.001f)
+
+        val total = 10
+        val itemsCount = 3
+        val ratio = (itemsCount.toFloat() / total.toFloat()).coerceIn(0.1f, 1f)
+        assertEquals(0.3f, ratio, 0.001f)
+
+        val fullCount = 10
+        val fullRatio = (fullCount.toFloat() / total.toFloat()).coerceIn(0.1f, 1f)
+        assertEquals(1.0f, fullRatio, 0.001f)
+    }
+
+    @Test
+    fun testExpirationCalculationsOnVaultItem() {
+        val now = System.currentTimeMillis()
+        val dayMs = 24L * 60L * 60L * 1000L
+
+        val nonExpiredItem = VaultItem(
+            title = "Active Pass",
+            expiresAt = now + (30L * dayMs)
+        )
+        assertFalse(nonExpiredItem.isExpired)
+        assertTrue((nonExpiredItem.daysUntilExpiration ?: 0) >= 29)
+
+        val expiredItem = VaultItem(
+            title = "Old Pass",
+            expiresAt = now - (5L * dayMs)
+        )
+        assertTrue(expiredItem.isExpired)
+        assertTrue((expiredItem.daysUntilExpiration ?: 0) <= 0)
+    }
 }

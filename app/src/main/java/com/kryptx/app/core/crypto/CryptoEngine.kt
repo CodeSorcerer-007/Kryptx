@@ -1,8 +1,8 @@
 package com.kryptx.app.core.crypto
 
-import android.util.Base64
 import java.nio.ByteBuffer
 import java.security.SecureRandom
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -106,19 +106,45 @@ object CryptoEngine {
 
     /**
      * Helper to encrypt a String into a Base64-encoded encrypted payload string.
+     *
+     * @param plainText Plaintext string to encrypt.
+     * @param key 256-bit symmetric key.
+     * @param associatedData Optional authenticated associated data (AAD).
+     * @return Base64-encoded ciphertext payload.
      */
-    fun encryptString(plainText: String, key: ByteArray): String {
+    fun encryptString(
+        plainText: String,
+        key: ByteArray,
+        associatedData: ByteArray? = null
+    ): String {
         val plainBytes = plainText.toByteArray(Charsets.UTF_8)
-        val encrypted = encrypt(plainBytes, key)
-        return Base64.encodeToString(encrypted, Base64.NO_WRAP)
+        return try {
+            val encrypted = encrypt(plainBytes, key, associatedData)
+            Base64.getEncoder().encodeToString(encrypted)
+        } finally {
+            SecureMemory.wipe(plainBytes)
+        }
     }
 
     /**
      * Helper to decrypt a Base64-encoded encrypted payload string into a plaintext String.
+     *
+     * @param encryptedBase64 Base64-encoded ciphertext payload.
+     * @param key 256-bit symmetric key.
+     * @param associatedData Optional authenticated associated data (AAD) that must match encryption.
+     * @return Decrypted plaintext String.
      */
-    fun decryptString(encryptedBase64: String, key: ByteArray): String {
-        val encryptedBytes = Base64.decode(encryptedBase64, Base64.NO_WRAP)
-        val decryptedBytes = decrypt(encryptedBytes, key)
-        return String(decryptedBytes, Charsets.UTF_8)
+    fun decryptString(
+        encryptedBase64: String,
+        key: ByteArray,
+        associatedData: ByteArray? = null
+    ): String {
+        val encryptedBytes = Base64.getDecoder().decode(encryptedBase64)
+        val decryptedBytes = decrypt(encryptedBytes, key, associatedData)
+        return try {
+            String(decryptedBytes, Charsets.UTF_8)
+        } finally {
+            SecureMemory.wipe(decryptedBytes)
+        }
     }
 }

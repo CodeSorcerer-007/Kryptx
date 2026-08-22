@@ -122,19 +122,50 @@ class FakeVaultRepository : VaultRepository {
         )
     }
 
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
     override suspend fun exportEncryptedBackup(exportPassword: CharArray): EncryptedBackupPayload {
-        return EncryptedBackupPayload(
-            header = BackupHeader(),
-            ciphertextBase64 = "encrypted_test_payload"
+        val items = _itemsFlow.value
+        val salt = com.kryptx.app.core.crypto.KeyDerivation.generateSalt()
+        val derivedKey = com.kryptx.app.core.crypto.KeyDerivation.deriveKey(exportPassword, salt, iterations = 1000)
+
+        val plaintextJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(VaultItem.serializer()), items)
+        val ciphertext = com.kryptx.app.core.crypto.CryptoEngine.encrypt(plaintextJson.toByteArray(Charsets.UTF_8), derivedKey)
+
+        val saltBase64 = java.util.Base64.getEncoder().encodeToString(salt)
+        val ciphertextBase64 = java.util.Base64.getEncoder().encodeToString(ciphertext)
+        com.kryptx.app.core.crypto.SecureMemory.wipe(derivedKey)
+
+        val header = BackupHeader(
+            app = "Kryptx",
+            version = "1.0.0",
+            formatVersion = 1,
+            exportedAt = System.currentTimeMillis(),
+            isEncrypted = true,
+            kdfAlgorithm = "PBKDF2WithHmacSHA256",
+            kdfIterations = 1000,
+            saltBase64 = saltBase64,
+            ivBase64 = ""
         )
+
+        return EncryptedBackupPayload(header, ciphertextBase64)
     }
 
     override suspend fun exportPlaintextJson(): String {
-        return "[]"
+        return json.encodeToString(kotlinx.serialization.builtins.ListSerializer(VaultItem.serializer()), _itemsFlow.value)
     }
 
     override suspend fun importEncryptedBackup(payload: EncryptedBackupPayload, importPassword: CharArray): Int {
-        return 1
+        val salt = java.util.Base64.getDecoder().decode(payload.header.saltBase64)
+        val derivedKey = com.kryptx.app.core.crypto.KeyDerivation.deriveKey(importPassword, salt, payload.header.kdfIterations)
+        val ciphertext = java.util.Base64.getDecoder().decode(payload.ciphertextBase64)
+        val decryptedBytes = com.kryptx.app.core.crypto.CryptoEngine.decrypt(ciphertext, derivedKey)
+        val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
+        com.kryptx.app.core.crypto.SecureMemory.wipe(derivedKey)
+        com.kryptx.app.core.crypto.SecureMemory.wipe(decryptedBytes)
+
+        val items = json.decodeFromString<List<VaultItem>>(plaintextJson)
+        return importItems(items)
     }
 
     override suspend fun importItems(items: List<VaultItem>): Int {

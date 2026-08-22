@@ -19,7 +19,8 @@ import kotlinx.coroutines.launch
 class VaultViewModel(
     private val vaultRepository: VaultRepository,
     private val sessionManager: VaultSessionManager,
-    private val clipboardSecurityManager: IClipboardSecurityManager
+    private val clipboardSecurityManager: IClipboardSecurityManager,
+    private val attachmentManager: com.kryptx.app.core.security.IAttachmentManager? = null
 ) : ViewModel() {
 
     private val _selectedCategory = MutableStateFlow<ItemType?>(null)
@@ -144,7 +145,7 @@ class VaultViewModel(
         fileName: String,
         mimeType: String
     ): com.kryptx.app.core.model.VaultAttachment? {
-        val manager = com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
+        val manager = attachmentManager ?: com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
         return manager.saveAttachmentFromUri(uri, fileName, mimeType)
     }
 
@@ -152,7 +153,7 @@ class VaultViewModel(
         context: android.content.Context,
         attachment: com.kryptx.app.core.model.VaultAttachment
     ): ByteArray? {
-        val manager = com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
+        val manager = attachmentManager ?: com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
         return manager.loadDecryptedAttachment(attachment)
     }
 
@@ -160,7 +161,7 @@ class VaultViewModel(
         context: android.content.Context,
         attachment: com.kryptx.app.core.model.VaultAttachment
     ): Boolean {
-        val manager = com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
+        val manager = attachmentManager ?: com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
         return manager.deleteAttachment(attachment)
     }
 

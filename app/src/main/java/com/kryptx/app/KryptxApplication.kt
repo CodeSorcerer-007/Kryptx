@@ -8,8 +8,10 @@ import com.kryptx.app.core.database.KryptxDatabaseHelper
 import com.kryptx.app.core.database.PreferencesRepository
 import com.kryptx.app.core.database.VaultRepository
 import com.kryptx.app.core.database.VaultRepositoryImpl
+import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.security.BiometricAuthManager
 import com.kryptx.app.core.security.ClipboardSecurityManager
+import com.kryptx.app.core.security.ShakeDetector
 import com.kryptx.app.core.security.VaultSessionManager
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -36,6 +38,11 @@ class KryptxApplication : Application() {
     lateinit var biometricManager: BiometricAuthManager
         private set
 
+    lateinit var attachmentManager: com.kryptx.app.core.security.IAttachmentManager
+        private set
+
+    private var shakeDetector: ShakeDetector? = null
+
     private val activeActivityCount = AtomicInteger(0)
 
     override fun onCreate() {
@@ -48,6 +55,7 @@ class KryptxApplication : Application() {
         vaultRepository = VaultRepositoryImpl(dbHelper, sessionManager, keystoreManager, preferencesRepository)
         clipboardManager = ClipboardSecurityManager(this)
         biometricManager = BiometricAuthManager(this)
+        attachmentManager = com.kryptx.app.core.security.AttachmentManager(this, sessionManager)
 
         // Set initial auto-lock configuration from saved preferences
         val autoLockSecs = preferencesRepository.autoLockSeconds.value
@@ -56,12 +64,22 @@ class KryptxApplication : Application() {
         sessionManager.setAutoLockTimeout(timeoutEnum)
         sessionManager.setLockOnBackground(preferencesRepository.lockOnBackground.value)
 
-        // Activity lifecycle callbacks for background/foreground auto-lock enforcement
+        // Emergency physical shake detector
+        shakeDetector = ShakeDetector {
+            if (preferencesRepository.shakeToLockEnabled.value && sessionManager.isUnlocked.value) {
+                sessionManager.lock()
+                clipboardManager.clearNow()
+                KryptxHaptics.panicAlert(this)
+            }
+        }
+
+        // Activity lifecycle callbacks for background/foreground auto-lock & shake detection enforcement
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 val count = activeActivityCount.incrementAndGet()
                 if (count == 1) {
                     sessionManager.onAppForegrounded()
+                    shakeDetector?.start(this@KryptxApplication)
                 }
             }
 
@@ -69,6 +87,7 @@ class KryptxApplication : Application() {
                 val count = activeActivityCount.decrementAndGet()
                 if (count <= 0) {
                     sessionManager.onAppBackgrounded()
+                    shakeDetector?.stop()
                 }
             }
 

@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.crypto.EntropyCalculator
+import com.kryptx.app.core.designsystem.components.CrackTimeBadge
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
@@ -88,6 +89,12 @@ fun AddEditItemScreen(
     var password by remember { mutableStateOf(existingItem?.password ?: "") }
     var website by remember { mutableStateOf(existingItem?.website ?: "") }
     var totpSecret by remember { mutableStateOf(existingItem?.totpSecret ?: "") }
+
+    // Passkey fields
+    var passkeyRpId by remember { mutableStateOf(existingItem?.passkeyRpId ?: "") }
+    var passkeyUserHandle by remember { mutableStateOf(existingItem?.passkeyUserHandle ?: "") }
+    var passkeyCredentialId by remember { mutableStateOf(existingItem?.passkeyCredentialId ?: "") }
+    var passkeyAlgorithm by remember { mutableStateOf(existingItem?.passkeyAlgorithm ?: "ES256 (ECDSA P-256)") }
 
     // Credit card fields
     var cardholderName by remember { mutableStateOf(existingItem?.cardholderName ?: "") }
@@ -281,12 +288,13 @@ fun AddEditItemScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             StrengthBadge(strength = passwordAnalysis.strength)
-                            Spacer(modifier = Modifier.width(8.dp))
+                            CrackTimeBadge(crackTime = passwordAnalysis.crackTimeDisplay)
                             Text(
-                                text = "${passwordAnalysis.entropyBits} bits entropy",
+                                text = "${passwordAnalysis.entropyBits} bits",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -316,6 +324,39 @@ fun AddEditItemScreen(
                                 )
                             }
                         }
+                    )
+                }
+
+                ItemType.PASSKEY -> {
+                    KryptxTextField(
+                        value = passkeyRpId,
+                        onValueChange = {
+                            passkeyRpId = it
+                            if (title.isBlank()) title = it.removePrefix("www.").replaceFirstChar { char -> char.uppercase() }
+                        },
+                        label = "Relying Party ID (Domain, e.g. google.com)"
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    KryptxTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        label = "User Identifier / Email"
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    KryptxTextField(
+                        value = passkeyCredentialId,
+                        onValueChange = { passkeyCredentialId = it },
+                        label = "Credential ID (Base64 URL)",
+                        isMonospace = true
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    KryptxTextField(
+                        value = passkeyAlgorithm,
+                        onValueChange = { passkeyAlgorithm = it },
+                        label = "Cryptographic Algorithm (e.g. ES256, Ed25519)"
                     )
                 }
 
@@ -623,6 +664,12 @@ fun AddEditItemScreen(
                         System.currentTimeMillis() + rotationIntervalDays!! * 24L * 60 * 60 * 1000L
                     } else null
 
+                    val updatedHistory = if (existingItem != null && existingItem.password.isNotBlank() && password != existingItem.password) {
+                        listOf(com.kryptx.app.core.model.PasswordHistoryEntry(existingItem.password, System.currentTimeMillis())) + existingItem.passwordHistory
+                    } else {
+                        existingItem?.passwordHistory ?: emptyList()
+                    }
+
                     val updatedItem = (existingItem ?: VaultItem(
                         id = UUID.randomUUID().toString(),
                         title = title,
@@ -635,8 +682,13 @@ fun AddEditItemScreen(
                         notes = notes,
                         username = username,
                         password = password,
+                        passwordHistory = updatedHistory,
                         website = website,
                         totpSecret = totpSecret,
+                        passkeyRpId = passkeyRpId,
+                        passkeyUserHandle = passkeyUserHandle,
+                        passkeyCredentialId = passkeyCredentialId,
+                        passkeyAlgorithm = passkeyAlgorithm,
                         cardholderName = cardholderName,
                         cardNumber = cardNumber,
                         cardExpiry = cardExpiry,

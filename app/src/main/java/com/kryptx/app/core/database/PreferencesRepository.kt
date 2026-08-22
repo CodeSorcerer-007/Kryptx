@@ -24,6 +24,7 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_DYNAMIC_COLOR = "dynamic_color"
         private const val KEY_AUTO_LOCK_SECONDS = "auto_lock_seconds"
         private const val KEY_LOCK_ON_BACKGROUND = "lock_on_background"
+        private const val KEY_SHAKE_TO_LOCK = "shake_to_lock_enabled"
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
         private const val KEY_CLIPBOARD_TIMEOUT = "clipboard_timeout"
         private const val KEY_FLAG_SECURE = "flag_secure_enabled"
@@ -44,6 +45,9 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
 
     private val _lockOnBackground = MutableStateFlow(prefs.getBoolean(KEY_LOCK_ON_BACKGROUND, true))
     override val lockOnBackground: StateFlow<Boolean> = _lockOnBackground.asStateFlow()
+
+    private val _shakeToLockEnabled = MutableStateFlow(prefs.getBoolean(KEY_SHAKE_TO_LOCK, true))
+    override val shakeToLockEnabled: StateFlow<Boolean> = _shakeToLockEnabled.asStateFlow()
 
     private val _biometricEnabled = MutableStateFlow(prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false))
     override val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
@@ -87,6 +91,11 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     override fun setLockOnBackground(lock: Boolean) {
         prefs.edit().putBoolean(KEY_LOCK_ON_BACKGROUND, lock).apply()
         _lockOnBackground.value = lock
+    }
+
+    override fun setShakeToLockEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SHAKE_TO_LOCK, enabled).apply()
+        _shakeToLockEnabled.value = enabled
     }
 
     override fun setBiometricEnabled(enabled: Boolean) {

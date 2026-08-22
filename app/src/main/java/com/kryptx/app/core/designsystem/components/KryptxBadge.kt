@@ -13,25 +13,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.crypto.EntropyCalculator
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.model.IssueSeverity
@@ -41,6 +42,7 @@ import com.kryptx.app.core.model.ItemType
 fun ItemTypeBadge(type: ItemType, modifier: Modifier = Modifier) {
     val (icon, color) = when (type) {
         ItemType.LOGIN -> Pair(Icons.Default.Lock, KryptxBlue)
+        ItemType.PASSKEY -> Pair(Icons.Default.Fingerprint, KryptxBrightBlue)
         ItemType.CREDIT_CARD -> Pair(Icons.Default.CreditCard, KryptxAmber)
         ItemType.IDENTITY -> Pair(Icons.Default.Person, Color(0xFFAB47BC))
         ItemType.SECURE_NOTE -> Pair(Icons.AutoMirrored.Filled.Note, Color(0xFF26A69A))
@@ -120,6 +122,32 @@ fun StrengthBadge(strength: EntropyCalculator.StrengthScore, modifier: Modifier 
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             color = color
+        )
+    }
+}
+
+@Composable
+fun CrackTimeBadge(crackTime: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(KryptxBrightBlue.copy(alpha = 0.12f))
+            .border(1.dp, KryptxBrightBlue.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Timer,
+            contentDescription = "Crack Time",
+            tint = KryptxBrightBlue,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = "Brute Force: $crackTime",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = KryptxBrightBlue
         )
     }
 }

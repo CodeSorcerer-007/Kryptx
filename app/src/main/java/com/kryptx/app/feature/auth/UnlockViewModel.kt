@@ -57,7 +57,8 @@ class UnlockViewModel(
             return
         }
 
-        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+        // Immediately clear password from StateFlow to minimize JVM String heap retention
+        _uiState.value = _uiState.value.copy(password = "", isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
             val chars = password.toCharArray()
@@ -70,7 +71,6 @@ class UnlockViewModel(
             _uiState.value = _uiState.value.copy(isLoading = false)
 
             if (success) {
-                _uiState.value = _uiState.value.copy(password = "")
                 onSuccess()
             } else {
                 _uiState.value = _uiState.value.copy(

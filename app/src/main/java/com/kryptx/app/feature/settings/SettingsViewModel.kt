@@ -26,6 +26,7 @@ class SettingsViewModel(
     val dynamicColor = preferencesRepository.dynamicColor
     val autoLockSeconds = preferencesRepository.autoLockSeconds
     val lockOnBackground = preferencesRepository.lockOnBackground
+    val shakeToLockEnabled = preferencesRepository.shakeToLockEnabled
     val biometricEnabled = preferencesRepository.biometricEnabled
     val clipboardTimeout = preferencesRepository.clipboardTimeout
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
@@ -35,6 +36,11 @@ class SettingsViewModel(
     val exportStatus: StateFlow<String?> = _exportStatus.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    fun setShakeToLockEnabled(enabled: Boolean) {
+        preferencesRepository.setShakeToLockEnabled(enabled)
+    }
+
 
     fun setThemeMode(mode: AppThemeMode) {
         preferencesRepository.setThemeMode(mode)

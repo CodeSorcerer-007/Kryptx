@@ -1,8 +1,11 @@
 package com.kryptx.app.core.designsystem.components
 
 import android.Manifest
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.view.ViewGroup
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
@@ -37,15 +40,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,7 +61,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -65,19 +69,23 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
+import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
  * High-performance, offline-first zero-knowledge CameraX QR Code scanner with
- * runtime camera permission handling and real-time ZXing stream decoding.
+ * runtime camera permission handling, bulletproof lifecycle binding, and real-time ZXing stream decoding.
  */
 @Composable
 fun QrCodeScannerDialog(
@@ -99,7 +107,11 @@ fun QrCodeScannerDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
     ) {
         Box(
             modifier = Modifier
@@ -129,12 +141,25 @@ private fun CameraPreviewWithScanner(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val fallbackLifecycleOwner = LocalLifecycleOwner.current
+    val hostLifecycleOwner = remember(context) {
+        context.findLifecycleOwner() ?: fallbackLifecycleOwner
+    }
+
     var isTorchOn by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var hasScanned by remember { mutableStateOf(false) }
+    var cameraError by remember { mutableStateOf<String?>(null) }
 
-    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                cameraExecutor.shutdown()
+            } catch (_: Throwable) {}
+        }
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "scanner_laser")
     val laserPosition by infiniteTransition.animateFloat(
@@ -148,81 +173,152 @@ private fun CameraPreviewWithScanner(
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                val previewView = PreviewView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.surfaceProvider = previewView.surfaceProvider
+        if (cameraError == null) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    val previewView = PreviewView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                     }
 
-                    val imageAnalysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
+                    try {
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                        cameraProviderFuture.addListener({
+                            try {
+                                val cameraProvider = cameraProviderFuture.get()
+                                val preview = Preview.Builder().build().also {
+                                    it.surfaceProvider = previewView.surfaceProvider
+                                }
 
-                    val multiFormatReader = MultiFormatReader().apply {
-                        setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)))
-                    }
+                                val imageAnalysis = ImageAnalysis.Builder()
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .build()
 
-                    imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                        if (!hasScanned) {
-                            val scannedText = decodeQrCode(imageProxy, multiFormatReader)
-                            if (scannedText != null) {
-                                hasScanned = true
+                                val multiFormatReader = MultiFormatReader().apply {
+                                    setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)))
+                                }
+
+                                imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                                    try {
+                                        if (!hasScanned) {
+                                            val scannedText = decodeQrCode(imageProxy, multiFormatReader)
+                                            if (!scannedText.isNullOrBlank()) {
+                                                hasScanned = true
+                                                ContextCompat.getMainExecutor(ctx).execute {
+                                                    onQrCodeScanned(scannedText)
+                                                }
+                                            }
+                                        }
+                                    } catch (_: Throwable) {
+                                        // Ignore transient frame analysis errors
+                                    } finally {
+                                        try {
+                                            imageProxy.close()
+                                        } catch (_: Throwable) {}
+                                    }
+                                }
+
+                                cameraProvider.unbindAll()
+
+                                val boundCamera = try {
+                                    cameraProvider.bindToLifecycle(
+                                        hostLifecycleOwner,
+                                        CameraSelector.DEFAULT_BACK_CAMERA,
+                                        preview,
+                                        imageAnalysis
+                                    )
+                                } catch (_: Throwable) {
+                                    // Fallback to front camera or any available camera
+                                    cameraProvider.bindToLifecycle(
+                                        hostLifecycleOwner,
+                                        CameraSelector.DEFAULT_FRONT_CAMERA,
+                                        preview,
+                                        imageAnalysis
+                                    )
+                                }
+                                camera = boundCamera
+                            } catch (e: Throwable) {
+                                android.util.Log.e("QrScanner", "Camera initialization failed", e)
                                 ContextCompat.getMainExecutor(ctx).execute {
-                                    onQrCodeScanned(scannedText)
+                                    cameraError = "Unable to access camera hardware: ${e.localizedMessage ?: "Unknown error"}"
                                 }
                             }
-                        }
-                        imageProxy.close()
+                        }, ContextCompat.getMainExecutor(ctx))
+                    } catch (e: Throwable) {
+                        android.util.Log.e("QrScanner", "ProcessCameraProvider error", e)
+                        cameraError = "Camera provider unavailable."
                     }
 
-                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-                    try {
-                        cameraProvider.unbindAll()
-                        camera = cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            cameraSelector,
-                            preview,
-                            imageAnalysis
-                        )
-                    } catch (e: Exception) {
-                        android.util.Log.e("QrScanner", "Camera binding failed", e)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
-
-                previewView
-            }
-        )
-
-        // Viewfinder Cutout & Reticle
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
+                    previewView
+                }
+            )
+        } else {
+            // Error State
             Box(
                 modifier = Modifier
-                    .size(260.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .border(2.dp, KryptxBlue, RoundedCornerShape(24.dp))
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // Animated laser beam
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Camera Error",
+                        tint = KryptxAmber,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Camera Unavailable",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = cameraError ?: "Could not connect to camera service.",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    KryptxPrimaryButton(
+                        text = "Close",
+                        onClick = onClose,
+                        modifier = Modifier.fillMaxWidth(0.6f)
+                    )
+                }
+            }
+        }
+
+        // Viewfinder Cutout & Reticle
+        if (cameraError == null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .offset(y = laserPosition.dp)
-                        .background(KryptxBlue)
-                )
+                        .size(260.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .border(2.dp, KryptxBlue, RoundedCornerShape(24.dp))
+                ) {
+                    // Animated laser beam
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .offset(y = laserPosition.dp)
+                            .background(KryptxBlue)
+                    )
+                }
             }
         }
 
@@ -257,9 +353,11 @@ private fun CameraPreviewWithScanner(
 
             IconButton(
                 onClick = {
-                    val nextTorch = !isTorchOn
-                    camera?.cameraControl?.enableTorch(nextTorch)
-                    isTorchOn = nextTorch
+                    try {
+                        val nextTorch = !isTorchOn
+                        camera?.cameraControl?.enableTorch(nextTorch)
+                        isTorchOn = nextTorch
+                    } catch (_: Throwable) {}
                 },
                 modifier = Modifier
                     .size(44.dp)
@@ -275,17 +373,19 @@ private fun CameraPreviewWithScanner(
         }
 
         // Bottom Instruction Label
-        Text(
-            text = "Align the QR code within the frame to scan automatically",
-            color = Color.White.copy(alpha = 0.85f),
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 64.dp, start = 32.dp, end = 32.dp)
-                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-        )
+        if (cameraError == null) {
+            Text(
+                text = "Align the QR code within the frame to scan automatically",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 64.dp, start = 32.dp, end = 32.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            )
+        }
     }
 }
 
@@ -373,39 +473,73 @@ private fun CameraPermissionRationale(
 }
 
 /**
- * Extracts raw Y-plane luminance from ImageProxy and decodes QR codes via ZXing.
+ * Extracts raw Y-plane luminance from ImageProxy and decodes QR codes via ZXing safely.
  */
 private fun decodeQrCode(
     imageProxy: ImageProxy,
     reader: MultiFormatReader
 ): String? {
     return try {
-        val plane = imageProxy.planes[0]
-        val buffer = plane.buffer
-        val bytes = ByteArray(buffer.remaining())
+        val planes = imageProxy.planes
+        if (planes.isEmpty()) return null
+
+        val plane = planes[0]
+        val buffer = plane.buffer ?: return null
+        val remaining = buffer.remaining()
+        if (remaining <= 0) return null
+
+        val bytes = ByteArray(remaining)
         buffer.get(bytes)
 
         val width = imageProxy.width
         val height = imageProxy.height
         val rowStride = plane.rowStride
 
-        val source = PlanarYUVLuminanceSource(
-            bytes,
-            rowStride,
-            height,
-            0,
-            0,
-            width,
-            height,
-            false
-        )
+        // Prevent BufferOverflow / IndexOutOfBounds in PlanarYUVLuminanceSource
+        val source = if (rowStride >= width && bytes.size >= rowStride * height) {
+            PlanarYUVLuminanceSource(
+                bytes,
+                rowStride,
+                height,
+                0,
+                0,
+                width,
+                height,
+                false
+            )
+        } else {
+            PlanarYUVLuminanceSource(
+                bytes,
+                width,
+                height,
+                0,
+                0,
+                width,
+                height,
+                false
+            )
+        }
 
         val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
         val result = reader.decodeWithState(binaryBitmap)
         result.text
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
         null
     } finally {
-        reader.reset()
+        try {
+            reader.reset()
+        } catch (_: Throwable) {}
     }
+}
+
+/**
+ * Helper to traverse ContextWrapper chain up to LifecycleOwner / ComponentActivity.
+ */
+private fun Context.findLifecycleOwner(): LifecycleOwner? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is LifecycleOwner) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }

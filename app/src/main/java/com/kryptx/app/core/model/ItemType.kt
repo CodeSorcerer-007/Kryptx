@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 enum class ItemType(val displayName: String, val categoryName: String) {
     LOGIN("Login", "Logins"),
     CREDIT_CARD("Credit Card", "Cards"),
+    PASSKEY("Passkey Credential", "Passkeys"),
     IDENTITY("Identity", "Identities"),
     SECURE_NOTE("Secure Note", "Notes"),
     WIFI("Wi-Fi Network", "Wi-Fi"),

@@ -17,7 +17,7 @@ import java.util.UUID
 class AttachmentManager(
     private val context: Context,
     private val sessionManager: VaultSessionManager
-) {
+) : IAttachmentManager {
 
     private val attachmentsDir: File
         get() = File(context.filesDir, "vault_attachments").apply {
@@ -27,7 +27,7 @@ class AttachmentManager(
     /**
      * Encrypts and saves an attachment from a given input byte array.
      */
-    suspend fun saveAttachment(
+    override suspend fun saveAttachment(
         fileName: String,
         mimeType: String,
         data: ByteArray
@@ -58,7 +58,7 @@ class AttachmentManager(
     /**
      * Reads, encrypts, and saves an attachment from an Android content Uri.
      */
-    suspend fun saveAttachmentFromUri(
+    override suspend fun saveAttachmentFromUri(
         uri: Uri,
         fileName: String,
         mimeType: String
@@ -75,7 +75,7 @@ class AttachmentManager(
     /**
      * Decrypts an encrypted attachment and returns plaintext bytes.
      */
-    suspend fun loadDecryptedAttachment(attachment: VaultAttachment): ByteArray? = withContext(Dispatchers.IO) {
+    override suspend fun loadDecryptedAttachment(attachment: VaultAttachment): ByteArray? = withContext(Dispatchers.IO) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext null
         val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
         if (!encryptedFile.exists()) return@withContext null
@@ -91,7 +91,7 @@ class AttachmentManager(
     /**
      * Deletes an encrypted attachment file from disk with defensive zeroization.
      */
-    suspend fun deleteAttachment(attachment: VaultAttachment): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun deleteAttachment(attachment: VaultAttachment): Boolean = withContext(Dispatchers.IO) {
         val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
         if (encryptedFile.exists()) {
             try {
@@ -107,7 +107,7 @@ class AttachmentManager(
     /**
      * Wipes all stored attachments from internal storage.
      */
-    suspend fun clearAllAttachments() = withContext(Dispatchers.IO) {
+    override suspend fun clearAllAttachments(): Unit = withContext(Dispatchers.IO) {
         attachmentsDir.listFiles()?.forEach { file ->
             try {
                 file.delete()

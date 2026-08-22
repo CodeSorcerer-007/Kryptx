@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
@@ -18,14 +21,32 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val localProperties = Properties().apply {
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            FileInputStream(localPropertiesFile).use { load(it) }
+        }
+    }
+
     val releaseKeyStore = file("kryptx-release-key.jks")
+    val keyStorePassword = System.getenv("KRYPTX_KEYSTORE_PASSWORD")
+        ?: localProperties.getProperty("kryptx.keystore.password")
+        ?: (project.findProperty("kryptx.keystore.password") as? String)
+    val keyPasswordVal = System.getenv("KRYPTX_KEY_PASSWORD")
+        ?: localProperties.getProperty("kryptx.key.password")
+        ?: (project.findProperty("kryptx.key.password") as? String)
+    val keyAliasVal = System.getenv("KRYPTX_KEY_ALIAS")
+        ?: localProperties.getProperty("kryptx.key.alias")
+        ?: (project.findProperty("kryptx.key.alias") as? String)
+        ?: "kryptx-release"
+
     signingConfigs {
-        if (releaseKeyStore.exists()) {
+        if (releaseKeyStore.exists() && keyStorePassword != null && keyPasswordVal != null) {
             create("release") {
                 storeFile = releaseKeyStore
-                storePassword = "kryptx2026release"
-                keyAlias = "kryptx-release"
-                keyPassword = "kryptx2026release"
+                storePassword = keyStorePassword
+                keyAlias = keyAliasVal
+                keyPassword = keyPasswordVal
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true
@@ -38,11 +59,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = if (releaseKeyStore.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -98,6 +115,7 @@ dependencies {
     // Security & Cryptography
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.bouncycastle.bcprov)
 
     // DataStore & Serialization
     implementation(libs.androidx.datastore.preferences)

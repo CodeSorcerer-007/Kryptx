@@ -19,6 +19,13 @@ data class VaultItem(
     val password: String = "",
     val website: String = "",
     val totpSecret: String = "",
+    val passwordHistory: List<PasswordHistoryEntry> = emptyList(),
+
+    // Passkey (FIDO2 / WebAuthn) fields
+    val passkeyRpId: String = "",
+    val passkeyUserHandle: String = "",
+    val passkeyCredentialId: String = "",
+    val passkeyAlgorithm: String = "ES256 (ECDSA P-256)",
 
     // Credit Card fields
     val cardholderName: String = "",
@@ -87,12 +94,14 @@ data class VaultItem(
      */
     val daysUntilExpiration: Long?
         get() = expiresAt?.let { kotlin.math.ceil((it - System.currentTimeMillis()).toDouble() / (24.0 * 60 * 60 * 1000.0)).toLong() }
+
     /**
      * Primary display subtitle based on item type.
      */
     val displaySubtitle: String
         get() = when (type) {
             ItemType.LOGIN -> username.ifBlank { website }
+            ItemType.PASSKEY -> if (passkeyRpId.isNotBlank()) "$passkeyRpId • $username" else username.ifBlank { "Passkey Credential" }
             ItemType.CREDIT_CARD -> if (cardNumber.length >= 4) "•••• ${cardNumber.takeLast(4)}" else cardholderName
             ItemType.IDENTITY -> identityEmail.ifBlank { identityPhone }
             ItemType.SECURE_NOTE -> notes.lines().firstOrNull() ?: "Secure Note"
@@ -106,10 +115,11 @@ data class VaultItem(
         }
 
     /**
-     * Extracts clean root domain from website URL for icon fetching or matching.
+     * Extracts clean root domain from website URL or passkey RP ID for icon fetching or matching.
      */
     val domain: String
         get() {
+            if (passkeyRpId.isNotBlank()) return passkeyRpId.removePrefix("www.").lowercase().trim()
             if (website.isBlank()) return ""
             return try {
                 val uri = if (website.startsWith("http://") || website.startsWith("https://")) {
@@ -130,6 +140,7 @@ data class VaultItem(
     val primarySecret: String
         get() = when (type) {
             ItemType.LOGIN -> password
+            ItemType.PASSKEY -> passkeyCredentialId.ifBlank { username }
             ItemType.CREDIT_CARD -> cardNumber
             ItemType.SECURE_NOTE -> notes
             ItemType.WIFI -> wifiPassword

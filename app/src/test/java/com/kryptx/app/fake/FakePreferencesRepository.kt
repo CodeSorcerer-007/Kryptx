@@ -19,6 +19,9 @@ class FakePreferencesRepository : IPreferencesRepository {
     private val _lockOnBackground = MutableStateFlow(true)
     override val lockOnBackground: StateFlow<Boolean> = _lockOnBackground.asStateFlow()
 
+    private val _shakeToLockEnabled = MutableStateFlow(true)
+    override val shakeToLockEnabled: StateFlow<Boolean> = _shakeToLockEnabled.asStateFlow()
+
     private val _biometricEnabled = MutableStateFlow(false)
     override val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
 
@@ -38,6 +41,7 @@ class FakePreferencesRepository : IPreferencesRepository {
     override fun setDynamicColor(enable: Boolean) { _dynamicColor.value = enable }
     override fun setAutoLockSeconds(seconds: Long) { _autoLockSeconds.value = seconds }
     override fun setLockOnBackground(lock: Boolean) { _lockOnBackground.value = lock }
+    override fun setShakeToLockEnabled(enabled: Boolean) { _shakeToLockEnabled.value = enabled }
     override fun setBiometricEnabled(enabled: Boolean) { _biometricEnabled.value = enabled }
     override fun setClipboardTimeout(seconds: Int) { _clipboardTimeout.value = seconds }
     override fun setFlagSecureEnabled(enabled: Boolean) { _flagSecureEnabled.value = enabled }

@@ -14,7 +14,7 @@ import java.util.UUID
  * 1. Bitwarden (JSON & CSV)
  * 2. 1Password (CSV)
  * 3. Google Password Manager (CSV)
- * 4. Kryptx JSON archives
+ * 4. Kryptx JSON archives & CSV
  */
 object VaultImporter {
 
@@ -138,35 +138,55 @@ object VaultImporter {
         val headerCols = parseCsvLine(header)
 
         // Find column indices with precise matching priority
+        val typeIdx = headerCols.indexOfFirst { it == "type" }
         val titleIdx = headerCols.indexOfFirst { it.contains("title") || it.contains("name") }
         val usernameIdx = headerCols.indexOfFirst { it.contains("username") || it.contains("user") || it.contains("email") || it == "login" }
         val urlIdx = headerCols.indexOfFirst { it.contains("url") || it.contains("uri") || it.contains("website") }
         val passwordIdx = headerCols.indexOfFirst { it.contains("password") || it.contains("secret") || it.contains("pass") }
         val noteIdx = headerCols.indexOfFirst { it.contains("note") || it.contains("comment") }
         val totpIdx = headerCols.indexOfFirst { it.contains("totp") || it.contains("2fa") || it.contains("otp") }
+        val passkeyRpIdIdx = headerCols.indexOfFirst { it.contains("passkey_rpid") || it.contains("rpid") }
+        val passkeyCredIdx = headerCols.indexOfFirst { it.contains("passkey_cred") || it.contains("credential_id") }
 
         for (i in 1 until lines.size) {
             val cols = parseCsvLine(lines[i])
             if (cols.isEmpty()) continue
 
+            val typeStr = if (typeIdx >= 0 && typeIdx < cols.size) cols[typeIdx].lowercase() else ""
             val title = if (titleIdx >= 0 && titleIdx < cols.size) cols[titleIdx] else "Imported Item $i"
             val url = if (urlIdx >= 0 && urlIdx < cols.size) cols[urlIdx] else ""
             val username = if (usernameIdx >= 0 && usernameIdx < cols.size) cols[usernameIdx] else ""
             val password = if (passwordIdx >= 0 && passwordIdx < cols.size) cols[passwordIdx] else ""
             val note = if (noteIdx >= 0 && noteIdx < cols.size) cols[noteIdx] else ""
             val totp = if (totpIdx >= 0 && totpIdx < cols.size) cols[totpIdx] else ""
+            val passkeyRpId = if (passkeyRpIdIdx >= 0 && passkeyRpIdIdx < cols.size) cols[passkeyRpIdIdx] else ""
+            val passkeyCred = if (passkeyCredIdx >= 0 && passkeyCredIdx < cols.size) cols[passkeyCredIdx] else ""
 
-            if (title.isNotBlank() || username.isNotBlank() || password.isNotBlank()) {
+            val resolvedType = when {
+                typeStr == "passkey" || passkeyRpId.isNotBlank() -> ItemType.PASSKEY
+                typeStr == "credit_card" || typeStr == "card" -> ItemType.CREDIT_CARD
+                typeStr == "secure_note" || typeStr == "note" -> ItemType.SECURE_NOTE
+                typeStr == "identity" -> ItemType.IDENTITY
+                typeStr == "wifi" -> ItemType.WIFI
+                typeStr == "api_key" -> ItemType.API_KEY
+                typeStr == "crypto_wallet" -> ItemType.CRYPTO_WALLET
+                typeStr == "ssh_key" -> ItemType.SSH_KEY
+                else -> ItemType.LOGIN
+            }
+
+            if (title.isNotBlank() || username.isNotBlank() || password.isNotBlank() || passkeyRpId.isNotBlank()) {
                 items.add(
                     VaultItem(
                         id = UUID.randomUUID().toString(),
-                        title = title.ifBlank { url.ifBlank { "Login $i" } },
-                        type = ItemType.LOGIN,
+                        title = title.ifBlank { url.ifBlank { passkeyRpId.ifBlank { "Item $i" } } },
+                        type = resolvedType,
                         username = username,
                         password = password,
                         website = url,
                         notes = note,
-                        totpSecret = totp
+                        totpSecret = totp,
+                        passkeyRpId = passkeyRpId.ifBlank { if (resolvedType == ItemType.PASSKEY) url else "" },
+                        passkeyCredentialId = passkeyCred
                     )
                 )
             }

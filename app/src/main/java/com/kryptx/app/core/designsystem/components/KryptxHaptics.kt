@@ -17,6 +17,22 @@ object KryptxHaptics {
         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
     }
 
+    fun heavyClick(view: View) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        } else {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        }
+    }
+
+    fun sliderSnap(view: View) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
+        } else {
+            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        }
+    }
+
     fun tick(view: View) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK)
@@ -56,6 +72,25 @@ object KryptxHaptics {
             } else {
                 @Suppress("DEPRECATION")
                 vibrator?.vibrate(50)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun panicAlert(context: Context) {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                manager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 80, 50, 80, 50, 120), intArrayOf(0, 255, 0, 255, 0, 255), -1))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(200)
             }
         } catch (_: Exception) {}
     }

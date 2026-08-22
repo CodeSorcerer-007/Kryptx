@@ -27,6 +27,7 @@ fun KryptxCard(
     borderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
     borderBrush: Brush? = GlassmorphismSpecularBrush,
     borderWidth: Dp = 1.dp,
+    enableTilt: Boolean = false,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
@@ -39,6 +40,7 @@ fun KryptxCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .then(if (enableTilt) Modifier.spatialTilt(maxRotationDegrees = 5f) else Modifier)
             .then(
                 if (onClick != null) {
                     Modifier
@@ -66,12 +68,14 @@ fun KryptxGlassCard(
     shape: Shape = RoundedCornerShape(22.dp),
     backgroundColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
     borderBrush: Brush = GlassmorphismSpecularBrush,
+    enableTilt: Boolean = false,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .then(if (enableTilt) Modifier.spatialTilt(maxRotationDegrees = 5f) else Modifier)
             .clip(shape)
             .then(
                 if (onClick != null) {
@@ -87,4 +91,3 @@ fun KryptxGlassCard(
         content()
     }
 }
-

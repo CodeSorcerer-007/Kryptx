@@ -1,0 +1,42 @@
+# Baseline Profile Rules for Kryptx
+# Optimizes AOT compilation for Instant App Startup & 120 FPS Compose physics rendering
+
+# Core Crypto & Memory Zeroization Engine
+Lcom/kryptx/app/core/crypto/CryptoEngine;
+Lcom/kryptx/app/core/crypto/KeyDerivation;
+Lcom/kryptx/app/core/crypto/SecureMemory;
+Lcom/kryptx/app/core/crypto/KeystoreManager;
+Lcom/kryptx/app/core/crypto/EntropyCalculator;
+Lcom/kryptx/app/core/crypto/Argon2Engine;
+
+# Core Security & Session State Management
+Lcom/kryptx/app/core/security/VaultSessionManager;
+Lcom/kryptx/app/core/security/BiometricAuthManager;
+Lcom/kryptx/app/core/security/ClipboardSecurityManager;
+Lcom/kryptx/app/core/security/BreachChecker;
+Lcom/kryptx/app/core/security/AttachmentManager;
+
+# Database & Migration Engine
+Lcom/kryptx/app/core/database/KryptxDatabaseHelper;
+Lcom/kryptx/app/core/database/VaultRepositoryImpl;
+Lcom/kryptx/app/core/database/PreferencesRepository;
+
+# Design System, Physics Modifiers & Theme Rendering
+Lcom/kryptx/app/core/designsystem/theme/KryptxThemeKt;
+Lcom/kryptx/app/core/designsystem/theme/KryptxColorsKt;
+Lcom/kryptx/app/core/designsystem/components/KryptxAnimationsKt;
+Lcom/kryptx/app/core/designsystem/components/KryptxCardKt;
+Lcom/kryptx/app/core/designsystem/components/KryptxScoreRingKt;
+Lcom/kryptx/app/core/designsystem/components/KryptxFolderCardKt;
+Lcom/kryptx/app/core/designsystem/components/KryptxTopBarKt;
+
+# Primary UI Screen Compositions & ViewModels
+Lcom/kryptx/app/feature/auth/UnlockViewModel;
+Lcom/kryptx/app/feature/auth/UnlockScreenKt;
+Lcom/kryptx/app/feature/vault/VaultViewModel;
+Lcom/kryptx/app/feature/vault/VaultDashboardScreenKt;
+Lcom/kryptx/app/feature/vault/VaultItemDetailScreenKt;
+Lcom/kryptx/app/feature/generator/GeneratorViewModel;
+Lcom/kryptx/app/feature/generator/GeneratorScreenKt;
+Lcom/kryptx/app/feature/totp/TotpViewModel;
+Lcom/kryptx/app/feature/securitycenter/SecurityCenterViewModel;

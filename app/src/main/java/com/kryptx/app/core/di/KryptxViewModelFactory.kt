@@ -33,7 +33,8 @@ class KryptxViewModelFactory(
                 VaultViewModel(
                     vaultRepository = app.vaultRepository,
                     sessionManager = app.sessionManager,
-                    clipboardSecurityManager = app.clipboardManager
+                    clipboardSecurityManager = app.clipboardManager,
+                    attachmentManager = app.attachmentManager
                 ) as T
             }
             modelClass.isAssignableFrom(GeneratorViewModel::class.java) -> {

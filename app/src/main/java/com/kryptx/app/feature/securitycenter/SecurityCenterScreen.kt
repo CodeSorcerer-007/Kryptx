@@ -24,8 +24,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,13 +56,20 @@ fun SecurityCenterScreen(
     modifier: Modifier = Modifier
 ) {
     val report by viewModel.auditReport.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    var celebrationTriggered by remember { mutableStateOf(false) }
 
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .atmosphericTopGlow(),
-        containerColor = MaterialTheme.colorScheme.background,
+    LaunchedEffect(report?.overallScore) {
+        if ((report?.overallScore ?: 0) >= 90) {
+            celebrationTriggered = true
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = modifier
+                .fillMaxSize()
+                .atmosphericTopGlow(),
+            containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             KryptxTopBar(
                 title = "Security Pulse",
@@ -231,6 +242,12 @@ fun SecurityCenterScreen(
             }
         }
     }
+
+    com.kryptx.app.core.designsystem.components.KryptxCelebrationOverlay(
+        trigger = celebrationTriggered,
+        onAnimationEnd = { celebrationTriggered = false }
+    )
+}
 }
 
 @Composable

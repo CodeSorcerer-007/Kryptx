@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 // Primary Electric Blue & Accent Tokens (WorkONE OLED Palette)
 val KryptxBlue = Color(0xFF1F75FE) // #1F75FE Dodger / Electric Blue
 val KryptxDeepBlue = Color(0xFF0B4FD9)
+val KryptxNavyBlue = Color(0xFF0F47A8)
 val KryptxBrightBlue = Color(0xFF388BFF)
 val KryptxSkyBlue = Color(0xFF60A5FA)
 val KryptxIceBlue = Color(0xFFE0EEFF)

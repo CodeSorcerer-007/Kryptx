@@ -1,5 +1,6 @@
 package com.kryptx.app.core.sync
 
+import android.util.Log
 import android.util.Base64
 import com.kryptx.app.core.crypto.CryptoEngine
 import com.kryptx.app.core.database.VaultRepository
@@ -21,8 +22,9 @@ import java.security.SecureRandom
  * High-security zero-cloud local peer-to-peer vault synchronization engine.
  * Operates over local Wi-Fi or Wi-Fi Hotspot with one-time transfer PIN & AES-256-GCM session keys.
  */
-object LocalP2PSyncManager {
+object LocalP2PSyncManager : ILocalP2PSyncManager {
 
+    private const val TAG = "LocalP2PSyncManager"
     private val json = Json { ignoreUnknownKeys = true }
     private val secureRandom = SecureRandom()
 
@@ -44,7 +46,7 @@ object LocalP2PSyncManager {
     /**
      * Finds the local IPv4 address on the active Wi-Fi / Hotspot interface.
      */
-    fun getLocalIpAddress(): String? {
+    override fun getLocalIpAddress(): String? {
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
             while (interfaces.hasMoreElements()) {
@@ -59,18 +61,21 @@ object LocalP2PSyncManager {
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "Error enumerating network interfaces for local IP: ${e.message}")
+        }
         return null
     }
 
     /**
      * Starts a local transfer server on the sender device.
      */
-    suspend fun startSenderServer(): SyncServerSession? = withContext(Dispatchers.IO) {
+    override suspend fun startSenderServer(): SyncServerSession? = withContext(Dispatchers.IO) {
         val ip = getLocalIpAddress() ?: return@withContext null
         val serverSocket = try {
             ServerSocket(0) // dynamic available port
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to open ServerSocket on sender: ${e.message}")
             return@withContext null
         }
 
@@ -94,7 +99,7 @@ object LocalP2PSyncManager {
     /**
      * Listens for an incoming connection and transfers the encrypted vault payload.
      */
-    suspend fun waitForReceiverAndSend(
+    override suspend fun waitForReceiverAndSend(
         session: SyncServerSession,
         vaultRepository: VaultRepository
     ): SyncResult = withContext(Dispatchers.IO) {
@@ -117,7 +122,12 @@ object LocalP2PSyncManager {
 
             // Step 2: Export and Encrypt Vault Payload
             val plaintextJson = vaultRepository.exportPlaintextJson() ?: return@withContext SyncResult(false, 0, "Vault is currently locked")
-            val encryptedBytes = CryptoEngine.encrypt(plaintextJson.toByteArray(Charsets.UTF_8), transferKey)
+            val plainBytes = plaintextJson.toByteArray(Charsets.UTF_8)
+            val encryptedBytes = try {
+                CryptoEngine.encrypt(plainBytes, transferKey)
+            } finally {
+                com.kryptx.app.core.crypto.SecureMemory.wipe(plainBytes)
+            }
             val payloadBase64 = Base64.encodeToString(encryptedBytes, Base64.NO_WRAP)
 
             writer.println("OK:$payloadBase64")
@@ -133,6 +143,7 @@ object LocalP2PSyncManager {
         } catch (e: Exception) {
             SyncResult(false, 0, "Sync connection failed or timed out: ${e.message}")
         } finally {
+            com.kryptx.app.core.crypto.SecureMemory.wipe(transferKey)
             try { clientSocket?.close() } catch (_: Exception) {}
             try { session.serverSocket.close() } catch (_: Exception) {}
         }
@@ -141,16 +152,27 @@ object LocalP2PSyncManager {
     /**
      * Connects as a receiver to the sender's local Wi-Fi IP/Port and imports the vault.
      */
-    suspend fun receiveVaultFromSender(
+    override suspend fun receiveVaultFromSender(
         ip: String,
         port: Int,
         pin: String,
         transferKeyBase64: String,
         vaultRepository: VaultRepository
     ): SyncResult = withContext(Dispatchers.IO) {
+        if (port !in 1..65535 || ip.isBlank() || transferKeyBase64.isBlank()) {
+            return@withContext SyncResult(false, 0, "Invalid connection parameters or transfer key")
+        }
+
         var socket: Socket? = null
+        val transferKey = try {
+            Base64.decode(transferKeyBase64, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            return@withContext SyncResult(false, 0, "Invalid transfer key encoding")
+        }
+
         try {
-            socket = Socket(ip, port)
+            socket = Socket()
+            socket.connect(java.net.InetSocketAddress(ip, port), 10_000)
             socket.soTimeout = 15_000
 
             val writer = PrintWriter(socket.getOutputStream(), true)
@@ -166,12 +188,15 @@ object LocalP2PSyncManager {
             }
 
             val payloadBase64 = response.removePrefix("OK:")
-            val transferKey = Base64.decode(transferKeyBase64, Base64.NO_WRAP)
             val encryptedBytes = Base64.decode(payloadBase64, Base64.NO_WRAP)
 
             // Step 3: Decrypt and Import
             val decryptedBytes = CryptoEngine.decrypt(encryptedBytes, transferKey)
-            val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
+            val plaintextJson = try {
+                String(decryptedBytes, Charsets.UTF_8)
+            } finally {
+                com.kryptx.app.core.crypto.SecureMemory.wipe(decryptedBytes)
+            }
             val items = json.decodeFromString<List<VaultItem>>(plaintextJson)
 
             val importedCount = vaultRepository.importItems(items)
@@ -183,6 +208,7 @@ object LocalP2PSyncManager {
         } catch (e: Exception) {
             SyncResult(false, 0, "Failed to connect to sender ($ip:$port): ${e.message}")
         } finally {
+            com.kryptx.app.core.crypto.SecureMemory.wipe(transferKey)
             try { socket?.close() } catch (_: Exception) {}
         }
     }

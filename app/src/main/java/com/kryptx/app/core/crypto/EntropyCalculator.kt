@@ -1,10 +1,11 @@
 package com.kryptx.app.core.crypto
 
 import kotlin.math.ln
+import kotlin.math.pow
 
 /**
- * Real-time NIST and Shannon password entropy calculator with pattern detection,
- * dictionary heuristics, and human-readable feedback.
+ * Real-time NIST SP 800-63B and Shannon password entropy calculator with pattern detection,
+ * dictionary heuristics, crack-time estimation, and human-readable feedback.
  */
 object EntropyCalculator {
 
@@ -21,6 +22,7 @@ object EntropyCalculator {
         val strength: StrengthScore,
         val score: Float, // Normalized 0.0f to 1.0f
         val feedback: String,
+        val crackTimeDisplay: String,
         val suggestions: List<String>
     )
 
@@ -33,8 +35,11 @@ object EntropyCalculator {
     private val SEQUENTIAL_CHAR_REGEX = Regex("(?i)(abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz|012|123|234|345|456|567|678|789)")
     private val REPEATED_CHAR_REGEX = Regex("(.)\\1{2,}")
 
+    // Assumption: High-end offline GPU cracking cluster testing 10^10 hashes per second
+    private const val HASHES_PER_SECOND = 10_000_000_000.0
+
     /**
-     * Computes the entropy and strength metrics for a given password string.
+     * Computes the entropy, strength metrics, and crack time for a given password string.
      */
     fun analyze(password: String): AnalysisResult {
         if (password.isEmpty()) {
@@ -43,6 +48,7 @@ object EntropyCalculator {
                 strength = StrengthScore.VERY_WEAK,
                 score = 0.0f,
                 feedback = "Enter a password",
+                crackTimeDisplay = "Instant",
                 suggestions = listOf("Use at least 14 characters with letters, numbers, and symbols")
             )
         }
@@ -116,6 +122,7 @@ object EntropyCalculator {
             StrengthScore.VERY_STRONG -> "Excellent military-grade strength"
         }
 
+        val crackTime = estimateCrackTime(entropyBits)
         val roundedEntropy = Math.round(entropyBits * 10.0) / 10.0
 
         return AnalysisResult(
@@ -123,7 +130,29 @@ object EntropyCalculator {
             strength = strength,
             score = normalizedScore,
             feedback = feedback,
+            crackTimeDisplay = crackTime,
             suggestions = suggestions.distinct()
         )
+    }
+
+    /**
+     * Estimates human-readable brute force crack time at 10 billion guesses/sec.
+     */
+    fun estimateCrackTime(entropyBits: Double): String {
+        if (entropyBits <= 28.0) return "Instant"
+
+        val combinations = 2.0.pow(entropyBits)
+        val seconds = (combinations / 2.0) / HASHES_PER_SECOND // Average 50% search space
+
+        return when {
+            seconds < 1.0 -> "Instant"
+            seconds < 60.0 -> "${seconds.toInt()} seconds"
+            seconds < 3600.0 -> "${(seconds / 60).toInt()} minutes"
+            seconds < 86400.0 -> "${(seconds / 3600).toInt()} hours"
+            seconds < 31_536_000.0 -> "${(seconds / 86400).toInt()} days"
+            seconds < 3_153_600_000.0 -> "${(seconds / 31_536_000).toInt()} years"
+            seconds < 315_360_000_000.0 -> "${(seconds / 3_153_600_000).toInt()} centuries"
+            else -> "Centuries (Unbreakable)"
+        }
     }
 }

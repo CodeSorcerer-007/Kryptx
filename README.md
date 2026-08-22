@@ -9,13 +9,14 @@
   <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-16%20(API%2036)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="Android 16" /></a>
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20%7C%20PBKDF2-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Security Audited" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(77%2F77)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="Unit Tests" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20%7C%20Argon2id%20%7C%20PBKDF2-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Security Audited" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(92%2F92)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="Unit Tests" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge" alt="Zero Trackers" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
-**Kryptx is an ultra-secure, zero-knowledge, offline-first native Android password manager, multi-factor authenticator, and encrypted document vault engineered for Android 16.**
+**Kryptx is an ultra-secure, zero-knowledge, offline-first native Android password manager, multi-factor authenticator, passkey vault, and encrypted document fortress engineered for Android 16.**
+
 
 *Built from the ground up for privacy maximalists, security professionals, and users who refuse to surrender their cryptographic keys to cloud servers.*
 
@@ -63,12 +64,12 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 ```
 
 ### 🔒 Cryptographic Specifications
-- **Symmetric Cipher**: AES-256 in Galois/Counter Mode (`AES/GCM/NoPadding`) with unique 12-byte nonces generated per record via `SecureRandom`, coupled with 128-bit authenticated verification tags.
-- **Key Derivation Function (KDF)**: `PBKDF2WithHmacSHA256` running **600,000+ iterations** (exceeding OWASP 2024 standards) with 256-bit key output.
+- **Symmetric Cipher**: AES-256 in Galois/Counter Mode (`AES/GCM/NoPadding`) with unique 12-byte nonces generated per record via `SecureRandom`, coupled with 128-bit authenticated verification tags (AAD bound to record ID).
+- **Key Derivation Function (KDF)**: `PBKDF2WithHmacSHA256` running **600,000+ iterations** (NIST / OWASP standard) with 256-bit key output; optional **Argon2id (RFC 9106)** key derivation powered by Bouncy Castle cryptographic primitives.
 - **Hardware-Backed Biometrics**: Cryptographic `BiometricPrompt.CryptoObject` backed by Android Keystore StrongBox Keymaster / TEE hardware isolation.
-- **In-Memory Zeroization (`SecureMemory`)**: Raw keys, derived keys, and unencrypted byte buffers are allocated in `CharArray`/`ByteArray` and immediately wiped (`Arrays.fill(..., 0)`) after execution.
-- **Privacy-Preserving Breach Detection (k-Anonymity)**: RFC-compliant Have I Been Pwned Range API query engine with `Add-Padding: true` (only the first 5 characters of SHA-1 leave the device with padded response matching) backed by a 200+ item local offline dictionary.
-- **Runtime Anti-Tamper**: Real-time scanner checking `/proc/self/maps` for Frida/Xposed/Substrate hooking frameworks, active debugger detection, su/magisk binaries, and test-keys.
+- **In-Memory Zeroization (`SecureMemory`)**: Raw cryptographic keys, derived keys, and unencrypted byte buffers are allocated in `CharArray`/`ByteArray` and immediately wiped (`Arrays.fill(..., 0)`) after execution. Compose UI input states are immediately cleared upon submission.
+- **Privacy-Preserving Breach Detection (k-Anonymity)**: Opt-in RFC-compliant Have I Been Pwned Range API query engine with `Add-Padding: true` (only the first 5 characters of SHA-1 leave the device) backed by a 200+ item local offline dictionary.
+- **Runtime Anti-Tamper**: Defense-in-depth heuristic scanner checking `/proc/self/maps` for known hook signatures, active debugger detection, su/magisk binaries, and test-keys.
 - **Strict Network Isolation**: Zero cleartext traffic allowed across all network stacks (`cleartextTrafficPermitted="false"`).
 - **Anti-Screen & Clipboard Shield**: Dynamic `FLAG_SECURE` window protection and auto-clearing sensitive clipboard copy timers (30s).
 
@@ -111,18 +112,19 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 ### 📷 8. Offline CameraX Real-Time QR Code Scanner
 - Built-in real-time camera viewfinder decoding 2FA TOTP accounts and P2P sync QR codes directly in volatile RAM with zero persistent image caching.
 
-### 🗂️ 9. 11 Multi-Category Vault Records
+### 🗂️ 9. 12 Multi-Category Vault Records
 1. 🔑 **Logins**: Website/URL, Username/Email, Password, Real-time TOTP Authenticator, Notes, Tags.
-2. 💳 **Credit & Debit Cards**: Cardholder, Card Number (Luhn validation), Expiry, CVV, Card PIN.
-3. 🪪 **Identities**: Full Name, Email, Phone, Physical Address, DOB, Passport / National ID number.
-4. 📝 **Secure Notes**: Confidential encrypted multi-line records.
-5. 📶 **Wi-Fi Credentials**: Network SSID, Password, Security Protocol (WPA2/WPA3), QR Code generator.
-6. ⚡ **API Keys & Tokens**: Endpoint URL, Key ID, Secret Token, Custom Headers.
-7. 🏦 **Bank Accounts**: Bank Name, Account Number, Routing Number, SWIFT/BIC.
-8. 🪙 **Crypto Wallets**: Blockchain Network, Public Address, Recovery Seed Phrase.
-9. 🖥️ **SSH Keys**: Host, Public Key, Private Key.
-10. 🩺 **Medical & Emergency Data**: Patient Name, Blood Type, Allergies & Conditions, Emergency Contacts.
-11. 🧩 **Custom Fields**: User-defined key-value fields with masked secret visibility toggles.
+2. 🪪 **Passkey & Credential Records**: Relying Party ID (domain), User Handle, Credential ID, Cryptographic Algorithm.
+3. 💳 **Credit & Debit Cards**: Cardholder, Card Number (Luhn validation), Expiry, CVV, Card PIN.
+4. 👤 **Identities**: Full Name, Email, Phone, Physical Address, DOB, Passport / National ID number.
+5. 📝 **Secure Notes**: Confidential encrypted multi-line records.
+6. 📶 **Wi-Fi Credentials**: Network SSID, Password, Security Protocol (WPA2/WPA3), QR Code generator.
+7. ⚡ **API Keys & Tokens**: Endpoint URL, Key ID, Secret Token, Custom Headers.
+8. 🏦 **Bank Accounts**: Bank Name, Account Number, Routing Number, SWIFT/BIC.
+9. 🪙 **Crypto Wallets**: Blockchain Network, Public Address, Recovery Seed Phrase.
+10. 🖥️ **SSH Keys**: Host, Public Key, Private Key.
+11. 🩺 **Medical & Emergency Data**: Patient Name, Blood Type, Allergies & Conditions, Emergency Contacts.
+12. 🧩 **Custom Fields**: User-defined key-value fields with masked secret visibility toggles.
 
 ### 📊 10. Security Pulse & Health Radar
 - **0–100 Vault Health Score** with letter grades (`A+`, `A`, `B`, `C`, `D`, `F`).
@@ -227,7 +229,7 @@ app/src/main/java/com/kryptx/app/
 ```bash
 ./gradlew testDebugUnitTest
 ```
-*Current test suite: **77 / 77 tests passing (100% success)** across cryptographic engines, duress isolation, RFC k-Anonymity breach detection, soft delete with undo, PDF generators, attachments, P2P sync, and TOTP algorithms.*
+*Current test suite: **92 / 92 tests passing (100% success)** across cryptographic engines, duress isolation, RFC k-Anonymity breach detection, soft delete with undo, PDF generators, attachments, P2P sync, dashboard analytics, and TOTP algorithms.*
 
 ### Build Debug APK
 ```bash

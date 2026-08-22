@@ -194,8 +194,14 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         cursor.use {
             if (it.moveToFirst()) {
                 val encryptedPayload = it.getString(0)
+                val aad = itemId.toByteArray(Charsets.UTF_8)
                 try {
-                    val decryptedJson = CryptoEngine.decryptString(encryptedPayload, vaultKey)
+                    val decryptedJson = try {
+                        CryptoEngine.decryptString(encryptedPayload, vaultKey, aad)
+                    } catch (_: Exception) {
+                        // Backward compatibility fallback for items encrypted without AAD
+                        CryptoEngine.decryptString(encryptedPayload, vaultKey, null)
+                    }
                     json.decodeFromString<VaultItem>(decryptedJson)
                 } catch (_: Exception) {
                     null
@@ -221,8 +227,14 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
             while (it.moveToNext()) {
                 val itemId = it.getString(0)
                 val encryptedPayload = it.getString(3)
+                val aad = itemId.toByteArray(Charsets.UTF_8)
                 try {
-                    val decryptedJson = CryptoEngine.decryptString(encryptedPayload, vaultKey)
+                    val decryptedJson = try {
+                        CryptoEngine.decryptString(encryptedPayload, vaultKey, aad)
+                    } catch (_: Exception) {
+                        // Backward compatibility fallback for items encrypted without AAD
+                        CryptoEngine.decryptString(encryptedPayload, vaultKey, null)
+                    }
                     val item = json.decodeFromString<VaultItem>(decryptedJson)
                     items.add(item)
                 } catch (_: Exception) {
@@ -236,17 +248,18 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
 
     suspend fun saveItem(item: VaultItem, vaultKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
         val serializedJson = json.encodeToString(item)
-        val encryptedPayload = CryptoEngine.encryptString(serializedJson, vaultKey)
+        val aad = item.id.toByteArray(Charsets.UTF_8)
+        val encryptedPayload = CryptoEngine.encryptString(serializedJson, vaultKey, aad)
 
         val db = writableDatabase
         val values = ContentValues().apply {
             put(COL_ID, item.id)
-            put(COL_TYPE, item.type.name)
-            put(COL_IS_FAVORITE, if (item.isFavorite) 1 else 0)
+            put(COL_TYPE, "ENCRYPTED") // Opaque marker to prevent plaintext type leaking on disk
+            put(COL_IS_FAVORITE, 0)
             put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
-            put(COL_CREATED_AT, item.createdAt)
+            put(COL_CREATED_AT, 0L)
             put(COL_UPDATED_AT, item.updatedAt)
-            put(COL_LAST_USED_AT, item.lastUsedAt)
+            put(COL_LAST_USED_AT, 0L)
         }
 
         val result = db.insertWithOnConflict(
@@ -284,16 +297,17 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         try {
             for (item in items) {
                 val serializedJson = json.encodeToString(item)
-                val encryptedPayload = CryptoEngine.encryptString(serializedJson, vaultKey)
+                val aad = item.id.toByteArray(Charsets.UTF_8)
+                val encryptedPayload = CryptoEngine.encryptString(serializedJson, vaultKey, aad)
 
                 val values = ContentValues().apply {
                     put(COL_ID, item.id)
-                    put(COL_TYPE, item.type.name)
-                    put(COL_IS_FAVORITE, if (item.isFavorite) 1 else 0)
+                    put(COL_TYPE, "ENCRYPTED")
+                    put(COL_IS_FAVORITE, 0)
                     put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
-                    put(COL_CREATED_AT, item.createdAt)
+                    put(COL_CREATED_AT, 0L)
                     put(COL_UPDATED_AT, item.updatedAt)
-                    put(COL_LAST_USED_AT, item.lastUsedAt)
+                    put(COL_LAST_USED_AT, 0L)
                 }
 
                 val res = db.insertWithOnConflict(
@@ -420,8 +434,13 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
             while (it.moveToNext()) {
                 val itemId = it.getString(0)
                 val encryptedPayload = it.getString(3)
+                val aad = itemId.toByteArray(Charsets.UTF_8)
                 try {
-                    val decryptedJson = CryptoEngine.decryptString(encryptedPayload, decoyKey)
+                    val decryptedJson = try {
+                        CryptoEngine.decryptString(encryptedPayload, decoyKey, aad)
+                    } catch (_: Exception) {
+                        CryptoEngine.decryptString(encryptedPayload, decoyKey, null)
+                    }
                     val item = json.decodeFromString<VaultItem>(decryptedJson)
                     items.add(item)
                 } catch (_: Exception) {
@@ -435,17 +454,18 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
 
     suspend fun saveDecoyItem(item: VaultItem, decoyKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
         val serializedJson = json.encodeToString(item)
-        val encryptedPayload = CryptoEngine.encryptString(serializedJson, decoyKey)
+        val aad = item.id.toByteArray(Charsets.UTF_8)
+        val encryptedPayload = CryptoEngine.encryptString(serializedJson, decoyKey, aad)
 
         val db = writableDatabase
         val values = ContentValues().apply {
             put(COL_ID, item.id)
-            put(COL_TYPE, item.type.name)
-            put(COL_IS_FAVORITE, if (item.isFavorite) 1 else 0)
+            put(COL_TYPE, "ENCRYPTED")
+            put(COL_IS_FAVORITE, 0)
             put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
-            put(COL_CREATED_AT, item.createdAt)
+            put(COL_CREATED_AT, 0L)
             put(COL_UPDATED_AT, item.updatedAt)
-            put(COL_LAST_USED_AT, item.lastUsedAt)
+            put(COL_LAST_USED_AT, 0L)
         }
 
         val result = db.insertWithOnConflict(

@@ -193,10 +193,15 @@ object EmergencyKitGenerator {
         pdfDocument.finishPage(page)
 
         val outputFile = File(context.cacheDir, "Kryptx_Emergency_Kit_${System.currentTimeMillis()}.pdf")
-        FileOutputStream(outputFile).use { out ->
-            pdfDocument.writeTo(out)
+        try {
+            FileOutputStream(outputFile).use { out ->
+                pdfDocument.writeTo(out)
+            }
+        } finally {
+            try {
+                pdfDocument.close()
+            } catch (_: Exception) {}
         }
-        pdfDocument.close()
         outputFile
     }
 

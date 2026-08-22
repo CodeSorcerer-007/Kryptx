@@ -106,12 +106,13 @@ fun createFolderTabShape(
 
 /**
  * Signature WorkONE Folder Tab Card with glassmorphic backdrop,
- * specular 1px electric blue rim stroke, tab title, and action buttons.
+ * specular 1px electric blue rim stroke, 3D spatial tilt physics, tab title, and action buttons.
  */
 @Composable
 fun KryptxFolderCard(
     title: String,
     modifier: Modifier = Modifier,
+    enableTilt: Boolean = true,
     backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
     borderBrush: Brush = GlassmorphismSpecularBrush,
     tabTrailingContent: (@Composable () -> Unit)? = null,
@@ -123,6 +124,7 @@ fun KryptxFolderCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .then(if (enableTilt) Modifier.spatialTilt(maxRotationDegrees = 5f) else Modifier)
             .clip(folderShape)
             .background(backgroundColor)
             .border(1.dp, borderBrush, folderShape)
