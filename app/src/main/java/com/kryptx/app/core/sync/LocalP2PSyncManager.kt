@@ -48,11 +48,37 @@ object LocalP2PSyncManager : ILocalP2PSyncManager {
      */
     override fun getLocalIpAddress(): String? {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
+            val interfaces = NetworkInterface.getNetworkInterfaces()?.toList() ?: return null
+            // Prioritize Wi-Fi, hotspot, and local interfaces over cellular modems
+            val sortedInterfaces = interfaces.sortedByDescending { iface ->
+                val name = iface.name.lowercase()
+                when {
+                    name.startsWith("wlan") -> 4
+                    name.startsWith("ap") || name.startsWith("softap") -> 3
+                    name.startsWith("p2p") -> 2
+                    name.startsWith("eth") -> 1
+                    else -> 0
+                }
+            }
+
+            for (iface in sortedInterfaces) {
                 if (iface.isLoopback || !iface.isUp) continue
 
+                val addresses = iface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                        val host = addr.hostAddress ?: continue
+                        if (host.startsWith("192.168.") || host.startsWith("10.") || host.startsWith("172.")) {
+                            return host
+                        }
+                    }
+                }
+            }
+
+            // Fallback to any active non-loopback IPv4 address
+            for (iface in sortedInterfaces) {
+                if (iface.isLoopback || !iface.isUp) continue
                 val addresses = iface.inetAddresses
                 while (addresses.hasMoreElements()) {
                     val addr = addresses.nextElement()

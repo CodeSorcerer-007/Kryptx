@@ -521,8 +521,18 @@ private fun decodeQrCode(
         }
 
         val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-        val result = reader.decodeWithState(binaryBitmap)
-        result.text
+        val text = try {
+            reader.decodeWithState(binaryBitmap)?.text
+        } catch (_: Exception) {
+            // Inverted QR code fallback (for dark-mode QR codes / screens)
+            try {
+                reader.reset()
+                reader.decodeWithState(BinaryBitmap(HybridBinarizer(source.invert())))?.text
+            } catch (_: Exception) {
+                null
+            }
+        }
+        text
     } catch (_: Throwable) {
         null
     } finally {
