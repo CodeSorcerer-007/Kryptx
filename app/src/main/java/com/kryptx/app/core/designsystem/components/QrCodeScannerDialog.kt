@@ -132,6 +132,17 @@ fun QrCodeScannerDialog(
         permissionRequested = true
     }
 
+    // Automatically prompt for system permission immediately when opening the scanner
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            try {
+                permissionLauncher.launch(Manifest.permission.CAMERA)
+            } catch (e: Throwable) {
+                android.util.Log.e("QrScanner", "Initial permission launch failed", e)
+            }
+        }
+    }
+
     val openAppSettings: () -> Unit = {
         try {
             val intent = Intent(
