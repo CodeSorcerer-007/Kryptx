@@ -68,8 +68,6 @@ import com.kryptx.app.feature.securitycenter.SecurityCenterScreen
 import com.kryptx.app.feature.securitycenter.SecurityCenterViewModel
 import com.kryptx.app.feature.settings.AppearanceSettingsScreen
 import com.kryptx.app.feature.settings.BackupExportScreen
-import com.kryptx.app.feature.settings.PrivacyCenterScreen
-import com.kryptx.app.feature.settings.SecurityAuditScreen
 import com.kryptx.app.feature.settings.SecuritySettingsScreen
 import com.kryptx.app.feature.settings.SettingsScreen
 import com.kryptx.app.feature.settings.SettingsViewModel
@@ -298,9 +296,7 @@ fun KryptxNavGraph(
                             onNavigateToSecurity = { navigateTo(Screen.SecuritySettings) },
                             onNavigateToAppearance = { navigateTo(Screen.AppearanceSettings) },
                             onNavigateToBackup = { navigateTo(Screen.BackupExport) },
-                            onNavigateToLocalSync = { navigateTo(Screen.LocalSync) },
-                            onNavigateToPrivacy = { navigateTo(Screen.PrivacyCenter) },
-                            onNavigateToAudit = { navigateTo(Screen.SecurityAudit) },
+                            onNavigateToWebCompanion = { navigateTo(Screen.WebCompanion) },
                             onNavigateToAutofillSetup = { navigateTo(Screen.SecuritySettings) },
                             onReplayGuides = {
                                 preferencesRepository.resetAllFeatureIntros()
@@ -355,21 +351,9 @@ fun KryptxNavGraph(
                         )
                     }
 
-                    Screen.LocalSync -> {
-                        com.kryptx.app.feature.settings.LocalSyncScreen(
+                    Screen.WebCompanion -> {
+                        com.kryptx.app.feature.settings.WebCompanionScreen(
                             vaultRepository = vaultRepository,
-                            onNavigateBack = { navigateBack() }
-                        )
-                    }
-
-                    Screen.PrivacyCenter -> {
-                        PrivacyCenterScreen(
-                            onNavigateBack = { navigateBack() }
-                        )
-                    }
-
-                    Screen.SecurityAudit -> {
-                        SecurityAuditScreen(
                             onNavigateBack = { navigateBack() }
                         )
                     }

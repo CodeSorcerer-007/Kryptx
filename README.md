@@ -10,13 +10,12 @@
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20%7C%20Argon2id%20%7C%20PBKDF2-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Security Audited" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-100%25%20Passing%20(108%2F108)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="Unit Tests" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-100%25%20Passing-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="Unit Tests" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge" alt="Zero Trackers" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
 **Kryptx is an ultra-secure, zero-knowledge, offline-first native Android password manager, multi-factor authenticator, passkey vault, and encrypted document fortress engineered for Android 16.**
-
 
 *Built from the ground up for privacy maximalists, security professionals, and users who refuse to surrender their cryptographic keys to cloud servers.*
 
@@ -78,9 +77,9 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 <a id="key-features"></a>
 ## 🚀 Key Features
 
-### 🚨 1. Duress Password & Decoy Vault (Panic Mode)
-- **Coercion-Resistant Decoy Partition**: Set an independent secondary panic password in Security Settings.
-- **Seamless Camouflage**: Entering the duress password at the unlock screen instantly provisions and displays an isolated, realistic decoy vault (dummy streaming, shopping, Wi-Fi accounts) while keeping the real master vault completely hidden and cryptographically inaccessible.
+### 💻 1. Desktop Web Companion (Local Wi-Fi Browser Access)
+- **PC & Mac Desktop Access**: Access and manage your encrypted vault directly from any desktop browser (Chrome, Firefox, Safari, Edge) over local Wi-Fi.
+- **Zero Cloud Footprint**: Runs an ephemeral, local HTTP daemon with 6-digit cryptographic PIN handshakes and expiring session tokens. No desktop software or browser extensions required.
 
 ### 📄 2. Printable Emergency Recovery Kit (Native Vector PDF)
 - **Offline Master Custody**: Generates a 1-page vector PDF emergency sheet containing vault cryptographic parameters, handwriting boxes, safe deposit custody instructions, and an offline encrypted recovery QR key.
@@ -100,19 +99,15 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 - **Custom Policy Rules**: Define rotation intervals per credential (30, 60, 90, 180, 365 days).
 - **Security Radar Flags**: Expired credentials trigger high-priority alerts in the Security Radar with a 1-tap "Rotate Now" remediation action.
 
-### 📡 6. Zero-Cloud Local P2P Vault Sync
-- **Local Wi-Fi & Hotspot Beam**: Directly sync encrypted credentials between nearby Android phones, tablets, or devices without cloud servers or internet connections.
-- **PIN & Dynamic Session Keys**: Secured with ephemeral AES-256-GCM transfer session keys and a 6-digit handshake verification PIN.
-
-### 🔑 7. Built-in Real-Time TOTP 2FA Authenticator (RFC 6238)
+### 🔑 6. Built-in Real-Time TOTP 2FA Authenticator (RFC 6238)
 - Real-time animated circular progress countdown rings with 30-second time steps and color-coded expiration warnings.
 - Supports SHA-1, SHA-256, and SHA-512 with 6 and 8-digit codes in high-readability monospace font.
 - Direct parsing of `otpauth://totp/` QR/URIs and manual secret entry.
 
-### 📷 8. Offline CameraX Real-Time QR Code Scanner
-- Built-in real-time camera viewfinder decoding 2FA TOTP accounts and P2P sync QR codes directly in volatile RAM with zero persistent image caching.
+### 📷 7. Offline CameraX Real-Time QR Code Scanner
+- Built-in real-time camera viewfinder decoding 2FA TOTP accounts directly in volatile RAM with zero persistent image caching.
 
-### 🗂️ 9. 12 Multi-Category Vault Records
+### 🗂️ 8. 12 Multi-Category Vault Records
 1. 🔑 **Logins**: Website/URL, Username/Email, Password, Real-time TOTP Authenticator, Notes, Tags.
 2. 🪪 **Passkey & Credential Records**: Relying Party ID (domain), User Handle, Credential ID, Cryptographic Algorithm.
 3. 💳 **Credit & Debit Cards**: Cardholder, Card Number (Luhn validation), Expiry, CVV, Card PIN.
@@ -126,23 +121,23 @@ Kryptx operates on a **Zero-Knowledge, Offline-First** mathematical security mod
 11. 🩺 **Medical & Emergency Data**: Patient Name, Blood Type, Allergies & Conditions, Emergency Contacts.
 12. 🧩 **Custom Fields**: User-defined key-value fields with masked secret visibility toggles.
 
-### 📊 10. Security Pulse & Health Radar
+### 📊 9. Security Pulse & Health Radar
 - **0–100 Vault Health Score** with letter grades (`A+`, `A`, `B`, `C`, `D`, `F`).
 - Mathematical entropy analysis (NIST/Shannon entropy scoring).
 - Identifies **weak passwords**, **password reuse**, **stale passwords (>180 days)**, **expired rotations**, and **breached credentials**.
 
-### ⚡ 11. Advanced Credential Generator
+### ⚡ 10. Advanced Credential Generator
 - **Password Mode**: 8 to 64 characters with uppercase, lowercase, numbers, symbols, and ambiguous character filter (`0, O, 1, l, I`).
 - **Passphrase Mode**: Memorable EFF Diceware wordlists with customizable separators and capitalized words.
 - **PIN Mode**: 4 to 12 digits with cryptographically secure randomness.
 - **Username Mode**: Anonymous alphanumeric identifiers and memorable adjective-noun combinations.
 
-### 🤖 12. Native Android System Integrations
+### 🤖 11. Native Android System Integrations
 - **Autofill Framework (`AutofillService`)**: Native autofill provider matching package names and web domains to fill usernames and passwords directly in apps and Chrome.
 - **Biometric Authentication**: Hardware-backed fingerprint and face recognition unlock.
 - **Edge-to-Edge & Gesture Navigation**: Built natively with Jetpack Compose Material 3 Expressive.
 
-### 📦 13. Encrypted Backup & Cross-Platform Migration
+### 📦 12. Encrypted Backup & Cross-Platform Migration
 - **Encrypted JSON Archives**: Password-protected backups encrypted with AES-256-GCM.
 - **Multi-Manager Importer**: Auto-detects and imports credential exports from **Bitwarden** (JSON/CSV), **1Password** (CSV), and **Google Password Manager** (CSV).
 - **RFC 4180 CSV Exporter**: Standard CSV export with explicit confirmation prompts.
@@ -173,10 +168,10 @@ Kryptx is engineered to deliver a sensory, ultra-premium user experience that fe
 |:---|:---|:---|
 | **Brute-Force Master Key** | Weak dictionary cracking | **PBKDF2-HMAC-SHA256 with 600,000 iterations** + 32-byte secure salt. |
 | **RAM Inspection & Memory Dump** | Plaintext keys sitting in heap | **Immediate byte-level zeroization (`SecureMemory.wipe()`)** after use. |
-| **Physical Seizure / Coercion** | User forced to unlock vault | **Duress Password** unlocking an isolated **Decoy Vault** with dummy accounts. |
+| **Hardware Keystore Extraction** | Software-only keystore keys | **Hardware StrongBox / TEE Isolation** backed by `BiometricPrompt.CryptoObject`. |
 | **Malicious Background Hooks** | Frida / Xposed script injection | **Runtime Anti-Tamper scanner** checking `/proc/self/maps` and debugger hooks. |
 | **Screen Capture & Recents Leaks** | Spyware screenshots app window | **Hardware `FLAG_SECURE`** blocking screenshots and task switcher previews. |
-| **Clipboard Snooping** | Malware reads copied password | **Automatic 30-second clipboard zeroization** with countdown notification. |
+| **Clipboard Snooping** | Malware reads copied password | **Automatic 30-second clipboard zeroization** with countdown timer. |
 | **Cloud Breaches & Subpoenas** | Server database leaked/seized | **100% Offline Zero-Knowledge architecture**; no user data touches the cloud. |
 
 ---
@@ -185,7 +180,7 @@ Kryptx is engineered to deliver a sensory, ultra-premium user experience that fe
 
 ```
 app/src/main/java/com/kryptx/app/
-├── KryptxApplication.kt                 # Application lifecycle, auto-lock hooks
+├── KryptxApplication.kt                 # Application lifecycle & auto-lock initialization
 ├── MainActivity.kt                      # Single-activity Compose host, edge-to-edge
 │
 ├── core/
@@ -197,7 +192,7 @@ app/src/main/java/com/kryptx/app/
 │   ├── migration/                       # VaultImporter, VaultExporter
 │   ├── model/                           # VaultItem, ItemType, VaultAttachment, SecurityAuditReport
 │   ├── security/                        # VaultSessionManager, AttachmentManager, BreachChecker, RootDetector
-│   ├── sync/                            # LocalP2PSyncManager (Zero-Cloud Wi-Fi Direct Transfer)
+│   ├── sync/                            # LocalWebCompanionServer (Zero-Cloud Wi-Fi Desktop Companion)
 │   └── totp/                            # TotpGenerator (RFC 6238), Base32, UriParser
 │
 ├── feature/
@@ -207,7 +202,7 @@ app/src/main/java/com/kryptx/app/
 │   ├── onboarding/                      # OnboardingScreen
 │   ├── search/                          # SearchScreen, SearchViewModel
 │   ├── securitycenter/                  # SecurityCenterScreen, SecurityCenterViewModel
-│   ├── settings/                        # SettingsScreen, SecuritySettings, LocalSyncScreen, BackupExport
+│   ├── settings/                        # SettingsScreen, SecuritySettingsScreen, WebCompanionScreen, BackupExportScreen
 │   ├── totp/                            # TotpListScreen, TotpViewModel
 │   └── vault/                           # VaultDashboardScreen, VaultItemDetailScreen, AddEditItemScreen, VaultViewModel
 │
@@ -229,7 +224,6 @@ app/src/main/java/com/kryptx/app/
 ```bash
 ./gradlew testDebugUnitTest
 ```
-*Current test suite: **108 / 108 tests passing (100% success)** across cryptographic engines, RFC 9106 Argon2id vectors, duress isolation, RFC k-Anonymity breach detection, soft delete with undo, PDF generators, attachments, P2P sync, dashboard analytics, and TOTP algorithms.*
 
 ### Build Debug APK
 ```bash

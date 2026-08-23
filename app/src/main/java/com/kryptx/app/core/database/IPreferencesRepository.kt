@@ -7,7 +7,6 @@ interface IPreferencesRepository {
     val dynamicColor: StateFlow<Boolean>
     val autoLockSeconds: StateFlow<Long>
     val lockOnBackground: StateFlow<Boolean>
-    val shakeToLockEnabled: StateFlow<Boolean>
     val biometricEnabled: StateFlow<Boolean>
     val clipboardTimeout: StateFlow<Int>
     val flagSecureEnabled: StateFlow<Boolean>
@@ -18,7 +17,6 @@ interface IPreferencesRepository {
     fun setDynamicColor(enable: Boolean)
     fun setAutoLockSeconds(seconds: Long)
     fun setLockOnBackground(lock: Boolean)
-    fun setShakeToLockEnabled(enabled: Boolean)
     fun setBiometricEnabled(enabled: Boolean)
     fun setClipboardTimeout(seconds: Int)
     fun setFlagSecureEnabled(enabled: Boolean)

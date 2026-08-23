@@ -228,9 +228,20 @@ fun SecurityCenterScreen(
                     }
                 } else {
                     items(r.issues, key = { it.id }) { issue ->
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         SecurityIssueCard(
                             issue = issue,
-                            onFix = { onNavigateToFixItem(issue.itemId) }
+                            onFix = { onNavigateToFixItem(issue.itemId) },
+                            onRotate = {
+                                viewModel.quickRotatePassword(issue.itemId) { rotationResult ->
+                                    if (rotationResult.changePasswordUrl != null) {
+                                        com.kryptx.app.core.security.PasswordRotationHelper.openChangePasswordInBrowser(
+                                            context,
+                                            rotationResult.changePasswordUrl
+                                        )
+                                    }
+                                }
+                            }
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                     }
@@ -285,7 +296,8 @@ fun AuditStatBox(
 @Composable
 fun SecurityIssueCard(
     issue: SecurityIssue,
-    onFix: () -> Unit
+    onFix: () -> Unit,
+    onRotate: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -332,11 +344,20 @@ fun SecurityIssueCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
+                if (onRotate != null) {
+                    KryptxOutlinedButton(
+                        text = "1-Tap Rotate",
+                        modifier = Modifier.height(38.dp),
+                        borderColor = KryptxEmerald,
+                        textColor = KryptxEmerald,
+                        onClick = onRotate
+                    )
+                }
                 KryptxOutlinedButton(
-                    text = "Fix Now",
-                    modifier = Modifier.width(110.dp).height(38.dp),
+                    text = "Edit Item",
+                    modifier = Modifier.height(38.dp),
                     borderColor = KryptxBlue,
                     textColor = KryptxBlue,
                     onClick = onFix

@@ -345,16 +345,6 @@ fun VaultDashboardScreen(
                     }
                 }
             }
-
-            // 6. Storage & Health Meter Card
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                VaultStorageMeter(
-                    itemCount = items.size,
-                    totalCount = allItems.size,
-                    healthScore = securityReport?.overallScore ?: 100
-                )
-            }
         }
     }
 

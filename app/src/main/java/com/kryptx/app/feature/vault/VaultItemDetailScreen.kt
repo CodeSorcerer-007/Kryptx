@@ -382,6 +382,56 @@ fun VaultItemDetailScreen(
                                         }
                                     }
                                 }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(KryptxEmerald.copy(alpha = 0.08f))
+                                        .border(1.dp, KryptxEmerald.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            viewModel.rotatePassword(item) { result ->
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("New high-entropy password generated & copied!")
+                                                }
+                                                if (result.changePasswordUrl != null) {
+                                                    com.kryptx.app.core.security.PasswordRotationHelper.openChangePasswordInBrowser(
+                                                        context,
+                                                        result.changePasswordUrl
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Lock,
+                                                contentDescription = null,
+                                                tint = KryptxEmerald,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "1-Tap Rotate Password",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = KryptxEmerald
+                                            )
+                                        }
+                                        Text(
+                                            text = "Auto-Change",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = KryptxEmerald
+                                        )
+                                    }
+                                }
                             }
 
                             if (item.website.isNotBlank()) {

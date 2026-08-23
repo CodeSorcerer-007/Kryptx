@@ -26,7 +26,6 @@ class SettingsViewModel(
     val dynamicColor = preferencesRepository.dynamicColor
     val autoLockSeconds = preferencesRepository.autoLockSeconds
     val lockOnBackground = preferencesRepository.lockOnBackground
-    val shakeToLockEnabled = preferencesRepository.shakeToLockEnabled
     val biometricEnabled = preferencesRepository.biometricEnabled
     val clipboardTimeout = preferencesRepository.clipboardTimeout
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
@@ -36,11 +35,6 @@ class SettingsViewModel(
     val exportStatus: StateFlow<String?> = _exportStatus.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
-
-    fun setShakeToLockEnabled(enabled: Boolean) {
-        preferencesRepository.setShakeToLockEnabled(enabled)
-    }
-
 
     fun setThemeMode(mode: AppThemeMode) {
         preferencesRepository.setThemeMode(mode)
@@ -125,56 +119,24 @@ class SettingsViewModel(
         }
     }
 
-    private val _hasDuressPassword = MutableStateFlow(vaultRepository.hasDuressPassword())
-    val hasDuressPassword: StateFlow<Boolean> = _hasDuressPassword.asStateFlow()
-
-    fun setupDuressPassword(password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        if (password.length < 4) {
-            onError("Duress password must be at least 4 characters")
-            return
-        }
-        viewModelScope.launch {
-            val chars = password.toCharArray()
-            val result = try {
-                vaultRepository.setupDuressPassword(chars)
-            } finally {
-                SecureMemory.wipe(chars)
-            }
-            when (result) {
-                is com.kryptx.app.core.model.KryptxResult.Success -> {
-                    _hasDuressPassword.value = true
-                    onSuccess()
-                }
-                is com.kryptx.app.core.model.KryptxResult.Error -> onError("Failed to setup duress decoy vault")
-            }
-        }
-    }
-
-    fun removeDuressPassword(onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            vaultRepository.removeDuressPassword()
-            _hasDuressPassword.value = false
-            onSuccess()
-        }
-    }
-
-    suspend fun exportEncryptedBackup(password: String): String? {
+    suspend fun exportEncryptedBackup(password: String): ByteArray? {
         val chars = password.toCharArray()
         return try {
             val result = vaultRepository.exportEncryptedBackup(chars)
             result.getOrNull()?.let { payload ->
                 json.encodeToString(EncryptedBackupPayload.serializer(), payload)
+                    .toByteArray(Charsets.UTF_8)
             }
         } finally {
             SecureMemory.wipe(chars)
         }
     }
 
-    suspend fun exportPlaintextCsv(): String? {
+    suspend fun exportPlaintextCsv(): ByteArray? {
         return when (val result = vaultRepository.exportPlaintextJson()) {
             is com.kryptx.app.core.model.KryptxResult.Success -> {
                 val items = json.decodeFromString<List<com.kryptx.app.core.model.VaultItem>>(result.data)
-                VaultExporter.exportToCsv(items)
+                VaultExporter.exportToCsv(items).toByteArray(Charsets.UTF_8)
             }
             is com.kryptx.app.core.model.KryptxResult.Error -> null
         }
@@ -204,6 +166,11 @@ class SettingsViewModel(
             val result = vaultRepository.importItems(parsedItems)
             onResult(result.getOrDefault(0))
         }
+    }
+
+    fun importFromBytes(bytes: ByteArray, password: String?, onResult: (count: Int) -> Unit) {
+        val content = bytes.toString(Charsets.UTF_8)
+        importContent(content, password, onResult)
     }
 
     fun resetVault(onResetComplete: () -> Unit) {

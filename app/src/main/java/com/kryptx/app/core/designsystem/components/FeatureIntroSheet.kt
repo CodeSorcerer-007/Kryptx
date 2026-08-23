@@ -124,14 +124,14 @@ enum class FeatureGuide(
         whyUseIt = "Camera frames are decoded strictly in volatile RAM and no images are ever saved or transmitted.",
         proTip = "Hold the camera steady over the QR code for instant auto-capture."
     ),
-    DURESS_VAULT(
-        key = "duress_vault_feature",
-        title = "Duress Password & Decoy Vault",
-        subtitle = "Coercion & Panic Protection",
-        icon = Icons.Default.Lock,
-        whatIsIt = "A secondary password that unlocks a realistic decoy vault containing dummy accounts.",
-        whyUseIt = "Protects you under forced unlock situations. Real passwords and keys remain completely isolated and invisible.",
-        proTip = "Set up in Settings → Security & Vault Lock."
+    WEB_COMPANION(
+        key = "web_companion_feature",
+        title = "Desktop Web Companion",
+        subtitle = "Zero-Cloud Local Wi-Fi Access",
+        icon = Icons.Default.Security,
+        whatIsIt = "Access and manage your encrypted vault from your PC or Mac desktop browser over local Wi-Fi.",
+        whyUseIt = "No cloud servers, no extensions to install, and zero internet exposure. Protected with ephemeral PIN handshakes.",
+        proTip = "Turn on the companion server from Settings when you want to work on a large desktop screen."
     ),
     EMERGENCY_KIT(
         key = "emergency_kit_feature",
@@ -150,15 +150,6 @@ enum class FeatureGuide(
         whatIsIt = "Attach private photos, driver's licenses, passports, or SSH key files directly to vault entries.",
         whyUseIt = "Files are encrypted in chunks and stored inside the app sandbox with on-demand zero-knowledge decryption.",
         proTip = "Tap any attachment to decrypt and open in your preferred viewer."
-    ),
-    LOCAL_SYNC(
-        key = "local_sync_feature",
-        title = "Zero-Cloud Local P2P Sync",
-        subtitle = "Direct Wi-Fi / Hotspot Beam",
-        icon = Icons.Default.Security,
-        whatIsIt = "Transfer and synchronize encrypted credentials directly between nearby devices over local Wi-Fi.",
-        whyUseIt = "No cloud servers, no intermediate storage, and zero internet connection required.",
-        proTip = "Generate a QR code on the sender phone and scan it with the receiver camera."
     )
 }
 

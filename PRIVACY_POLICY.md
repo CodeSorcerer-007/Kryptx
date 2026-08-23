@@ -1,85 +1,107 @@
-# Privacy Policy for Kryptx
+# Kryptx Privacy Policy
 
-**Last Updated:** August 16, 2026
-
-**Effective Date:** August 16, 2026
-
----
-
-## 1. Introduction & Core Philosophy
-
-**Kryptx** ("we", "our", or "the App") is developed as an ultra-secure, zero-knowledge, offline-first native Android password manager, multi-factor authenticator (TOTP), and encrypted document vault.
-
-Your privacy and cryptographic autonomy are our primary design principles. **Kryptx operates on a strict Zero-Knowledge and 100% Offline-First architecture.** We do not own servers to store your data, we do not operate remote databases, and we do not collect, monetize, transmit, or share your personal information.
+**Effective date:** August 22, 2026  
+**Last updated:** August 22, 2026
 
 ---
 
-## 2. Information Collection and Storage
+## Summary
 
-### A. Personal Data & Vault Credentials
-- **Zero Plaintext Storage:** We do not collect, view, transmit, or store your master password, logins, notes, credit cards, identities, crypto seeds, TOTP keys, or file attachments.
-- **Local-Only Encryption:** All entries stored within Kryptx are encrypted directly on your device using **AES-256-GCM** with a **256-bit Vault Encryption Key (VEK)** derived via **PBKDF2-HMAC-SHA256 (600,000+ iterations)**.
-- **No Cloud Transmission:** Your vault data never leaves your physical device unless you explicitly initiate an encrypted offline export or direct local Wi-Fi beam (P2P) to another trusted device on your local network.
+Kryptx is a fully offline, zero-knowledge password manager. In plain terms:
 
-### B. Analytics, Telemetry & Tracking
-- **Zero Trackers:** Kryptx contains **0 advertising trackers, 0 analytics SDKs, and 0 third-party telemetry tools**.
-- **No Diagnostic Beacons:** We do not monitor app usage, screen interactions, or session logs.
+- **We collect nothing.** No account is required. No data leaves your device.
+- **We cannot access your vault.** Your data is encrypted with keys derived from your master password, which never leaves your device.
+- **We do not use analytics, crash reporting, or advertising SDKs.**
 
 ---
 
-## 3. Device Permissions and Usage
+## 1. Information We Collect
 
-Kryptx requests only the minimal Android permissions necessary to provide its cryptographic and security capabilities:
+**None.** Kryptx does not collect, transmit, store, or share any personal information, usage data, analytics, or telemetry.
 
-| Permission | Purpose & Scope |
-|:---|:---|
-| `android.permission.USE_BIOMETRIC` | Used solely to unlock your local vault using your device's hardware-backed biometric sensor (Fingerprint / Face Unlock via Android Keystore `BiometricPrompt.CryptoObject`). Biometric data is managed exclusively by your device's Secure Enclave / TEE and is never accessible to the app. |
-| `android.permission.CAMERA` | Used strictly for the real-time offline QR code viewfinder to scan 2FA (TOTP) setup codes or local P2P sync codes. No photographs or video streams are saved to disk or transmitted over any network. |
-| `BIND_AUTOFILL_SERVICE` | Enables the native Android Autofill Framework to securely suggest saved credentials directly in third-party apps and web browsers on your device when authenticated. |
+All vault data is stored exclusively in the encrypted SQLite database on your device at:
+`data/data/com.kryptx.app/databases/kryptx_vault.db`
 
----
-
-## 4. Third-Party Services & Network Activity
-
-Kryptx does not connect to any external cloud backend. 
-
-- **Breach Checking (Optional & Privacy-Preserving):** If you manually trigger the Have I Been Pwned breach detection scan in Security Settings, Kryptx utilizes a strict **k-Anonymity mathematical model**. Only the first 5 characters of your password's SHA-1 hash are sent with padded response matching. Your actual passwords or full hashes are **never** transmitted.
-- **Local P2P Sync (Optional):** Local peer-to-peer sync operates exclusively over direct socket connections within your local Wi-Fi or hotspot network with ephemeral AES-256-GCM transfer session encryption.
+This file is encrypted with AES-256-GCM. Without your master password, it is unreadable.
 
 ---
 
-## 5. Data Retention, Security & Deletion
+## 2. Optional Network Features
 
-- **User Custody:** Because all data resides solely on your physical device, you maintain 100% control over retention.
-- **Permanent Vault Wipe:** You can permanently erase all encrypted data, settings, and cached keys at any time via **Settings → Privacy & Security → Erase Vault**. This operation cryptographically zeroizes memory buffers and deletes the local SQLite database.
-- **App Uninstallation:** Uninstalling the Kryptx application immediately and permanently removes all associated vault data from your device's sandboxed storage.
+Kryptx is offline-first. The only optional network operation is:
 
----
+**Have I Been Pwned (HIBP) Breach Check**
 
-## 6. Children's Privacy (COPPA & Global Standards)
+- Off by default. You must explicitly enable it in Security Settings.
+- Uses RFC k-Anonymity: only the first 5 characters of the SHA-1 hash of a password are sent to `api.pwnedpasswords.com`. The full password never leaves your device.
+- The HIBP API is operated by Troy Hunt. Their privacy policy is at [haveibeenpwned.com/Privacy](https://haveibeenpwned.com/Privacy).
+- Kryptx does not log, store, or forward the query prefix or any response data.
 
-Kryptx does not address or knowingly collect data from children under the age of 13. The application is a general-purpose security and utility tool.
-
----
-
-## 7. Compliance (GDPR, CCPA/CPRA, Google Play Policies)
-
-Because Kryptx does not collect, process, or sell any personal data:
-- **Right to Access:** Your data is immediately accessible to you inside the application.
-- **Right to Erasure / Portability:** You can export standard encrypted JSON or CSV archives, or delete all records at any time directly on your device.
-- **No Sale of Data:** We never sell, rent, or trade personal data to third parties.
+No other network requests are made by Kryptx under any circumstances.
 
 ---
 
-## 8. Changes to This Privacy Policy
+## 3. Permissions Used
 
-Any updates to this policy will be reflected with a revised "Last Updated" date and committed directly to the official open-source repository. Continued use of the application signifies acceptance of any updated terms.
+| Permission | Purpose |
+|---|---|
+| `USE_BIOMETRIC` | Biometric fingerprint/face unlock |
+| `CAMERA` | QR code scanning for TOTP seed import |
+| `INTERNET` | Optional HIBP breach check only |
+| `ACCESS_NETWORK_STATE` | Check network availability before HIBP query |
+| `ACCESS_WIFI_STATE` | Detect local IP for P2P LAN sync |
+| `CHANGE_WIFI_MULTICAST_STATE` | P2P LAN sync device discovery |
 
 ---
 
-## 9. Contact Us
+## 4. Local P2P Sync
 
-If you have questions, feedback, or security inquiries regarding this Privacy Policy, you may contact the development team:
+The Local Sync feature transfers your encrypted vault data directly between two devices on the same local network. No data passes through any server or third-party service. The transfer is protected with a one-time AES-256-GCM session key and a 6-digit verification PIN. Kryptx never facilitates, logs, or relays this transfer.
 
-- **Repository:** [https://github.com/CodeSorcerer-007/Kryptx](https://github.com/CodeSorcerer-007/Kryptx)
-- **Issues & Inquiries:** [https://github.com/CodeSorcerer-007/Kryptx/issues](https://github.com/CodeSorcerer-007/Kryptx/issues)
+---
+
+## 5. Android Backup
+
+`android:allowBackup="false"` is set in the app manifest. This prevents the encrypted vault database from being included in Android's ADB backup or Google Cloud Backup, even if your device is backed up to Google.
+
+---
+
+## 6. Data Security
+
+- All vault data is encrypted with AES-256-GCM before being written to disk.
+- The Vault Encryption Key (VEK) is derived from your master password using PBKDF2-HMAC-SHA256 at 600,000 iterations, or Argon2id at 16 MB memory cost.
+- Sensitive values (passwords, keys, salts) are zeroed in memory immediately after use using `Arrays.fill`.
+- The app enforces `FLAG_SECURE` to prevent screenshots and recent-apps previews of vault content.
+- Hardware-backed key storage (Android Keystore / StrongBox) is used for biometric key wrapping.
+
+---
+
+## 7. Children's Privacy
+
+Kryptx does not knowingly collect any data from any users, including children under 13.
+
+---
+
+## 8. Changes to This Policy
+
+If this policy changes materially, the updated policy will be published in the app repository and the effective date above will be updated. Because we collect no data, no retroactive action on previously collected data is possible.
+
+---
+
+## 9. Contact
+
+For questions about this privacy policy, open an issue at:  
+https://github.com/CodeSorcerer-007/Kryptx/issues
+
+---
+
+## Play Store Data Safety Declaration
+
+For the Google Play Data Safety form, declare:
+
+| Question | Answer |
+|---|---|
+| Does the app collect or share user data? | **No** |
+| Is the data encrypted in transit? | **Yes** (TLS for HIBP; AES-256-GCM for P2P) |
+| Can users request data deletion? | **Yes** — Settings → Reset Vault |
+| Does the app follow Google's Families Policy? | Not applicable (no child-directed content) |

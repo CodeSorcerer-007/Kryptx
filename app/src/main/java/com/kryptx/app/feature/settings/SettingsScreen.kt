@@ -2,7 +2,6 @@ package com.kryptx.app.feature.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,12 +19,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,15 +42,14 @@ import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 
 @Composable
 fun SettingsScreen(
     onNavigateToSecurity: () -> Unit,
     onNavigateToAppearance: () -> Unit,
     onNavigateToBackup: () -> Unit,
-    onNavigateToLocalSync: () -> Unit,
-    onNavigateToPrivacy: () -> Unit,
-    onNavigateToAudit: () -> Unit,
+    onNavigateToWebCompanion: () -> Unit,
     onNavigateToAutofillSetup: () -> Unit,
     onReplayGuides: () -> Unit,
     modifier: Modifier = Modifier
@@ -97,7 +95,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Version 1.0.0 • Zero-Knowledge Architecture",
+                            text = "Version 1.1.0 • Zero-Knowledge Architecture",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -107,8 +105,9 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // 1. VAULT SECURITY & BIOMETRICS
             Text(
-                text = "PREFERENCES & CONFIGURATION",
+                text = "VAULT SECURITY & BIOMETRICS",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -120,6 +119,42 @@ fun SettingsScreen(
                 subtitle = "Biometrics, auto-lock timeout, clipboard, master password",
                 icon = Icons.Default.Lock,
                 onClick = onNavigateToSecurity
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 2. SYNC & DATA MIGRATION
+            Text(
+                text = "SYNC & DATA MIGRATION",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            SettingsNavRow(
+                title = "Desktop Web Companion",
+                subtitle = "Access encrypted vault on PC / Mac browser over local Wi-Fi",
+                icon = Icons.Default.Wifi,
+                onClick = onNavigateToWebCompanion
+            )
+
+            SettingsNavRow(
+                title = "Backup & Migration",
+                subtitle = "Encrypted JSON backup, CSV export, Bitwarden/1Password import",
+                icon = Icons.Default.FolderZip,
+                onClick = onNavigateToBackup
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 3. PREFERENCES & SYSTEM
+            Text(
+                text = "PREFERENCES & SYSTEM",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
             SettingsNavRow(
@@ -137,49 +172,56 @@ fun SettingsScreen(
             )
 
             SettingsNavRow(
-                title = "Backup & Migration",
-                subtitle = "Encrypted JSON backup, CSV export, Bitwarden/1Password import",
-                icon = Icons.Default.FolderZip,
-                onClick = onNavigateToBackup
+                title = "Feature Guides & Pro Tips",
+                subtitle = "Replay first-time feature introductions and usage tips",
+                icon = Icons.Default.Info,
+                onClick = onReplayGuides
             )
 
-            SettingsNavRow(
-                title = "Zero-Cloud Local P2P Sync",
-                subtitle = "Beam encrypted credentials device-to-device over Wi-Fi / Hotspot",
-                icon = Icons.Default.Wifi,
-                onClick = onNavigateToLocalSync
-            )
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Spacer(modifier = Modifier.height(20.dp))
-
+            // 4. ZERO-KNOWLEDGE ARCHITECTURE CARD
             Text(
-                text = "TRANSPARENCY & AUDIT",
+                text = "SECURITY GUARANTEE",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            SettingsNavRow(
-                title = "Privacy Center",
-                subtitle = "Learn what is encrypted, permissions, and zero tracking policy",
-                icon = Icons.Default.PrivacyTip,
-                onClick = onNavigateToPrivacy
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = KryptxEmerald,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Zero-Knowledge & Offline First",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
 
-            SettingsNavRow(
-                title = "Security Architecture & Diagnostics",
-                subtitle = "Keystore status, AES-256 cipher parameters, integrity checks",
-                icon = Icons.Default.Security,
-                onClick = onNavigateToAudit
-            )
-
-            SettingsNavRow(
-                title = "Feature Guides & Pro Tips",
-                subtitle = "Replay first-time feature introductions and usage tips",
-                icon = Icons.Default.Info,
-                onClick = onReplayGuides
-            )
+                    Text(
+                        text = "• AES-256-GCM symmetric encryption with 128-bit authentication tags\n• PBKDF2 key derivation with 600,000 rounds\n• AndroidKeyStore hardware isolation with StrongBox support\n• Zero analytics, telemetry, or remote servers",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }

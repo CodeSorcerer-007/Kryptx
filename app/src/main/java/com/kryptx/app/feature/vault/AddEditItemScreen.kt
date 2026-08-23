@@ -84,6 +84,10 @@ fun AddEditItemScreen(
     var notes by remember { mutableStateOf(existingItem?.notes ?: "") }
     var showQrScanner by remember { mutableStateOf(false) }
 
+    // Track whether we've done our initial population from the loaded item.
+    // This handles the case where rawItems loads asynchronously AFTER first composition.
+    var hasPopulated by remember { mutableStateOf(existingItem != null) }
+
     // Login fields
     var username by remember { mutableStateOf(existingItem?.username ?: "") }
     var password by remember { mutableStateOf(existingItem?.password ?: "") }
@@ -124,6 +128,7 @@ fun AddEditItemScreen(
     var bankName by remember { mutableStateOf(existingItem?.bankName ?: "") }
     var bankAccountNumber by remember { mutableStateOf(existingItem?.bankAccountNumber ?: "") }
     var bankRoutingNumber by remember { mutableStateOf(existingItem?.bankRoutingNumber ?: "") }
+    var bankSwiftBic by remember { mutableStateOf(existingItem?.bankSwiftBic ?: "") }
 
     // Crypto fields
     var cryptoWalletAddress by remember { mutableStateOf(existingItem?.cryptoWalletAddress ?: "") }
@@ -176,6 +181,60 @@ fun AddEditItemScreen(
     }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // If itemId was provided but items hadn't loaded yet on first composition,
+    // populate all fields once the item becomes available.
+    androidx.compose.runtime.LaunchedEffect(existingItem) {
+        val item = existingItem ?: return@LaunchedEffect
+        if (hasPopulated) return@LaunchedEffect
+        hasPopulated = true
+        selectedType = item.type
+        title = item.title
+        isFavorite = item.isFavorite
+        notes = item.notes
+        username = item.username
+        password = item.password
+        website = item.website
+        totpSecret = item.totpSecret
+        passkeyRpId = item.passkeyRpId
+        passkeyUserHandle = item.passkeyUserHandle
+        passkeyCredentialId = item.passkeyCredentialId
+        passkeyAlgorithm = item.passkeyAlgorithm
+        cardholderName = item.cardholderName
+        cardNumber = item.cardNumber
+        cardExpiry = item.cardExpiry
+        cardCvv = item.cardCvv
+        cardPin = item.cardPin
+        identityName = item.identityFullName
+        identityEmail = item.identityEmail
+        identityPhone = item.identityPhone
+        identityAddress = item.identityAddress
+        identityDob = item.identityDob
+        identityIdNum = item.identityIdNumber
+        wifiSsid = item.wifiSsid
+        wifiPassword = item.wifiPassword
+        apiKey = item.apiKey
+        apiSecret = item.apiSecret
+        apiEndpoint = item.apiEndpoint
+        bankName = item.bankName
+        bankAccountNumber = item.bankAccountNumber
+        bankRoutingNumber = item.bankRoutingNumber
+        bankSwiftBic = item.bankSwiftBic
+        cryptoWalletAddress = item.cryptoWalletAddress
+        cryptoSeedPhrase = item.cryptoSeedPhrase
+        cryptoNetwork = item.cryptoNetwork
+        sshPublicKey = item.sshPublicKey
+        sshPrivateKey = item.sshPrivateKey
+        sshHost = item.sshHost
+        medicalBloodType = item.medicalBloodType
+        medicalAllergies = item.medicalAllergies
+        medicalEmergencyContact = item.medicalEmergencyContact
+        rotationIntervalDays = item.rotationIntervalDays
+        customFields.clear()
+        customFields.addAll(item.customFields)
+        attachments.clear()
+        attachments.addAll(item.attachments)
+    }
 
     val passwordAnalysis = remember(password) {
         if (password.isNotBlank()) EntropyCalculator.analyze(password) else null
@@ -422,35 +481,39 @@ fun AddEditItemScreen(
                 }
 
                 ItemType.BANK_ACCOUNT -> {
-                    KryptxTextField(value = cardholderName, onValueChange = { cardholderName = it }, label = "Bank Name")
+                    KryptxTextField(value = bankName, onValueChange = { bankName = it }, label = "Bank Name")
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = cardNumber, onValueChange = { cardNumber = it }, label = "Account Number", isPassword = true, isMonospace = true)
+                    KryptxTextField(value = bankAccountNumber, onValueChange = { bankAccountNumber = it }, label = "Account Number", isPassword = true, isMonospace = true)
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = cardPin, onValueChange = { cardPin = it }, label = "Routing Number / Sort Code", isMonospace = true)
+                    KryptxTextField(value = bankRoutingNumber, onValueChange = { bankRoutingNumber = it }, label = "Routing Number / Sort Code", isMonospace = true)
+                    Spacer(modifier = Modifier.height(14.dp))
+                    KryptxTextField(value = bankSwiftBic, onValueChange = { bankSwiftBic = it }, label = "SWIFT / BIC Code (optional)", isMonospace = true)
                 }
 
                 ItemType.CRYPTO_WALLET -> {
-                    KryptxTextField(value = website, onValueChange = { website = it }, label = "Network / Blockchain (e.g. Ethereum, Solana)")
+                    KryptxTextField(value = cryptoNetwork, onValueChange = { cryptoNetwork = it }, label = "Network / Blockchain (e.g. Ethereum, Solana)")
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = apiKey, onValueChange = { apiKey = it }, label = "Public Wallet Address", isMonospace = true)
+                    KryptxTextField(value = cryptoWalletAddress, onValueChange = { cryptoWalletAddress = it }, label = "Public Wallet Address", isMonospace = true)
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = password, onValueChange = { password = it }, label = "Recovery Seed Phrase (12/24 words)", isPassword = true, singleLine = false)
+                    KryptxTextField(value = cryptoSeedPhrase, onValueChange = { cryptoSeedPhrase = it }, label = "Recovery Seed Phrase (12/24 words)", isPassword = true, singleLine = false)
                 }
 
                 ItemType.SSH_KEY -> {
-                    KryptxTextField(value = website, onValueChange = { website = it }, label = "Host / Server (e.g. server.domain.com)")
+                    KryptxTextField(value = sshHost, onValueChange = { sshHost = it }, label = "Host / Server (e.g. server.domain.com)")
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = apiKey, onValueChange = { apiKey = it }, label = "Public Key", isMonospace = true, singleLine = false)
+                    KryptxTextField(value = sshPublicKey, onValueChange = { sshPublicKey = it }, label = "Public Key", isMonospace = true, singleLine = false)
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = password, onValueChange = { password = it }, label = "Private Key", isPassword = true, isMonospace = true, singleLine = false)
+                    KryptxTextField(value = sshPrivateKey, onValueChange = { sshPrivateKey = it }, label = "Private Key", isPassword = true, isMonospace = true, singleLine = false)
                 }
 
                 ItemType.MEDICAL -> {
                     KryptxTextField(value = identityName, onValueChange = { identityName = it }, label = "Full Name")
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = identityDob, onValueChange = { identityDob = it }, label = "Blood Type (e.g. O+, A-)")
+                    KryptxTextField(value = medicalBloodType, onValueChange = { medicalBloodType = it }, label = "Blood Type (e.g. O+, A-)")
                     Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = notes, onValueChange = { notes = it }, label = "Known Allergies & Conditions", singleLine = false)
+                    KryptxTextField(value = medicalAllergies, onValueChange = { medicalAllergies = it }, label = "Known Allergies & Conditions", singleLine = false)
+                    Spacer(modifier = Modifier.height(14.dp))
+                    KryptxTextField(value = medicalEmergencyContact, onValueChange = { medicalEmergencyContact = it }, label = "Emergency Contact")
                 }
 
                 ItemType.SECURE_NOTE, ItemType.CUSTOM -> {}
@@ -708,6 +771,7 @@ fun AddEditItemScreen(
                         bankName = bankName,
                         bankAccountNumber = bankAccountNumber,
                         bankRoutingNumber = bankRoutingNumber,
+                        bankSwiftBic = bankSwiftBic,
                         cryptoWalletAddress = cryptoWalletAddress,
                         cryptoSeedPhrase = cryptoSeedPhrase,
                         cryptoNetwork = cryptoNetwork,

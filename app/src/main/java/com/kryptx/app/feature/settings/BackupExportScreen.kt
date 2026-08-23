@@ -1,8 +1,9 @@
 package com.kryptx.app.feature.settings
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
@@ -51,6 +53,9 @@ import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun BackupExportScreen(
@@ -62,9 +67,97 @@ fun BackupExportScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    // Dialogs
     var showEncryptedExportDialog by remember { mutableStateOf(false) }
     var showPlaintextWarningDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+
+    // Pending export bytes — held while waiting for SAF URI to be picked
+    var pendingEncryptedBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingCsvBytes by remember { mutableStateOf<ByteArray?>(null) }
+    // Import bytes — held while the password dialog is open
+    var pendingImportBytes by remember { mutableStateOf<ByteArray?>(null) }
+
+    // ── SAF launchers ──────────────────────────────────────────────────────────
+
+    // Encrypted backup: user picks where to save the .kryptx file
+    val saveEncryptedLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        val bytes = pendingEncryptedBytes
+        if (uri != null && bytes != null) {
+            scope.launch {
+                val written = writeToUri(context, uri, bytes)
+                pendingEncryptedBytes = null
+                snackbarHostState.showSnackbar(
+                    if (written) "Encrypted backup saved successfully."
+                    else "Failed to write backup file."
+                )
+            }
+        } else {
+            pendingEncryptedBytes = null
+        }
+    }
+
+    // CSV export: user picks where to save the .csv file
+    val saveCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        val bytes = pendingCsvBytes
+        if (uri != null && bytes != null) {
+            scope.launch {
+                val written = writeToUri(context, uri, bytes)
+                pendingCsvBytes = null
+                snackbarHostState.showSnackbar(
+                    if (written) "CSV exported successfully."
+                    else "Failed to write CSV file."
+                )
+            }
+        } else {
+            pendingCsvBytes = null
+        }
+    }
+
+    // Emergency Kit PDF: user picks where to save the PDF
+    val savePdfLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val pdfFile = com.kryptx.app.core.generator.EmergencyKitGenerator
+                        .generateEmergencyKitPdf(context)
+                    val written = writeToUri(context, uri, pdfFile.readBytes())
+                    pdfFile.delete() // clean up cache file
+                    snackbarHostState.showSnackbar(
+                        if (written) "Emergency Kit PDF saved." else "Failed to save PDF."
+                    )
+                } catch (e: Exception) {
+                    snackbarHostState.showSnackbar("Failed to generate PDF: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // Import: user picks any backup file (JSON, CSV, .kryptx)
+    val openImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val bytes = readFromUri(context, uri)
+                if (bytes != null) {
+                    showImportDialog = true
+                    // Store bytes so the import dialog can use them
+                    pendingImportBytes = bytes
+                } else {
+                    snackbarHostState.showSnackbar("Could not read the selected file.")
+                }
+            }
+        }
+    }
+
+    // ── Screen layout ──────────────────────────────────────────────────────────
 
     Scaffold(
         modifier = modifier
@@ -115,7 +208,7 @@ fun BackupExportScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Protects all credentials with AES-256-GCM using an export passphrase.",
+                                text = "Saves all credentials to a file protected with AES-256-GCM using an export passphrase.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -133,7 +226,7 @@ fun BackupExportScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Printable Emergency Kit PDF Card
+            // Emergency Kit PDF
             KryptxCard {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -152,7 +245,7 @@ fun BackupExportScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Generates a 1-page vector PDF with your master vault specs, QR recovery key, and physical custody guidelines.",
+                                text = "Generates a 1-page PDF with your vault specs, QR recovery key, and custody guidelines.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -164,25 +257,8 @@ fun BackupExportScreen(
                         borderColor = KryptxEmerald,
                         textColor = KryptxEmerald,
                         onClick = {
-                            scope.launch {
-                                try {
-                                    val pdfFile = com.kryptx.app.core.generator.EmergencyKitGenerator.generateEmergencyKitPdf(context)
-                                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        pdfFile
-                                    )
-                                    val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                        type = "application/pdf"
-                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(android.content.Intent.createChooser(sendIntent, "Share or Print Emergency Kit"))
-                                    snackbarHostState.showSnackbar("Emergency Kit PDF generated!")
-                                } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("Failed to generate PDF: ${e.message}")
-                                }
-                            }
+                            val timestamp = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+                            savePdfLauncher.launch("Kryptx_EmergencyKit_$timestamp.pdf")
                         }
                     )
                 }
@@ -202,7 +278,7 @@ fun BackupExportScreen(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.FileUpload,
+                            imageVector = Icons.Default.FileOpen,
                             contentDescription = null,
                             tint = KryptxBlue,
                             modifier = Modifier.size(24.dp)
@@ -216,7 +292,7 @@ fun BackupExportScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Seamlessly import from Bitwarden, 1Password, Google, or Kryptx backup.",
+                                text = "Open a file from Bitwarden, 1Password, Google, or Kryptx backup.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -224,10 +300,20 @@ fun BackupExportScreen(
                     }
                     Spacer(modifier = Modifier.height(14.dp))
                     KryptxOutlinedButton(
-                        text = "Import Credentials",
+                        text = "Open Backup File",
                         borderColor = KryptxBlue,
                         textColor = KryptxBlue,
-                        onClick = { showImportDialog = true }
+                        onClick = {
+                            openImportLauncher.launch(
+                                arrayOf(
+                                    "application/json",
+                                    "text/csv",
+                                    "text/comma-separated-values",
+                                    "application/octet-stream",
+                                    "*/*"
+                                )
+                            )
+                        }
                     )
                 }
             }
@@ -260,7 +346,7 @@ fun BackupExportScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Warning: Exported CSV file contains your passwords in readable form.",
+                                text = "Warning: Exported CSV contains your passwords in readable form.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -280,16 +366,16 @@ fun BackupExportScreen(
         }
     }
 
-    // Encrypted Export Password Prompt
+    // ── Encrypted Export passphrase dialog ────────────────────────────────────
     if (showEncryptedExportDialog) {
         var exportPass by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { showEncryptedExportDialog = false },
+            onDismissRequest = { showEncryptedExportDialog = false; exportPass = "" },
             title = { Text("Set Export Passphrase") },
             text = {
                 Column {
                     Text(
-                        text = "Enter a password to encrypt this backup archive. You will need this password to restore the backup.",
+                        text = "Enter a password to encrypt this backup. You will need it to restore.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -305,13 +391,17 @@ fun BackupExportScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        val pass = exportPass
                         showEncryptedExportDialog = false
+                        exportPass = ""
                         scope.launch {
-                            val jsonBackup = viewModel.exportEncryptedBackup(exportPass)
-                            if (jsonBackup != null) {
-                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                cm.setPrimaryClip(ClipData.newPlainText("Kryptx Encrypted Backup", jsonBackup))
-                                snackbarHostState.showSnackbar("Encrypted backup copied to clipboard!")
+                            val bytes = viewModel.exportEncryptedBackup(pass)
+                            if (bytes != null) {
+                                pendingEncryptedBytes = bytes
+                                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                                saveEncryptedLauncher.launch("Kryptx_Backup_$timestamp.kryptx")
+                            } else {
+                                snackbarHostState.showSnackbar("Export failed — vault may be locked.")
                             }
                         }
                     }
@@ -320,19 +410,23 @@ fun BackupExportScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEncryptedExportDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showEncryptedExportDialog = false; exportPass = "" }) {
+                    Text("Cancel")
+                }
             }
         )
     }
 
-    // Plaintext Warning Dialog
+    // ── Plaintext CSV warning dialog ──────────────────────────────────────────
     if (showPlaintextWarningDialog) {
         AlertDialog(
             onDismissRequest = { showPlaintextWarningDialog = false },
             title = { Text("CRITICAL SECURITY WARNING", color = KryptxRed) },
             text = {
                 Text(
-                    text = "Exporting your vault to plaintext CSV will store every password in unencrypted text. Any app or person with access to your device could read them. Ensure you store this file securely and delete it when finished.",
+                    text = "Exporting to plaintext CSV stores every password in unencrypted text. " +
+                            "Any app or person with access to the file can read them. " +
+                            "Delete the file from your device when you are finished.",
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
@@ -342,11 +436,13 @@ fun BackupExportScreen(
                     onClick = {
                         showPlaintextWarningDialog = false
                         scope.launch {
-                            val csv = viewModel.exportPlaintextCsv()
-                            if (csv != null) {
-                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                cm.setPrimaryClip(ClipData.newPlainText("Vault CSV", csv))
-                                snackbarHostState.showSnackbar("Plaintext CSV copied to clipboard!")
+                            val bytes = viewModel.exportPlaintextCsv()
+                            if (bytes != null) {
+                                pendingCsvBytes = bytes
+                                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                                saveCsvLauncher.launch("Kryptx_Export_$timestamp.csv")
+                            } else {
+                                snackbarHostState.showSnackbar("Export failed — vault may be locked.")
                             }
                         }
                     },
@@ -361,34 +457,29 @@ fun BackupExportScreen(
         )
     }
 
-    // Import Dialog
+    // ── Import dialog (after file is opened) ──────────────────────────────────
     if (showImportDialog) {
-        var importContentText by remember { mutableStateOf("") }
         var importPassword by remember { mutableStateOf("") }
-
         AlertDialog(
-            onDismissRequest = { showImportDialog = false },
+            onDismissRequest = {
+                showImportDialog = false
+                pendingImportBytes = null
+                importPassword = ""
+            },
             title = { Text("Import Credentials") },
             text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Column {
                     Text(
-                        text = "Paste Bitwarden JSON/CSV, 1Password CSV, Google Passwords CSV, or Kryptx encrypted backup text below:",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "If this is an encrypted Kryptx backup, enter the export passphrase. Leave blank for plain CSV/JSON.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    KryptxTextField(
-                        value = importContentText,
-                        onValueChange = { importContentText = it },
-                        label = "Backup Content",
-                        singleLine = false,
-                        maxLines = 6
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     KryptxTextField(
                         value = importPassword,
                         onValueChange = { importPassword = it },
-                        label = "Backup Password (if encrypted archive)",
+                        label = "Backup Password (if encrypted)",
                         isPassword = true
                     )
                 }
@@ -396,10 +487,20 @@ fun BackupExportScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.importContent(importContentText, importPassword) { count ->
-                            showImportDialog = false
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Successfully imported $count credentials!")
+                        val bytes = pendingImportBytes
+                        val pass = importPassword
+                        showImportDialog = false
+                        pendingImportBytes = null
+                        importPassword = ""
+                        if (bytes != null) {
+                            viewModel.importFromBytes(bytes, pass.ifBlank { null }) { count ->
+                                scope.launch {
+                                    if (count > 0) {
+                                        snackbarHostState.showSnackbar("Successfully imported $count credentials.")
+                                    } else {
+                                        snackbarHostState.showSnackbar("Import failed — wrong password or unsupported format.")
+                                    }
+                                }
                             }
                         }
                     }
@@ -408,8 +509,36 @@ fun BackupExportScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showImportDialog = false }) { Text("Cancel") }
+                TextButton(onClick = {
+                    showImportDialog = false
+                    pendingImportBytes = null
+                    importPassword = ""
+                }) { Text("Cancel") }
             }
         )
+    }
+}
+
+// ── SAF helpers ───────────────────────────────────────────────────────────────
+
+private fun writeToUri(context: Context, uri: Uri, bytes: ByteArray): Boolean {
+    return try {
+        context.contentResolver.openOutputStream(uri)?.use { stream ->
+            stream.write(bytes)
+            stream.flush()
+        }
+        true
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun readFromUri(context: Context, uri: Uri): ByteArray? {
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            stream.readBytes()
+        }
+    } catch (_: Exception) {
+        null
     }
 }

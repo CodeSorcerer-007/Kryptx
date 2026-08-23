@@ -44,7 +44,8 @@ class KryptxViewModelFactory(
             }
             modelClass.isAssignableFrom(SecurityCenterViewModel::class.java) -> {
                 SecurityCenterViewModel(
-                    vaultRepository = app.vaultRepository
+                    vaultRepository = app.vaultRepository,
+                    clipboardSecurityManager = app.clipboardManager
                 ) as T
             }
             modelClass.isAssignableFrom(TotpViewModel::class.java) -> {

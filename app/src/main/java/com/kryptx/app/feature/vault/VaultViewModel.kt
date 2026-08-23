@@ -139,6 +139,18 @@ class VaultViewModel(
         }
     }
 
+    fun rotatePassword(item: VaultItem, onRotated: (com.kryptx.app.core.security.PasswordRotationHelper.RotationResult) -> Unit) {
+        viewModelScope.launch {
+            val result = com.kryptx.app.core.security.PasswordRotationHelper.rotatePassword(
+                item = item,
+                vaultRepository = vaultRepository,
+                clipboardManager = clipboardSecurityManager
+            )
+            refreshSecurityReport()
+            onRotated(result)
+        }
+    }
+
     suspend fun saveAttachment(
         context: android.content.Context,
         uri: android.net.Uri,

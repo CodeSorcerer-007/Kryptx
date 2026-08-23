@@ -544,6 +544,77 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    data class DatabaseDiagnostics(
+        val isIntegrityOk: Boolean,
+        val integrityReport: String,
+        val totalRecords: Int,
+        val pageSizeBytes: Long,
+        val pageCount: Long,
+        val freePageCount: Long,
+        val databaseSizeBytes: Long
+    )
+
+    /**
+     * Executes deep SQLite diagnostics including integrity checks and page stats.
+     */
+    fun runDiagnostics(): DatabaseDiagnostics {
+        val db = readableDatabase
+        var integrityOk = false
+        var integrityReport = "Unknown"
+        db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                integrityReport = cursor.getString(0) ?: ""
+                integrityOk = integrityReport.equals("ok", ignoreCase = true)
+            }
+        }
+
+        var pageSize = 4096L
+        db.rawQuery("PRAGMA page_size", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                pageSize = cursor.getLong(0)
+            }
+        }
+
+        var pageCount = 0L
+        db.rawQuery("PRAGMA page_count", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                pageCount = cursor.getLong(0)
+            }
+        }
+
+        var freePages = 0L
+        db.rawQuery("PRAGMA freelist_count", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                freePages = cursor.getLong(0)
+            }
+        }
+
+        var recordCount = 0
+        db.rawQuery("SELECT COUNT(*) FROM $TABLE_VAULT_ITEMS", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                recordCount = cursor.getInt(0)
+            }
+        }
+
+        return DatabaseDiagnostics(
+            isIntegrityOk = integrityOk,
+            integrityReport = integrityReport,
+            totalRecords = recordCount,
+            pageSizeBytes = pageSize,
+            pageCount = pageCount,
+            freePageCount = freePages,
+            databaseSizeBytes = pageCount * pageSize
+        )
+    }
+
+    /**
+     * Executes SQLite VACUUM to defragment storage and reclaim unused pages.
+     */
+    fun vacuumDatabase() {
+        val db = writableDatabase
+        db.execSQL("VACUUM")
+    }
+
     /**
      * Atomically clears all user data across all tables.
      */
