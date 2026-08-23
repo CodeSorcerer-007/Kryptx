@@ -51,7 +51,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +68,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.zxing.BarcodeFormat
@@ -126,7 +126,11 @@ fun QrCodeScannerDialog(
             } else {
                 CameraPermissionRationale(
                     onRequestPermission = {
-                        permissionLauncher.launch(Manifest.permission.CAMERA)
+                        try {
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                        } catch (e: Throwable) {
+                            android.util.Log.e("QrScanner", "Permission launch failed", e)
+                        }
                     },
                     onClose = onDismiss
                 )
@@ -142,8 +146,8 @@ private fun CameraPreviewWithScanner(
 ) {
     val context = LocalContext.current
     val fallbackLifecycleOwner = LocalLifecycleOwner.current
-    val hostLifecycleOwner = remember(context) {
-        context.findLifecycleOwner() ?: fallbackLifecycleOwner
+    val hostLifecycleOwner: LifecycleOwner = remember(context, fallbackLifecycleOwner) {
+        context.findActivity() ?: fallbackLifecycleOwner
     }
 
     var isTorchOn by remember { mutableStateOf(false) }
@@ -189,6 +193,10 @@ private fun CameraPreviewWithScanner(
                         val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                         cameraProviderFuture.addListener({
                             try {
+                                if (hostLifecycleOwner.lifecycle.currentState == Lifecycle.State.DESTROYED) {
+                                    return@addListener
+                                }
+
                                 val cameraProvider = cameraProviderFuture.get()
                                 val preview = Preview.Builder().build().also {
                                     it.surfaceProvider = previewView.surfaceProvider
@@ -224,21 +232,35 @@ private fun CameraPreviewWithScanner(
 
                                 cameraProvider.unbindAll()
 
+                                val hasBack = try { cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) } catch (_: Throwable) { false }
+                                val hasFront = try { cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) } catch (_: Throwable) { false }
+
+                                val cameraSelector = when {
+                                    hasBack -> CameraSelector.DEFAULT_BACK_CAMERA
+                                    hasFront -> CameraSelector.DEFAULT_FRONT_CAMERA
+                                    else -> null
+                                }
+
+                                if (cameraSelector == null) {
+                                    ContextCompat.getMainExecutor(ctx).execute {
+                                        cameraError = "No camera hardware detected on this device."
+                                    }
+                                    return@addListener
+                                }
+
                                 val boundCamera = try {
                                     cameraProvider.bindToLifecycle(
                                         hostLifecycleOwner,
-                                        CameraSelector.DEFAULT_BACK_CAMERA,
+                                        cameraSelector,
                                         preview,
                                         imageAnalysis
                                     )
-                                } catch (_: Throwable) {
-                                    // Fallback to front camera or any available camera
-                                    cameraProvider.bindToLifecycle(
-                                        hostLifecycleOwner,
-                                        CameraSelector.DEFAULT_FRONT_CAMERA,
-                                        preview,
-                                        imageAnalysis
-                                    )
+                                } catch (bindErr: Throwable) {
+                                    android.util.Log.e("QrScanner", "bindToLifecycle failed", bindErr)
+                                    ContextCompat.getMainExecutor(ctx).execute {
+                                        cameraError = "Camera binding error: ${bindErr.localizedMessage ?: "Unknown error"}"
+                                    }
+                                    null
                                 }
                                 camera = boundCamera
                             } catch (e: Throwable) {
@@ -261,18 +283,16 @@ private fun CameraPreviewWithScanner(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(Color.Black)
                     .padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Default.Warning,
-                        contentDescription = "Camera Error",
+                        contentDescription = null,
                         tint = KryptxAmber,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(56.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -283,50 +303,23 @@ private fun CameraPreviewWithScanner(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = cameraError ?: "Could not connect to camera service.",
+                        text = cameraError ?: "Unknown camera error occurred",
                         fontSize = 13.sp,
                         color = Color.White.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    KryptxPrimaryButton(
-                        text = "Close",
-                        onClick = onClose,
-                        modifier = Modifier.fillMaxWidth(0.6f)
-                    )
                 }
             }
         }
 
-        // Viewfinder Cutout & Reticle
-        if (cameraError == null) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(260.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .border(2.dp, KryptxBlue, RoundedCornerShape(24.dp))
-                ) {
-                    // Animated laser beam
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .offset(y = laserPosition.dp)
-                            .background(KryptxBlue)
-                    )
-                }
-            }
-        }
+        // Overlay Viewfinder Layer
+        ScannerOverlay(laserPosition = laserPosition)
 
-        // Top Bar Controls
+        // Top bar actions: Close and Torch toggle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 48.dp, start = 20.dp, end = 20.dp),
+                .padding(top = 44.dp, start = 20.dp, end = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -335,55 +328,91 @@ private fun CameraPreviewWithScanner(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.6f))
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Close Scanner",
-                    tint = Color.White
+                    contentDescription = "Close Camera",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
-            Text(
-                text = "Scan QR Code",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            IconButton(
-                onClick = {
-                    try {
-                        val nextTorch = !isTorchOn
-                        camera?.cameraControl?.enableTorch(nextTorch)
-                        isTorchOn = nextTorch
-                    } catch (_: Throwable) {}
-                },
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.6f))
-            ) {
-                Icon(
-                    imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                    contentDescription = "Toggle Torch",
-                    tint = if (isTorchOn) KryptxEmerald else Color.White
-                )
+            if (camera?.cameraInfo?.hasFlashUnit() == true) {
+                IconButton(
+                    onClick = {
+                        val next = !isTorchOn
+                        camera?.cameraControl?.enableTorch(next)
+                        isTorchOn = next
+                    },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(if (isTorchOn) KryptxAmber.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.55f))
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                        contentDescription = "Toggle Torch",
+                        tint = if (isTorchOn) Color.Black else Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
-        // Bottom Instruction Label
-        if (cameraError == null) {
-            Text(
-                text = "Align the QR code within the frame to scan automatically",
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
+        // Bottom instruction badge
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 60.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.65f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.QrCodeScanner,
+                    contentDescription = null,
+                    tint = KryptxEmerald,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Align QR Code inside target window",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScannerOverlay(laserPosition: Float) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        // Center Scan Box
+        Box(
+            modifier = Modifier
+                .size(260.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .border(2.dp, KryptxBlue.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
+        ) {
+            // Animated Scanning Laser Line
+            Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 64.dp, start = 32.dp, end = 32.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .offset(y = laserPosition.dp)
+                    .background(KryptxEmerald)
             )
         }
     }
@@ -543,12 +572,12 @@ private fun decodeQrCode(
 }
 
 /**
- * Helper to traverse ContextWrapper chain up to LifecycleOwner / ComponentActivity.
+ * Helper to traverse ContextWrapper chain up to ComponentActivity.
  */
-private fun Context.findLifecycleOwner(): LifecycleOwner? {
+private fun Context.findActivity(): ComponentActivity? {
     var ctx: Context? = this
     while (ctx is ContextWrapper) {
-        if (ctx is LifecycleOwner) return ctx
+        if (ctx is ComponentActivity) return ctx
         ctx = ctx.baseContext
     }
     return null
