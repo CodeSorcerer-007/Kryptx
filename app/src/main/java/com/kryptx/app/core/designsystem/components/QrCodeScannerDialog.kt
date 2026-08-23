@@ -3,7 +3,10 @@ package com.kryptx.app.core.designsystem.components
 import android.Manifest
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -43,6 +46,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,8 +71,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.zxing.BarcodeFormat
@@ -93,16 +99,51 @@ fun QrCodeScannerDialog(
     onQrCodeScanned: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val fallbackLifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = activity ?: fallbackLifecycleOwner
+
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
+    }
+    var permissionRequested by remember { mutableStateOf(false) }
+
+    // Auto re-check permission when app returns from Settings
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasCameraPermission = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasCameraPermission = isGranted
+        permissionRequested = true
+    }
+
+    val openAppSettings: () -> Unit = {
+        try {
+            val intent = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", context.packageName, null)
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Throwable) {
+            android.util.Log.e("QrScanner", "Failed to open app settings", e)
+        }
     }
 
     Dialog(
@@ -124,14 +165,22 @@ fun QrCodeScannerDialog(
                     onClose = onDismiss
                 )
             } else {
+                val shouldShowRationale = activity?.let {
+                    ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+                } ?: false
+
                 CameraPermissionRationale(
                     onRequestPermission = {
                         try {
+                            permissionRequested = true
                             permissionLauncher.launch(Manifest.permission.CAMERA)
                         } catch (e: Throwable) {
                             android.util.Log.e("QrScanner", "Permission launch failed", e)
+                            openAppSettings()
                         }
                     },
+                    onOpenSettings = openAppSettings,
+                    showSettingsPrompt = permissionRequested && !shouldShowRationale,
                     onClose = onDismiss
                 )
             }
@@ -421,6 +470,8 @@ private fun ScannerOverlay(laserPosition: Float) {
 @Composable
 private fun CameraPermissionRationale(
     onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
+    showSettingsPrompt: Boolean,
     onClose: () -> Unit
 ) {
     Surface(
@@ -462,7 +513,11 @@ private fun CameraPermissionRationale(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Kryptx needs camera access to scan 2FA TOTP QR codes. The camera stream is analyzed locally in real-time RAM and no image data is stored or transmitted.",
+                text = if (showSettingsPrompt) {
+                    "Camera access was previously denied or blocked by Android. Please tap 'Open App Settings' below and allow the Camera permission for Kryptx."
+                } else {
+                    "Kryptx needs camera access to scan 2FA TOTP QR codes. The camera stream is analyzed locally in real-time RAM and no image data is stored or transmitted."
+                },
                 fontSize = 14.sp,
                 color = Color.White.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,
@@ -472,28 +527,66 @@ private fun CameraPermissionRationale(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            KryptxPrimaryButton(
-                text = "Grant Camera Permission",
-                containerColor = KryptxBlue,
-                contentColor = Color.White,
-                onClick = onRequestPermission,
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.QrCodeScanner,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (showSettingsPrompt) {
+                KryptxPrimaryButton(
+                    text = "Open App Settings",
+                    containerColor = KryptxBlue,
+                    contentColor = Color.White,
+                    onClick = onOpenSettings,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                KryptxOutlinedButton(
+                    text = "Try Prompt Again",
+                    borderColor = KryptxBlue.copy(alpha = 0.5f),
+                    textColor = Color.White,
+                    onClick = onRequestPermission,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                KryptxPrimaryButton(
+                    text = "Grant Camera Permission",
+                    containerColor = KryptxBlue,
+                    contentColor = Color.White,
+                    onClick = onRequestPermission,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                KryptxOutlinedButton(
+                    text = "Open App Settings",
+                    borderColor = KryptxBlue.copy(alpha = 0.5f),
+                    textColor = Color.White,
+                    onClick = onOpenSettings,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             KryptxOutlinedButton(
                 text = "Cancel",
-                borderColor = KryptxBlue,
-                textColor = KryptxBlue,
+                borderColor = Color.White.copy(alpha = 0.2f),
+                textColor = Color.White.copy(alpha = 0.7f),
                 onClick = onClose,
                 modifier = Modifier.fillMaxWidth()
             )
