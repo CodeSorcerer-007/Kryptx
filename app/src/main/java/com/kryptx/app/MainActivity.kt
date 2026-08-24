@@ -1,11 +1,14 @@
 package com.kryptx.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.MotionEvent
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.kryptx.app.core.designsystem.theme.KryptxTheme
@@ -33,6 +36,7 @@ class MainActivity : FragmentActivity() {
     private lateinit var settingsViewModel: SettingsViewModel
 
     private var hasAutoPromptedBiometrics = false
+    private var pendingShortcutTarget by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +59,9 @@ class MainActivity : FragmentActivity() {
         totpViewModel = viewModelProvider[TotpViewModel::class.java]
         searchViewModel = viewModelProvider[SearchViewModel::class.java]
         settingsViewModel = viewModelProvider[SettingsViewModel::class.java]
+
+        pendingShortcutTarget = intent?.getStringExtra("navigate_target")
+            ?: intent?.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
 
         // Observe FLAG_SECURE setting
         lifecycleScope.launch {
@@ -89,11 +96,23 @@ class MainActivity : FragmentActivity() {
                     searchViewModel = searchViewModel,
                     settingsViewModel = settingsViewModel,
                     preferencesRepository = app.preferencesRepository,
+                    pendingShortcutTarget = pendingShortcutTarget,
+                    onClearPendingShortcut = { pendingShortcutTarget = null },
                     onTriggerBiometrics = {
                         triggerBiometricUnlock()
                     }
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val target = intent.getStringExtra("navigate_target")
+            ?: intent.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
+        if (!target.isNullOrBlank()) {
+            pendingShortcutTarget = target
         }
     }
 

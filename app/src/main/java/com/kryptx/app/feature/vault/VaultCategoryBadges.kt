@@ -31,11 +31,12 @@ import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxSkyBlue
 import com.kryptx.app.core.model.ItemType
 
 /**
- * Floating 3D Category Badges Hero Area with standard theme color tokens.
+ * Floating 3D Category Badges Hero Area with dynamic category support.
  */
 @Composable
 fun VaultCategoryBadges(
@@ -47,6 +48,8 @@ fun VaultCategoryBadges(
     selectedCategory: ItemType?,
     onSelectCategory: (ItemType?) -> Unit,
     onNavigateTo2Fa: () -> Unit,
+    visibleCategories: Set<ItemType> = ItemType.entries.toSet(),
+    categoryCounts: Map<ItemType, Int> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -64,30 +67,41 @@ fun VaultCategoryBadges(
             isSelected = selectedCategory == null,
             onClick = { onSelectCategory(null) }
         )
-        FloatingCategoryBadge(
-            label = "Logins",
-            badgeText = "KEY",
-            count = loginsCount,
-            color = KryptxBlue,
-            isSelected = selectedCategory == ItemType.LOGIN,
-            onClick = { onSelectCategory(ItemType.LOGIN) }
-        )
-        FloatingCategoryBadge(
-            label = "Cards",
-            badgeText = "CARD",
-            count = cardsCount,
-            color = KryptxBrightBlue,
-            isSelected = selectedCategory == ItemType.CREDIT_CARD,
-            onClick = { onSelectCategory(ItemType.CREDIT_CARD) }
-        )
-        FloatingCategoryBadge(
-            label = "Notes",
-            badgeText = "NOTE",
-            count = notesCount,
-            color = KryptxSkyBlue,
-            isSelected = selectedCategory == ItemType.SECURE_NOTE,
-            onClick = { onSelectCategory(ItemType.SECURE_NOTE) }
-        )
+
+        // Render visible categories dynamically
+        visibleCategories.forEach { type ->
+            val count = categoryCounts[type] ?: when (type) {
+                ItemType.LOGIN -> loginsCount
+                ItemType.CREDIT_CARD -> cardsCount
+                ItemType.SECURE_NOTE -> notesCount
+                else -> 0
+            }
+
+            val (badgeText, badgeColor) = when (type) {
+                ItemType.LOGIN -> "KEY" to KryptxBlue
+                ItemType.CREDIT_CARD -> "CARD" to KryptxBrightBlue
+                ItemType.PASSKEY -> "PASSKEY" to KryptxCyan
+                ItemType.SECURE_NOTE -> "NOTE" to KryptxSkyBlue
+                ItemType.WIFI -> "WI-FI" to KryptxEmerald
+                ItemType.IDENTITY -> "ID" to com.kryptx.app.core.designsystem.theme.KryptxViolet
+                ItemType.API_KEY -> "API" to com.kryptx.app.core.designsystem.theme.KryptxAmber
+                ItemType.BANK_ACCOUNT -> "BANK" to com.kryptx.app.core.designsystem.theme.KryptxIndigo
+                ItemType.CRYPTO_WALLET -> "CRYPTO" to com.kryptx.app.core.designsystem.theme.KryptxPurple
+                ItemType.SSH_KEY -> "SSH" to KryptxSkyBlue
+                ItemType.MEDICAL -> "MED" to com.kryptx.app.core.designsystem.theme.KryptxRed
+                ItemType.CUSTOM -> "CUSTOM" to KryptxBlue
+            }
+
+            FloatingCategoryBadge(
+                label = type.categoryName,
+                badgeText = badgeText,
+                count = count,
+                color = badgeColor,
+                isSelected = selectedCategory == type,
+                onClick = { onSelectCategory(type) }
+            )
+        }
+
         FloatingCategoryBadge(
             label = "2FA",
             badgeText = "TOTP",

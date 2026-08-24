@@ -29,5 +29,6 @@ sealed class Screen(val route: String) {
     data object AppearanceSettings : Screen("appearance_settings")
     data object BackupExport : Screen("backup_export")
     data object WebCompanion : Screen("web_companion")
+    data object P2pSync : Screen("p2p_sync")
 }
 

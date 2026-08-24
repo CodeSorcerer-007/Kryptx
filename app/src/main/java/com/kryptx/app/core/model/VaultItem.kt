@@ -78,11 +78,29 @@ data class VaultItem(
     val expiresAt: Long? = null,
     val rotationIntervalDays: Int? = null,
 
+    // Soft Delete / Trash Lifecycle
+    val deletedAt: Long? = null,
+
     // Timestamps
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val lastUsedAt: Long = System.currentTimeMillis()
 ) {
+    /**
+     * Checks if this credential is in the encrypted soft-delete trash bin.
+     */
+    val isDeleted: Boolean
+        get() = deletedAt != null
+
+    /**
+     * Number of days remaining before automatic permanent purge (30-day window).
+     */
+    val daysRemainingInTrash: Long?
+        get() = deletedAt?.let {
+            val elapsedDays = (System.currentTimeMillis() - it) / (24L * 60 * 60 * 1000L)
+            kotlin.math.max(0L, 30L - elapsedDays)
+        }
+
     /**
      * Checks if this credential has exceeded its rotation expiry threshold.
      */

@@ -28,6 +28,9 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Autofill Service -->
@@ -41,6 +44,16 @@
             <meta-data
                 android:name="android.autofill"
                 android:resource="@xml/autofill_service_config" />
+        </service>
+
+        <!-- Modern Android 14+ Credential Provider Service (Passkeys & Passwords) -->
+        <service
+            android:name=".system.autofill.KryptxCredentialProviderService"
+            android:exported="true"
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService" />
+            </intent-filter>
         </service>
 
         <!-- Inline Autofill Auth Prompt Activity -->

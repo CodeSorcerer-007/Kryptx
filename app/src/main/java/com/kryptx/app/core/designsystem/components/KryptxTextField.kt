@@ -21,8 +21,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -50,6 +55,16 @@ fun KryptxTextField(
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
 
+    // Resolve secure keyboard options for passwords and sensitive inputs (anti-keylogger / no personalized dictionary learning)
+    val effectiveKeyboardOptions = if (isPassword && keyboardOptions == KeyboardOptions.Default) {
+        KeyboardOptions(
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Password
+        )
+    } else {
+        keyboardOptions
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = value,
@@ -74,10 +89,16 @@ fun KryptxTextField(
             leadingIcon = leadingIcon,
             trailingIcon = {
                 if (isPassword) {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    IconButton(
+                        onClick = { passwordVisible = !passwordVisible },
+                        modifier = Modifier.semantics {
+                            role = Role.Button
+                            contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                        }
+                    ) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -85,7 +106,7 @@ fun KryptxTextField(
                     trailingIcon()
                 }
             },
-            keyboardOptions = keyboardOptions,
+            keyboardOptions = effectiveKeyboardOptions,
             keyboardActions = keyboardActions,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = KryptxBlue,
@@ -108,4 +129,3 @@ fun KryptxTextField(
         }
     }
 }
-

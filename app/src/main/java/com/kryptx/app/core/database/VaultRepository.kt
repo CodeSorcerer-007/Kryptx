@@ -27,8 +27,12 @@ interface VaultRepository {
     suspend fun removeDuressPassword()
 
     fun getItems(): Flow<List<VaultItem>>
+    fun getTrashItems(): Flow<List<VaultItem>>
     suspend fun getItemById(id: String): VaultItem?
     suspend fun saveItem(item: VaultItem): KryptxResult<Unit>
+    suspend fun moveToTrash(itemId: String): KryptxResult<Unit>
+    suspend fun restoreFromTrash(itemId: String): KryptxResult<Unit>
+    suspend fun emptyTrash(): KryptxResult<Int>
     suspend fun deleteItem(itemId: String): KryptxResult<Unit>
     suspend fun toggleFavorite(itemId: String): KryptxResult<Unit>
     suspend fun recordItemUsage(itemId: String): KryptxResult<Unit>
@@ -39,4 +43,6 @@ interface VaultRepository {
     suspend fun importEncryptedBackup(payload: EncryptedBackupPayload, importPassword: CharArray): KryptxResult<Int>
     suspend fun importItems(items: List<VaultItem>): KryptxResult<Int>
     suspend fun resetVault()
+    fun getDatabaseDiagnostics(): KryptxDatabaseHelper.DatabaseDiagnostics
+    suspend fun vacuumDatabase(): KryptxResult<Unit>
 }

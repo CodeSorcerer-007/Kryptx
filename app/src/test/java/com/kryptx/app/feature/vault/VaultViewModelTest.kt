@@ -267,4 +267,91 @@ class VaultViewModelTest {
         assertTrue(expiredItem.isExpired)
         assertTrue((expiredItem.daysUntilExpiration ?: 0) <= 0)
     }
+
+    @Test
+    fun testVisibleCategoriesAndMinimalistMode() = runTest(testDispatcher) {
+        val fakePrefs = com.kryptx.app.fake.FakePreferencesRepository()
+        val customVm = VaultViewModel(fakeVaultRepository, sessionManager, fakeClipboard, preferencesRepository = fakePrefs)
+
+        // Default all categories visible
+        assertTrue(customVm.visibleCategories.value.contains(ItemType.LOGIN))
+        assertTrue(customVm.visibleCategories.value.contains(ItemType.CREDIT_CARD))
+
+        // Toggle minimalist mode
+        assertFalse(customVm.isMinimalistMode.value)
+        customVm.toggleMinimalistMode()
+        testScheduler.runCurrent()
+        assertTrue(customVm.isMinimalistMode.value)
+    }
+
+    @Test
+    fun testMultiSelectAndBatchOperations() = runTest(testDispatcher) {
+        val item1 = VaultItem(id = "batch_1", title = "Alpha", isFavorite = false)
+        val item2 = VaultItem(id = "batch_2", title = "Beta", isFavorite = false)
+        viewModel.saveItem(item1) {}
+        viewModel.saveItem(item2) {}
+        testScheduler.runCurrent()
+
+        // Selection mode initially false
+        assertFalse(viewModel.isSelectionMode.value)
+        assertEquals(0, viewModel.selectedItemIds.value.size)
+
+        // Select item 1
+        viewModel.toggleSelectItem("batch_1")
+        testScheduler.runCurrent()
+        assertTrue(viewModel.isSelectionMode.value)
+        assertEquals(1, viewModel.selectedItemIds.value.size)
+        assertTrue(viewModel.selectedItemIds.value.contains("batch_1"))
+
+        // Select all
+        viewModel.selectAllFiltered()
+        testScheduler.runCurrent()
+        assertEquals(2, viewModel.selectedItemIds.value.size)
+
+        // Batch toggle favorite
+        viewModel.batchToggleFavorite()
+        testScheduler.runCurrent()
+        assertTrue(fakeVaultRepository.getItemById("batch_1")?.isFavorite == true)
+        assertTrue(fakeVaultRepository.getItemById("batch_2")?.isFavorite == true)
+        assertFalse(viewModel.isSelectionMode.value)
+
+        // Select all and batch move to trash
+        viewModel.selectAllFiltered()
+        testScheduler.runCurrent()
+        var deletedCount = 0
+        viewModel.batchMoveToTrash { count -> deletedCount = count }
+        testScheduler.runCurrent()
+        assertEquals(2, deletedCount)
+        assertFalse(viewModel.isSelectionMode.value)
+    }
+
+    @Test
+    fun testSortOptions() = runTest(testDispatcher) {
+        val itemA = VaultItem(id = "sort_a", title = "Amazon", password = "123", createdAt = 1000L, lastUsedAt = 500L)
+        val itemZ = VaultItem(id = "sort_z", title = "Zendesk", password = "SuperLongComplexPassword!@#$999", createdAt = 2000L, lastUsedAt = 2000L)
+        viewModel.saveItem(itemA) {}
+        viewModel.saveItem(itemZ) {}
+        testScheduler.runCurrent()
+
+        // Test Alphabetical A-Z
+        viewModel.setSortOption(VaultViewModel.SortOption.NAME_ASC)
+        testScheduler.runCurrent()
+        assertEquals("Amazon", viewModel.filteredItems.value.first().title)
+
+        // Test Alphabetical Z-A
+        viewModel.setSortOption(VaultViewModel.SortOption.NAME_DESC)
+        testScheduler.runCurrent()
+        assertEquals("Zendesk", viewModel.filteredItems.value.first().title)
+
+        // Test Weakest First
+        viewModel.setSortOption(VaultViewModel.SortOption.WEAKEST_FIRST)
+        testScheduler.runCurrent()
+        assertEquals("Amazon", viewModel.filteredItems.value.first().title)
+
+        // Test Newest First
+        viewModel.setSortOption(VaultViewModel.SortOption.NEWEST_FIRST)
+        testScheduler.runCurrent()
+        assertEquals("Zendesk", viewModel.filteredItems.value.first().title)
+    }
 }
+

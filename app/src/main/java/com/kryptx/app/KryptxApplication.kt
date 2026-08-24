@@ -39,6 +39,12 @@ class KryptxApplication : Application() {
     lateinit var attachmentManager: com.kryptx.app.core.security.IAttachmentManager
         private set
 
+    lateinit var memoryWatchdog: com.kryptx.app.core.security.CryptographicMemoryWatchdog
+        private set
+
+    lateinit var p2pSyncEngine: com.kryptx.app.core.sync.P2pSyncEngine
+        private set
+
     private val activeActivityCount = AtomicInteger(0)
 
     override fun onCreate() {
@@ -52,6 +58,8 @@ class KryptxApplication : Application() {
         clipboardManager = ClipboardSecurityManager(this)
         biometricManager = BiometricAuthManager(this)
         attachmentManager = com.kryptx.app.core.security.AttachmentManager(this, sessionManager)
+        memoryWatchdog = com.kryptx.app.core.security.CryptographicMemoryWatchdog(this, sessionManager).apply { register() }
+        p2pSyncEngine = com.kryptx.app.core.sync.P2pSyncEngine(vaultRepository)
 
         // Set initial auto-lock configuration from saved preferences
         val autoLockSecs = preferencesRepository.autoLockSeconds.value

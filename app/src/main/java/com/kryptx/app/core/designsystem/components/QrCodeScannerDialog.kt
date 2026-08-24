@@ -5,11 +5,16 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -37,7 +42,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -45,12 +49,12 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,12 +62,14 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -82,16 +88,21 @@ import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
  * High-performance, offline-first zero-knowledge CameraX QR Code scanner with
- * runtime camera permission handling, bulletproof lifecycle binding, and real-time ZXing stream decoding.
+ * runtime camera permission handling, real-time ZXing stream decoding, and
+ * fallback support for importing & decoding QR codes directly from gallery screenshots.
  */
 @Composable
 fun QrCodeScannerDialog(
@@ -99,6 +110,8 @@ fun QrCodeScannerDialog(
     onQrCodeScanned: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val coroutineScope = rememberCoroutineScope()
     val activity = remember(context) { context.findActivity() }
     val fallbackLifecycleOwner = LocalLifecycleOwner.current
     val lifecycleOwner = activity ?: fallbackLifecycleOwner
@@ -130,6 +143,24 @@ fun QrCodeScannerDialog(
     ) { isGranted ->
         hasCameraPermission = isGranted
         permissionRequested = true
+    }
+
+    // Photo picker launcher for scanning QR codes from saved screenshots
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val scanned = decodeQrFromUri(context, uri)
+                if (!scanned.isNullOrBlank()) {
+                    KryptxHaptics.successVibration(context)
+                    onQrCodeScanned(scanned)
+                } else {
+                    KryptxHaptics.warning(view)
+                    Toast.makeText(context, "No valid QR code found in selected image", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     // Automatically prompt for system permission immediately when opening the scanner
@@ -173,6 +204,12 @@ fun QrCodeScannerDialog(
             if (hasCameraPermission) {
                 CameraPreviewWithScanner(
                     onQrCodeScanned = onQrCodeScanned,
+                    onPickFromGallery = {
+                        KryptxHaptics.tap(view)
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
                     onClose = onDismiss
                 )
             } else {
@@ -191,6 +228,12 @@ fun QrCodeScannerDialog(
                         }
                     },
                     onOpenSettings = openAppSettings,
+                    onPickFromGallery = {
+                        KryptxHaptics.tap(view)
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
                     showSettingsPrompt = permissionRequested && !shouldShowRationale,
                     onClose = onDismiss
                 )
@@ -202,9 +245,11 @@ fun QrCodeScannerDialog(
 @Composable
 private fun CameraPreviewWithScanner(
     onQrCodeScanned: (String) -> Unit,
+    onPickFromGallery: () -> Unit,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val fallbackLifecycleOwner = LocalLifecycleOwner.current
     val hostLifecycleOwner: LifecycleOwner = remember(context, fallbackLifecycleOwner) {
         context.findActivity() ?: fallbackLifecycleOwner
@@ -277,6 +322,7 @@ private fun CameraPreviewWithScanner(
                                             if (!scannedText.isNullOrBlank()) {
                                                 hasScanned = true
                                                 ContextCompat.getMainExecutor(ctx).execute {
+                                                    KryptxHaptics.successVibration(ctx)
                                                     onQrCodeScanned(scannedText)
                                                 }
                                             }
@@ -375,7 +421,7 @@ private fun CameraPreviewWithScanner(
         // Overlay Viewfinder Layer
         ScannerOverlay(laserPosition = laserPosition)
 
-        // Top bar actions: Close and Torch toggle
+        // Top bar actions: Close, Gallery Picker, and Torch toggle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -384,7 +430,10 @@ private fun CameraPreviewWithScanner(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = onClose,
+                onClick = {
+                    KryptxHaptics.tap(view)
+                    onClose()
+                },
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
@@ -399,25 +448,45 @@ private fun CameraPreviewWithScanner(
                 )
             }
 
-            if (camera?.cameraInfo?.hasFlashUnit() == true) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Photo library / Gallery scanner button
                 IconButton(
-                    onClick = {
-                        val next = !isTorchOn
-                        camera?.cameraControl?.enableTorch(next)
-                        isTorchOn = next
-                    },
+                    onClick = onPickFromGallery,
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(if (isTorchOn) KryptxAmber.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.55f))
+                        .background(Color.Black.copy(alpha = 0.55f))
                         .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
                 ) {
                     Icon(
-                        imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                        contentDescription = "Toggle Torch",
-                        tint = if (isTorchOn) Color.Black else Color.White,
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = "Scan QR from Gallery screenshot",
+                        tint = KryptxBlue,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+
+                if (camera?.cameraInfo?.hasFlashUnit() == true) {
+                    IconButton(
+                        onClick = {
+                            val next = !isTorchOn
+                            camera?.cameraControl?.enableTorch(next)
+                            isTorchOn = next
+                            KryptxHaptics.tap(view)
+                        },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(if (isTorchOn) KryptxAmber.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.55f))
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                            contentDescription = "Toggle Torch",
+                            tint = if (isTorchOn) Color.Black else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -443,7 +512,7 @@ private fun CameraPreviewWithScanner(
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = "Align QR Code inside target window",
+                    text = "Align QR Code inside target window or tap gallery",
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
@@ -482,6 +551,7 @@ private fun ScannerOverlay(laserPosition: Float) {
 private fun CameraPermissionRationale(
     onRequestPermission: () -> Unit,
     onOpenSettings: () -> Unit,
+    onPickFromGallery: () -> Unit,
     showSettingsPrompt: Boolean,
     onClose: () -> Unit
 ) {
@@ -525,7 +595,7 @@ private fun CameraPermissionRationale(
 
             Text(
                 text = if (showSettingsPrompt) {
-                    "Camera access was previously denied or blocked by Android. Please tap 'Open App Settings' below and allow the Camera permission for Kryptx."
+                    "Camera access was previously denied or blocked by Android. You can grant access in Settings, or import a QR code screenshot directly from your photo gallery."
                 } else {
                     "Kryptx needs camera access to scan 2FA TOTP QR codes. The camera stream is analyzed locally in real-time RAM and no image data is stored or transmitted."
                 },
@@ -536,7 +606,25 @@ private fun CameraPermissionRationale(
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
+
+            KryptxPrimaryButton(
+                text = "Pick QR from Photo Gallery",
+                containerColor = KryptxEmerald,
+                contentColor = Color(0xFF0A0F1A),
+                onClick = onPickFromGallery,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        tint = Color(0xFF0A0F1A),
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (showSettingsPrompt) {
                 KryptxPrimaryButton(
@@ -558,7 +646,7 @@ private fun CameraPermissionRationale(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 KryptxOutlinedButton(
-                    text = "Try Prompt Again",
+                    text = "Try Camera Prompt Again",
                     borderColor = KryptxBlue.copy(alpha = 0.5f),
                     textColor = Color.White,
                     onClick = onRequestPermission,
@@ -672,6 +760,49 @@ private fun decodeQrCode(
         try {
             reader.reset()
         } catch (_: Throwable) {}
+    }
+}
+
+/**
+ * Decodes a QR code from an image URI (e.g. screenshot selected via photo picker).
+ */
+suspend fun decodeQrFromUri(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
+    try {
+        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                decoder.isMutableRequired = true
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+        } else {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream)
+            }
+        } ?: return@withContext null
+
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val source = RGBLuminanceSource(width, height, pixels)
+        val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+        val reader = MultiFormatReader().apply {
+            setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)))
+        }
+
+        try {
+            reader.decodeWithState(binaryBitmap)?.text
+        } catch (_: Exception) {
+            try {
+                reader.reset()
+                reader.decodeWithState(BinaryBitmap(HybridBinarizer(source.invert())))?.text
+            } catch (_: Exception) {
+                null
+            }
+        }
+    } catch (e: Throwable) {
+        android.util.Log.e("QrScanner", "Failed to decode QR from URI", e)
+        null
     }
 }
 

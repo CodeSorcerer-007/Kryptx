@@ -116,6 +116,18 @@ class VaultSessionManager(
     }
 
     /**
+     * Locks the vault immediately.
+     */
+    fun lockVault() {
+        lock(isTimeout = false)
+    }
+
+    /**
+     * Checks if vault is currently locked.
+     */
+    fun isLocked(): Boolean = !_isUnlocked.value
+
+    /**
      * Records user touch/navigation activity to reset the auto-lock countdown timer.
      */
     @Synchronized

@@ -30,11 +30,21 @@ class SettingsViewModel(
     val clipboardTimeout = preferencesRepository.clipboardTimeout
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
     val breachCheckNetworkEnabled = preferencesRepository.breachCheckNetworkEnabled
+    val visibleCategories = preferencesRepository.visibleCategories
+    val minimalistDashboardMode = preferencesRepository.minimalistDashboardMode
+    val webCompanionReadOnly = preferencesRepository.webCompanionReadOnly
+
+    private val _hasDuress = MutableStateFlow(vaultRepository.hasDuressPassword())
+    val hasDuress: StateFlow<Boolean> = _hasDuress.asStateFlow()
 
     private val _exportStatus = MutableStateFlow<String?>(null)
     val exportStatus: StateFlow<String?> = _exportStatus.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    fun refreshDuressStatus() {
+        _hasDuress.value = vaultRepository.hasDuressPassword()
+    }
 
     fun setThemeMode(mode: AppThemeMode) {
         preferencesRepository.setThemeMode(mode)
@@ -81,6 +91,56 @@ class SettingsViewModel(
 
     fun setBreachCheckNetworkEnabled(enabled: Boolean) {
         preferencesRepository.setBreachCheckNetworkEnabled(enabled)
+    }
+
+    fun toggleCategoryVisibility(category: com.kryptx.app.core.model.ItemType) {
+        val current = visibleCategories.value.toMutableSet()
+        if (current.contains(category.name)) {
+            // Keep at least one category visible
+            if (current.size > 1) {
+                current.remove(category.name)
+            }
+        } else {
+            current.add(category.name)
+        }
+        preferencesRepository.setVisibleCategories(current)
+    }
+
+    fun setMinimalistDashboardMode(enabled: Boolean) {
+        preferencesRepository.setMinimalistDashboardMode(enabled)
+    }
+
+    fun setWebCompanionReadOnly(readOnly: Boolean) {
+        preferencesRepository.setWebCompanionReadOnly(readOnly)
+    }
+
+    fun setupDuressPassword(duressPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (duressPin.length < 4) {
+            onError("Duress PIN/Password must be at least 4 characters")
+            return
+        }
+        viewModelScope.launch {
+            val chars = duressPin.toCharArray()
+            val result = try {
+                vaultRepository.setupDuressPassword(chars)
+            } finally {
+                SecureMemory.wipe(chars)
+            }
+            if (result.isSuccess) {
+                _hasDuress.value = true
+                onSuccess()
+            } else {
+                onError("Failed to configure Duress Vault")
+            }
+        }
+    }
+
+    fun removeDuressPassword(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            vaultRepository.removeDuressPassword()
+            _hasDuress.value = false
+            onComplete()
+        }
     }
 
     fun changeMasterPassword(
@@ -178,6 +238,17 @@ class SettingsViewModel(
             vaultRepository.resetVault()
             preferencesRepository.setOnboardingCompleted(false)
             onResetComplete()
+        }
+    }
+
+    fun getStorageDiagnostics(): com.kryptx.app.core.database.KryptxDatabaseHelper.DatabaseDiagnostics {
+        return vaultRepository.getDatabaseDiagnostics()
+    }
+
+    fun vacuumVault(onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = vaultRepository.vacuumDatabase()
+            onComplete(result.isSuccess)
         }
     }
 }

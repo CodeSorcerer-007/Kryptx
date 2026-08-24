@@ -77,12 +77,14 @@ fun WebCompanionScreen(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val view = LocalView.current
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     var serverSession by remember { mutableStateOf<LocalWebCompanionServer.ServerSessionInfo?>(null) }
     var isStarting by remember { mutableStateOf(false) }
+    var isReadOnlyMode by remember { mutableStateOf(false) }
 
     val companionServer = remember {
         LocalWebCompanionServer(
@@ -200,7 +202,45 @@ fun WebCompanionScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Read-Only Security Toggle
+                KryptxCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Read-Only Safe Mode",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Disables desktop edits, mutations, and deletions (Recommended for public or work PCs)",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = isReadOnlyMode,
+                            onCheckedChange = {
+                                KryptxHaptics.tick(view)
+                                isReadOnlyMode = it
+                            },
+                            colors = androidx.compose.material3.SwitchDefaults.colors(
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+                                checkedTrackColor = KryptxBlue
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
 
                 KryptxPrimaryButton(
                     text = if (isStarting) "Starting Local Server..." else "Start Desktop Companion",
@@ -208,7 +248,7 @@ fun WebCompanionScreen(
                     onClick = {
                         isStarting = true
                         scope.launch {
-                            val session = companionServer.startServer()
+                            val session = companionServer.startServer(context, isReadOnly = isReadOnlyMode)
                             serverSession = session
                             isStarting = false
                             if (session != null) {
@@ -234,48 +274,94 @@ fun WebCompanionScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "STEP 1: OPEN THIS URL ON YOUR PC",
+                            text = "STEP 1: OPEN THIS URL ON YOUR PC / MAC",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = KryptxBlue,
                             letterSpacing = 1.sp
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
+                        // Primary Easy Domain (mDNS)
                         Box(
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .border(1.dp, KryptxEmerald.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                                 .clickable {
-                                    clipboard.setText(AnnotatedString(session.url))
+                                    clipboard.setText(AnnotatedString(session.localDomainUrl))
                                     KryptxHaptics.tap(view)
-                                    scope.launch { snackbarHostState.showSnackbar("URL copied to clipboard!") }
+                                    scope.launch { snackbarHostState.showSnackbar("Local URL copied!") }
                                 }
                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = session.url,
-                                    fontFamily = MonospaceFont,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = KryptxEmerald
-                                )
+                                Column {
+                                    Text(
+                                        text = session.localDomainUrl,
+                                        fontFamily = MonospaceFont,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = KryptxEmerald
+                                    )
+                                    Text(
+                                        text = "Recommended (Zero-Config mDNS)",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                                 Icon(
                                     imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy URL",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    contentDescription = "Copy local domain URL",
+                                    tint = KryptxEmerald,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Direct IP Fallback
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                .clickable {
+                                    clipboard.setText(AnnotatedString(session.url))
+                                    KryptxHaptics.tap(view)
+                                    scope.launch { snackbarHostState.showSnackbar("IP URL copied!") }
+                                }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "IP Fallback: ${session.url}",
+                                    fontFamily = MonospaceFont,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy IP fallback URL",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // QR Code
                         val qrBitmap = remember(session.url) { generateQrBitmap(session.url, 400) }

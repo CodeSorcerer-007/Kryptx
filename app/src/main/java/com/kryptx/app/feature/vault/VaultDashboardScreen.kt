@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +67,8 @@ import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.components.staggeredEntrance
+import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
 import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.model.ItemType
@@ -88,6 +91,13 @@ fun VaultDashboardScreen(
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val securityReport by viewModel.securityReport.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val visibleCategories by viewModel.visibleCategories.collectAsState()
+    val categoryCounts by viewModel.categoryCounts.collectAsState()
+    val isMinimalistMode by viewModel.isMinimalistMode.collectAsState()
+
+    val selectedItemIds by viewModel.selectedItemIds.collectAsState()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+    val sortOption by viewModel.sortOption.collectAsState()
 
     val loginsCount = remember(allItems) { allItems.count { it.type == ItemType.LOGIN } }
     val cardsCount = remember(allItems) { allItems.count { it.type == ItemType.CREDIT_CARD } }
@@ -108,37 +118,97 @@ fun VaultDashboardScreen(
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            if (isSelectionMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.IconButton(onClick = { viewModel.clearSelection() }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Cancel Selection",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "${selectedItemIds.size} Selected",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    androidx.compose.material3.TextButton(onClick = { viewModel.selectAllFiltered() }) {
+                        Text("Select All", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    androidx.compose.material3.IconButton(onClick = { viewModel.batchToggleFavorite() }) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Batch Favorite",
+                            tint = com.kryptx.app.core.designsystem.theme.KryptxAmber
+                        )
+                    }
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            viewModel.batchMoveToTrash { count ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("$count items moved to Trash")
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Batch Move to Trash",
+                            tint = KryptxRed
+                        )
+                    }
+                }
+            }
+        },
         floatingActionButton = {
-            Box(
-                modifier = Modifier
-                    .size(58.dp)
-                    .clip(CircleShape)
-                    .background(KryptxElectricBlueGradient)
-                    .border(1.dp, GlassmorphismSpecularBrush, CircleShape)
-                    .bounceClick(scaleDown = 0.90f) { onNavigateToAddItem() }
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = "Add new credential to vault"
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Item",
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
-                )
+            if (!isSelectionMode) {
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(KryptxElectricBlueGradient)
+                        .border(1.dp, GlassmorphismSpecularBrush, CircleShape)
+                        .bounceClick(scaleDown = 0.90f) { onNavigateToAddItem() }
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Add new credential to vault"
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Item",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        androidx.compose.foundation.layout.BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 100.dp)
+            contentAlignment = Alignment.TopCenter
         ) {
-            // 1. Top Header: User Profile Avatar + Welcome + Security Pulse + Lock Button
-            item {
+            val isWideScreen = maxWidth >= 720.dp
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (isWideScreen) Modifier.width(760.dp) else Modifier.fillMaxWidth()),
+                contentPadding = PaddingValues(bottom = 100.dp)
+            ) {
+                // 1. Top Header: User Profile Avatar + Welcome + Security Pulse + Lock Button
+                item {
                 VaultDashboardHeader(
                     securityReport = securityReport,
                     onNavigateToSecurityCenter = onNavigateToSecurityCenter,
@@ -173,7 +243,9 @@ fun VaultDashboardScreen(
                     totpCount = totpCount,
                     selectedCategory = selectedCategory,
                     onSelectCategory = { viewModel.selectCategory(it) },
-                    onNavigateTo2Fa = onNavigateToSecurityCenter
+                    onNavigateTo2Fa = onNavigateToSecurityCenter,
+                    visibleCategories = visibleCategories,
+                    categoryCounts = categoryCounts
                 )
             }
 
@@ -262,6 +334,47 @@ fun VaultDashboardScreen(
                             )
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // Smart Sort Chips
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Sort:",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                    VaultViewModel.SortOption.values().forEach { opt ->
+                                        val isOptSelected = sortOption == opt
+                                        val optBgColor: Color = if (isOptSelected) KryptxBlue.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                        val optBorderColor: Color = if (isOptSelected) KryptxBrightBlue else Color.Transparent
+                                        val optTextColor: Color = if (isOptSelected) KryptxBrightBlue else MaterialTheme.colorScheme.onSurfaceVariant
+
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(optBgColor)
+                                                .border(1.dp, optBorderColor, RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    KryptxHaptics.tap(view)
+                                                    viewModel.setSortOption(opt)
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = opt.label,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isOptSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = optTextColor
+                                            )
+                                        }
+                                    }
+                                }
+
                                 items.forEachIndexed { index, item ->
                                     @Suppress("DEPRECATION")
                                     val dismissState = rememberSwipeToDismissBoxState(
@@ -336,7 +449,10 @@ fun VaultDashboardScreen(
                                                 scope.launch {
                                                     snackbarHostState.showSnackbar("Password copied! Clears automatically in 30s.")
                                                 }
-                                            }
+                                            },
+                                            isSelected = selectedItemIds.contains(item.id),
+                                            isSelectionMode = isSelectionMode,
+                                            onSelectToggle = { viewModel.toggleSelectItem(item.id) }
                                         )
                                     }
                                 }
@@ -347,6 +463,7 @@ fun VaultDashboardScreen(
             }
         }
     }
+}
 
     // Quick Actions Context Menu Bottom Sheet on Card Long-Press
     selectedItemForActions?.let { actionItem ->

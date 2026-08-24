@@ -9,7 +9,7 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 
 /**
- * Standardized tactile haptics engine for Kryptx providing crisp, satisfying vibration feedback.
+ * Standardized sensory tactile haptics engine for Kryptx providing crisp, nuanced waveform vibration feedback.
  */
 object KryptxHaptics {
 
@@ -57,40 +57,60 @@ object KryptxHaptics {
         }
     }
 
+    private fun getVibrator(context: Context): Vibrator? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            manager?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+    }
+
     fun successVibration(context: Context) {
         try {
-            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                manager?.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }
-
+            val vibrator = getVibrator(context) ?: return
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 35, 45, 50), intArrayOf(0, 120, 0, 180), -1))
+                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 30, 40, 45), intArrayOf(0, 100, 0, 180), -1))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(50)
+                vibrator.vibrate(50)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun secretCopied(context: Context) {
+        try {
+            val vibrator = getVibrator(context) ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 15, 25, 25), intArrayOf(0, 70, 0, 140), -1))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(30)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun entropyLevelUp(context: Context) {
+        try {
+            val vibrator = getVibrator(context) ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 12, 18, 16, 18, 22), intArrayOf(0, 50, 0, 110, 0, 190), -1))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(40)
             }
         } catch (_: Exception) {}
     }
 
     fun panicAlert(context: Context) {
         try {
-            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                manager?.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }
-
+            val vibrator = getVibrator(context) ?: return
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 80, 50, 80, 50, 120), intArrayOf(0, 255, 0, 255, 0, 255), -1))
+                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 80, 50, 80, 50, 120), intArrayOf(0, 255, 0, 255, 0, 255), -1))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(200)
+                vibrator.vibrate(200)
             }
         } catch (_: Exception) {}
     }

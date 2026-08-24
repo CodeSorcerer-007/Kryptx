@@ -89,8 +89,15 @@ class LocalWebCompanionServer(
         val ipAddress: String,
         val port: Int,
         val pin: String,
-        val url: String
+        val url: String,
+        val localDomainUrl: String = "http://kryptx.local:$port",
+        val isReadOnly: Boolean = false
     )
+
+    private var nsdManager: android.net.nsd.NsdManager? = null
+    private var registrationListener: android.net.nsd.NsdManager.RegistrationListener? = null
+    var isReadOnlyMode: Boolean = false
+        private set
 
     fun isServerRunning(): Boolean = isRunning.get()
 
@@ -125,13 +132,14 @@ class LocalWebCompanionServer(
     }
 
     /**
-     * Starts the ephemeral HTTP daemon on the local Wi-Fi IP address.
+     * Starts the ephemeral HTTP daemon on the local Wi-Fi IP address and broadcasts via mDNS (kryptx.local).
      */
-    suspend fun startServer(): ServerSessionInfo? = withContext(Dispatchers.IO) {
+    suspend fun startServer(context: android.content.Context? = null, isReadOnly: Boolean = false): ServerSessionInfo? = withContext(Dispatchers.IO) {
         if (isRunning.get()) {
             stopServer()
         }
 
+        isReadOnlyMode = isReadOnly
         val ip = resolveLocalIpAddress() ?: "127.0.0.1"
         localIpAddress = ip
         val pinCode = String.format("%06d", secureRandom.nextInt(1_000_000))
@@ -161,18 +169,46 @@ class LocalWebCompanionServer(
             currentPort = port
             isRunning.set(true)
 
+            // Register mDNS Network Service Discovery (NSD) for zero-config discovery
+            if (context != null) {
+                try {
+                    val serviceInfo = android.net.nsd.NsdServiceInfo().apply {
+                        serviceName = "Kryptx Vault"
+                        serviceType = "_http._tcp."
+                        setPort(port)
+                    }
+                    nsdManager = context.getSystemService(android.content.Context.NSD_SERVICE) as? android.net.nsd.NsdManager
+                    registrationListener = object : android.net.nsd.NsdManager.RegistrationListener {
+                        override fun onServiceRegistered(service: android.net.nsd.NsdServiceInfo) {
+                            safeLog("mDNS NSD service registered: ${service.serviceName}")
+                        }
+                        override fun onRegistrationFailed(service: android.net.nsd.NsdServiceInfo, errorCode: Int) {
+                            safeLogErr("mDNS NSD registration failed: $errorCode")
+                        }
+                        override fun onServiceUnregistered(service: android.net.nsd.NsdServiceInfo) {}
+                        override fun onUnregistrationFailed(service: android.net.nsd.NsdServiceInfo, errorCode: Int) {}
+                    }
+                    nsdManager?.registerService(serviceInfo, android.net.nsd.NsdManager.PROTOCOL_DNS_SD, registrationListener)
+                } catch (e: Exception) {
+                    safeLogErr("NSD error: ${e.message}")
+                }
+            }
+
             serverJob = scope.launch {
                 listenLoop(socket)
             }
 
             val fullUrl = "http://$ip:$port"
-            safeLog("Local Web Companion started at $fullUrl with PIN $pinCode")
+            val localUrl = "http://kryptx.local:$port"
+            safeLog("Local Web Companion started at $fullUrl ($localUrl) with PIN $pinCode")
 
             ServerSessionInfo(
                 ipAddress = ip,
                 port = port,
                 pin = pinCode,
-                url = fullUrl
+                url = fullUrl,
+                localDomainUrl = localUrl,
+                isReadOnly = isReadOnlyMode
             )
         } catch (e: Exception) {
             safeLogErr("Failed to start Local Web Companion server: ${e.message}")
@@ -182,11 +218,18 @@ class LocalWebCompanionServer(
     }
 
     /**
-     * Stops the server, closes all sockets, and invalidates all session tokens.
+     * Stops the server, unregisters mDNS, closes all sockets, and invalidates all session tokens.
      */
     fun stopServer() {
         isRunning.set(false)
         activeSessions.clear()
+        try {
+            if (nsdManager != null && registrationListener != null) {
+                nsdManager?.unregisterService(registrationListener)
+            }
+        } catch (_: Exception) {}
+        nsdManager = null
+        registrationListener = null
         try {
             serverSocket?.close()
         } catch (_: Exception) {}
@@ -324,7 +367,13 @@ class LocalWebCompanionServer(
             ""
         }
 
-        if (pinSubmitted.isNotBlank() && pinSubmitted == currentPin) {
+        val isPinMatch = pinSubmitted.isNotBlank() && currentPin.isNotBlank() &&
+            java.security.MessageDigest.isEqual(
+                pinSubmitted.toByteArray(Charsets.UTF_8),
+                currentPin.toByteArray(Charsets.UTF_8)
+            )
+
+        if (isPinMatch) {
             failedPinAttempts = 0
             val token = UUID.randomUUID().toString().replace("-", "")
             activeSessions[token] = System.currentTimeMillis() + SESSION_TIMEOUT_MS
@@ -425,6 +474,10 @@ class LocalWebCompanionServer(
 
     private fun serveIndexHtml(writer: PrintWriter) {
         val d = '$'
+        val readOnlyBadge = if (isReadOnlyMode) {
+            """<div style="display:inline-block; margin-top:8px; padding:4px 12px; background:rgba(239,68,68,0.15); border:1px solid #EF4444; border-radius:999px; color:#EF4444; font-size:12px; font-weight:700;">🛡️ READ-ONLY SAFE MODE</div>"""
+        } else ""
+
         val html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -540,6 +593,7 @@ class LocalWebCompanionServer(
             <div class="logo-badge">🛡️ KRYPTX DESKTOP COMPANION</div>
             <h1>Zero-Cloud Local Vault</h1>
             <p class="subtitle">Protected by local AES-256-GCM Wi-Fi bridge. Zero data leaves your network.</p>
+            $readOnlyBadge
         </div>
 
         <!-- Auth Card -->

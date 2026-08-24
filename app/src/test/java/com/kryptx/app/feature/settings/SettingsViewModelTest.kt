@@ -98,4 +98,29 @@ class SettingsViewModelTest {
         assertFalse(fakeVaultRepository.hasVault())
         assertFalse(fakePreferencesRepository.onboardingCompleted.value)
     }
+
+    @Test
+    fun testCategoryVisibilityToggling() {
+        val initialVisible = viewModel.visibleCategories.value
+        assertTrue(initialVisible.contains("LOGIN"))
+
+        // Toggle LOGIN off
+        viewModel.toggleCategoryVisibility(com.kryptx.app.core.model.ItemType.LOGIN)
+        assertFalse(viewModel.visibleCategories.value.contains("LOGIN"))
+
+        // Toggle LOGIN back on
+        viewModel.toggleCategoryVisibility(com.kryptx.app.core.model.ItemType.LOGIN)
+        assertTrue(viewModel.visibleCategories.value.contains("LOGIN"))
+    }
+
+    @Test
+    fun testMinimalistAndReadOnlyPreferences() {
+        assertFalse(viewModel.minimalistDashboardMode.value)
+        viewModel.setMinimalistDashboardMode(true)
+        assertTrue(viewModel.minimalistDashboardMode.value)
+
+        assertFalse(viewModel.webCompanionReadOnly.value)
+        viewModel.setWebCompanionReadOnly(true)
+        assertTrue(viewModel.webCompanionReadOnly.value)
+    }
 }

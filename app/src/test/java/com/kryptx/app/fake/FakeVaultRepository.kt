@@ -82,22 +82,56 @@ class FakeVaultRepository : VaultRepository {
         this.duressPassword = null
     }
 
+    private val _trashFlow = MutableStateFlow<List<VaultItem>>(emptyList())
+
     override fun getItems(): Flow<List<VaultItem>> = _itemsFlow.asStateFlow()
 
+    override fun getTrashItems(): Flow<List<VaultItem>> = _trashFlow.asStateFlow()
+
     override suspend fun getItemById(id: String): VaultItem? {
-        return _itemsFlow.value.firstOrNull { it.id == id }
+        return _itemsFlow.value.firstOrNull { it.id == id } ?: _trashFlow.value.firstOrNull { it.id == id }
     }
 
     override suspend fun saveItem(item: VaultItem): KryptxResult<Unit> {
-        val current = _itemsFlow.value.toMutableList()
-        val idx = current.indexOfFirst { it.id == item.id }
-        if (idx >= 0) current[idx] = item else current.add(0, item)
-        _itemsFlow.value = current
+        if (item.isDeleted) {
+            val currentTrash = _trashFlow.value.toMutableList()
+            val idx = currentTrash.indexOfFirst { it.id == item.id }
+            if (idx >= 0) currentTrash[idx] = item else currentTrash.add(0, item)
+            _trashFlow.value = currentTrash
+            _itemsFlow.value = _itemsFlow.value.filter { it.id != item.id }
+        } else {
+            val current = _itemsFlow.value.toMutableList()
+            val idx = current.indexOfFirst { it.id == item.id }
+            if (idx >= 0) current[idx] = item else current.add(0, item)
+            _itemsFlow.value = current
+            _trashFlow.value = _trashFlow.value.filter { it.id != item.id }
+        }
         return KryptxResult.Success(Unit)
+    }
+
+    override suspend fun moveToTrash(itemId: String): KryptxResult<Unit> {
+        val item = getItemById(itemId) ?: return KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
+        val trashed = item.copy(deletedAt = System.currentTimeMillis())
+        saveItem(trashed)
+        return KryptxResult.Success(Unit)
+    }
+
+    override suspend fun restoreFromTrash(itemId: String): KryptxResult<Unit> {
+        val item = getItemById(itemId) ?: return KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
+        val restored = item.copy(deletedAt = null)
+        saveItem(restored)
+        return KryptxResult.Success(Unit)
+    }
+
+    override suspend fun emptyTrash(): KryptxResult<Int> {
+        val count = _trashFlow.value.size
+        _trashFlow.value = emptyList()
+        return KryptxResult.Success(count)
     }
 
     override suspend fun deleteItem(itemId: String): KryptxResult<Unit> {
         _itemsFlow.value = _itemsFlow.value.filter { it.id != itemId }
+        _trashFlow.value = _trashFlow.value.filter { it.id != itemId }
         return KryptxResult.Success(Unit)
     }
 
@@ -185,5 +219,21 @@ class FakeVaultRepository : VaultRepository {
         hasVaultSetup = false
         biometricsConfigured = false
         _itemsFlow.value = emptyList()
+    }
+
+    override fun getDatabaseDiagnostics(): com.kryptx.app.core.database.KryptxDatabaseHelper.DatabaseDiagnostics {
+        return com.kryptx.app.core.database.KryptxDatabaseHelper.DatabaseDiagnostics(
+            isIntegrityOk = true,
+            integrityReport = "ok",
+            totalRecords = _itemsFlow.value.size,
+            pageSizeBytes = 4096,
+            pageCount = 10,
+            freePageCount = 0,
+            databaseSizeBytes = 40960
+        )
+    }
+
+    override suspend fun vacuumDatabase(): KryptxResult<Unit> {
+        return KryptxResult.Success(Unit)
     }
 }

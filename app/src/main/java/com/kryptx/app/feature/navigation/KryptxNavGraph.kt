@@ -103,6 +103,9 @@ fun KryptxNavGraph(
     settingsViewModel: SettingsViewModel,
     preferencesRepository: IPreferencesRepository,
     vaultRepository: com.kryptx.app.core.database.VaultRepository = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.kryptx.app.KryptxApplication).vaultRepository,
+    p2pSyncEngine: com.kryptx.app.core.sync.P2pSyncEngine = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.kryptx.app.KryptxApplication).p2pSyncEngine,
+    pendingShortcutTarget: String? = null,
+    onClearPendingShortcut: () -> Unit = {},
     onTriggerBiometrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -159,6 +162,40 @@ fun KryptxNavGraph(
         }
     }
 
+    fun navigateTo(screen: Screen) {
+        if (backStack.lastOrNull() != screen) {
+            backStack.add(screen)
+        }
+    }
+
+    // Handle incoming launcher shortcuts when unlocked
+    androidx.compose.runtime.LaunchedEffect(isUnlocked, pendingShortcutTarget) {
+        if (isUnlocked && pendingShortcutTarget != null) {
+            when (pendingShortcutTarget) {
+                "search" -> {
+                    navigateTo(Screen.Search)
+                    onClearPendingShortcut()
+                }
+                "add_item" -> {
+                    navigateTo(Screen.AddEditItem(null))
+                    onClearPendingShortcut()
+                }
+                "generator" -> {
+                    selectedBottomTab = BottomNavTab.GENERATOR
+                    backStack.clear()
+                    backStack.add(Screen.Generator)
+                    onClearPendingShortcut()
+                }
+                "totp" -> {
+                    selectedBottomTab = BottomNavTab.TOTP
+                    backStack.clear()
+                    backStack.add(Screen.TotpList)
+                    onClearPendingShortcut()
+                }
+            }
+        }
+    }
+
     // Keep sync with vault state
     val currentScreen = when {
         !unlockUiState.hasVault && (backStack.isEmpty() || backStack.last() !is Screen.SetupMasterPassword) -> Screen.Onboarding
@@ -166,12 +203,6 @@ fun KryptxNavGraph(
         !isUnlocked -> Screen.Unlock
         backStack.isEmpty() -> Screen.VaultDashboard
         else -> backStack.last()
-    }
-
-    fun navigateTo(screen: Screen) {
-        if (backStack.lastOrNull() != screen) {
-            backStack.add(screen)
-        }
     }
 
     fun navigateBack() {
@@ -297,11 +328,14 @@ fun KryptxNavGraph(
                             onNavigateToAppearance = { navigateTo(Screen.AppearanceSettings) },
                             onNavigateToBackup = { navigateTo(Screen.BackupExport) },
                             onNavigateToWebCompanion = { navigateTo(Screen.WebCompanion) },
+                            onNavigateToP2pSync = { navigateTo(Screen.P2pSync) },
                             onNavigateToAutofillSetup = { navigateTo(Screen.SecuritySettings) },
                             onReplayGuides = {
                                 preferencesRepository.resetAllFeatureIntros()
                                 activeIntroFeature = FeatureGuide.VAULT
-                            }
+                            },
+                            vaultRepository = vaultRepository,
+                            settingsViewModel = settingsViewModel
                         )
                     }
 
@@ -354,6 +388,13 @@ fun KryptxNavGraph(
                     Screen.WebCompanion -> {
                         com.kryptx.app.feature.settings.WebCompanionScreen(
                             vaultRepository = vaultRepository,
+                            onNavigateBack = { navigateBack() }
+                        )
+                    }
+
+                    Screen.P2pSync -> {
+                        com.kryptx.app.feature.settings.P2pSyncScreen(
+                            p2pSyncEngine = p2pSyncEngine,
                             onNavigateBack = { navigateBack() }
                         )
                     }

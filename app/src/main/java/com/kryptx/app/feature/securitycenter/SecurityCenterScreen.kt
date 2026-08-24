@@ -2,6 +2,7 @@ package com.kryptx.app.feature.securitycenter
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,9 +16,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +60,9 @@ fun SecurityCenterScreen(
     modifier: Modifier = Modifier
 ) {
     val report by viewModel.auditReport.collectAsState()
+    val isRemediating by viewModel.isRemediating.collectAsState()
     var celebrationTriggered by remember { mutableStateOf(false) }
+    var showWizardSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(report?.overallScore) {
         if ((report?.overallScore ?: 0) >= 90) {
@@ -145,7 +151,62 @@ fun SecurityCenterScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 1-Tap Remediation Wizard Card
+                    if (r.weakCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .border(1.dp, KryptxBlue.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+                                .background(KryptxBlue.copy(alpha = 0.1f))
+                                .clickable { showWizardSheet = true }
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(KryptxBlue),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoFixHigh,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "1-Tap Auto-Remediation",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                    Text(
+                                        text = "Upgrade ${r.weakCount} weak passwords to high-entropy keys",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
 
                     // Stats Grid
                     Row(
@@ -252,6 +313,17 @@ fun SecurityCenterScreen(
                 }
             }
         }
+    }
+
+    if (showWizardSheet && report != null) {
+        SecurityRemediationWizard(
+            auditReport = report!!,
+            isRemediating = isRemediating,
+            onRemediateAllWeak = { onDone ->
+                viewModel.batchRemediateWeakPasswords(onDone)
+            },
+            onDismiss = { showWizardSheet = false }
+        )
     }
 
     com.kryptx.app.core.designsystem.components.KryptxCelebrationOverlay(

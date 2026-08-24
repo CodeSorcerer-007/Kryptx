@@ -63,9 +63,13 @@ class KryptxAutofillService : AutofillService() {
 
         val usernameId = fieldDetector.usernameFieldId
         val passwordId = fieldDetector.passwordFieldId
+        val otpId = fieldDetector.otpFieldId
+        val ccNumberId = fieldDetector.creditCardNumberId
+        val ccExpiryId = fieldDetector.creditCardExpiryId
+        val ccCvvId = fieldDetector.creditCardCvvId
         val detectedDomain = fieldDetector.detectedDomain
 
-        if (usernameId == null && passwordId == null) {
+        if (!fieldDetector.hasAnyTargetField) {
             callback.onSuccess(null)
             return
         }
@@ -90,7 +94,7 @@ class KryptxAutofillService : AutofillService() {
                 setTextViewText(android.R.id.text1, "🔒 Unlock Kryptx to Autofill")
             }
 
-            val targetId = usernameId ?: passwordId!!
+            val targetId = usernameId ?: passwordId ?: otpId ?: ccNumberId!!
             val authDataset = Dataset.Builder(remoteViews)
                 .setAuthentication(pendingIntent.intentSender)
                 .setValue(targetId, AutofillValue.forText(""))
@@ -104,42 +108,69 @@ class KryptxAutofillService : AutofillService() {
         // Vault is unlocked - query matching credentials with strict domain verification
         serviceScope.launch {
             val allItems = app.vaultRepository.getItems().firstOrNull() ?: emptyList()
-            val loginItems = allItems.filter { it.type == ItemType.LOGIN }
-
             val cleanDomain = sanitizeDomain(detectedDomain)
-            val matchingItems = loginItems.filter { item ->
-                if (cleanDomain.isNotBlank()) {
-                    val itemDomain = sanitizeDomain(item.website.ifBlank { item.domain })
-                    isDomainMatch(cleanDomain, itemDomain) || (item.domain.isBlank() && item.title.equals(cleanDomain, ignoreCase = true))
-                } else true
-            }.sortedWith(
-                compareByDescending<VaultItem> { it.isFavorite }
-                    .thenByDescending { it.lastUsedAt }
-                    .thenByDescending { it.updatedAt }
-            )
-
-            if (matchingItems.isEmpty()) {
-                callback.onSuccess(null)
-                return@launch
-            }
 
             val responseBuilder = FillResponse.Builder()
 
-            for (item in matchingItems.take(5)) {
-                val remoteViews = RemoteViews(packageName, android.R.layout.simple_list_item_2).apply {
-                    setTextViewText(android.R.id.text1, item.title)
-                    setTextViewText(android.R.id.text2, item.username.ifBlank { item.website })
+            if (ccNumberId != null) {
+                // Populate Credit Cards
+                val cardItems = allItems.filter { it.type == ItemType.CREDIT_CARD }
+                for (card in cardItems.take(3)) {
+                    val remoteViews = RemoteViews(packageName, android.R.layout.simple_list_item_2).apply {
+                        setTextViewText(android.R.id.text1, card.title)
+                        setTextViewText(android.R.id.text2, "Card •••• ${card.cardNumber.takeLast(4)}")
+                    }
+                    val datasetBuilder = Dataset.Builder(remoteViews)
+                    datasetBuilder.setValue(ccNumberId, AutofillValue.forText(card.cardNumber))
+                    if (ccExpiryId != null && card.cardExpiry.isNotBlank()) {
+                        datasetBuilder.setValue(ccExpiryId, AutofillValue.forText(card.cardExpiry))
+                    }
+                    if (ccCvvId != null && card.cardCvv.isNotBlank()) {
+                        datasetBuilder.setValue(ccCvvId, AutofillValue.forText(card.cardCvv))
+                    }
+                    responseBuilder.addDataset(datasetBuilder.build())
+                }
+            } else {
+                // Populate Logins & TOTP
+                val loginItems = allItems.filter { it.type == ItemType.LOGIN || it.type == ItemType.PASSKEY }
+                val matchingItems = loginItems.filter { item ->
+                    if (cleanDomain.isNotBlank()) {
+                        val itemDomain = sanitizeDomain(item.website.ifBlank { item.domain })
+                        isDomainMatch(cleanDomain, itemDomain) || (item.domain.isBlank() && item.title.equals(cleanDomain, ignoreCase = true))
+                    } else true
+                }.sortedWith(
+                    compareByDescending<VaultItem> { it.isFavorite }
+                        .thenByDescending { it.lastUsedAt }
+                        .thenByDescending { it.updatedAt }
+                )
+
+                if (matchingItems.isEmpty()) {
+                    callback.onSuccess(null)
+                    return@launch
                 }
 
-                val datasetBuilder = Dataset.Builder(remoteViews)
-                if (usernameId != null && item.username.isNotBlank()) {
-                    datasetBuilder.setValue(usernameId, AutofillValue.forText(item.username))
-                }
-                if (passwordId != null && item.password.isNotBlank()) {
-                    datasetBuilder.setValue(passwordId, AutofillValue.forText(item.password))
-                }
+                for (item in matchingItems.take(5)) {
+                    val remoteViews = RemoteViews(packageName, android.R.layout.simple_list_item_2).apply {
+                        setTextViewText(android.R.id.text1, item.title)
+                        setTextViewText(android.R.id.text2, item.username.ifBlank { item.website })
+                    }
 
-                responseBuilder.addDataset(datasetBuilder.build())
+                    val datasetBuilder = Dataset.Builder(remoteViews)
+                    if (usernameId != null && item.username.isNotBlank()) {
+                        datasetBuilder.setValue(usernameId, AutofillValue.forText(item.username))
+                    }
+                    if (passwordId != null && item.password.isNotBlank()) {
+                        datasetBuilder.setValue(passwordId, AutofillValue.forText(item.password))
+                    }
+                    if (otpId != null && item.totpSecret.isNotBlank()) {
+                        val totpCode = com.kryptx.app.core.totp.TotpGenerator.generateCurrentTotp(item.totpSecret)?.formattedCode
+                        if (totpCode != null) {
+                            datasetBuilder.setValue(otpId, AutofillValue.forText(totpCode.replace(" ", "")))
+                        }
+                    }
+
+                    responseBuilder.addDataset(datasetBuilder.build())
+                }
             }
 
             // SaveInfo builder for capturing newly entered credentials
@@ -233,10 +264,19 @@ class KryptxAutofillService : AutofillService() {
 class AutofillFieldDetector {
     var usernameFieldId: AutofillId? = null
     var passwordFieldId: AutofillId? = null
+    var otpFieldId: AutofillId? = null
+    var creditCardNumberId: AutofillId? = null
+    var creditCardExpiryId: AutofillId? = null
+    var creditCardCvvId: AutofillId? = null
+    var creditCardHolderId: AutofillId? = null
+
     var detectedDomain: String = ""
 
     var extractedUsername: String? = null
     var extractedPassword: String? = null
+
+    val hasAnyTargetField: Boolean
+        get() = usernameFieldId != null || passwordFieldId != null || otpFieldId != null || creditCardNumberId != null
 
     fun traverseStructure(structure: AssistStructure) {
         val windowNodeCount = structure.windowNodeCount
@@ -285,6 +325,18 @@ class AutofillFieldDetector {
                     passwordFieldId = node.autofillId
                     node.text?.toString()?.let { extractedPassword = it }
                 }
+                if (hint.contains("sms", ignoreCase = true) || hint.contains("otp", ignoreCase = true) || hint.contains("2fa", ignoreCase = true)) {
+                    otpFieldId = node.autofillId
+                }
+                if (hint.contains("creditCardNumber", ignoreCase = true) || hint.contains("cardNumber", ignoreCase = true)) {
+                    creditCardNumberId = node.autofillId
+                }
+                if (hint.contains("creditCardExpiration", ignoreCase = true) || hint.contains("cardExpiry", ignoreCase = true)) {
+                    creditCardExpiryId = node.autofillId
+                }
+                if (hint.contains("creditCardSecurityCode", ignoreCase = true) || hint.contains("cvv", ignoreCase = true)) {
+                    creditCardCvvId = node.autofillId
+                }
             }
         }
 
@@ -297,6 +349,14 @@ class AutofillFieldDetector {
         if (passwordFieldId == null && (idEntry.contains("password") || idEntry.contains("passwd") || hintText.contains("password") || className.contains("password"))) {
             passwordFieldId = node.autofillId
             node.text?.toString()?.let { extractedPassword = it }
+        }
+
+        if (otpFieldId == null && (idEntry.contains("otp") || idEntry.contains("totp") || idEntry.contains("2fa") || idEntry.contains("code") || hintText.contains("verification code") || hintText.contains("otp"))) {
+            otpFieldId = node.autofillId
+        }
+
+        if (creditCardNumberId == null && (idEntry.contains("card_number") || idEntry.contains("cardnumber") || hintText.contains("card number"))) {
+            creditCardNumberId = node.autofillId
         }
 
         val childCount = node.childCount

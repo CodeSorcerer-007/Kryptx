@@ -184,16 +184,13 @@ fun VaultItemDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(24.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    ItemTypeBadge(type = item.type, modifier = Modifier.size(54.dp))
-                }
+                com.kryptx.app.core.designsystem.components.OfflineIdenticonBadge(
+                    title = item.title,
+                    website = item.website,
+                    type = item.type,
+                    size = 76.dp,
+                    shapeRadius = 22.dp
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 

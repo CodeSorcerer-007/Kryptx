@@ -2,6 +2,7 @@ package com.kryptx.app.fake
 
 import com.kryptx.app.core.database.AppThemeMode
 import com.kryptx.app.core.database.IPreferencesRepository
+import com.kryptx.app.core.database.UserPersona
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,18 @@ class FakePreferencesRepository : IPreferencesRepository {
     private val _onboardingCompleted = MutableStateFlow(false)
     override val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
 
+    private val _visibleCategories = MutableStateFlow(com.kryptx.app.core.model.ItemType.entries.map { it.name }.toSet())
+    override val visibleCategories: StateFlow<Set<String>> = _visibleCategories.asStateFlow()
+
+    private val _minimalistDashboardMode = MutableStateFlow(false)
+    override val minimalistDashboardMode: StateFlow<Boolean> = _minimalistDashboardMode.asStateFlow()
+
+    private val _webCompanionReadOnly = MutableStateFlow(false)
+    override val webCompanionReadOnly: StateFlow<Boolean> = _webCompanionReadOnly.asStateFlow()
+
+    private val _selectedPersona = MutableStateFlow(UserPersona.POWER_USER)
+    override val selectedPersona: StateFlow<UserPersona> = _selectedPersona.asStateFlow()
+
     override fun setThemeMode(mode: AppThemeMode) { _themeMode.value = mode }
     override fun setDynamicColor(enable: Boolean) { _dynamicColor.value = enable }
     override fun setAutoLockSeconds(seconds: Long) { _autoLockSeconds.value = seconds }
@@ -43,6 +56,14 @@ class FakePreferencesRepository : IPreferencesRepository {
     override fun setFlagSecureEnabled(enabled: Boolean) { _flagSecureEnabled.value = enabled }
     override fun setBreachCheckNetworkEnabled(enabled: Boolean) { _breachCheckNetworkEnabled.value = enabled }
     override fun setOnboardingCompleted(completed: Boolean) { _onboardingCompleted.value = completed }
+    override fun setVisibleCategories(categories: Set<String>) { _visibleCategories.value = categories }
+    override fun setMinimalistDashboardMode(enabled: Boolean) { _minimalistDashboardMode.value = enabled }
+    override fun setWebCompanionReadOnly(readOnly: Boolean) { _webCompanionReadOnly.value = readOnly }
+    override fun setSelectedPersona(persona: UserPersona) {
+        _selectedPersona.value = persona
+        _visibleCategories.value = persona.recommendedCategories
+        _minimalistDashboardMode.value = persona.minimalistDefault
+    }
 
     private val seenIntros = mutableSetOf<String>()
     override fun hasSeenFeatureIntro(featureKey: String): Boolean = seenIntros.contains(featureKey)

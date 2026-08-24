@@ -21,16 +21,22 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,10 +56,15 @@ fun SettingsScreen(
     onNavigateToAppearance: () -> Unit,
     onNavigateToBackup: () -> Unit,
     onNavigateToWebCompanion: () -> Unit,
+    onNavigateToP2pSync: () -> Unit,
     onNavigateToAutofillSetup: () -> Unit,
     onReplayGuides: () -> Unit,
+    vaultRepository: com.kryptx.app.core.database.VaultRepository? = null,
+    settingsViewModel: SettingsViewModel? = null,
     modifier: Modifier = Modifier
 ) {
+    var showTrashSheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showCategorySheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Scaffold(
         modifier = modifier
             .fillMaxSize()
@@ -105,9 +116,9 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 1. VAULT SECURITY & BIOMETRICS
+            // 1. SECURITY & VAULT
             Text(
-                text = "VAULT SECURITY & BIOMETRICS",
+                text = "SECURITY & VAULT",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -115,17 +126,17 @@ fun SettingsScreen(
             )
 
             SettingsNavRow(
-                title = "Security & Vault Lock",
-                subtitle = "Biometrics, auto-lock timeout, clipboard, master password",
+                title = "Security Center & Biometrics",
+                subtitle = "Biometric unlock, auto-lock timeout, duress PIN, security audit",
                 icon = Icons.Default.Lock,
                 onClick = onNavigateToSecurity
             )
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // 2. SYNC & DATA MIGRATION
+            // 2. DATA & LOCAL ACCESS
             Text(
-                text = "SYNC & DATA MIGRATION",
+                text = "DATA & LOCAL ACCESS",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -140,10 +151,24 @@ fun SettingsScreen(
             )
 
             SettingsNavRow(
+                title = "P2P Device Sync",
+                subtitle = "Synchronize differential vault items between devices over local Wi-Fi",
+                icon = Icons.Default.Sync,
+                onClick = onNavigateToP2pSync
+            )
+
+            SettingsNavRow(
                 title = "Backup & Migration",
                 subtitle = "Encrypted JSON backup, CSV export, Bitwarden/1Password import",
                 icon = Icons.Default.FolderZip,
                 onClick = onNavigateToBackup
+            )
+
+            SettingsNavRow(
+                title = "Encrypted Trash Bin",
+                subtitle = "Recover soft-deleted items or empty trash (30-day auto-purge)",
+                icon = Icons.Default.Delete,
+                onClick = { showTrashSheet = true }
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -162,6 +187,13 @@ fun SettingsScreen(
                 subtitle = "OLED Black, WorkONE Blue, Solar Light, Dynamic Color",
                 icon = Icons.Default.ColorLens,
                 onClick = onNavigateToAppearance
+            )
+
+            SettingsNavRow(
+                title = "Dashboard Categories & Layout",
+                subtitle = "Customize visible category badges and smart minimalist view",
+                icon = Icons.Default.AutoAwesome,
+                onClick = { showCategorySheet = true }
             )
 
             SettingsNavRow(
@@ -224,6 +256,20 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        if (showTrashSheet && vaultRepository != null) {
+            TrashBinSheet(
+                vaultRepository = vaultRepository,
+                onDismiss = { showTrashSheet = false }
+            )
+        }
+
+        if (showCategorySheet && settingsViewModel != null) {
+            CategoryCustomizationSheet(
+                settingsViewModel = settingsViewModel,
+                onDismiss = { showCategorySheet = false }
+            )
         }
     }
 }

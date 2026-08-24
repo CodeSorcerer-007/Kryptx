@@ -7,17 +7,30 @@ import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.model.VaultAttachment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
+import java.nio.ByteBuffer
 import java.util.UUID
 
 /**
- * Secure file attachment engine providing zero-knowledge AES-256-GCM encryption
- * for documents, photos, and certificates stored in the internal app sandbox.
+ * Enterprise Secure Attachment Engine supporting both fast small-file encryption
+ * and constant-memory O(1) chunked authenticated AES-256-GCM streaming for large documents,
+ * certificates, and photos.
  */
 class AttachmentManager(
     private val context: Context,
     private val sessionManager: VaultSessionManager
 ) : IAttachmentManager {
+
+    companion object {
+        private const val CHUNK_SIZE = 64 * 1024 // 64 KB per authenticated chunk
+        private const val MAGIC_HEADER = 0x4B525950 // 'KRYP'
+    }
 
     private val attachmentsDir: File
         get() = File(context.filesDir, "vault_attachments").apply {
@@ -32,59 +45,138 @@ class AttachmentManager(
         mimeType: String,
         data: ByteArray
     ): VaultAttachment? = withContext(Dispatchers.IO) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext null
-
-        val id = UUID.randomUUID().toString()
-        val encryptedFileName = "$id.enc"
-        val targetFile = File(attachmentsDir, encryptedFileName)
-
-        try {
-            val encryptedBytes = CryptoEngine.encrypt(data, activeVek)
-            targetFile.writeBytes(encryptedBytes)
-
-            VaultAttachment(
-                id = id,
-                fileName = fileName,
-                mimeType = mimeType,
-                sizeBytes = data.size.toLong(),
-                encryptedFileName = encryptedFileName,
-                createdAt = System.currentTimeMillis()
-            )
-        } catch (_: Exception) {
-            null
-        }
+        val inputStream = ByteArrayInputStream(data)
+        saveAttachmentStream(fileName, mimeType, inputStream)
     }
 
     /**
-     * Reads, encrypts, and saves an attachment from an Android content Uri.
+     * Reads, encrypts, and saves an attachment from an Android content Uri using streaming.
      */
     override suspend fun saveAttachmentFromUri(
         uri: Uri,
         fileName: String,
         mimeType: String
     ): VaultAttachment? = withContext(Dispatchers.IO) {
-        val rawBytes = try {
-            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        val inputStream = try {
+            context.contentResolver.openInputStream(uri)
         } catch (_: Exception) {
             null
         } ?: return@withContext null
 
-        saveAttachment(fileName, mimeType, rawBytes)
+        inputStream.use { stream ->
+            saveAttachmentStream(fileName, mimeType, stream)
+        }
     }
 
     /**
-     * Decrypts an encrypted attachment and returns plaintext bytes.
+     * Encrypts an arbitrary-sized input stream in constant O(1) memory using chunked AES-256-GCM.
      */
-    override suspend fun loadDecryptedAttachment(attachment: VaultAttachment): ByteArray? = withContext(Dispatchers.IO) {
+    override suspend fun saveAttachmentStream(
+        fileName: String,
+        mimeType: String,
+        inputStream: InputStream
+    ): VaultAttachment? = withContext(Dispatchers.IO) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext null
-        val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
-        if (!encryptedFile.exists()) return@withContext null
+
+        val id = UUID.randomUUID().toString()
+        val encryptedFileName = "$id.enc"
+        val targetFile = File(attachmentsDir, encryptedFileName)
+
+        var totalPlainBytes = 0L
+        val buffer = ByteArray(CHUNK_SIZE)
 
         try {
-            val encryptedBytes = encryptedFile.readBytes()
-            CryptoEngine.decrypt(encryptedBytes, activeVek)
-        } catch (_: Exception) {
+            FileOutputStream(targetFile).use { fos ->
+                // Write Magic Header & Chunk Size
+                val headerBuf = ByteBuffer.allocate(8)
+                headerBuf.putInt(MAGIC_HEADER)
+                headerBuf.putInt(CHUNK_SIZE)
+                fos.write(headerBuf.array())
+
+                var bytesRead: Int
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    totalPlainBytes += bytesRead
+                    val chunkPlaintext = if (bytesRead == CHUNK_SIZE) buffer else buffer.copyOf(bytesRead)
+                    val encryptedChunk = CryptoEngine.encrypt(chunkPlaintext, activeVek)
+
+                    // Write 4-byte chunk length + chunk bytes
+                    val lenBuf = ByteBuffer.allocate(4).putInt(encryptedChunk.size).array()
+                    fos.write(lenBuf)
+                    fos.write(encryptedChunk)
+                }
+            }
+
+            VaultAttachment(
+                id = id,
+                fileName = fileName,
+                mimeType = mimeType,
+                sizeBytes = totalPlainBytes,
+                encryptedFileName = encryptedFileName,
+                createdAt = System.currentTimeMillis()
+            )
+        } catch (e: Exception) {
+            if (targetFile.exists()) targetFile.delete()
             null
+        } finally {
+            SecureMemory.wipe(buffer)
+        }
+    }
+
+    /**
+     * Decrypts an encrypted attachment into an in-memory byte array.
+     */
+    override suspend fun loadDecryptedAttachment(attachment: VaultAttachment): ByteArray? = withContext(Dispatchers.IO) {
+        val baos = ByteArrayOutputStream()
+        val success = writeDecryptedToStream(attachment, baos)
+        if (success) baos.toByteArray() else null
+    }
+
+    /**
+     * Decrypts an encrypted attachment and streams plaintext bytes directly into an output stream.
+     */
+    override suspend fun writeDecryptedToStream(
+        attachment: VaultAttachment,
+        outputStream: OutputStream
+    ): Boolean = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
+        val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
+        if (!encryptedFile.exists()) return@withContext false
+
+        try {
+            FileInputStream(encryptedFile).use { fis ->
+                val headerBuf = ByteArray(8)
+                val headerRead = fis.read(headerBuf)
+                if (headerRead != 8) return@withContext false
+
+                val magic = ByteBuffer.wrap(headerBuf, 0, 4).int
+                if (magic != MAGIC_HEADER) {
+                    // Fallback to legacy non-chunked single-payload decrypt
+                    val fullEncrypted = encryptedFile.readBytes()
+                    val decrypted = CryptoEngine.decrypt(fullEncrypted, activeVek)
+                    outputStream.write(decrypted)
+                    return@withContext true
+                }
+
+                val lenBuf = ByteArray(4)
+                while (fis.read(lenBuf) == 4) {
+                    val chunkLen = ByteBuffer.wrap(lenBuf).int
+                    val encryptedChunk = ByteArray(chunkLen)
+                    var readSoFar = 0
+                    while (readSoFar < chunkLen) {
+                        val r = fis.read(encryptedChunk, readSoFar, chunkLen - readSoFar)
+                        if (r == -1) break
+                        readSoFar += r
+                    }
+                    if (readSoFar != chunkLen) return@withContext false
+
+                    val decryptedChunk = CryptoEngine.decrypt(encryptedChunk, activeVek)
+                    outputStream.write(decryptedChunk)
+                    SecureMemory.wipe(decryptedChunk)
+                }
+            }
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -105,7 +197,7 @@ class AttachmentManager(
     }
 
     /**
-     * Wipes all stored attachments from internal storage.
+     * Clears all encrypted attachment files in the sandbox.
      */
     override suspend fun clearAllAttachments(): Unit = withContext(Dispatchers.IO) {
         attachmentsDir.listFiles()?.forEach { file ->
@@ -113,5 +205,6 @@ class AttachmentManager(
                 file.delete()
             } catch (_: Exception) {}
         }
+        Unit
     }
 }

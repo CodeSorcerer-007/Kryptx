@@ -29,6 +29,10 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_FLAG_SECURE = "flag_secure_enabled"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
         private const val KEY_BREACH_CHECK_NETWORK = "breach_check_network"
+        private const val KEY_VISIBLE_CATEGORIES = "visible_categories"
+        private const val KEY_MINIMALIST_MODE = "minimalist_dashboard_mode"
+        private const val KEY_COMPANION_READ_ONLY = "companion_read_only"
+        private const val KEY_SELECTED_PERSONA = "selected_persona"
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -60,12 +64,35 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     private val _onboardingCompleted = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDING_DONE, false))
     override val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
 
+    private val _visibleCategories = MutableStateFlow(
+        prefs.getStringSet(KEY_VISIBLE_CATEGORIES, null) ?: com.kryptx.app.core.model.ItemType.entries.map { it.name }.toSet()
+    )
+    override val visibleCategories: StateFlow<Set<String>> = _visibleCategories.asStateFlow()
+
+    private val _minimalistDashboardMode = MutableStateFlow(prefs.getBoolean(KEY_MINIMALIST_MODE, false))
+    override val minimalistDashboardMode: StateFlow<Boolean> = _minimalistDashboardMode.asStateFlow()
+
+    private val _webCompanionReadOnly = MutableStateFlow(prefs.getBoolean(KEY_COMPANION_READ_ONLY, false))
+    override val webCompanionReadOnly: StateFlow<Boolean> = _webCompanionReadOnly.asStateFlow()
+
+    private val _selectedPersona = MutableStateFlow(getSavedPersona())
+    override val selectedPersona: StateFlow<UserPersona> = _selectedPersona.asStateFlow()
+
     private fun getSavedThemeMode(): AppThemeMode {
         val name = prefs.getString(KEY_THEME, AppThemeMode.DARK.name) ?: AppThemeMode.DARK.name
         return try {
             AppThemeMode.valueOf(name)
         } catch (e: Exception) {
             AppThemeMode.DARK
+        }
+    }
+
+    private fun getSavedPersona(): UserPersona {
+        val name = prefs.getString(KEY_SELECTED_PERSONA, UserPersona.POWER_USER.name) ?: UserPersona.POWER_USER.name
+        return try {
+            UserPersona.valueOf(name)
+        } catch (e: Exception) {
+            UserPersona.POWER_USER
         }
     }
 
@@ -112,6 +139,28 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     override fun setOnboardingCompleted(completed: Boolean) {
         prefs.edit().putBoolean(KEY_ONBOARDING_DONE, completed).apply()
         _onboardingCompleted.value = completed
+    }
+
+    override fun setVisibleCategories(categories: Set<String>) {
+        prefs.edit().putStringSet(KEY_VISIBLE_CATEGORIES, categories).apply()
+        _visibleCategories.value = categories
+    }
+
+    override fun setMinimalistDashboardMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_MINIMALIST_MODE, enabled).apply()
+        _minimalistDashboardMode.value = enabled
+    }
+
+    override fun setWebCompanionReadOnly(readOnly: Boolean) {
+        prefs.edit().putBoolean(KEY_COMPANION_READ_ONLY, readOnly).apply()
+        _webCompanionReadOnly.value = readOnly
+    }
+
+    override fun setSelectedPersona(persona: UserPersona) {
+        prefs.edit().putString(KEY_SELECTED_PERSONA, persona.name).apply()
+        _selectedPersona.value = persona
+        setVisibleCategories(persona.recommendedCategories)
+        setMinimalistDashboardMode(persona.minimalistDefault)
     }
 
     override fun hasSeenFeatureIntro(featureKey: String): Boolean {

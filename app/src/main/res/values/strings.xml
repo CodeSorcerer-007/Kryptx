@@ -12,4 +12,14 @@
     <string name="vault_title">Vault</string>
     <string name="btn_save">Save to Vault</string>
     <string name="btn_cancel">Cancel</string>
+
+    <!-- App Launcher Shortcuts -->
+    <string name="shortcut_search">Search Vault</string>
+    <string name="shortcut_search_long">Quick Search Credentials</string>
+    <string name="shortcut_add">Add Item</string>
+    <string name="shortcut_add_long">Add New Vault Credential</string>
+    <string name="shortcut_generator">Generator</string>
+    <string name="shortcut_generator_long">Generate Secure Password</string>
+    <string name="shortcut_totp">2FA Codes</string>
+    <string name="shortcut_totp_long">View 2FA Authenticator Codes</string>
 </resources>

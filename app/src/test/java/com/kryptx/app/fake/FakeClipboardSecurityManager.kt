@@ -1,8 +1,14 @@
 package com.kryptx.app.fake
 
 import com.kryptx.app.core.security.IClipboardSecurityManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class FakeClipboardSecurityManager : IClipboardSecurityManager {
+    private val _remainingSeconds = MutableStateFlow(0)
+    override val remainingSeconds: StateFlow<Int> = _remainingSeconds.asStateFlow()
+
     var lastCopiedLabel: String? = null
     var lastCopiedText: String? = null
     var lastTimeoutSeconds: Int = 30

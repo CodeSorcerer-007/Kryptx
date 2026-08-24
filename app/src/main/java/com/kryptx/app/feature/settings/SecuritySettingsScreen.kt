@@ -12,11 +12,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -43,11 +49,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
+import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
+import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.launch
 
@@ -63,6 +72,7 @@ fun SecuritySettingsScreen(
     val clipboardTimeout by viewModel.clipboardTimeout.collectAsState()
     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsState()
     val breachCheckNetworkEnabled by viewModel.breachCheckNetworkEnabled.collectAsState()
+    val hasDuress by viewModel.hasDuress.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -70,6 +80,7 @@ fun SecuritySettingsScreen(
     var showAutoLockDialog by remember { mutableStateOf(false) }
     var showClipboardDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var showDuressDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
@@ -194,8 +205,6 @@ fun SecuritySettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-
-
             // Clipboard timeout
             SettingItemCard(
                 title = "Clipboard Auto-Clear",
@@ -275,6 +284,63 @@ fun SecuritySettingsScreen(
                             }
                         }
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Duress / Decoy Vault Section
+            Text(
+                text = "ANTI-COERCION & DURESS DEFENSE",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .bounceClick(scaleDown = 0.98f, onClick = { showDuressDialog = true })
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background((if (hasDuress) KryptxEmerald else KryptxAmber).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (hasDuress) Icons.Default.Shield else Icons.Default.LockOpen,
+                            contentDescription = null,
+                            tint = if (hasDuress) KryptxEmerald else KryptxAmber,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Duress Decoy Vault PIN",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (hasDuress) "Configured (Entering duress PIN unlocks safe decoy vault)" else "Not Configured (Tap to setup anti-coercion PIN)",
+                            fontSize = 12.sp,
+                            color = if (hasDuress) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -375,6 +441,32 @@ fun SecuritySettingsScreen(
         )
     }
 
+    // Duress PIN Dialog
+    if (showDuressDialog) {
+        DuressPinSetupDialog(
+            isCurrentlyConfigured = hasDuress,
+            onDismiss = { showDuressDialog = false },
+            onSetDuressPin = { pin ->
+                viewModel.setupDuressPassword(
+                    duressPin = pin,
+                    onSuccess = {
+                        showDuressDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("Duress Decoy PIN configured successfully!") }
+                    },
+                    onError = { err ->
+                        scope.launch { snackbarHostState.showSnackbar(err) }
+                    }
+                )
+            },
+            onRemoveDuressPin = {
+                viewModel.removeDuressPassword {
+                    showDuressDialog = false
+                    scope.launch { snackbarHostState.showSnackbar("Duress Decoy PIN disabled") }
+                }
+            }
+        )
+    }
+
     // Change Master Password Dialog
     if (showChangePasswordDialog) {
         ChangeMasterPasswordDialog(
@@ -426,6 +518,97 @@ fun SettingItemCard(
             )
         }
     }
+}
+
+@Composable
+fun DuressPinSetupDialog(
+    isCurrentlyConfigured: Boolean,
+    onDismiss: () -> Unit,
+    onSetDuressPin: (String) -> Unit,
+    onRemoveDuressPin: () -> Unit
+) {
+    var duressPin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Duress Decoy Vault PIN", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column {
+                Text(
+                    text = "If forced under coercion to open your vault, typing this separate Duress PIN on the unlock screen opens a completely isolated decoy database with plausible dummy logins. Your true vault remains 100% secret.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                KryptxTextField(
+                    value = duressPin,
+                    onValueChange = {
+                        duressPin = it
+                        errorMsg = null
+                    },
+                    label = "Duress PIN / Password",
+                    isPassword = true
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                KryptxTextField(
+                    value = confirmPin,
+                    onValueChange = {
+                        confirmPin = it
+                        errorMsg = null
+                    },
+                    label = "Confirm Duress PIN",
+                    isPassword = true
+                )
+
+                if (errorMsg != null) {
+                    Text(
+                        text = errorMsg!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+
+                if (isCurrentlyConfigured) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    KryptxOutlinedButton(
+                        text = "Disable Duress Vault",
+                        borderColor = MaterialTheme.colorScheme.error,
+                        textColor = MaterialTheme.colorScheme.error,
+                        onClick = onRemoveDuressPin,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (duressPin.length < 4) {
+                        errorMsg = "Duress PIN must be at least 4 characters"
+                        return@TextButton
+                    }
+                    if (duressPin != confirmPin) {
+                        errorMsg = "Duress PINs do not match"
+                        return@TextButton
+                    }
+                    onSetDuressPin(duressPin)
+                }
+            ) {
+                Text("Save Duress PIN", color = KryptxBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
@@ -496,5 +679,3 @@ fun ChangeMasterPasswordDialog(
         }
     )
 }
-
-

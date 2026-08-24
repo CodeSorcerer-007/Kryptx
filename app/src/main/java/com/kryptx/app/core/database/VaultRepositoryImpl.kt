@@ -6,6 +6,7 @@ import com.kryptx.app.core.crypto.EntropyCalculator
 import com.kryptx.app.core.crypto.KeyDerivation
 import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.crypto.SecureMemory
+import com.kryptx.app.core.migration.VaultExporter
 import com.kryptx.app.core.model.BackupHeader
 import com.kryptx.app.core.model.EncryptedBackupPayload
 import com.kryptx.app.core.model.IssueSeverity
@@ -279,6 +280,8 @@ class VaultRepositoryImpl(
 
     override fun getItems(): Flow<List<VaultItem>> = dbHelper.itemsFlow
 
+    override fun getTrashItems(): Flow<List<VaultItem>> = dbHelper.trashFlow
+
     override suspend fun getItemById(id: String): VaultItem? = withContext(Dispatchers.IO) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext null
         dbHelper.loadItemById(id, activeVek)
@@ -302,6 +305,50 @@ class VaultRepositoryImpl(
             }
         } catch (e: Exception) {
             KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to save item", e)
+        }
+    }
+
+    override suspend fun moveToTrash(itemId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val success = dbHelper.moveToTrash(itemId, activeVek)
+            if (success) {
+                isAuditDirty = true
+                KryptxResult.Success(Unit)
+            } else {
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to move item to trash")
+            }
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to move item to trash", e)
+        }
+    }
+
+    override suspend fun restoreFromTrash(itemId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val success = dbHelper.restoreFromTrash(itemId, activeVek)
+            if (success) {
+                isAuditDirty = true
+                KryptxResult.Success(Unit)
+            } else {
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to restore item from trash")
+            }
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to restore item from trash", e)
+        }
+    }
+
+    override suspend fun emptyTrash(): KryptxResult<Int> = withContext(Dispatchers.IO) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+        return@withContext try {
+            val deletedCount = dbHelper.emptyTrash(activeVek)
+            isAuditDirty = true
+            KryptxResult.Success(deletedCount)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to empty trash", e)
         }
     }
 
@@ -558,6 +605,7 @@ class VaultRepositoryImpl(
 
             val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
             val ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
+            val checksum = VaultExporter.computeSha256Checksum(ciphertextBase64)
 
             SecureMemory.wipe(derivedKey)
             SecureMemory.wipe(salt)
@@ -565,13 +613,14 @@ class VaultRepositoryImpl(
             val header = BackupHeader(
                 app = "Kryptx",
                 version = "1.1.0",
-                formatVersion = 1,
+                formatVersion = 2,
                 exportedAt = System.currentTimeMillis(),
                 isEncrypted = true,
                 kdfAlgorithm = "PBKDF2WithHmacSHA256",
                 kdfIterations = KeyDerivation.DEFAULT_ITERATIONS,
                 saltBase64 = saltBase64,
-                ivBase64 = ""
+                ivBase64 = "",
+                checksumSha256 = checksum
             )
 
             KryptxResult.Success(EncryptedBackupPayload(header, ciphertextBase64))
@@ -596,6 +645,16 @@ class VaultRepositoryImpl(
         importPassword: CharArray
     ): KryptxResult<Int> = withContext(Dispatchers.Default) {
         return@withContext try {
+            // Verify integrity checksum if present in header
+            if (!payload.header.checksumSha256.isNullOrBlank()) {
+                if (!VaultExporter.verifySha256Checksum(payload.ciphertextBase64, payload.header.checksumSha256)) {
+                    return@withContext KryptxResult.Error(
+                        KryptxErrorType.IMPORT_PARSE_FAILED,
+                        "Backup archive integrity checksum verification failed (corrupted or tampered payload)"
+                    )
+                }
+            }
+
             val salt = Base64.decode(payload.header.saltBase64, Base64.NO_WRAP)
             val derivedKey = KeyDerivation.deriveKey(importPassword, salt, payload.header.kdfIterations)
             val ciphertext = Base64.decode(payload.ciphertextBase64, Base64.NO_WRAP)
@@ -640,5 +699,18 @@ class VaultRepositoryImpl(
         sessionManager.lock()
         keystoreManager.removeBiometricKey()
         dbHelper.clearAllData()
+    }
+
+    override fun getDatabaseDiagnostics(): KryptxDatabaseHelper.DatabaseDiagnostics {
+        return dbHelper.runDiagnostics()
+    }
+
+    override suspend fun vacuumDatabase(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        try {
+            dbHelper.vacuumDatabase()
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to optimize database", e)
+        }
     }
 }

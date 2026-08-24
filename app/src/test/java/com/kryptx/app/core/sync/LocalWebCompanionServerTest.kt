@@ -24,6 +24,21 @@ class LocalWebCompanionServerTest {
         assertEquals(6, server.currentPin.length)
         assertTrue(server.currentPin.all { it.isDigit() })
         assertTrue(session?.url?.startsWith("http://") == true)
+        assertTrue(session?.localDomainUrl?.contains("kryptx.local") == true)
+
+        server.stopServer()
+        assertFalse(server.isServerRunning())
+    }
+
+    @Test
+    fun testReadOnlyMode() = runTest {
+        val fakeRepo = FakeVaultRepository()
+        val server = LocalWebCompanionServer(fakeRepo)
+
+        val session = server.startServer(isReadOnly = true)
+        assertNotNull(session)
+        assertTrue(server.isReadOnlyMode)
+        assertTrue(session?.isReadOnly == true)
 
         server.stopServer()
         assertFalse(server.isServerRunning())

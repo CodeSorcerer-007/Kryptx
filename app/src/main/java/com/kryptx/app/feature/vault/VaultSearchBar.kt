@@ -118,13 +118,13 @@ fun VaultSearchBar(
             }
         }
 
-        // Inline Instant Search TextField when expanded
+        // Inline Instant Search TextField & Dynamic Filter Pills when expanded
         AnimatedVisibility(
             visible = isSearchExpanded,
             enter = slideInVertically() + fadeIn(),
             exit = slideOutVertically() + fadeOut()
         ) {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
@@ -132,7 +132,7 @@ fun VaultSearchBar(
                 KryptxTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChange,
-                    placeholder = "Filter by title, username, domain, tag...",
+                    placeholder = "Filter by title, domain, or tag (e.g. is:weak, has:2fa)...",
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
@@ -154,6 +154,59 @@ fun VaultSearchBar(
                         }
                     } else null
                 )
+
+                // Quick Dynamic Search Filter Syntax Pills
+                androidx.compose.foundation.lazy.LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val pills = listOf(
+                        "is:fav" to "⭐ Favorites",
+                        "is:weak" to "⚠️ Weak",
+                        "has:2fa" to "🔑 2FA",
+                        "expiring:30d" to "⏰ Expiring",
+                        "type:login" to "Logins",
+                        "type:card" to "Cards",
+                        "type:wifi" to "Wi-Fi",
+                        "type:passkey" to "Passkeys",
+                        "type:secure_note" to "Notes"
+                    )
+                    items(pills.size) { index ->
+                        val (token, label) = pills[index]
+                        val isSelected = searchQuery.contains(token)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) KryptxCyan.copy(alpha = 0.2f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) KryptxCyan.copy(alpha = 0.6f)
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    val updated = if (isSelected) {
+                                        searchQuery.replace(token, "").replace(Regex("\\s+"), " ").trim()
+                                    } else {
+                                        (searchQuery.trim() + " " + token).trim()
+                                    }
+                                    onSearchQueryChange(updated)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                color = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }

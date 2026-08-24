@@ -70,6 +70,16 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
     private val secureRandom = SecureRandom()
     private val _itemsFlow = MutableStateFlow<List<VaultItem>>(emptyList())
     val itemsFlow: Flow<List<VaultItem>> = _itemsFlow.asStateFlow()
+    private val _trashFlow = MutableStateFlow<List<VaultItem>>(emptyList())
+    val trashFlow: Flow<List<VaultItem>> = _trashFlow.asStateFlow()
+
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        try {
+            db.enableWriteAheadLogging()
+            db.execSQL("PRAGMA auto_vacuum = FULL")
+        } catch (_: Exception) {}
+    }
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -121,6 +131,8 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         // Performance indices — created at table creation time for fresh installs
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_decoy_items_updated ON $TABLE_DECOY_ITEMS($COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
     }
@@ -132,6 +144,8 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
             try {
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_decoy_items_updated ON $TABLE_DECOY_ITEMS($COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
             } catch (_: Exception) {
@@ -222,7 +236,12 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
     }
 
     suspend fun loadAllItems(vaultKey: ByteArray): List<VaultItem> = withContext(Dispatchers.IO) {
-        val items = mutableListOf<VaultItem>()
+        val activeItems = mutableListOf<VaultItem>()
+        val trashItems = mutableListOf<VaultItem>()
+        val expiredTrashIds = mutableListOf<String>()
+        val now = System.currentTimeMillis()
+        val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000L
+
         val db = readableDatabase
         val cursor = db.query(
             TABLE_VAULT_ITEMS,
@@ -247,14 +266,35 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
                         CryptoEngine.decryptString(encryptedPayload, vaultKey, null)
                     }
                     val item = json.decodeFromString<VaultItem>(decryptedJson)
-                    items.add(item)
+                    if (item.isDeleted) {
+                        val deletedAt = item.deletedAt ?: now
+                        if (now - deletedAt > thirtyDaysMs) {
+                            expiredTrashIds.add(itemId)
+                        } else {
+                            trashItems.add(item)
+                        }
+                    } else {
+                        activeItems.add(item)
+                    }
                 } catch (_: Exception) {
                 }
             }
         }
 
-        _itemsFlow.value = items
-        items
+        // Auto-purge items in trash older than 30 days
+        if (expiredTrashIds.isNotEmpty()) {
+            val writeDb = writableDatabase
+            for (id in expiredTrashIds) {
+                try {
+                    writeDb.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(id))
+                } catch (_: Exception) {
+                }
+            }
+        }
+
+        _itemsFlow.value = activeItems
+        _trashFlow.value = trashItems
+        activeItems
     }
 
     suspend fun saveItem(item: VaultItem, vaultKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
@@ -284,14 +324,27 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         )
 
         if (result != -1L) {
-            val currentList = _itemsFlow.value.toMutableList()
-            val index = currentList.indexOfFirst { it.id == item.id }
-            if (index >= 0) {
-                currentList[index] = item
+            if (item.isDeleted) {
+                val currentTrash = _trashFlow.value.toMutableList()
+                val index = currentTrash.indexOfFirst { it.id == item.id }
+                if (index >= 0) {
+                    currentTrash[index] = item
+                } else {
+                    currentTrash.add(0, item)
+                }
+                _trashFlow.value = currentTrash
+                _itemsFlow.value = _itemsFlow.value.filter { it.id != item.id }
             } else {
-                currentList.add(0, item)
+                val currentList = _itemsFlow.value.toMutableList()
+                val index = currentList.indexOfFirst { it.id == item.id }
+                if (index >= 0) {
+                    currentList[index] = item
+                } else {
+                    currentList.add(0, item)
+                }
+                _itemsFlow.value = currentList
+                _trashFlow.value = _trashFlow.value.filter { it.id != item.id }
             }
-            _itemsFlow.value = currentList
             true
         } else {
             false
@@ -347,7 +400,65 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
     }
 
     /**
-     * Deletes an item with defensive zero-overwriting before row removal.
+     * Soft-deletes an item into the encrypted trash bin with a timestamp.
+     */
+    suspend fun moveToTrash(itemId: String, vaultKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
+        val currentItem = _itemsFlow.value.firstOrNull { it.id == itemId }
+            ?: loadItemById(itemId, vaultKey)
+            ?: return@withContext false
+        val trashedItem = currentItem.copy(
+            deletedAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis()
+        )
+        saveItem(trashedItem, vaultKey)
+    }
+
+    /**
+     * Restores an item from the encrypted trash bin back to the active vault.
+     */
+    suspend fun restoreFromTrash(itemId: String, vaultKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
+        val currentItem = _trashFlow.value.firstOrNull { it.id == itemId }
+            ?: loadItemById(itemId, vaultKey)
+            ?: return@withContext false
+        val restoredItem = currentItem.copy(
+            deletedAt = null,
+            updatedAt = System.currentTimeMillis()
+        )
+        saveItem(restoredItem, vaultKey)
+    }
+
+    /**
+     * Empties all items currently in the trash bin permanently.
+     */
+    suspend fun emptyTrash(vaultKey: ByteArray): Int = withContext(Dispatchers.IO) {
+        val trashItems = _trashFlow.value.toList()
+        var deletedCount = 0
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (item in trashItems) {
+                // Defensive overwrite
+                try {
+                    val randomJunk = ByteArray(128)
+                    secureRandom.nextBytes(randomJunk)
+                    val wipeValues = ContentValues().apply {
+                        put(COL_ENCRYPTED_PAYLOAD, android.util.Base64.encodeToString(randomJunk, android.util.Base64.NO_WRAP))
+                    }
+                    db.update(TABLE_VAULT_ITEMS, wipeValues, "$COL_ID = ?", arrayOf(item.id))
+                } catch (_: Exception) {}
+                val rows = db.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(item.id))
+                if (rows > 0) deletedCount++
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        _trashFlow.value = emptyList()
+        deletedCount
+    }
+
+    /**
+     * Permanently deletes an item with defensive zero-overwriting before row removal.
      */
     suspend fun deleteItem(itemId: String): Boolean = withContext(Dispatchers.IO) {
         val db = writableDatabase
@@ -367,6 +478,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         val rows = db.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(itemId))
         if (rows > 0) {
             _itemsFlow.value = _itemsFlow.value.filter { it.id != itemId }
+            _trashFlow.value = _trashFlow.value.filter { it.id != itemId }
             true
         } else {
             false

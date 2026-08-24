@@ -50,13 +50,7 @@ class SearchViewModel(
         }
 
         if (q.isNotBlank()) {
-            list = list.filter {
-                it.title.lowercase().contains(q) ||
-                        it.username.lowercase().contains(q) ||
-                        it.website.lowercase().contains(q) ||
-                        it.notes.lowercase().contains(q) ||
-                        it.tags.any { tag -> tag.lowercase().contains(q) }
-            }
+            list = com.kryptx.app.core.model.SearchQueryParser.filter(list, q)
         }
 
         list
