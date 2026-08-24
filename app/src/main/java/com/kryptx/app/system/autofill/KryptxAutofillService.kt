@@ -231,17 +231,13 @@ class KryptxAutofillService : AutofillService() {
     companion object {
         fun sanitizeDomain(urlOrDomain: String): String {
             if (urlOrDomain.isBlank()) return ""
-            return try {
-                val url = if (!urlOrDomain.startsWith("http://") && !urlOrDomain.startsWith("https://")) {
-                    "https://$urlOrDomain"
-                } else {
-                    urlOrDomain
-                }
-                val host = URI(url).host ?: urlOrDomain
-                host.removePrefix("www.").lowercase().trim()
-            } catch (_: Exception) {
-                urlOrDomain.removePrefix("www.").lowercase().trim()
-            }
+            val clean = urlOrDomain.trim().lowercase()
+                .removePrefix("androidapp://")
+                .removePrefix("http://")
+                .removePrefix("https://")
+                .removePrefix("www.")
+            val host = clean.substringBefore("/").substringBefore("?").substringBefore("#").substringBefore(":")
+            return host.removePrefix("www.").trim()
         }
 
         /**

@@ -1,5 +1,6 @@
 package com.kryptx.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -19,6 +20,7 @@ enum class IssueType {
     MISSING_2FA
 }
 
+@Immutable
 @Serializable
 data class SecurityIssue(
     val id: String,
@@ -32,12 +34,14 @@ data class SecurityIssue(
     val recommendation: String
 )
 
+@Immutable
 @Serializable
 data class SecurityScoreHistoryPoint(
     val timestamp: Long,
     val score: Int
 )
 
+@Immutable
 @Serializable
 data class SecurityAuditReport(
     val overallScore: Int,

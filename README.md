@@ -10,7 +10,7 @@
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-270%20Passing%20(100%25)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="270 Unit Tests Passing" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions"><img src="https://img.shields.io/badge/Unit%20Tests-340%20Passing%20(100%25)-00E5FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="340 Unit Tests Passing" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge" alt="Zero Trackers" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
@@ -233,7 +233,7 @@ app/src/main/java/com/kryptx/app/
 - JDK 21+
 - Android SDK 36 (Android 16)
 
-### Run Unit Tests (270 Passing)
+### Run Unit Tests (340 Passing)
 ```bash
 ./gradlew testDebugUnitTest
 ```

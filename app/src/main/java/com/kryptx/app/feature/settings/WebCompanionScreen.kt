@@ -79,6 +79,7 @@ fun WebCompanionScreen(
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val view = LocalView.current
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
 

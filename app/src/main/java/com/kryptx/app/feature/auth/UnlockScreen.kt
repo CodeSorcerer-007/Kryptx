@@ -162,6 +162,41 @@ fun UnlockScreen(
                     }
                 )
 
+                if (uiState.isHardwareKeyRequired) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(KryptxBlue.copy(alpha = 0.12f))
+                            .border(1.dp, KryptxBlue.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(KryptxBlue)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Physical Security Key Required (${uiState.hardwareKeyLabel ?: "YubiKey / FIDO2"})",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = KryptxBlue
+                                )
+                                Text(
+                                    text = "Enter password above, then tap your NFC security key against device to unlock.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
                 if (uiState.errorMessage != null) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(

@@ -139,6 +139,72 @@ object PostQuantumEngine {
     }
 
     /**
+     * Data class holding a Post-Quantum Digital Signature key pair.
+     */
+    data class PqcSignatureKeyPair(
+        val publicKey: ByteArray,
+        val privateKey: ByteArray
+    ) {
+        val publicKeyBase64: String get() = Base64.getEncoder().encodeToString(publicKey)
+        val privateKeyBase64: String get() = Base64.getEncoder().encodeToString(privateKey)
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+            other as PqcSignatureKeyPair
+            return publicKey.contentEquals(other.publicKey) && privateKey.contentEquals(other.privateKey)
+        }
+
+        override fun hashCode(): Int {
+            var result = publicKey.contentHashCode()
+            result = 31 * result + privateKey.contentHashCode()
+            return result
+        }
+    }
+
+    /**
+     * Generates a quantum-resistant ML-DSA-65 (FIPS 204) digital signature key pair.
+     */
+    fun generateSignatureKeyPair(): PqcSignatureKeyPair {
+        val keyGen = org.bouncycastle.pqc.crypto.mldsa.MLDSAKeyPairGenerator()
+        val params = org.bouncycastle.pqc.crypto.mldsa.MLDSAParameters.ml_dsa_65
+        keyGen.init(org.bouncycastle.pqc.crypto.mldsa.MLDSAKeyGenerationParameters(secureRandom, params))
+        val pair = keyGen.generateKeyPair()
+
+        val pub = (pair.public as org.bouncycastle.pqc.crypto.mldsa.MLDSAPublicKeyParameters).encoded
+        val priv = (pair.private as org.bouncycastle.pqc.crypto.mldsa.MLDSAPrivateKeyParameters).encoded
+        return PqcSignatureKeyPair(publicKey = pub, privateKey = priv)
+    }
+
+    /**
+     * Cryptographically signs data using an ML-DSA-65 private key.
+     */
+    fun sign(data: ByteArray, privateKeyBytes: ByteArray): ByteArray {
+        val params = org.bouncycastle.pqc.crypto.mldsa.MLDSAParameters.ml_dsa_65
+        val privParams = org.bouncycastle.pqc.crypto.mldsa.MLDSAPrivateKeyParameters(params, privateKeyBytes)
+        val signer = org.bouncycastle.pqc.crypto.mldsa.MLDSASigner()
+        signer.init(true, privParams)
+        signer.update(data, 0, data.size)
+        return signer.generateSignature()
+    }
+
+    /**
+     * Verifies an ML-DSA-65 post-quantum digital signature against the public key.
+     */
+    fun verifySignature(data: ByteArray, signature: ByteArray, publicKeyBytes: ByteArray): Boolean {
+        return try {
+            val params = org.bouncycastle.pqc.crypto.mldsa.MLDSAParameters.ml_dsa_65
+            val pubParams = org.bouncycastle.pqc.crypto.mldsa.MLDSAPublicKeyParameters(params, publicKeyBytes)
+            val signer = org.bouncycastle.pqc.crypto.mldsa.MLDSASigner()
+            signer.init(false, pubParams)
+            signer.update(data, 0, data.size)
+            signer.verifySignature(signature)
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /**
      * Encrypts data with Post-Quantum Hybrid protection.
      * Returns: [PQC Encapsulation Header] + [AES-256-GCM Ciphertext].
      */

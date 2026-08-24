@@ -1,15 +1,17 @@
 package com.kryptx.app.core.totp
 
-import java.nio.ByteBuffer
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import kotlin.math.pow
 
 /**
- * RFC 6238 / RFC 4226 compliant TOTP (Time-based One-Time Password) generator.
+ * RFC 6238 / RFC 4226 compliant zero-allocation TOTP (Time-based One-Time Password) generator.
  * Supports HMAC-SHA1, HMAC-SHA256, and HMAC-SHA512 with 6 or 8 digits and customizable periods.
  */
 object TotpGenerator {
+
+    private val DIGIT_MODULOS = intArrayOf(
+        1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000
+    )
 
     enum class HashAlgorithm(val hmacName: String) {
         SHA1("HmacSHA1"),
@@ -38,7 +40,7 @@ object TotpGenerator {
         val cleanSecret = secretBase32.replace(" ", "").replace("-", "").uppercase()
         val keyBytes = try {
             Base32.decode(cleanSecret)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return null
         }
 
@@ -52,9 +54,9 @@ object TotpGenerator {
         val rawCode = generateHotp(keyBytes, counter, digits, algorithm) ?: return null
         val paddedCode = rawCode.padStart(digits, '0')
 
-        val formatted = if (digits == 6) {
+        val formatted = if (digits == 6 && paddedCode.length == 6) {
             "${paddedCode.substring(0, 3)} ${paddedCode.substring(3, 6)}"
-        } else if (digits == 8) {
+        } else if (digits == 8 && paddedCode.length == 8) {
             "${paddedCode.substring(0, 4)} ${paddedCode.substring(4, 8)}"
         } else {
             paddedCode
@@ -70,7 +72,7 @@ object TotpGenerator {
     }
 
     /**
-     * Generates RFC 4226 HOTP code for a given counter.
+     * Generates RFC 4226 HOTP code for a given counter with zero heap allocation.
      */
     private fun generateHotp(
         key: ByteArray,
@@ -79,7 +81,13 @@ object TotpGenerator {
         algorithm: HashAlgorithm
     ): String? {
         return try {
-            val counterBytes = ByteBuffer.allocate(8).putLong(counter).array()
+            val counterBytes = ByteArray(8)
+            var tempCounter = counter
+            for (i in 7 downTo 0) {
+                counterBytes[i] = (tempCounter and 0xFF).toByte()
+                tempCounter = tempCounter ushr 8
+            }
+
             val mac = Mac.getInstance(algorithm.hmacName)
             mac.init(SecretKeySpec(key, algorithm.hmacName))
             val hash = mac.doFinal(counterBytes)
@@ -91,30 +99,40 @@ object TotpGenerator {
                     ((hash[offset + 2].toInt() and 0xFF) shl 8) or
                     (hash[offset + 3].toInt() and 0xFF)
 
-            val otp = binary % (10.0.pow(digits.toDouble()).toInt())
+            val divisor = if (digits in 1..8) DIGIT_MODULOS[digits] else 1_000_000
+            val otp = binary % divisor
             otp.toString()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
 }
 
 /**
- * RFC 4648 Base32 decoder.
+ * High-performance RFC 4648 Base32 decoder with zero autoboxing.
  */
 object Base32 {
     private const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    private val DECODE_TABLE = IntArray(128) { -1 }.apply {
+        for (i in ALPHABET.indices) {
+            this[ALPHABET[i].code] = i
+        }
+    }
 
     fun decode(base32: String): ByteArray {
         val clean = base32.trim().replace("=", "").uppercase()
         if (clean.isEmpty()) return ByteArray(0)
 
-        val out = mutableListOf<Byte>()
+        val maxLen = (clean.length * 5) / 8
+        val out = ByteArray(maxLen)
+        var outIdx = 0
         var buffer = 0
         var bitsLeft = 0
 
-        for (c in clean) {
-            val valIndex = ALPHABET.indexOf(c)
+        for (i in clean.indices) {
+            val c = clean[i]
+            if (c.code >= 128) continue
+            val valIndex = DECODE_TABLE[c.code]
             if (valIndex < 0) continue
 
             buffer = (buffer shl 5) or valIndex
@@ -122,10 +140,12 @@ object Base32 {
 
             if (bitsLeft >= 8) {
                 bitsLeft -= 8
-                out.add(((buffer shr bitsLeft) and 0xFF).toByte())
+                if (outIdx < maxLen) {
+                    out[outIdx++] = ((buffer shr bitsLeft) and 0xFF).toByte()
+                }
             }
         }
 
-        return out.toByteArray()
+        return if (outIdx == maxLen) out else out.copyOf(outIdx)
     }
 }

@@ -21,10 +21,22 @@ interface VaultRepository {
     fun getBiometricEncryptCipher(): Cipher?
     suspend fun disableBiometrics()
     suspend fun changeMasterPassword(currentPassword: CharArray, newPassword: CharArray): KryptxResult<Unit>
+    suspend fun rotateVaultEncryptionKey(currentMasterPassword: CharArray): KryptxResult<Unit>
 
     fun hasDuressPassword(): Boolean
     suspend fun setupDuressPassword(duressPassword: CharArray): KryptxResult<Unit>
     suspend fun removeDuressPassword()
+
+    fun isHardwareKeyEnrolled(): Boolean
+    fun getHardwareKeyLabel(): String?
+    fun getHardwareKeyChallenge(): ByteArray?
+    fun getHardwareKeyUidHash(): String?
+    suspend fun enrollHardwareKey(label: String, uidHash: String, challenge: ByteArray, hardwareSecret: ByteArray, masterPassword: CharArray): KryptxResult<Unit>
+    suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit>
+    suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit>
+
+    fun getActiveVaultId(): String
+    suspend fun switchVault(vaultId: String): KryptxResult<Unit>
 
     fun getItems(): Flow<List<VaultItem>>
     fun getTrashItems(): Flow<List<VaultItem>>

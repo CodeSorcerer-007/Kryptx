@@ -70,4 +70,33 @@ class PostQuantumEngineTest {
 
         assertFalse(encapsulated.sharedSecret.contentEquals(eveSecret))
     }
+
+    @Test
+    fun testPostQuantumSignatureGenerationAndVerification() {
+        val signKeyPair = PostQuantumEngine.generateSignatureKeyPair()
+        assertNotNull(signKeyPair.publicKey)
+        assertNotNull(signKeyPair.privateKey)
+        assertTrue(signKeyPair.publicKey.isNotEmpty())
+        assertTrue(signKeyPair.privateKey.isNotEmpty())
+
+        val message = "Kryptx-P2P-Sync-Handshake-Block-2026".toByteArray(StandardCharsets.UTF_8)
+        val signature = PostQuantumEngine.sign(message, signKeyPair.privateKey)
+
+        assertNotNull(signature)
+        assertTrue(signature.isNotEmpty())
+
+        // Verify valid signature
+        val isValid = PostQuantumEngine.verifySignature(message, signature, signKeyPair.publicKey)
+        assertTrue("Signature should be valid against original data", isValid)
+
+        // Verify tampered message is rejected
+        val tamperedMessage = "Kryptx-P2P-Sync-Handshake-Block-TAMPERED".toByteArray(StandardCharsets.UTF_8)
+        val isTamperedValid = PostQuantumEngine.verifySignature(tamperedMessage, signature, signKeyPair.publicKey)
+        assertFalse("Tampered message signature should be rejected", isTamperedValid)
+
+        // Verify signature fails with different public key
+        val differentKeyPair = PostQuantumEngine.generateSignatureKeyPair()
+        val isWrongKeyValid = PostQuantumEngine.verifySignature(message, signature, differentKeyPair.publicKey)
+        assertFalse("Signature should be invalid with different public key", isWrongKeyValid)
+    }
 }

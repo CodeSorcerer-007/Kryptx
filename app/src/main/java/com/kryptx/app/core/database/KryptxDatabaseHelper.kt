@@ -64,6 +64,11 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         const val KEY_DURESS_SALT = "duress_kdf_salt"
         const val KEY_DURESS_TOKEN = "duress_verification_token"
         const val KEY_HAS_DURESS = "has_duress_setup"
+        const val KEY_HARDWARE_KEY_ENROLLED = "hardware_key_enrolled"
+        const val KEY_HARDWARE_KEY_UID_HASH = "hardware_key_uid_hash"
+        const val KEY_HARDWARE_KEY_LABEL = "hardware_key_label"
+        const val KEY_HARDWARE_KEY_CHALLENGE = "hardware_key_challenge"
+        const val KEY_ACTIVE_VAULT = "active_vault_id"
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -78,6 +83,10 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         try {
             db.enableWriteAheadLogging()
             db.execSQL("PRAGMA auto_vacuum = FULL")
+            db.execSQL("PRAGMA mmap_size = 268435456") // 256MB memory mapping for zero-copy queries
+            db.execSQL("PRAGMA temp_store = MEMORY")   // RAM-only temp tables & indices
+            db.execSQL("PRAGMA synchronous = NORMAL")  // Maximum write throughput with WAL safety
+            db.execSQL("PRAGMA secure_delete = FAST")  // Cryptographic block overwrite on delete
         } catch (_: Exception) {}
     }
 
@@ -397,6 +406,65 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         }
 
         successCount
+    }
+
+    /**
+     * Atomically decrypts all vault items using oldKey and re-encrypts with newKey within a single
+     * SQLite transaction. If any decryption or re-encryption operation fails, the transaction is
+     * immediately rolled back to maintain complete data integrity.
+     */
+    suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val itemsToUpdate = mutableListOf<Pair<String, String>>()
+
+        val cursor = db.query(
+            TABLE_VAULT_ITEMS,
+            arrayOf(COL_ID, COL_ENCRYPTED_PAYLOAD),
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val itemId = it.getString(0)
+                val encryptedPayload = it.getString(1)
+                val aad = itemId.toByteArray(Charsets.UTF_8)
+                val decryptedJson = try {
+                    CryptoEngine.decryptString(encryptedPayload, oldKey, aad)
+                } catch (_: Exception) {
+                    CryptoEngine.decryptString(encryptedPayload, oldKey, null)
+                }
+                val newEncryptedPayload = CryptoEngine.encryptString(decryptedJson, newKey, aad)
+                itemsToUpdate.add(Pair(itemId, newEncryptedPayload))
+            }
+        }
+
+        var updatedCount = 0
+        db.beginTransaction()
+        try {
+            for ((itemId, newPayload) in itemsToUpdate) {
+                val values = ContentValues().apply {
+                    put(COL_ENCRYPTED_PAYLOAD, newPayload)
+                    put(COL_UPDATED_AT, secureRandom.nextLong())
+                }
+                val rows = db.update(
+                    TABLE_VAULT_ITEMS,
+                    values,
+                    "$COL_ID = ?",
+                    arrayOf(itemId)
+                )
+                if (rows > 0) updatedCount++
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+
+        loadAllItems(newKey)
+        updatedCount
     }
 
     /**

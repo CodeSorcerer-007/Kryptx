@@ -33,6 +33,17 @@ class HardwareSecurityKeyManager(
     }
 
     /**
+     * Blends physical hardware token challenge-response bytes with the standard KDF salt
+     * to form a hardware-bound master derivation salt.
+     */
+    fun deriveHardwareBoundSalt(baseSalt: ByteArray, hardwareResponse: ByteArray): ByteArray {
+        val md = MessageDigest.getInstance("SHA-256")
+        md.update(baseSalt)
+        md.update(hardwareResponse)
+        return md.digest()
+    }
+
+    /**
      * Verifies and processes an NFC tag against the enrolled hardware security key.
      * Returns the derived hardware secret bytes or null if invalid/mismatched.
      */
@@ -52,6 +63,22 @@ class HardwareSecurityKeyManager(
         }
 
         return rawResponse
+    }
+
+    /**
+     * Enrolls a physical security key by reading its tag UID and generating an initial challenge.
+     */
+    fun enrollTag(tag: Tag, label: String = "Primary Security Key"): Pair<KeyPairingState, ByteArray>? {
+        val challenge = generateFreshChallenge()
+        val response = NfcHardwareKeyManager.processNfcChallenge(tag, challenge) ?: return null
+        val tagHash = hashTagUid(tag.id)
+        val state = KeyPairingState(
+            isEnrolled = true,
+            keyLabel = label,
+            pairedKeyUidHash = tagHash,
+            challengeSalt = Base64.getEncoder().encodeToString(challenge)
+        )
+        return Pair(state, response)
     }
 
     /**

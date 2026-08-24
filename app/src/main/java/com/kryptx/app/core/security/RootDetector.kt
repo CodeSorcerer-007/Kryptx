@@ -91,9 +91,17 @@ object RootDetector {
             val mapsFile = File("/proc/self/maps")
             if (mapsFile.exists()) {
                 val mapsContent = mapsFile.readText()
-                if (mapsContent.contains("frida") || mapsContent.contains("xposed") || mapsContent.contains("substrate")) {
+                if (mapsContent.contains("frida") || mapsContent.contains("xposed") || mapsContent.contains("substrate") || mapsContent.contains("gum-js")) {
                     indicators.add("Runtime hooking framework detected in memory maps")
                 }
+            }
+        } catch (_: Throwable) {}
+
+        // 5b. Check for LD_PRELOAD injection
+        try {
+            val ldPreload = System.getenv("LD_PRELOAD")
+            if (!ldPreload.isNullOrBlank()) {
+                indicators.add("LD_PRELOAD injection detected: $ldPreload")
             }
         } catch (_: Throwable) {}
 

@@ -9,21 +9,32 @@ import java.util.Arrays
  */
 object SecureMemory {
 
+    @Volatile
+    private var memoryFence: Int = 0
+
     /**
-     * Overwrites a CharArray with null characters ('\0').
+     * Overwrites a CharArray with null characters ('\0') with a hardware/JIT memory barrier.
      */
     fun wipe(chars: CharArray?) {
         if (chars != null) {
             Arrays.fill(chars, '\u0000')
+            // JIT dead-store elimination compiler barrier
+            if (chars.isNotEmpty()) {
+                memoryFence = memoryFence xor chars[0].code
+            }
         }
     }
 
     /**
-     * Overwrites a ByteArray with zeros.
+     * Overwrites a ByteArray with zeros with a hardware/JIT memory barrier.
      */
     fun wipe(bytes: ByteArray?) {
         if (bytes != null) {
             Arrays.fill(bytes, 0.toByte())
+            // JIT dead-store elimination compiler barrier
+            if (bytes.isNotEmpty()) {
+                memoryFence = memoryFence xor bytes[0].toInt()
+            }
         }
     }
 
@@ -58,6 +69,26 @@ object SecureMemory {
             result = result or (a[i].code xor b[i].code)
         }
         return result == 0
+    }
+
+    /**
+     * Constant-time comparison between two Strings to prevent timing attacks on tokens/PINs.
+     */
+    fun safeEquals(a: String?, b: String?): Boolean {
+        if (a == null || b == null) return a === b
+        if (a.length != b.length) return false
+        var result = 0
+        for (i in 0 until a.length) {
+            result = result or (a[i].code xor b[i].code)
+        }
+        return result == 0
+    }
+
+    /**
+     * Constant-time comparison between two Ints.
+     */
+    fun safeEquals(a: Int, b: Int): Boolean {
+        return (a xor b) == 0
     }
 
     /**

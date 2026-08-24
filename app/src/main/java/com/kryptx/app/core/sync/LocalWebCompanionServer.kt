@@ -298,6 +298,12 @@ class LocalWebCompanionServer(
             // Clean expired sessions
             cleanExpiredSessions()
 
+            // CSRF & Cross-Origin Validation for all API requests
+            if (path.startsWith("/api/") && !validateOrigin(headers)) {
+                serveJson(writer, 403, """{"error":"Cross-Origin Request Blocked for Security"}""")
+                return
+            }
+
             when {
                 // Root HTML Single-Page Application
                 method == "GET" && (path == "/" || path.startsWith("/?")) -> {
@@ -349,9 +355,22 @@ class LocalWebCompanionServer(
         }
     }
 
+    /**
+     * Validates that API requests originate from legitimate local network origins, preventing CSRF/DNS rebinding.
+     */
+    fun validateOrigin(headers: Map<String, String>): Boolean {
+        val origin = headers["origin"] ?: headers["referer"] ?: return true
+        val lower = origin.lowercase()
+        return lower.contains("localhost") ||
+                lower.contains("127.0.0.1") ||
+                lower.contains("kryptx.local") ||
+                (localIpAddress.isNotBlank() && lower.contains(localIpAddress))
+    }
+
     private fun handleAuth(body: String, writer: PrintWriter) {
-        if (failedPinAttempts >= 5) {
+        if (failedPinAttempts >= 3) {
             serveJson(writer, 429, """{"error":"Too many failed attempts. Restart Companion from phone."}""")
+            scope.launch { stopServer() }
             return
         }
 
@@ -368,10 +387,7 @@ class LocalWebCompanionServer(
         }
 
         val isPinMatch = pinSubmitted.isNotBlank() && currentPin.isNotBlank() &&
-            java.security.MessageDigest.isEqual(
-                pinSubmitted.toByteArray(Charsets.UTF_8),
-                currentPin.toByteArray(Charsets.UTF_8)
-            )
+            com.kryptx.app.core.crypto.SecureMemory.safeEquals(pinSubmitted, currentPin)
 
         if (isPinMatch) {
             failedPinAttempts = 0
@@ -380,7 +396,12 @@ class LocalWebCompanionServer(
             serveJson(writer, 200, """{"token":"$token","expiresIn":300}""")
         } else {
             failedPinAttempts++
-            serveJson(writer, 401, """{"error":"Invalid PIN code. Attempt $failedPinAttempts of 5."}""")
+            if (failedPinAttempts >= 3) {
+                serveJson(writer, 429, """{"error":"Maximum failed PIN attempts reached. Companion server locked down."}""")
+                scope.launch { stopServer() }
+            } else {
+                serveJson(writer, 401, """{"error":"Invalid PIN code. Attempt $failedPinAttempts of 3."}""")
+            }
         }
     }
 

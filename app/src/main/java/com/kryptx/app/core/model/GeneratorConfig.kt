@@ -1,5 +1,6 @@
 package com.kryptx.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -17,6 +18,7 @@ enum class UsernameStyle(val title: String) {
     EMAIL_ALIAS("Email Alias Format")
 }
 
+@Immutable
 @Serializable
 data class GeneratorConfig(
     val mode: GeneratorMode = GeneratorMode.PASSWORD,

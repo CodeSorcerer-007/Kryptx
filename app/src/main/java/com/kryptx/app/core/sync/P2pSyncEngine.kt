@@ -210,6 +210,14 @@ class P2pSyncEngine(
             val hostPayloadJson = String(decryptedHostBytes, Charsets.UTF_8)
             val hostPayload = json.decodeFromString<SyncPayload>(hostPayloadJson)
 
+            // Replay attack and session integrity verification
+            if (!com.kryptx.app.core.crypto.SecureMemory.safeEquals(hostPayload.sessionId, sessionId)) {
+                throw SecurityException("P2P Session ID mismatch")
+            }
+            if (kotlin.math.abs(System.currentTimeMillis() - hostPayload.timestamp) > 5 * 60 * 1000L) {
+                throw SecurityException("P2P Payload timestamp expired (potential replay)")
+            }
+
             // Step 2: Merge host items into local repository
             onStatusChange(SyncStatus.Transferring("Merging differential records..."))
             val localItems = vaultRepository.getItems().firstOrNull() ?: emptyList()
@@ -284,6 +292,14 @@ class P2pSyncEngine(
             val clientPayloadJson = String(decryptedClientBytes, Charsets.UTF_8)
             val clientPayload = json.decodeFromString<SyncPayload>(clientPayloadJson)
 
+            // Replay attack and session integrity verification
+            if (!com.kryptx.app.core.crypto.SecureMemory.safeEquals(clientPayload.sessionId, sessionId)) {
+                throw SecurityException("P2P Session ID mismatch from client")
+            }
+            if (kotlin.math.abs(System.currentTimeMillis() - clientPayload.timestamp) > 5 * 60 * 1000L) {
+                throw SecurityException("P2P Client payload timestamp expired (potential replay)")
+            }
+
             // Step 3: Merge Client items locally
             val localItems = vaultRepository.getItems().firstOrNull() ?: emptyList()
             val mergedCount = mergeDifferentialRecords(clientPayload.items, localItems)
@@ -306,8 +322,8 @@ class P2pSyncEngine(
     }
 
     /**
-     * Differential conflict-free merge algorithm.
-     * Compares item timestamp and updates existing records or inserts new ones.
+     * Differential conflict-free merge algorithm (CRDT Last-Write-Wins with history union).
+     * Compares item timestamps, unions password histories, and updates or inserts records.
      */
     suspend fun mergeDifferentialRecords(
         incomingItems: List<VaultItem>,
@@ -322,7 +338,12 @@ class P2pSyncEngine(
                 vaultRepository.saveItem(incoming)
                 mergedCount++
             } else if (incoming.updatedAt > existing.updatedAt) {
-                vaultRepository.saveItem(incoming)
+                // Union password history so historical rotated passwords are never dropped
+                val unionHistory = (incoming.passwordHistory + existing.passwordHistory)
+                    .distinctBy { it.password }
+                    .sortedByDescending { it.changedAt }
+                val mergedItem = incoming.copy(passwordHistory = unionHistory)
+                vaultRepository.saveItem(mergedItem)
                 mergedCount++
             }
         }

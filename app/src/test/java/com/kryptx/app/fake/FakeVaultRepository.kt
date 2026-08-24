@@ -70,6 +70,13 @@ class FakeVaultRepository : VaultRepository {
         return KryptxResult.Success(Unit)
     }
 
+    override suspend fun rotateVaultEncryptionKey(currentMasterPassword: CharArray): KryptxResult<Unit> {
+        if (String(currentMasterPassword) != storedPassword) {
+            return KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Incorrect current password")
+        }
+        return KryptxResult.Success(Unit)
+    }
+
     private var duressPassword: String? = null
     override fun hasDuressPassword(): Boolean = duressPassword != null
 
@@ -80,6 +87,54 @@ class FakeVaultRepository : VaultRepository {
 
     override suspend fun removeDuressPassword() {
         this.duressPassword = null
+    }
+
+    private var hardwareKeyEnrolled = false
+    private var hardwareKeyLabel: String? = null
+    private var hardwareKeyUidHash: String? = null
+    private var hardwareKeyChallenge: ByteArray? = null
+    private var activeVaultId: String = "personal"
+
+    override fun isHardwareKeyEnrolled(): Boolean = hardwareKeyEnrolled
+    override fun getHardwareKeyLabel(): String? = hardwareKeyLabel
+    override fun getHardwareKeyChallenge(): ByteArray? = hardwareKeyChallenge
+    override fun getHardwareKeyUidHash(): String? = hardwareKeyUidHash
+
+    override suspend fun enrollHardwareKey(
+        label: String,
+        uidHash: String,
+        challenge: ByteArray,
+        hardwareSecret: ByteArray,
+        masterPassword: CharArray
+    ): KryptxResult<Unit> {
+        hardwareKeyEnrolled = true
+        hardwareKeyLabel = label
+        hardwareKeyUidHash = uidHash
+        hardwareKeyChallenge = challenge
+        return KryptxResult.Success(Unit)
+    }
+
+    override suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit> {
+        hardwareKeyEnrolled = false
+        hardwareKeyLabel = null
+        hardwareKeyUidHash = null
+        hardwareKeyChallenge = null
+        return KryptxResult.Success(Unit)
+    }
+
+    override suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit> {
+        return if (hardwareKeyEnrolled && String(masterPassword) == storedPassword) {
+            KryptxResult.Success(Unit)
+        } else {
+            KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Hardware key or password mismatch")
+        }
+    }
+
+    override fun getActiveVaultId(): String = activeVaultId
+
+    override suspend fun switchVault(vaultId: String): KryptxResult<Unit> {
+        activeVaultId = vaultId
+        return KryptxResult.Success(Unit)
     }
 
     private val _trashFlow = MutableStateFlow<List<VaultItem>>(emptyList())

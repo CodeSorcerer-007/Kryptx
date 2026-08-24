@@ -1,5 +1,8 @@
 package com.kryptx.app.feature.vault
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,48 +24,54 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kryptx.app.core.crypto.EntropyCalculator
-import com.kryptx.app.core.designsystem.components.CrackTimeBadge
-import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.QrCodeScannerDialog
-import com.kryptx.app.core.designsystem.components.StrengthBadge
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
-import com.kryptx.app.core.generator.GeneratorEngine
 import com.kryptx.app.core.model.CustomField
-import com.kryptx.app.core.model.GeneratorConfig
 import com.kryptx.app.core.model.ItemType
+import com.kryptx.app.core.model.PasswordHistoryEntry
+import com.kryptx.app.core.model.VaultAttachment
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.totp.UriParser
+import com.kryptx.app.feature.vault.editor.ApiKeyFormFields
+import com.kryptx.app.feature.vault.editor.BankAccountFormFields
+import com.kryptx.app.feature.vault.editor.CreditCardFormFields
+import com.kryptx.app.feature.vault.editor.CryptoWalletFormFields
+import com.kryptx.app.feature.vault.editor.CustomFieldsEditor
+import com.kryptx.app.feature.vault.editor.IdentityFormFields
+import com.kryptx.app.feature.vault.editor.LoginFormFields
+import com.kryptx.app.feature.vault.editor.MedicalFormFields
+import com.kryptx.app.feature.vault.editor.PasskeyFormFields
+import com.kryptx.app.feature.vault.editor.SshKeyFormFields
+import com.kryptx.app.feature.vault.editor.WifiFormFields
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -84,8 +93,6 @@ fun AddEditItemScreen(
     var notes by remember { mutableStateOf(existingItem?.notes ?: "") }
     var showQrScanner by remember { mutableStateOf(false) }
 
-    // Track whether we've done our initial population from the loaded item.
-    // This handles the case where rawItems loads asynchronously AFTER first composition.
     var hasPopulated by remember { mutableStateOf(existingItem != null) }
 
     // Login fields
@@ -156,18 +163,18 @@ fun AddEditItemScreen(
 
     var rotationIntervalDays by remember { mutableStateOf(existingItem?.rotationIntervalDays) }
     val attachments = remember {
-        mutableStateListOf<com.kryptx.app.core.model.VaultAttachment>().apply {
+        mutableStateListOf<VaultAttachment>().apply {
             if (existingItem != null) {
                 addAll(existingItem.attachments)
             }
         }
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
-    ) { uri: android.net.Uri? ->
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
                 val fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment_${System.currentTimeMillis()}"
@@ -182,9 +189,7 @@ fun AddEditItemScreen(
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // If itemId was provided but items hadn't loaded yet on first composition,
-    // populate all fields once the item becomes available.
-    androidx.compose.runtime.LaunchedEffect(existingItem) {
+    LaunchedEffect(existingItem) {
         val item = existingItem ?: return@LaunchedEffect
         if (hasPopulated) return@LaunchedEffect
         hasPopulated = true
@@ -234,10 +239,6 @@ fun AddEditItemScreen(
         customFields.addAll(item.customFields)
         attachments.clear()
         attachments.addAll(item.attachments)
-    }
-
-    val passwordAnalysis = remember(password) {
-        if (password.isNotBlank()) EntropyCalculator.analyze(password) else null
     }
 
     Scaffold(
@@ -315,275 +316,113 @@ fun AddEditItemScreen(
 
             // Type-specific Form Inputs
             when (selectedType) {
-                ItemType.LOGIN -> {
-                    KryptxTextField(
-                        value = username,
-                        onValueChange = { username = it },
-                        label = "Username or Email"
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    KryptxTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = "Password",
-                        isPassword = true,
-                        isMonospace = true,
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                val generated = GeneratorEngine.generate(GeneratorConfig())
-                                password = generated.value
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "Generate Password",
-                                    tint = KryptxBlue
-                                )
-                            }
-                        }
-                    )
-
-                    if (passwordAnalysis != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            StrengthBadge(strength = passwordAnalysis.strength)
-                            CrackTimeBadge(crackTime = passwordAnalysis.crackTimeDisplay)
-                            Text(
-                                text = "${passwordAnalysis.entropyBits} bits",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    KryptxTextField(
-                        value = website,
-                        onValueChange = { website = it },
-                        label = "Website URL (e.g. https://github.com)"
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    KryptxTextField(
-                        value = totpSecret,
-                        onValueChange = { totpSecret = it },
-                        label = "2FA / TOTP Secret Key (optional)",
-                        trailingIcon = {
-                            IconButton(onClick = { showQrScanner = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = "Scan 2FA QR Code",
-                                    tint = KryptxBlue
-                                )
-                            }
-                        }
-                    )
-                }
-
-                ItemType.PASSKEY -> {
-                    KryptxTextField(
-                        value = passkeyRpId,
-                        onValueChange = {
-                            passkeyRpId = it
-                            if (title.isBlank()) title = it.removePrefix("www.").replaceFirstChar { char -> char.uppercase() }
-                        },
-                        label = "Relying Party ID (Domain, e.g. google.com)"
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    KryptxTextField(
-                        value = username,
-                        onValueChange = { username = it },
-                        label = "User Identifier / Email"
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    KryptxTextField(
-                        value = passkeyCredentialId,
-                        onValueChange = { passkeyCredentialId = it },
-                        label = "Credential ID (Base64 URL)",
-                        isMonospace = true
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    KryptxTextField(
-                        value = passkeyAlgorithm,
-                        onValueChange = { passkeyAlgorithm = it },
-                        label = "Cryptographic Algorithm (e.g. ES256, Ed25519)"
-                    )
-                }
-
-                ItemType.CREDIT_CARD -> {
-                    KryptxTextField(
-                        value = cardholderName,
-                        onValueChange = { cardholderName = it },
-                        label = "Cardholder Name"
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    KryptxTextField(
-                        value = cardNumber,
-                        onValueChange = { cardNumber = it },
-                        label = "Card Number",
-                        isMonospace = true
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            KryptxTextField(
-                                value = cardExpiry,
-                                onValueChange = { cardExpiry = it },
-                                label = "Expiry (MM/YY)"
-                            )
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            KryptxTextField(
-                                value = cardCvv,
-                                onValueChange = { cardCvv = it },
-                                label = "CVV",
-                                isPassword = true
-                            )
-                        }
-                    }
-                }
-
-                ItemType.IDENTITY -> {
-                    KryptxTextField(value = identityName, onValueChange = { identityName = it }, label = "Full Name")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = identityEmail, onValueChange = { identityEmail = it }, label = "Email Address")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = identityPhone, onValueChange = { identityPhone = it }, label = "Phone Number")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = identityAddress, onValueChange = { identityAddress = it }, label = "Physical Address")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = identityIdNum, onValueChange = { identityIdNum = it }, label = "ID / Passport Number", isPassword = true)
-                }
-
-                ItemType.WIFI -> {
-                    KryptxTextField(value = wifiSsid, onValueChange = { wifiSsid = it }, label = "Wi-Fi SSID")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = wifiPassword, onValueChange = { wifiPassword = it }, label = "Wi-Fi Password", isPassword = true)
-                }
-
-                ItemType.API_KEY -> {
-                    KryptxTextField(value = apiKey, onValueChange = { apiKey = it }, label = "API Key / Token", isPassword = true)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = apiSecret, onValueChange = { apiSecret = it }, label = "API Secret (optional)", isPassword = true)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = apiEndpoint, onValueChange = { apiEndpoint = it }, label = "Endpoint URL")
-                }
-
-                ItemType.BANK_ACCOUNT -> {
-                    KryptxTextField(value = bankName, onValueChange = { bankName = it }, label = "Bank Name")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = bankAccountNumber, onValueChange = { bankAccountNumber = it }, label = "Account Number", isPassword = true, isMonospace = true)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = bankRoutingNumber, onValueChange = { bankRoutingNumber = it }, label = "Routing Number / Sort Code", isMonospace = true)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = bankSwiftBic, onValueChange = { bankSwiftBic = it }, label = "SWIFT / BIC Code (optional)", isMonospace = true)
-                }
-
-                ItemType.CRYPTO_WALLET -> {
-                    KryptxTextField(value = cryptoNetwork, onValueChange = { cryptoNetwork = it }, label = "Network / Blockchain (e.g. Ethereum, Solana)")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = cryptoWalletAddress, onValueChange = { cryptoWalletAddress = it }, label = "Public Wallet Address", isMonospace = true)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = cryptoSeedPhrase, onValueChange = { cryptoSeedPhrase = it }, label = "Recovery Seed Phrase (12/24 words)", isPassword = true, singleLine = false)
-                }
-
-                ItemType.SSH_KEY -> {
-                    KryptxTextField(value = sshHost, onValueChange = { sshHost = it }, label = "Host / Server (e.g. server.domain.com)")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = sshPublicKey, onValueChange = { sshPublicKey = it }, label = "Public Key", isMonospace = true, singleLine = false)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = sshPrivateKey, onValueChange = { sshPrivateKey = it }, label = "Private Key", isPassword = true, isMonospace = true, singleLine = false)
-                }
-
-                ItemType.MEDICAL -> {
-                    KryptxTextField(value = identityName, onValueChange = { identityName = it }, label = "Full Name")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = medicalBloodType, onValueChange = { medicalBloodType = it }, label = "Blood Type (e.g. O+, A-)")
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = medicalAllergies, onValueChange = { medicalAllergies = it }, label = "Known Allergies & Conditions", singleLine = false)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxTextField(value = medicalEmergencyContact, onValueChange = { medicalEmergencyContact = it }, label = "Emergency Contact")
-                }
-
+                ItemType.LOGIN -> LoginFormFields(
+                    username = username,
+                    onUsernameChange = { username = it },
+                    password = password,
+                    onPasswordChange = { password = it },
+                    website = website,
+                    onWebsiteChange = { website = it },
+                    totpSecret = totpSecret,
+                    onTotpSecretChange = { totpSecret = it },
+                    onScanQrClick = { showQrScanner = true }
+                )
+                ItemType.PASSKEY -> PasskeyFormFields(
+                    passkeyRpId = passkeyRpId,
+                    onPasskeyRpIdChange = {
+                        passkeyRpId = it
+                        if (title.isBlank()) title = it.removePrefix("www.").replaceFirstChar { char -> char.uppercase() }
+                    },
+                    username = username,
+                    onUsernameChange = { username = it },
+                    passkeyCredentialId = passkeyCredentialId,
+                    onPasskeyCredentialIdChange = { passkeyCredentialId = it },
+                    passkeyAlgorithm = passkeyAlgorithm,
+                    onPasskeyAlgorithmChange = { passkeyAlgorithm = it }
+                )
+                ItemType.CREDIT_CARD -> CreditCardFormFields(
+                    cardholderName = cardholderName,
+                    onCardholderNameChange = { cardholderName = it },
+                    cardNumber = cardNumber,
+                    onCardNumberChange = { cardNumber = it },
+                    cardExpiry = cardExpiry,
+                    onCardExpiryChange = { cardExpiry = it },
+                    cardCvv = cardCvv,
+                    onCardCvvChange = { cardCvv = it },
+                    cardPin = cardPin,
+                    onCardPinChange = { cardPin = it }
+                )
+                ItemType.IDENTITY -> IdentityFormFields(
+                    name = identityName,
+                    onNameChange = { identityName = it },
+                    email = identityEmail,
+                    onEmailChange = { identityEmail = it },
+                    phone = identityPhone,
+                    onPhoneChange = { identityPhone = it },
+                    address = identityAddress,
+                    onAddressChange = { identityAddress = it },
+                    idNum = identityIdNum,
+                    onIdNumChange = { identityIdNum = it }
+                )
+                ItemType.WIFI -> WifiFormFields(
+                    ssid = wifiSsid,
+                    onSsidChange = { wifiSsid = it },
+                    password = wifiPassword,
+                    onPasswordChange = { wifiPassword = it }
+                )
+                ItemType.API_KEY -> ApiKeyFormFields(
+                    apiKey = apiKey,
+                    onApiKeyChange = { apiKey = it },
+                    apiSecret = apiSecret,
+                    onApiSecretChange = { apiSecret = it },
+                    apiEndpoint = apiEndpoint,
+                    onApiEndpointChange = { apiEndpoint = it }
+                )
+                ItemType.BANK_ACCOUNT -> BankAccountFormFields(
+                    bankName = bankName,
+                    onBankNameChange = { bankName = it },
+                    accountNumber = bankAccountNumber,
+                    onAccountNumberChange = { bankAccountNumber = it },
+                    routingNumber = bankRoutingNumber,
+                    onRoutingNumberChange = { bankRoutingNumber = it },
+                    swiftBic = bankSwiftBic,
+                    onSwiftBicChange = { bankSwiftBic = it }
+                )
+                ItemType.CRYPTO_WALLET -> CryptoWalletFormFields(
+                    network = cryptoNetwork,
+                    onNetworkChange = { cryptoNetwork = it },
+                    walletAddress = cryptoWalletAddress,
+                    onWalletAddressChange = { cryptoWalletAddress = it },
+                    seedPhrase = cryptoSeedPhrase,
+                    onSeedPhraseChange = { cryptoSeedPhrase = it }
+                )
+                ItemType.SSH_KEY -> SshKeyFormFields(
+                    sshHost = sshHost,
+                    onSshHostChange = { sshHost = it },
+                    publicKey = sshPublicKey,
+                    onPublicKeyChange = { sshPublicKey = it },
+                    privateKey = sshPrivateKey,
+                    onPrivateKeyChange = { sshPrivateKey = it }
+                )
+                ItemType.MEDICAL -> MedicalFormFields(
+                    patientName = identityName,
+                    onPatientNameChange = { identityName = it },
+                    bloodType = medicalBloodType,
+                    onBloodTypeChange = { medicalBloodType = it },
+                    allergies = medicalAllergies,
+                    onAllergiesChange = { medicalAllergies = it }
+                )
                 ItemType.SECURE_NOTE, ItemType.CUSTOM -> {}
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Dynamic Custom Fields
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "CUSTOM FIELDS",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(onClick = {
-                    customFields.add(CustomField(UUID.randomUUID().toString(), "Field ${customFields.size + 1}", "", false))
-                }) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = KryptxBlue, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Field", color = KryptxBlue, fontSize = 12.sp)
-                }
-            }
-
-            customFields.forEachIndexed { index, field ->
-                KryptxCard(modifier = Modifier.padding(bottom = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            KryptxTextField(
-                                value = field.label,
-                                onValueChange = { customFields[index] = field.copy(label = it) },
-                                label = "Field Label"
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            KryptxTextField(
-                                value = field.value,
-                                onValueChange = { customFields[index] = field.copy(value = it) },
-                                label = "Field Value",
-                                isPassword = field.isSecured
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(top = 4.dp)
-                            ) {
-                                Text("Secure / Masked", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Switch(
-                                    checked = field.isSecured,
-                                    onCheckedChange = { customFields[index] = field.copy(isSecured = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = KryptxBlue
-                                    )
-                                )
-                            }
-                        }
-                        IconButton(onClick = { customFields.removeAt(index) }) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Remove Field", tint = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            }
+            // Custom Fields
+            CustomFieldsEditor(customFields = customFields)
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Password Expiration & Rotation Policy
+            // Password Rotation & Expiration
             Text(
                 text = "PASSWORD ROTATION & EXPIRATION",
                 fontSize = 11.sp,
@@ -728,7 +567,7 @@ fun AddEditItemScreen(
                     } else null
 
                     val updatedHistory = if (existingItem != null && existingItem.password.isNotBlank() && password != existingItem.password) {
-                        listOf(com.kryptx.app.core.model.PasswordHistoryEntry(existingItem.password, System.currentTimeMillis())) + existingItem.passwordHistory
+                        listOf(PasswordHistoryEntry(existingItem.password, System.currentTimeMillis())) + existingItem.passwordHistory
                     } else {
                         existingItem?.passwordHistory ?: emptyList()
                     }

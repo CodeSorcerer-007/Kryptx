@@ -35,6 +35,9 @@ class MainActivity : FragmentActivity() {
     private lateinit var searchViewModel: SearchViewModel
     private lateinit var settingsViewModel: SettingsViewModel
 
+    private var nfcAdapter: android.nfc.NfcAdapter? = null
+    private var nfcPendingIntent: android.app.PendingIntent? = null
+
     private var hasAutoPromptedBiometrics = false
     private var pendingShortcutTarget by mutableStateOf<String?>(null)
 
@@ -59,6 +62,15 @@ class MainActivity : FragmentActivity() {
         totpViewModel = viewModelProvider[TotpViewModel::class.java]
         searchViewModel = viewModelProvider[SearchViewModel::class.java]
         settingsViewModel = viewModelProvider[SettingsViewModel::class.java]
+
+        nfcAdapter = android.nfc.NfcAdapter.getDefaultAdapter(this)
+        val nfcIntent = Intent(this, javaClass).apply {
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        nfcPendingIntent = android.app.PendingIntent.getActivity(
+            this, 0, nfcIntent,
+            android.app.PendingIntent.FLAG_MUTABLE
+        )
 
         pendingShortcutTarget = intent?.getStringExtra("navigate_target")
             ?: intent?.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
@@ -109,6 +121,22 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+
+        // Process physical NFC security key taps
+        if (android.nfc.NfcAdapter.ACTION_TAG_DISCOVERED == intent.action ||
+            android.nfc.NfcAdapter.ACTION_TECH_DISCOVERED == intent.action ||
+            android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
+            val tag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG, android.nfc.Tag::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG)
+            }
+            if (tag != null) {
+                unlockViewModel.handleNfcTag(tag, onSuccess = {})
+            }
+        }
+
         val target = intent.getStringExtra("navigate_target")
             ?: intent.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
         if (!target.isNullOrBlank()) {
@@ -118,6 +146,12 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        try {
+            nfcPendingIntent?.let { pending ->
+                nfcAdapter?.enableForegroundDispatch(this, pending, null, null)
+            }
+        } catch (_: Exception) {}
+
         unlockViewModel.checkVaultStatus()
         val isUnlocked = app.sessionManager.isUnlocked.value
         val hasVault = app.vaultRepository.hasVault()
@@ -127,6 +161,13 @@ class MainActivity : FragmentActivity() {
             hasAutoPromptedBiometrics = true
             triggerBiometricUnlock()
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try {
+            nfcAdapter?.disableForegroundDispatch(this)
+        } catch (_: Exception) {}
     }
 
     private fun triggerBiometricUnlock() {

@@ -1,42 +1,26 @@
-# Baseline Profile Rules for Kryptx
-# Optimizes AOT compilation for Instant App Startup & 120 FPS Compose physics rendering
+# Kryptx Android Baseline Profile
+# Pre-compiles critical execution paths for instant cold launch and jitter-free rendering.
 
-# Core Crypto & Memory Zeroization Engine
-Lcom/kryptx/app/core/crypto/CryptoEngine;
-Lcom/kryptx/app/core/crypto/KeyDerivation;
-Lcom/kryptx/app/core/crypto/SecureMemory;
-Lcom/kryptx/app/core/crypto/KeystoreManager;
-Lcom/kryptx/app/core/crypto/EntropyCalculator;
-Lcom/kryptx/app/core/crypto/Argon2Engine;
+# Core Application & Lifecycles
+HSPLcom/kryptx/app/KryptxApplication;-><init>()V
+HSPLcom/kryptx/app/KryptxApplication;->onCreate()V
+HSPLcom/kryptx/app/MainActivity;-><init>()V
+HSPLcom/kryptx/app/MainActivity;->onCreate(Landroid/os/Bundle;)V
 
-# Core Security & Session State Management
-Lcom/kryptx/app/core/security/VaultSessionManager;
-Lcom/kryptx/app/core/security/BiometricAuthManager;
-Lcom/kryptx/app/core/security/ClipboardSecurityManager;
-Lcom/kryptx/app/core/security/BreachChecker;
-Lcom/kryptx/app/core/security/AttachmentManager;
+# Cryptography Hot Paths
+HSPLcom/kryptx/app/core/crypto/CryptoEngine;->encrypt([B[B[B)[B
+HSPLcom/kryptx/app/core/crypto/CryptoEngine;->decrypt([B[B[B)[B
+HSPLcom/kryptx/app/core/crypto/KeyDerivation;->deriveKey([C[BI)[B
+HSPLcom/kryptx/app/core/crypto/SecureMemory;->wipe([B)V
+HSPLcom/kryptx/app/core/crypto/SecureMemory;->wipe([C)V
+HSPLcom/kryptx/app/core/crypto/SecureMemory;->safeEquals([B[B)Z
 
-# Database & Migration Engine
-Lcom/kryptx/app/core/database/KryptxDatabaseHelper;
-Lcom/kryptx/app/core/database/VaultRepositoryImpl;
-Lcom/kryptx/app/core/database/PreferencesRepository;
+# In-Memory Search Index & Database
+HSPLcom/kryptx/app/core/database/EncryptedSearchIndex;->search(Ljava/lang/String;)Ljava/util/List;
+HSPLcom/kryptx/app/core/database/EncryptedSearchIndex;->indexItem(Lcom/kryptx/app/core/model/VaultItem;)V
+HSPLcom/kryptx/app/core/database/KryptxDatabaseHelper;->loadAllItems([B)Ljava/util/List;
 
-# Design System, Physics Modifiers & Theme Rendering
-Lcom/kryptx/app/core/designsystem/theme/KryptxThemeKt;
-Lcom/kryptx/app/core/designsystem/theme/KryptxColorsKt;
-Lcom/kryptx/app/core/designsystem/components/KryptxAnimationsKt;
-Lcom/kryptx/app/core/designsystem/components/KryptxCardKt;
-Lcom/kryptx/app/core/designsystem/components/KryptxScoreRingKt;
-Lcom/kryptx/app/core/designsystem/components/KryptxFolderCardKt;
-Lcom/kryptx/app/core/designsystem/components/KryptxTopBarKt;
-
-# Primary UI Screen Compositions & ViewModels
-Lcom/kryptx/app/feature/auth/UnlockViewModel;
-Lcom/kryptx/app/feature/auth/UnlockScreenKt;
-Lcom/kryptx/app/feature/vault/VaultViewModel;
-Lcom/kryptx/app/feature/vault/VaultDashboardScreenKt;
-Lcom/kryptx/app/feature/vault/VaultItemDetailScreenKt;
-Lcom/kryptx/app/feature/generator/GeneratorViewModel;
-Lcom/kryptx/app/feature/generator/GeneratorScreenKt;
-Lcom/kryptx/app/feature/totp/TotpViewModel;
-Lcom/kryptx/app/feature/securitycenter/SecurityCenterViewModel;
+# UI Design System & Compose Tokens
+HSPLcom/kryptx/app/core/designsystem/theme/KryptxThemeKt;->KryptxTheme(ZZZZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+HSPLcom/kryptx/app/core/designsystem/components/KryptxCardKt;->KryptxCard(Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Color;Landroidx/compose/ui/graphics/Color;Landroidx/compose/ui/graphics/Brush;DZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+HSPLcom/kryptx/app/core/designsystem/components/OfflineIdenticonGenerator;->resolve(Ljava/lang/String;Ljava/lang/String;Lcom/kryptx/app/core/model/ItemType;)Lcom/kryptx/app/core/designsystem/components/OfflineIdenticonGenerator$BrandIdentity;

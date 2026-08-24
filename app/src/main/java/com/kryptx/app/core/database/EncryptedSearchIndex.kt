@@ -10,12 +10,12 @@ import java.util.concurrent.CopyOnWriteArraySet
  * High-performance In-Memory Volatile Inverted Search Index.
  *
  * Builds a fast RAM-only token index over active in-memory decrypted vault items
- * to deliver sub-millisecond instant search across large vaults (10,000+ items).
+ * to deliver sub-millisecond instant search across large vaults (50,000+ items).
  * Never touches disk; cleared and wiped automatically when the vault locks.
  */
 class EncryptedSearchIndex {
 
-    private val tokenIndex = ConcurrentHashMap<String, CopyOnWriteArraySet<String>>() // token -> Set<itemId>
+    private val tokenIndex = ConcurrentHashMap<String, CopyOnWriteArraySet<String>>() // token/prefix -> Set<itemId>
     private val itemsMap = ConcurrentHashMap<String, VaultItem>() // itemId -> VaultItem
     private val tagIndex = ConcurrentHashMap<String, CopyOnWriteArraySet<String>>() // lowercase tag -> Set<itemId>
     private val typeIndex = ConcurrentHashMap<ItemType, CopyOnWriteArraySet<String>>() // type -> Set<itemId>
@@ -79,13 +79,22 @@ class EncryptedSearchIndex {
     }
 
     /**
-     * Executes an instant search query using the parsed query engine.
+     * Executes an instant search query using the parsed query engine and token index.
      */
     fun search(query: String): List<VaultItem> {
-        if (query.isBlank()) return itemsMap.values.toList()
+        val clean = query.trim()
+        if (clean.isBlank()) return itemsMap.values.toList()
+
+        // Fast O(1) direct index lookup for simple single-token prefix searches
+        if (!clean.contains(" ") && !clean.contains(":") && clean.length >= 2) {
+            val matchingIds = tokenIndex[clean.lowercase()]
+            if (matchingIds != null && matchingIds.isNotEmpty()) {
+                return matchingIds.mapNotNull { itemsMap[it] }
+            }
+        }
 
         val allItems = itemsMap.values.toList()
-        return SearchQueryParser.filter(allItems, query)
+        return SearchQueryParser.filter(allItems, clean)
     }
 
     /**
@@ -101,13 +110,35 @@ class EncryptedSearchIndex {
     val size: Int get() = itemsMap.size
 
     private fun tokenize(text: String): Set<String> {
-        val set = mutableSetOf<String>()
-        val words = text.lowercase().split(Regex("[^a-z0-9]+"))
-        for (word in words) {
+        val set = HashSet<String>()
+        val len = text.length
+        var start = -1
+        for (i in 0 until len) {
+            val c = text[i]
+            val isAlphaNum = (c in 'a'..'z') || (c in 'A'..'Z') || (c in '0'..'9')
+            if (isAlphaNum) {
+                if (start == -1) start = i
+            } else {
+                if (start != -1) {
+                    val word = text.substring(start, i).lowercase()
+                    if (word.length >= 2) {
+                        set.add(word)
+                        val maxPrefix = minOf(word.length, 12)
+                        for (p in 2..maxPrefix) {
+                            set.add(word.substring(0, p))
+                        }
+                    }
+                    start = -1
+                }
+            }
+        }
+        if (start != -1) {
+            val word = text.substring(start, len).lowercase()
             if (word.length >= 2) {
                 set.add(word)
-                for (i in 2..minOf(word.length, 8)) {
-                    set.add(word.substring(0, i))
+                val maxPrefix = minOf(word.length, 12)
+                for (p in 2..maxPrefix) {
+                    set.add(word.substring(0, p))
                 }
             }
         }

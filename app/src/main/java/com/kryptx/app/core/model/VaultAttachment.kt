@@ -1,5 +1,6 @@
 package com.kryptx.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
@@ -7,6 +8,7 @@ import java.util.UUID
  * Metadata descriptor for an encrypted file or photo attached to a VaultItem.
  * The underlying file data is encrypted with AES-256-GCM in the app's secure internal sandbox.
  */
+@Immutable
 @Serializable
 data class VaultAttachment(
     val id: String = UUID.randomUUID().toString(),

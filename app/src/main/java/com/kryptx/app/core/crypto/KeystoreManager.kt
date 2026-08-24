@@ -116,6 +116,25 @@ class KeystoreManager {
     }
 
     /**
+     * Checks whether the biometric hardware key was permanently invalidated by a newly enrolled biometric.
+     */
+    fun isBiometricKeyPermanentlyInvalidated(iv: ByteArray): Boolean {
+        return try {
+            val secretKey = getOrCreateBiometricKey()
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            val spec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec)
+            false
+        } catch (e: Exception) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && e is android.security.keystore.KeyPermanentlyInvalidatedException) {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /**
      * Creates an initialized decryption Cipher for BiometricPrompt.CryptoObject.
      */
     fun getDecryptCipher(iv: ByteArray): Cipher? {

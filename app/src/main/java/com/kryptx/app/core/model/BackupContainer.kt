@@ -1,7 +1,9 @@
 package com.kryptx.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable
 data class BackupHeader(
     val app: String = "Kryptx",
@@ -18,12 +20,14 @@ data class BackupHeader(
     val checksumSha256: String? = null
 )
 
+@Immutable
 @Serializable
 data class EncryptedBackupPayload(
     val header: BackupHeader,
     val ciphertextBase64: String
 )
 
+@Immutable
 @Serializable
 data class PlaintextBackupData(
     val header: BackupHeader,

@@ -120,6 +120,144 @@ class VaultRepositoryImpl(
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "false")
     }
 
+    override fun isHardwareKeyEnrolled(): Boolean {
+        return dbHelper.getMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_ENROLLED) == "true" &&
+                !dbHelper.getMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_CHALLENGE).isNullOrBlank()
+    }
+
+    override fun getHardwareKeyLabel(): String? = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_LABEL)
+
+    override fun getHardwareKeyChallenge(): ByteArray? {
+        val challengeBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_CHALLENGE) ?: return null
+        return try {
+            Base64.decode(challengeBase64, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun getHardwareKeyUidHash(): String? = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_UID_HASH)
+
+    override suspend fun enrollHardwareKey(
+        label: String,
+        uidHash: String,
+        challenge: ByteArray,
+        hardwareSecret: ByteArray,
+        masterPassword: CharArray
+    ): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        try {
+            val activeVek = sessionManager.getVaultKey()
+                ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault must be unlocked to enroll hardware key")
+
+            val baseSalt = KeyDerivation.generateSalt()
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            md.update(baseSalt)
+            md.update(hardwareSecret)
+            val combinedSalt = md.digest()
+
+            val derivedKey = KeyDerivation.deriveKey(masterPassword, combinedSalt)
+            val encryptedVekPayload = CryptoEngine.encrypt(activeVek, derivedKey)
+
+            val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
+            val saltBase64 = Base64.encodeToString(baseSalt, Base64.NO_WRAP)
+            val challengeBase64 = Base64.encodeToString(challenge, Base64.NO_WRAP)
+
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, saltBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, tokenBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_ENROLLED, "true")
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_LABEL, label)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_UID_HASH, uidHash)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_CHALLENGE, challengeBase64)
+
+            SecureMemory.wipe(derivedKey)
+            SecureMemory.wipe(baseSalt)
+            SecureMemory.wipe(combinedSalt)
+
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to enroll hardware security key", e)
+        }
+    }
+
+    override suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        try {
+            val activeVek = sessionManager.getVaultKey()
+                ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault must be unlocked to modify security keys")
+
+            val newSalt = KeyDerivation.generateSalt()
+            val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, newSalt)
+            val encryptedVekPayload = CryptoEngine.encrypt(activeVek, derivedMasterKey)
+
+            val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
+            val saltBase64 = Base64.encodeToString(newSalt, Base64.NO_WRAP)
+
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, saltBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, tokenBase64)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_ENROLLED, "false")
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_LABEL, "")
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_UID_HASH, "")
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HARDWARE_KEY_CHALLENGE, "")
+
+            SecureMemory.wipe(derivedMasterKey)
+            SecureMemory.wipe(newSalt)
+
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove hardware key", e)
+        }
+    }
+
+    override suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT)
+        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN)
+
+        if (saltBase64 != null && tokenBase64 != null) {
+            val baseSalt = Base64.decode(saltBase64, Base64.NO_WRAP)
+            val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            md.update(baseSalt)
+            md.update(hardwareSecret)
+            val combinedSalt = md.digest()
+
+            val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, combinedSalt)
+
+            try {
+                val vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
+                sessionManager.unlock(vek, isDecoy = false)
+                sessionManager.getVaultKey()?.let { activeKey ->
+                    dbHelper.loadAllItems(activeKey)
+                }
+                SecureMemory.wipe(vek)
+                SecureMemory.wipe(derivedMasterKey)
+                SecureMemory.wipe(baseSalt)
+                SecureMemory.wipe(combinedSalt)
+                isAuditDirty = true
+                return@withContext KryptxResult.Success(Unit)
+            } catch (_: Exception) {
+                SecureMemory.wipe(derivedMasterKey)
+                SecureMemory.wipe(baseSalt)
+                SecureMemory.wipe(combinedSalt)
+            }
+        }
+
+        sessionManager.recordFailedAttempt()
+        KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Hardware key validation or master password failed")
+    }
+
+    override fun getActiveVaultId(): String {
+        return dbHelper.getMetadata(KryptxDatabaseHelper.KEY_ACTIVE_VAULT) ?: "personal"
+    }
+
+    override suspend fun switchVault(vaultId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_ACTIVE_VAULT, vaultId)
+        sessionManager.getVaultKey()?.let { key ->
+            dbHelper.loadAllItems(key)
+        }
+        isAuditDirty = true
+        KryptxResult.Success(Unit)
+    }
+
     override suspend fun unlockWithPassword(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         // 1. Try Primary Master Password
         val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT)
@@ -276,6 +414,59 @@ class VaultRepositoryImpl(
         SecureMemory.wipe(newDerivedKey)
         SecureMemory.wipe(newSalt)
         KryptxResult.Success(Unit)
+    }
+
+    override suspend fun rotateVaultEncryptionKey(currentMasterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val activeVek = sessionManager.getVaultKey()
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+
+        val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT)
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault salt not found")
+        val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN)
+            ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault token not found")
+
+        val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
+        val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+        val currentDerivedKey = KeyDerivation.deriveKey(currentMasterPassword, salt)
+
+        val verifiedVek = try {
+            CryptoEngine.decrypt(tokenBytes, currentDerivedKey)
+        } catch (_: Exception) {
+            SecureMemory.wipe(currentDerivedKey)
+            SecureMemory.wipe(salt)
+            return@withContext KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Incorrect master password")
+        }
+        SecureMemory.wipe(verifiedVek)
+
+        // Generate brand new 256-bit VEK
+        val newVek = KeyDerivation.generateSalt(32)
+
+        try {
+            // Re-encrypt all items on disk under atomic SQLite transaction
+            dbHelper.reEncryptVaultWithNewKey(activeVek, newVek)
+
+            // Re-wrap new VEK with master key
+            val newEncryptedVek = CryptoEngine.encrypt(newVek, currentDerivedKey)
+            dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP))
+
+            // Update session active VEK
+            sessionManager.unlock(newVek, isDecoy = false)
+
+            if (isBiometricsConfigured()) {
+                setupBiometrics()
+            }
+
+            SecureMemory.wipe(newVek)
+            SecureMemory.wipe(currentDerivedKey)
+            SecureMemory.wipe(salt)
+            isAuditDirty = true
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            SecureMemory.wipe(newVek)
+            SecureMemory.wipe(currentDerivedKey)
+            SecureMemory.wipe(salt)
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to rotate encryption key: ${e.message}", e)
+        }
     }
 
     override fun getItems(): Flow<List<VaultItem>> = dbHelper.itemsFlow

@@ -1,9 +1,11 @@
 package com.kryptx.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 import java.net.URI
 import java.util.UUID
 
+@Immutable
 @Serializable
 data class VaultItem(
     val id: String = UUID.randomUUID().toString(),
