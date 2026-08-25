@@ -19,10 +19,12 @@ object UriParser {
     )
 
     fun parse(uriString: String): ParsedTotp? {
-        if (!uriString.startsWith("otpauth://totp/")) return null
+        val trimmed = uriString.trim()
+        val schemePrefix = "otpauth://totp/"
+        if (!trimmed.startsWith(schemePrefix, ignoreCase = true)) return null
 
         return try {
-            val contentAfterScheme = uriString.removePrefix("otpauth://totp/")
+            val contentAfterScheme = trimmed.substring(schemePrefix.length)
             val questionMarkIdx = contentAfterScheme.indexOf('?')
             if (questionMarkIdx == -1) return null
 
@@ -40,7 +42,7 @@ object UriParser {
                 }
             }
 
-            val secret = queryParams["secret"] ?: return null
+            val secret = queryParams["secret"]?.takeIf { it.isNotBlank() } ?: return null
 
             val decodedLabel = URLDecoder.decode(rawLabel, "UTF-8")
             var issuer = queryParams["issuer"] ?: ""

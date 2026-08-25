@@ -128,6 +128,15 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
 
+    // Hardware Security Keys (YubiKey)
+    implementation("com.yubico.yubikit:android:2.4.0")
+    implementation("com.yubico.yubikit:core:2.4.0")
+    implementation("com.yubico.yubikit:yubiotp:2.4.0")
+
+    // SQLCipher Database Encryption
+    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+    implementation("androidx.sqlite:sqlite:2.4.0")
+
     // Barcode / QR Code Generation & Scanning (TOTP QR & Wi-Fi QR)
     implementation(libs.zxing.core)
     implementation(libs.androidx.camera.core)
@@ -147,6 +156,8 @@ dependencies {
     // Unit Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
 
     // Instrumentation Testing
     androidTestImplementation(libs.androidx.test.core)
@@ -154,4 +165,44 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+}
+
+// ==========================================
+// Rust Cryptographic Engine & UniFFI Binding
+// ==========================================
+tasks.register<Exec>("generateRustBindings") {
+    group = "rust"
+    description = "Generates Kotlin bindings using Mozilla UniFFI from the kryptx_crypto crate"
+    
+    val rustProjectDir = file("src/main/rust/kryptx_crypto")
+    val outDir = file("src/main/java")
+    
+    workingDir = rustProjectDir
+    // In uniffi 0.32, we use `cargo run --bin uniffi-bindgen` directly.
+    commandLine(
+        "cargo", "run", "--features=uniffi/cli", "--bin", "uniffi-bindgen", "generate",
+        "--library", "../../jniLibs/arm64-v8a/libkryptx_crypto.so", // Requires build step first in real pipeline
+        "--language", "kotlin",
+        "--out-dir", outDir.absolutePath
+    )
+}
+
+tasks.register<Exec>("buildRustEngine") {
+    group = "rust"
+    description = "Compiles the kryptx_crypto core for Android targets"
+    
+    val rustProjectDir = file("src/main/rust/kryptx_crypto")
+    workingDir = rustProjectDir
+    
+    // In a fully configured Android NDK environment, this would iterate over:
+    // aarch64-linux-android, x86_64-linux-android, etc.
+    // using `cargo build --target <target> --release`.
+    commandLine("cargo", "build", "--release", "-j", "1")
+}
+
+// Ensure Rust code compiles before Android builds
+tasks.whenTaskAdded {
+    if (name == "javaPreCompileDebug" || name == "javaPreCompileRelease") {
+        dependsOn("buildRustEngine")
+    }
 }

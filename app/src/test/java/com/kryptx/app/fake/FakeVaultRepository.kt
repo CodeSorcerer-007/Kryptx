@@ -89,6 +89,22 @@ class FakeVaultRepository : VaultRepository {
         this.duressPassword = null
     }
 
+    private var panicPassword: String? = null
+    override fun hasPanicPassword(): Boolean = panicPassword != null
+
+    override suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit> {
+        this.panicPassword = String(panicPassword)
+        return KryptxResult.Success(Unit)
+    }
+
+    override suspend fun removePanicPassword() {
+        this.panicPassword = null
+    }
+
+    override suspend fun triggerPanicSelfDestruct() {
+        resetVault()
+    }
+
     private var hardwareKeyEnrolled = false
     private var hardwareKeyLabel: String? = null
     private var hardwareKeyUidHash: String? = null

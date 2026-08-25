@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -56,6 +57,12 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.activity.result.PickVisualMediaRequest
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap.CompressFormat
+import com.kryptx.app.core.security.SteganographyEngine
+import java.io.ByteArrayOutputStream
 
 @Composable
 fun BackupExportScreen(
@@ -69,12 +76,15 @@ fun BackupExportScreen(
 
     // Dialogs
     var showEncryptedExportDialog by remember { mutableStateOf(false) }
+    var showSteganographyDialog by remember { mutableStateOf(false) }
     var showPlaintextWarningDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
 
     // Pending export bytes — held while waiting for SAF URI to be picked
     var pendingEncryptedBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingCsvBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingStegoBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var stegoPassphrase by remember { mutableStateOf("") }
     // Import bytes — held while the password dialog is open
     var pendingImportBytes by remember { mutableStateOf<ByteArray?>(null) }
 
@@ -139,6 +149,65 @@ fun BackupExportScreen(
         }
     }
 
+    // Steganography Image save launcher
+    val savePngLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri: Uri? ->
+        val bytes = pendingStegoBytes
+        if (uri != null && bytes != null) {
+            scope.launch {
+                val written = writeToUri(context, uri, bytes)
+                pendingStegoBytes = null
+                stegoPassphrase = ""
+                snackbarHostState.showSnackbar(
+                    if (written) "Steganographic backup saved successfully."
+                    else "Failed to write steganographic image."
+                )
+            }
+        } else {
+            pendingStegoBytes = null
+            stegoPassphrase = ""
+        }
+    }
+
+    // Photo picker for cover image
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val stream = context.contentResolver.openInputStream(uri)
+                    val coverBitmap = BitmapFactory.decodeStream(stream)
+                    stream?.close()
+                    
+                    if (coverBitmap != null) {
+                        val pass = stegoPassphrase
+                        val bytes = viewModel.exportEncryptedBackup(pass)
+                        if (bytes != null) {
+                            val stegoBitmap = SteganographyEngine.embedPayload(coverBitmap, bytes)
+                            if (stegoBitmap != null) {
+                                val bos = ByteArrayOutputStream()
+                                stegoBitmap.compress(CompressFormat.PNG, 100, bos)
+                                pendingStegoBytes = bos.toByteArray()
+                                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                                savePngLauncher.launch("Kryptx_Stego_$timestamp.png")
+                            } else {
+                                snackbarHostState.showSnackbar("Image too small to hold the backup.")
+                            }
+                        } else {
+                            snackbarHostState.showSnackbar("Failed to encrypt backup.")
+                        }
+                    } else {
+                        snackbarHostState.showSnackbar("Could not decode selected image.")
+                    }
+                } catch (e: Exception) {
+                    snackbarHostState.showSnackbar("Error processing image: ${e.message}")
+                }
+            }
+        }
+    }
+
     // Import: user picks any backup file (JSON, CSV, .kryptx)
     val openImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -147,9 +216,19 @@ fun BackupExportScreen(
             scope.launch {
                 val bytes = readFromUri(context, uri)
                 if (bytes != null) {
+                    // Try steganography extraction first
+                    var stegoExtractedBytes: ByteArray? = null
+                    try {
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) {
+                            stegoExtractedBytes = SteganographyEngine.extractPayload(bitmap)
+                        }
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                    
                     showImportDialog = true
-                    // Store bytes so the import dialog can use them
-                    pendingImportBytes = bytes
+                    pendingImportBytes = stegoExtractedBytes ?: bytes
                 } else {
                     snackbarHostState.showSnackbar("Could not read the selected file.")
                 }
@@ -260,6 +339,43 @@ fun BackupExportScreen(
                             val timestamp = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
                             savePdfLauncher.launch("Kryptx_EmergencyKit_$timestamp.pdf")
                         }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Steganographic Export
+            KryptxCard {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = KryptxBlue,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Steganographic Image Backup",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Hides your encrypted backup entirely inside an ordinary photo (PNG). Visually indistinguishable.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    KryptxOutlinedButton(
+                        text = "Create Hidden Backup",
+                        borderColor = KryptxBlue,
+                        textColor = KryptxBlue,
+                        onClick = { showSteganographyDialog = true }
                     )
                 }
             }
@@ -411,6 +527,51 @@ fun BackupExportScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showEncryptedExportDialog = false; exportPass = "" }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // ── Steganography Export passphrase dialog ────────────────────────────────
+    if (showSteganographyDialog) {
+        var exportPass by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showSteganographyDialog = false; exportPass = "" },
+            title = { Text("Hidden Backup Passphrase") },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter a password to encrypt the backup before hiding it in a photo.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    KryptxTextField(
+                        value = exportPass,
+                        onValueChange = { exportPass = it },
+                        label = "Export Passphrase",
+                        isPassword = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val pass = exportPass
+                        showSteganographyDialog = false
+                        exportPass = ""
+                        stegoPassphrase = pass
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                ) {
+                    Text("Select Cover Image", color = KryptxBlue, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSteganographyDialog = false; exportPass = "" }) {
                     Text("Cancel")
                 }
             }

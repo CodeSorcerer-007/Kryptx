@@ -27,6 +27,11 @@ interface VaultRepository {
     suspend fun setupDuressPassword(duressPassword: CharArray): KryptxResult<Unit>
     suspend fun removeDuressPassword()
 
+    fun hasPanicPassword(): Boolean
+    suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit>
+    suspend fun removePanicPassword()
+    suspend fun triggerPanicSelfDestruct()
+
     fun isHardwareKeyEnrolled(): Boolean
     fun getHardwareKeyLabel(): String?
     fun getHardwareKeyChallenge(): ByteArray?

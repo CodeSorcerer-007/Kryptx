@@ -32,7 +32,9 @@ class ArchitectureRuleTest {
             KeyDerivation::class.java,
             PostQuantumEngine::class.java,
             SecureMemory::class.java,
-            AdaptiveKdfCalibrator::class.java
+            AdaptiveKdfCalibrator::class.java,
+            com.kryptx.app.core.crypto.EphemeralTlsEngine::class.java,
+            com.kryptx.app.core.crypto.HardwareEntropyHarvester::class.java
         )
 
         for (clazz in cryptoClasses) {

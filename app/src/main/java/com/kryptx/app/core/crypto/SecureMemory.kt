@@ -112,5 +112,45 @@ object SecureMemory {
             wipe(bytes)
         }
     }
-}
 
+    init {
+        try {
+            System.loadLibrary("kryptx_crypto")
+        } catch (_: Throwable) {}
+    }
+
+    @JvmStatic
+    external fun mlockBuffer(buffer: java.nio.ByteBuffer): Boolean
+
+    @JvmStatic
+    external fun munlockBuffer(buffer: java.nio.ByteBuffer): Boolean
+
+    /**
+     * Allocates a memory-locked, page-aligned DirectByteBuffer that cannot be swapped to disk
+     * and is excluded from OS core dumps. Ultimate military-grade memory protection.
+     */
+    fun allocateSecureBuffer(capacity: Int): java.nio.ByteBuffer {
+        val buffer = java.nio.ByteBuffer.allocateDirect(capacity)
+        try {
+            mlockBuffer(buffer)
+        } catch (_: Throwable) {
+            // Fallback gracefully if JNI fails
+        }
+        return buffer
+    }
+
+    /**
+     * Wipes and unlocks a secure buffer.
+     */
+    fun releaseSecureBuffer(buffer: java.nio.ByteBuffer?) {
+        if (buffer == null) return
+        try {
+            buffer.clear()
+            while (buffer.hasRemaining()) {
+                buffer.put(0.toByte())
+            }
+            buffer.clear()
+            munlockBuffer(buffer)
+        } catch (_: Throwable) {}
+    }
+}

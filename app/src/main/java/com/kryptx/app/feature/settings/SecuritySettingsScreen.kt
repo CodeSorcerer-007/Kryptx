@@ -73,6 +73,7 @@ fun SecuritySettingsScreen(
     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsState()
     val breachCheckNetworkEnabled by viewModel.breachCheckNetworkEnabled.collectAsState()
     val hasDuress by viewModel.hasDuress.collectAsState()
+    val hasPanic by viewModel.hasPanic.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -81,6 +82,7 @@ fun SecuritySettingsScreen(
     var showClipboardDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showDuressDialog by remember { mutableStateOf(false) }
+    var showPanicDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
@@ -344,6 +346,55 @@ fun SecuritySettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Panic Vault Section
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .bounceClick(scaleDown = 0.98f, onClick = { showPanicDialog = true })
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Panic Self-Destruct PIN",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (hasPanic) "Configured (Entering panic PIN instantly wipes device data)" else "Not Configured (Tap to setup destruction PIN)",
+                            fontSize = 12.sp,
+                            color = if (hasPanic) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
@@ -462,6 +513,32 @@ fun SecuritySettingsScreen(
                 viewModel.removeDuressPassword {
                     showDuressDialog = false
                     scope.launch { snackbarHostState.showSnackbar("Duress Decoy PIN disabled") }
+                }
+            }
+        )
+    }
+
+    // Panic PIN Dialog
+    if (showPanicDialog) {
+        PanicPinSetupDialog(
+            isCurrentlyConfigured = hasPanic,
+            onDismiss = { showPanicDialog = false },
+            onSetPanicPin = { pin ->
+                viewModel.setupPanicPassword(
+                    panicPin = pin,
+                    onSuccess = {
+                        showPanicDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("Panic PIN configured. DO NOT ENTER IT ACCIDENTALLY!") }
+                    },
+                    onError = { err ->
+                        scope.launch { snackbarHostState.showSnackbar(err) }
+                    }
+                )
+            },
+            onRemovePanicPin = {
+                viewModel.removePanicPassword {
+                    showPanicDialog = false
+                    scope.launch { snackbarHostState.showSnackbar("Panic PIN disabled") }
                 }
             }
         )
@@ -672,6 +749,98 @@ fun ChangeMasterPasswordDialog(
                 }
             ) {
                 Text("Update Password", color = KryptxBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun PanicPinSetupDialog(
+    isCurrentlyConfigured: Boolean,
+    onDismiss: () -> Unit,
+    onSetPanicPin: (String) -> Unit,
+    onRemovePanicPin: () -> Unit
+) {
+    var panicPin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Panic Self-Destruct PIN", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+        },
+        text = {
+            Column {
+                Text(
+                    text = "If forced under extreme coercion, typing this Panic PIN on the unlock screen will IRREVERSIBLY WIPE the entire vault and lock the app. There is NO RECOVERY once triggered.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                KryptxTextField(
+                    value = panicPin,
+                    onValueChange = {
+                        panicPin = it
+                        errorMsg = null
+                    },
+                    label = "Panic PIN / Password",
+                    isPassword = true
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                KryptxTextField(
+                    value = confirmPin,
+                    onValueChange = {
+                        confirmPin = it
+                        errorMsg = null
+                    },
+                    label = "Confirm Panic PIN",
+                    isPassword = true
+                )
+
+                if (errorMsg != null) {
+                    Text(
+                        text = errorMsg!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+
+                if (isCurrentlyConfigured) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    KryptxOutlinedButton(
+                        text = "Disable Panic Protocol",
+                        borderColor = MaterialTheme.colorScheme.error,
+                        textColor = MaterialTheme.colorScheme.error,
+                        onClick = onRemovePanicPin,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (panicPin.length < 4) {
+                        errorMsg = "Panic PIN must be at least 4 characters"
+                        return@TextButton
+                    }
+                    if (panicPin != confirmPin) {
+                        errorMsg = "Panic PINs do not match"
+                        return@TextButton
+                    }
+                    onSetPanicPin(panicPin)
+                }
+            ) {
+                Text("Arm Panic Protocol", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

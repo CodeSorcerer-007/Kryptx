@@ -22,11 +22,15 @@ import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class VaultRepositoryImpl(
     private val dbHelper: KryptxDatabaseHelper,
+    private val decoyDbHelper: KryptxDatabaseHelper,
     private val sessionManager: VaultSessionManager,
     private val keystoreManager: KeystoreManager,
     private val preferencesRepository: IPreferencesRepository? = null
@@ -103,7 +107,7 @@ class VaultRepositoryImpl(
             dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_TOKEN, tokenBase64)
             dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "true")
 
-            dbHelper.provisionDefaultDecoyItems(decoyVek)
+            decoyDbHelper.provisionDefaultItems(decoyVek)
 
             SecureMemory.wipe(decoyVek)
             SecureMemory.wipe(derivedDuressKey)
@@ -118,6 +122,39 @@ class VaultRepositoryImpl(
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_SALT, "")
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_DURESS_TOKEN, "")
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_HAS_DURESS, "false")
+    }
+
+    override fun hasPanicPassword(): Boolean = dbHelper.getMetadata("has_panic_setup") == "true"
+
+    override suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        try {
+            val salt = KeyDerivation.generateSalt()
+            val derivedKey = KeyDerivation.deriveKey(panicPassword, salt)
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val hash = md.digest(derivedKey)
+            
+            dbHelper.setMetadata("panic_salt", Base64.encodeToString(salt, Base64.NO_WRAP))
+            dbHelper.setMetadata("panic_hash", Base64.encodeToString(hash, Base64.NO_WRAP))
+            dbHelper.setMetadata("has_panic_setup", "true")
+            
+            SecureMemory.wipe(derivedKey)
+            SecureMemory.wipe(salt)
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to setup panic password", e)
+        }
+    }
+
+    override suspend fun removePanicPassword() = withContext(Dispatchers.IO) {
+        dbHelper.setMetadata("panic_salt", "")
+        dbHelper.setMetadata("panic_hash", "")
+        dbHelper.setMetadata("has_panic_setup", "false")
+    }
+
+    override suspend fun triggerPanicSelfDestruct() = withContext(Dispatchers.IO) {
+        dbHelper.clearAllData()
+        keystoreManager.removeBiometricKey()
+        sessionManager.lockVault()
     }
 
     override fun isHardwareKeyEnrolled(): Boolean {
@@ -259,6 +296,28 @@ class VaultRepositoryImpl(
     }
 
     override suspend fun unlockWithPassword(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        // 0. Check Panic Password First
+        if (hasPanicPassword()) {
+            val panicSaltBase64 = dbHelper.getMetadata("panic_salt")
+            val panicHashBase64 = dbHelper.getMetadata("panic_hash")
+            if (panicSaltBase64 != null && panicHashBase64 != null) {
+                val panicSalt = Base64.decode(panicSaltBase64, Base64.NO_WRAP)
+                val expectedHash = Base64.decode(panicHashBase64, Base64.NO_WRAP)
+                val derivedPanicKey = KeyDerivation.deriveKey(masterPassword, panicSalt)
+                val md = java.security.MessageDigest.getInstance("SHA-256")
+                val actualHash = md.digest(derivedPanicKey)
+                
+                if (actualHash.contentEquals(expectedHash)) {
+                    SecureMemory.wipe(derivedPanicKey)
+                    SecureMemory.wipe(panicSalt)
+                    triggerPanicSelfDestruct()
+                    return@withContext KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault has been permanently wiped.")
+                }
+                SecureMemory.wipe(derivedPanicKey)
+                SecureMemory.wipe(panicSalt)
+            }
+        }
+
         // 1. Try Primary Master Password
         val saltBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_SALT)
         val tokenBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN)
@@ -298,8 +357,7 @@ class VaultRepositoryImpl(
                 try {
                     val decoyVek = CryptoEngine.decrypt(duressTokenBytes, derivedDuressKey)
                     sessionManager.unlock(decoyVek, isDecoy = true)
-                    dbHelper.provisionDefaultDecoyItems(decoyVek)
-                    dbHelper.loadAllDecoyItems(decoyVek)
+                    decoyDbHelper.loadAllItems(decoyVek)
 
                     SecureMemory.wipe(decoyVek)
                     SecureMemory.wipe(derivedDuressKey)
@@ -469,13 +527,18 @@ class VaultRepositoryImpl(
         }
     }
 
-    override fun getItems(): Flow<List<VaultItem>> = dbHelper.itemsFlow
+    override fun getItems(): Flow<List<VaultItem>> = sessionManager.isDecoy.flatMapLatest { isDecoy ->
+        if (isDecoy) decoyDbHelper.itemsFlow else dbHelper.itemsFlow
+    }
 
-    override fun getTrashItems(): Flow<List<VaultItem>> = dbHelper.trashFlow
+    override fun getTrashItems(): Flow<List<VaultItem>> = sessionManager.isDecoy.flatMapLatest { isDecoy ->
+        if (isDecoy) decoyDbHelper.trashFlow else dbHelper.trashFlow
+    }
 
     override suspend fun getItemById(id: String): VaultItem? = withContext(Dispatchers.IO) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext null
-        dbHelper.loadItemById(id, activeVek)
+        val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+        targetDb.loadItemById(id, activeVek)
     }
 
     override suspend fun saveItem(item: VaultItem): KryptxResult<Unit> = withContext(Dispatchers.IO) {
@@ -483,11 +546,8 @@ class VaultRepositoryImpl(
             ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
         val isDecoy = sessionManager.isDecoy.value
         return@withContext try {
-            val success = if (isDecoy) {
-                dbHelper.saveDecoyItem(item, activeVek)
-            } else {
-                dbHelper.saveItem(item, activeVek)
-            }
+            val targetDb = if (isDecoy) decoyDbHelper else dbHelper
+            val success = targetDb.saveItem(item, activeVek)
             if (success) {
                 isAuditDirty = true
                 KryptxResult.Success(Unit)
@@ -503,7 +563,8 @@ class VaultRepositoryImpl(
         val activeVek = sessionManager.getVaultKey()
             ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
         return@withContext try {
-            val success = dbHelper.moveToTrash(itemId, activeVek)
+            val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+            val success = targetDb.moveToTrash(itemId, activeVek)
             if (success) {
                 isAuditDirty = true
                 KryptxResult.Success(Unit)
@@ -519,7 +580,8 @@ class VaultRepositoryImpl(
         val activeVek = sessionManager.getVaultKey()
             ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
         return@withContext try {
-            val success = dbHelper.restoreFromTrash(itemId, activeVek)
+            val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+            val success = targetDb.restoreFromTrash(itemId, activeVek)
             if (success) {
                 isAuditDirty = true
                 KryptxResult.Success(Unit)
@@ -535,7 +597,8 @@ class VaultRepositoryImpl(
         val activeVek = sessionManager.getVaultKey()
             ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
         return@withContext try {
-            val deletedCount = dbHelper.emptyTrash(activeVek)
+            val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+            val deletedCount = targetDb.emptyTrash(activeVek)
             isAuditDirty = true
             KryptxResult.Success(deletedCount)
         } catch (e: Exception) {
@@ -545,7 +608,8 @@ class VaultRepositoryImpl(
 
     override suspend fun deleteItem(itemId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val success = dbHelper.deleteItem(itemId)
+            val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+            val success = targetDb.deleteItem(itemId)
             if (success) {
                 isAuditDirty = true
                 KryptxResult.Success(Unit)
@@ -561,7 +625,8 @@ class VaultRepositoryImpl(
         val activeVek = sessionManager.getVaultKey()
             ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
         return@withContext try {
-            val success = dbHelper.toggleFavorite(itemId, activeVek)
+            val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+            val success = targetDb.toggleFavorite(itemId, activeVek)
             if (success) KryptxResult.Success(Unit)
             else KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
         } catch (e: Exception) {
@@ -573,7 +638,8 @@ class VaultRepositoryImpl(
         val activeVek = sessionManager.getVaultKey()
             ?: return@withContext KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
         return@withContext try {
-            val success = dbHelper.recordItemUsage(itemId, activeVek)
+            val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+            val success = targetDb.recordItemUsage(itemId, activeVek)
             if (success) KryptxResult.Success(Unit)
             else KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
         } catch (e: Exception) {

@@ -37,13 +37,25 @@ class SettingsViewModel(
     private val _hasDuress = MutableStateFlow(vaultRepository.hasDuressPassword())
     val hasDuress: StateFlow<Boolean> = _hasDuress.asStateFlow()
 
+    private val _hasPanic = MutableStateFlow(vaultRepository.hasPanicPassword())
+    val hasPanic: StateFlow<Boolean> = _hasPanic.asStateFlow()
+
     private val _exportStatus = MutableStateFlow<String?>(null)
     val exportStatus: StateFlow<String?> = _exportStatus.asStateFlow()
+
+    private val _isHardwareKeyEnrolled = MutableStateFlow(vaultRepository.isHardwareKeyEnrolled())
+    val isHardwareKeyEnrolled: StateFlow<Boolean> = _isHardwareKeyEnrolled.asStateFlow()
+
+    private val _hardwareKeyLabel = MutableStateFlow(vaultRepository.getHardwareKeyLabel())
+    val hardwareKeyLabel: StateFlow<String?> = _hardwareKeyLabel.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
 
     fun refreshDuressStatus() {
         _hasDuress.value = vaultRepository.hasDuressPassword()
+        _hasPanic.value = vaultRepository.hasPanicPassword()
+        _isHardwareKeyEnrolled.value = vaultRepository.isHardwareKeyEnrolled()
+        _hardwareKeyLabel.value = vaultRepository.getHardwareKeyLabel()
     }
 
     fun setThemeMode(mode: AppThemeMode) {
@@ -140,6 +152,53 @@ class SettingsViewModel(
             vaultRepository.removeDuressPassword()
             _hasDuress.value = false
             onComplete()
+        }
+    }
+
+    fun setupPanicPassword(panicPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (panicPin.length < 4) {
+            onError("Panic PIN/Password must be at least 4 characters")
+            return
+        }
+        viewModelScope.launch {
+            val chars = panicPin.toCharArray()
+            val result = try {
+                vaultRepository.setupPanicPassword(chars)
+            } finally {
+                SecureMemory.wipe(chars)
+            }
+            if (result.isSuccess) {
+                _hasPanic.value = true
+                onSuccess()
+            } else {
+                onError("Failed to configure Panic Vault")
+            }
+        }
+    }
+
+    fun removePanicPassword(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            vaultRepository.removePanicPassword()
+            _hasPanic.value = false
+            onComplete()
+        }
+    }
+
+    fun removeHardwareKey(masterPass: String, onComplete: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            val chars = masterPass.toCharArray()
+            val result = try {
+                vaultRepository.removeHardwareKey(chars)
+            } finally {
+                SecureMemory.wipe(chars)
+            }
+            if (result.isSuccess) {
+                _isHardwareKeyEnrolled.value = false
+                _hardwareKeyLabel.value = null
+                onComplete()
+            } else {
+                onError("Failed to remove hardware key")
+            }
         }
     }
 

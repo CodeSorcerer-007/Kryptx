@@ -195,20 +195,32 @@ object VaultImporter {
         return items
     }
 
-    private fun parseCsvLine(line: String): List<String> {
+    fun parseCsvLine(line: String): List<String> {
         val result = mutableListOf<String>()
         val sb = java.lang.StringBuilder()
         var inQuotes = false
-
-        for (c in line) {
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
             when {
-                c == '\"' -> inQuotes = !inQuotes
+                c == '\"' -> {
+                    if (inQuotes && i + 1 < line.length && line[i + 1] == '\"') {
+                        // RFC 4180 standard escaped double-quote: "" -> "
+                        sb.append('\"')
+                        i++ // Skip second double-quote
+                    } else {
+                        inQuotes = !inQuotes
+                    }
+                }
                 c == ',' && !inQuotes -> {
                     result.add(sb.toString().trim())
                     sb.setLength(0)
                 }
-                else -> sb.append(c)
+                else -> {
+                    sb.append(c)
+                }
             }
+            i++
         }
         result.add(sb.toString().trim())
         return result

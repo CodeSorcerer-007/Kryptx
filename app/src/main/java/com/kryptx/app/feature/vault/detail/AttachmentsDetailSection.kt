@@ -1,7 +1,6 @@
 package com.kryptx.app.feature.vault.detail
 
 import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,19 +21,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.model.VaultAttachment
 import com.kryptx.app.feature.vault.VaultViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.io.File
 
 @Composable
 fun AttachmentsDetailSection(
@@ -45,6 +46,16 @@ fun AttachmentsDetailSection(
     snackbarHostState: SnackbarHostState
 ) {
     if (attachments.isEmpty()) return
+
+    var activePreviewAttachment by remember { mutableStateOf<Pair<VaultAttachment, ByteArray>?>(null) }
+
+    activePreviewAttachment?.let { (att, data) ->
+        SecureAttachmentViewer(
+            attachment = att,
+            data = data,
+            onDismiss = { activePreviewAttachment = null }
+        )
+    }
 
     Column {
         Spacer(modifier = Modifier.height(16.dp))
@@ -69,19 +80,7 @@ fun AttachmentsDetailSection(
                                 try {
                                     val decryptedBytes = viewModel.loadDecryptedAttachment(context, att)
                                     if (decryptedBytes != null) {
-                                        val tempFile = File(context.cacheDir, att.fileName)
-                                        tempFile.writeBytes(decryptedBytes)
-
-                                        val uri = FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            tempFile
-                                        )
-                                        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(uri, att.mimeType)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(viewIntent)
+                                        activePreviewAttachment = Pair(att, decryptedBytes)
                                     } else {
                                         snackbarHostState.showSnackbar("Failed to decrypt attachment.")
                                     }
@@ -106,7 +105,7 @@ fun AttachmentsDetailSection(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "${att.formattedSize} • Tap to View",
+                                text = "${att.formattedSize} • Tap for Secure Preview",
                                 fontSize = 12.sp,
                                 color = KryptxBlue
                             )

@@ -338,13 +338,24 @@ class P2pSyncEngine(
                 vaultRepository.saveItem(incoming)
                 mergedCount++
             } else if (incoming.updatedAt > existing.updatedAt) {
-                // Union password history so historical rotated passwords are never dropped
+                // Incoming is newer: update record and union password history
                 val unionHistory = (incoming.passwordHistory + existing.passwordHistory)
                     .distinctBy { it.password }
                     .sortedByDescending { it.changedAt }
                 val mergedItem = incoming.copy(passwordHistory = unionHistory)
                 vaultRepository.saveItem(mergedItem)
                 mergedCount++
+            } else {
+                // Existing is newer or equal: preserve existing record, but ensure any historical
+                // password entries from incoming not yet recorded locally are merged in
+                val unionHistory = (existing.passwordHistory + incoming.passwordHistory)
+                    .distinctBy { it.password }
+                    .sortedByDescending { it.changedAt }
+                if (unionHistory.size > existing.passwordHistory.size) {
+                    val mergedItem = existing.copy(passwordHistory = unionHistory)
+                    vaultRepository.saveItem(mergedItem)
+                    mergedCount++
+                }
             }
         }
         return mergedCount

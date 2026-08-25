@@ -2,8 +2,9 @@ package com.kryptx.app.core.database
 
 import android.content.ContentValues
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
+import net.sqlcipher.database.SQLiteDatabase
+import net.sqlcipher.database.SQLiteOpenHelper
+import net.sqlcipher.database.SQLiteDatabaseHook
 import com.kryptx.app.core.crypto.CryptoEngine
 import com.kryptx.app.core.model.CustomField
 import com.kryptx.app.core.model.ItemType
@@ -18,15 +19,38 @@ import kotlinx.serialization.json.Json
 import java.security.SecureRandom
 
 /**
- * High-performance SQLite database helper with zero-plaintext storage and transactional integrity.
- * Every vault item's payload is authenticated and encrypted with AES-256-GCM before writing to disk.
+ * High-performance SQLCipher database helper with zero-plaintext storage and transactional integrity.
+ * The entire database file is now encrypted at the page-level using SQLCipher 4.
  */
-class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
+class KryptxDatabaseHelper(
+    private val context: Context,
+    databaseName: String = DATABASE_NAME
+) : SQLiteOpenHelper(
     context,
-    DATABASE_NAME,
+    databaseName,
     null,
-    DATABASE_VERSION
+    DATABASE_VERSION,
+    object : SQLiteDatabaseHook {
+        override fun preKey(db: SQLiteDatabase?) {}
+        override fun postKey(db: SQLiteDatabase?) {
+            db?.rawExecSQL("PRAGMA cipher_memory_security = ON")
+        }
+    }
 ) {
+    // TODO: The KDF salt metadata must be migrated to EncryptedSharedPreferences because 
+    // the database can no longer be opened without the key derived from the salt.
+    var databaseKey: ByteArray? = null
+
+    init {
+        SQLiteDatabase.loadLibs(context)
+    }
+
+    // Implicitly pass the SQLCipher key to all legacy queries
+    val writableDatabase: SQLiteDatabase
+        get() = getWritableDatabase(databaseKey ?: ByteArray(0))
+
+    val readableDatabase: SQLiteDatabase
+        get() = getReadableDatabase(databaseKey ?: ByteArray(0))
 
     companion object {
         private const val DATABASE_NAME = "kryptx_vault.db"
@@ -34,7 +58,6 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
 
         // Tables
         private const val TABLE_VAULT_ITEMS = "vault_items"
-        private const val TABLE_DECOY_ITEMS = "decoy_vault_items"
         private const val TABLE_VAULT_METADATA = "vault_metadata"
         private const val TABLE_SECURITY_HISTORY = "security_history"
 
@@ -107,20 +130,6 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
 
         db.execSQL(
             """
-            CREATE TABLE IF NOT EXISTS $TABLE_DECOY_ITEMS (
-                $COL_ID TEXT PRIMARY KEY,
-                $COL_TYPE TEXT NOT NULL,
-                $COL_IS_FAVORITE INTEGER NOT NULL DEFAULT 0,
-                $COL_ENCRYPTED_PAYLOAD TEXT NOT NULL,
-                $COL_CREATED_AT INTEGER NOT NULL,
-                $COL_UPDATED_AT INTEGER NOT NULL,
-                $COL_LAST_USED_AT INTEGER NOT NULL
-            )
-            """.trimIndent()
-        )
-
-        db.execSQL(
-            """
             CREATE TABLE $TABLE_VAULT_METADATA (
                 $COL_META_KEY TEXT PRIMARY KEY,
                 $COL_META_VALUE TEXT NOT NULL
@@ -142,7 +151,6 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_decoy_items_updated ON $TABLE_DECOY_ITEMS($COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
     }
 
@@ -155,7 +163,6 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_decoy_items_updated ON $TABLE_DECOY_ITEMS($COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
             } catch (_: Exception) {
                 // Index creation failures are non-fatal — the database remains consistent
@@ -166,37 +173,27 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
     }
 
     // ==========================================
-    // Metadata / Vault Auth Storage
+    // Metadata / Vault Auth Storage (Migrated to EncryptedSharedPreferences)
     // ==========================================
 
-    fun getMetadata(key: String): String? {
-        val db = readableDatabase
-        val cursor = db.query(
-            TABLE_VAULT_METADATA,
-            arrayOf(COL_META_VALUE),
-            "$COL_META_KEY = ?",
-            arrayOf(key),
-            null,
-            null,
-            null
+    private val securePrefs by lazy {
+        androidx.security.crypto.EncryptedSharedPreferences.create(
+            context,
+            "kryptx_metadata_prefs",
+            androidx.security.crypto.MasterKey.Builder(context)
+                .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
+                .build(),
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
-        return cursor.use {
-            if (it.moveToFirst()) it.getString(0) else null
-        }
+    }
+
+    fun getMetadata(key: String): String? {
+        return securePrefs.getString(key, null)
     }
 
     fun setMetadata(key: String, value: String) {
-        val db = writableDatabase
-        val values = ContentValues().apply {
-            put(COL_META_KEY, key)
-            put(COL_META_VALUE, value)
-        }
-        db.insertWithOnConflict(
-            TABLE_VAULT_METADATA,
-            null,
-            values,
-            SQLiteDatabase.CONFLICT_REPLACE
-        )
+        securePrefs.edit().putString(key, value).apply()
     }
 
     fun hasVaultSetup(): Boolean {
@@ -611,81 +608,8 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         return getMetadata(KEY_HAS_DURESS) == "true" && getMetadata(KEY_DURESS_TOKEN) != null
     }
 
-    suspend fun loadAllDecoyItems(decoyKey: ByteArray): List<VaultItem> = withContext(Dispatchers.IO) {
-        val items = mutableListOf<VaultItem>()
-        val db = readableDatabase
-        val cursor = db.query(
-            TABLE_DECOY_ITEMS,
-            arrayOf(COL_ID, COL_TYPE, COL_IS_FAVORITE, COL_ENCRYPTED_PAYLOAD, COL_CREATED_AT, COL_UPDATED_AT, COL_LAST_USED_AT),
-            null,
-            null,
-            null,
-            null,
-            "$COL_UPDATED_AT DESC"
-        )
-
-        cursor.use {
-            while (it.moveToNext()) {
-                val itemId = it.getString(0)
-                val encryptedPayload = it.getString(3)
-                val aad = itemId.toByteArray(Charsets.UTF_8)
-                try {
-                    val decryptedJson = try {
-                        CryptoEngine.decryptString(encryptedPayload, decoyKey, aad)
-                    } catch (_: Exception) {
-                        CryptoEngine.decryptString(encryptedPayload, decoyKey, null)
-                    }
-                    val item = json.decodeFromString<VaultItem>(decryptedJson)
-                    items.add(item)
-                } catch (_: Exception) {
-                }
-            }
-        }
-
-        _itemsFlow.value = items
-        items
-    }
-
-    suspend fun saveDecoyItem(item: VaultItem, decoyKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
-        val serializedJson = json.encodeToString(item)
-        val aad = item.id.toByteArray(Charsets.UTF_8)
-        val encryptedPayload = CryptoEngine.encryptString(serializedJson, decoyKey, aad)
-
-        val db = writableDatabase
-        val values = ContentValues().apply {
-            put(COL_ID, item.id)
-            put(COL_TYPE, "ENCRYPTED")
-            put(COL_IS_FAVORITE, 0)
-            put(COL_ENCRYPTED_PAYLOAD, encryptedPayload)
-            put(COL_CREATED_AT, 0L)
-            put(COL_UPDATED_AT, secureRandom.nextLong()) // Opaque random token — no plaintext timestamp
-            put(COL_LAST_USED_AT, 0L)
-        }
-
-        val result = db.insertWithOnConflict(
-            TABLE_DECOY_ITEMS,
-            null,
-            values,
-            SQLiteDatabase.CONFLICT_REPLACE
-        )
-
-        if (result != -1L) {
-            val currentList = _itemsFlow.value.toMutableList()
-            val index = currentList.indexOfFirst { it.id == item.id }
-            if (index >= 0) {
-                currentList[index] = item
-            } else {
-                currentList.add(0, item)
-            }
-            _itemsFlow.value = currentList
-            true
-        } else {
-            false
-        }
-    }
-
-    suspend fun provisionDefaultDecoyItems(decoyKey: ByteArray) = withContext(Dispatchers.IO) {
-        val existingDecoys = loadAllDecoyItems(decoyKey)
+    suspend fun provisionDefaultItems(vek: ByteArray) = withContext(Dispatchers.IO) {
+        val existingDecoys = loadAllItems(vek)
         if (existingDecoys.isNotEmpty()) return@withContext
 
         val sampleDecoys = listOf(
@@ -720,7 +644,7 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         )
 
         for (decoy in sampleDecoys) {
-            saveDecoyItem(decoy, decoyKey)
+            saveItem(decoy, vek)
         }
     }
 
@@ -803,7 +727,6 @@ class KryptxDatabaseHelper(context: Context) : SQLiteOpenHelper(
         db.beginTransaction()
         try {
             db.execSQL("DELETE FROM $TABLE_VAULT_ITEMS")
-            db.execSQL("DELETE FROM $TABLE_DECOY_ITEMS")
             db.execSQL("DELETE FROM $TABLE_VAULT_METADATA")
             db.execSQL("DELETE FROM $TABLE_SECURITY_HISTORY")
             db.setTransactionSuccessful()

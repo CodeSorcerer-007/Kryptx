@@ -71,3 +71,8 @@ Thumbs.db
 # IDE & Release artifacts
 .vscode/
 release-artifacts/
+
+# Rust build artifacts
+target/
+**/target/
+

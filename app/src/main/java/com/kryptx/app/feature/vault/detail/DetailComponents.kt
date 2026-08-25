@@ -41,6 +41,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -183,6 +186,17 @@ fun TotpCountdownCard(
                 RoundedCornerShape(16.dp)
             )
             .padding(14.dp)
+            .semantics(mergeDescendants = true) {
+                // Speak code characters individually so they are legible, e.g. "1, 2, 3, 4, 5, 6"
+                val spokenCode = totpCode!!.code.map { it }.joinToString(", ")
+                contentDescription = "2FA Authenticator Code. $spokenCode. ${totpCode!!.secondsRemaining} seconds remaining."
+                onClick(label = "Copy 2FA Code", action = {
+                    com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
+                    copied = true
+                    onCopyCode(totpCode!!.code)
+                    true
+                })
+            }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

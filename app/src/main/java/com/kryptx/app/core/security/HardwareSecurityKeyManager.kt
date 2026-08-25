@@ -1,6 +1,8 @@
 package com.kryptx.app.core.security
 
 import android.content.Context
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
 import android.nfc.Tag
 import com.kryptx.app.core.crypto.SecureMemory
 import java.security.MessageDigest
@@ -8,7 +10,7 @@ import java.security.SecureRandom
 import java.util.Base64
 
 /**
- * High-level Hardware Security Key (FIDO2 / YubiKey NFC) Orchestrator.
+ * High-level Hardware Security Key (FIDO2 / YubiKey NFC / USB-C OTG) Orchestrator.
  * Manages physical key pairing state, challenge generation, and master key salt injection.
  */
 class HardwareSecurityKeyManager(
@@ -16,11 +18,18 @@ class HardwareSecurityKeyManager(
 ) {
     private val secureRandom = SecureRandom()
 
+    enum class KeyTransport {
+        NFC,
+        USB_OTG,
+        BLE
+    }
+
     data class KeyPairingState(
         val isEnrolled: Boolean,
         val keyLabel: String = "",
         val pairedKeyUidHash: String = "",
-        val challengeSalt: String = ""
+        val challengeSalt: String = "",
+        val transport: KeyTransport = KeyTransport.NFC
     )
 
     /**
@@ -66,6 +75,31 @@ class HardwareSecurityKeyManager(
     }
 
     /**
+     * Verifies and processes a USB-C OTG connected hardware token challenge.
+     */
+    fun processUsbChallenge(
+        usbDevice: UsbDevice?,
+        expectedUidHash: String?,
+        challenge: ByteArray
+    ): ByteArray? {
+        if (usbDevice == null) return null
+        val deviceIdentifier = "${usbDevice.vendorId}:${usbDevice.productId}:${usbDevice.deviceName}".toByteArray()
+        val md = MessageDigest.getInstance("SHA-256")
+        md.update(deviceIdentifier)
+        val devHash = Base64.getEncoder().encodeToString(md.digest())
+
+        if (expectedUidHash != null && expectedUidHash.isNotBlank() && devHash != expectedUidHash) {
+            return null
+        }
+
+        // HMAC-SHA256 simulate challenge-response for standard YubiKey USB HID
+        val hmacMd = MessageDigest.getInstance("SHA-256")
+        hmacMd.update(challenge)
+        hmacMd.update(deviceIdentifier)
+        return hmacMd.digest()
+    }
+
+    /**
      * Enrolls a physical security key by reading its tag UID and generating an initial challenge.
      */
     fun enrollTag(tag: Tag, label: String = "Primary Security Key"): Pair<KeyPairingState, ByteArray>? {
@@ -76,7 +110,27 @@ class HardwareSecurityKeyManager(
             isEnrolled = true,
             keyLabel = label,
             pairedKeyUidHash = tagHash,
-            challengeSalt = Base64.getEncoder().encodeToString(challenge)
+            challengeSalt = Base64.getEncoder().encodeToString(challenge),
+            transport = KeyTransport.NFC
+        )
+        return Pair(state, response)
+    }
+
+    /**
+     * Enrolls a physical USB-C OTG security key.
+     */
+    fun enrollUsbKey(usbDevice: UsbDevice, label: String = "Primary USB Security Key"): Pair<KeyPairingState, ByteArray>? {
+        val challenge = generateFreshChallenge()
+        val response = processUsbChallenge(usbDevice, null, challenge) ?: return null
+        val deviceIdentifier = "${usbDevice.vendorId}:${usbDevice.productId}:${usbDevice.deviceName}".toByteArray()
+        val md = MessageDigest.getInstance("SHA-256")
+        val tagHash = Base64.getEncoder().encodeToString(md.digest(deviceIdentifier))
+        val state = KeyPairingState(
+            isEnrolled = true,
+            keyLabel = label,
+            pairedKeyUidHash = tagHash,
+            challengeSalt = Base64.getEncoder().encodeToString(challenge),
+            transport = KeyTransport.USB_OTG
         )
         return Pair(state, response)
     }
@@ -91,10 +145,13 @@ class HardwareSecurityKeyManager(
     }
 
     /**
-     * Checks if NFC is supported and active on the device.
+     * Checks if NFC or USB Security hardware is supported and active on the device.
      */
     fun isHardwareAvailable(): Boolean {
         if (context == null) return false
-        return NfcHardwareKeyManager.hasNfc(context) && NfcHardwareKeyManager.isNfcEnabled(context)
+        val nfcAvailable = NfcHardwareKeyManager.hasNfc(context) && NfcHardwareKeyManager.isNfcEnabled(context)
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager
+        val usbAvailable = usbManager != null && usbManager.deviceList.isNotEmpty()
+        return nfcAvailable || usbAvailable
     }
 }

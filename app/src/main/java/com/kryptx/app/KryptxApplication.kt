@@ -18,6 +18,9 @@ class KryptxApplication : Application() {
     lateinit var dbHelper: KryptxDatabaseHelper
         private set
 
+    lateinit var decoyDbHelper: KryptxDatabaseHelper
+        private set
+
     lateinit var sessionManager: VaultSessionManager
         private set
 
@@ -51,10 +54,11 @@ class KryptxApplication : Application() {
         super.onCreate()
 
         dbHelper = KryptxDatabaseHelper(this)
+        decoyDbHelper = KryptxDatabaseHelper(this, "kryptx_sys_cache.db") // True hidden volume
         sessionManager = VaultSessionManager()
         keystoreManager = KeystoreManager()
         preferencesRepository = PreferencesRepository(this)
-        vaultRepository = VaultRepositoryImpl(dbHelper, sessionManager, keystoreManager, preferencesRepository)
+        vaultRepository = VaultRepositoryImpl(dbHelper, decoyDbHelper, sessionManager, keystoreManager, preferencesRepository)
         clipboardManager = ClipboardSecurityManager(this)
         biometricManager = BiometricAuthManager(this)
         attachmentManager = com.kryptx.app.core.security.AttachmentManager(this, sessionManager)

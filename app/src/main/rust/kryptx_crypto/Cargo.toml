@@ -1,0 +1,19 @@
+[package]
+name = "kryptx_crypto"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+argon2 = "0.5.3"
+chacha20poly1305 = "0.11.0"
+rand = "0.10.2"
+uniffi = { version = "0.32.0", features = ["cli"] }
+jni = "0.21.1"
+libc = "0.2.155"
+
+[build-dependencies]
+uniffi_build = "0.32.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "kryptx_crypto"
