@@ -82,18 +82,16 @@ use jni::sys::jboolean;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_mlockBuffer<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     buffer: JObject<'local>,
 ) -> jboolean {
-    if let Ok(address) = env.get_direct_buffer_address((&buffer).into()) {
-        if let Ok(capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
+    if let Ok(_address) = env.get_direct_buffer_address((&buffer).into()) {
+        if let Ok(_capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
+            #[cfg(target_family = "unix")]
             unsafe {
-                #[cfg(target_family = "unix")]
-                {
-                    libc::mlock(address as *mut libc::c_void, capacity);
-                    libc::madvise(address as *mut libc::c_void, capacity, libc::MADV_DONTDUMP);
-                }
+                libc::mlock(_address as *mut libc::c_void, _capacity);
+                libc::madvise(_address as *mut libc::c_void, _capacity, libc::MADV_DONTDUMP);
             }
             return 1;
         }
@@ -103,17 +101,15 @@ pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_mlockBuffer<
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_munlockBuffer<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     buffer: JObject<'local>,
 ) -> jboolean {
-    if let Ok(address) = env.get_direct_buffer_address((&buffer).into()) {
-        if let Ok(capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
+    if let Ok(_address) = env.get_direct_buffer_address((&buffer).into()) {
+        if let Ok(_capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
+            #[cfg(target_family = "unix")]
             unsafe {
-                #[cfg(target_family = "unix")]
-                {
-                    libc::munlock(address as *mut libc::c_void, capacity);
-                }
+                libc::munlock(_address as *mut libc::c_void, _capacity);
             }
             return 1;
         }
