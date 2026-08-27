@@ -93,15 +93,26 @@ fun decodeQrCode(
  */
 suspend fun decodeQrFromUri(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
     try {
-        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
-                decoder.isMutableRequired = true
-                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        val bitmap = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
+                        decoder.isMutableRequired = false
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        val maxDim = maxOf(info.size.width, info.size.height)
+                        if (maxDim > 1600) {
+                            decoder.setTargetSampleSize(maxDim / 1600 + 1)
+                        }
+                    }
+                } catch (_: Throwable) {
+                    decodeBitmapFromStream(context, uri)
+                }
+            } else {
+                decodeBitmapFromStream(context, uri)
             }
-        } else {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream)
-            }
+        } catch (e: Throwable) {
+            android.util.Log.e("QrScanner", "Bitmap decoding error", e)
+            decodeBitmapFromStream(context, uri)
         } ?: return@withContext null
 
         val width = bitmap.width
@@ -112,7 +123,10 @@ suspend fun decodeQrFromUri(context: Context, uri: Uri): String? = withContext(D
         val source = RGBLuminanceSource(width, height, pixels)
         val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
         val reader = MultiFormatReader().apply {
-            setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)))
+            setHints(mapOf(
+                DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+                DecodeHintType.TRY_HARDER to true
+            ))
         }
 
         try {
@@ -127,6 +141,27 @@ suspend fun decodeQrFromUri(context: Context, uri: Uri): String? = withContext(D
         }
     } catch (e: Throwable) {
         android.util.Log.e("QrScanner", "Failed to decode QR from URI", e)
+        null
+    }
+}
+
+private fun decodeBitmapFromStream(context: Context, uri: Uri): android.graphics.Bitmap? {
+    return try {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, options)
+        }
+        val maxDim = maxOf(options.outWidth, options.outHeight)
+        val sampleSize = if (maxDim > 1600) maxDim / 1600 + 1 else 1
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+        }
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, decodeOptions)
+        }
+    } catch (e: Throwable) {
+        android.util.Log.e("QrScanner", "decodeBitmapFromStream failed", e)
         null
     }
 }

@@ -57,7 +57,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.activity.result.PickVisualMediaRequest
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap.CompressFormat
@@ -172,8 +171,8 @@ fun BackupExportScreen(
 
     // Photo picker for cover image
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
                 try {
@@ -562,9 +561,11 @@ fun BackupExportScreen(
                         showSteganographyDialog = false
                         exportPass = ""
                         stegoPassphrase = pass
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
+                        try {
+                            photoPickerLauncher.launch("image/*")
+                        } catch (e: Throwable) {
+                            android.util.Log.e("BackupExport", "Failed to launch image picker", e)
+                        }
                     }
                 ) {
                     Text("Select Cover Image", color = KryptxBlue, fontWeight = FontWeight.Bold)

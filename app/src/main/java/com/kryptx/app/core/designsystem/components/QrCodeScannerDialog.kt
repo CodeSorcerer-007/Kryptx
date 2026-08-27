@@ -9,7 +9,6 @@ import android.provider.Settings
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -126,18 +125,41 @@ fun QrCodeScannerDialog(
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val scanned = decodeQrFromUri(context, uri)
-                if (!scanned.isNullOrBlank()) {
-                    KryptxHaptics.successVibration(context)
-                    onQrCodeScanned(scanned)
-                } else {
-                    KryptxHaptics.warning(view)
-                    Toast.makeText(context, "No valid QR code found in selected image", Toast.LENGTH_SHORT).show()
+                try {
+                    val scanned = decodeQrFromUri(context, uri)
+                    if (!scanned.isNullOrBlank()) {
+                        KryptxHaptics.successVibration(context)
+                        onQrCodeScanned(scanned)
+                    } else {
+                        KryptxHaptics.warning(view)
+                        Toast.makeText(context, "No valid QR code found in selected image", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.e("QrScanner", "Error decoding QR from image", e)
+                    Toast.makeText(context, "Failed to read selected image", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+    }
+
+    val launchGalleryPicker: () -> Unit = {
+        try {
+            KryptxHaptics.tap(view)
+            photoPickerLauncher.launch("image/*")
+        } catch (e: Throwable) {
+            android.util.Log.e("QrScanner", "Failed to launch image picker", e)
+            try {
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                }
+                context.startActivity(Intent.createChooser(intent, "Select QR Code Image"))
+            } catch (e2: Throwable) {
+                Toast.makeText(context, "No gallery or image picker app available", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -182,12 +204,7 @@ fun QrCodeScannerDialog(
             if (hasCameraPermission) {
                 CameraPreviewWithScanner(
                     onQrCodeScanned = onQrCodeScanned,
-                    onPickFromGallery = {
-                        KryptxHaptics.tap(view)
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
+                    onPickFromGallery = launchGalleryPicker,
                     onClose = onDismiss
                 )
             } else {
@@ -206,12 +223,7 @@ fun QrCodeScannerDialog(
                         }
                     },
                     onOpenSettings = openAppSettings,
-                    onPickFromGallery = {
-                        KryptxHaptics.tap(view)
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
+                    onPickFromGallery = launchGalleryPicker,
                     showSettingsPrompt = permissionRequested && !shouldShowRationale,
                     onClose = onDismiss
                 )
