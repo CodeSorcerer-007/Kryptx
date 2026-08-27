@@ -252,3 +252,14 @@ tasks.register<Exec>("buildRustEngine") {
         "-o", jniLibsDir.absolutePath, "build", "--release"
     )
 }
+
+tasks.register<Copy>("copyApk") {
+    group = "build"
+    description = "Copies the assembled APK directly into the root apk/ directory"
+    dependsOn("packageDebug")
+    mustRunAfter("packageDebug")
+    from(layout.buildDirectory.dir("outputs/apk/debug"))
+    include("*.apk")
+    into(rootProject.layout.projectDirectory.dir("apk"))
+    rename { "Kryptx-Security-Debug.apk" }
+}
