@@ -58,7 +58,11 @@ fun AnimatedQrScanner(
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
+            try {
+                permissionLauncher.launch(Manifest.permission.CAMERA)
+            } catch (e: Throwable) {
+                android.util.Log.e("AnimatedQrScanner", "Failed to launch camera permission", e)
+            }
         }
     }
 

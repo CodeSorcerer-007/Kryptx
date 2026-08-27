@@ -289,13 +289,21 @@ fun VaultItemDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (item.website.isNotBlank()) {
                             IconButton(onClick = {
-                                val url = if (item.website.startsWith("http://") || item.website.startsWith("https://")) {
-                                    item.website
-                                } else {
-                                    "https://${item.website}"
+                                try {
+                                    val url = if (item.website.startsWith("http://") || item.website.startsWith("https://")) {
+                                        item.website
+                                    } else {
+                                        "https://${item.website}"
+                                    }
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Throwable) {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Unable to open browser: ${e.localizedMessage ?: "Invalid URL"}")
+                                    }
                                 }
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                context.startActivity(intent)
                             }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.OpenInNew,

@@ -71,31 +71,42 @@ class ClipboardSecurityManager(
             _remainingSeconds.value = effectiveTimeout
             
             // Set Alarm for reliable background clearing
-            if (alarmManager != null) {
-                val intent = Intent(context, ClipboardClearReceiver::class.java).apply {
-                    action = "com.kryptx.app.ACTION_CLEAR_CLIPBOARD"
-                    putExtra("EXTRA_TEXT_TO_CLEAR", text)
-                }
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context, 
-                    0, 
-                    intent, 
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP, 
-                        System.currentTimeMillis() + effectiveTimeout * 1000L, 
-                        pendingIntent
+            try {
+                if (alarmManager != null) {
+                    val intent = Intent(context, ClipboardClearReceiver::class.java).apply {
+                        action = "com.kryptx.app.ACTION_CLEAR_CLIPBOARD"
+                        putExtra("EXTRA_TEXT_TO_CLEAR", text)
+                    }
+                    val pendingIntent = PendingIntent.getBroadcast(
+                        context, 
+                        0, 
+                        intent, 
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     )
-                } else {
-                    alarmManager.setExact(
-                        AlarmManager.RTC_WAKEUP,
-                        System.currentTimeMillis() + effectiveTimeout * 1000L,
-                        pendingIntent
-                    )
+                    
+                    val triggerAtMillis = System.currentTimeMillis() + effectiveTimeout * 1000L
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        if (alarmManager.canScheduleExactAlarms()) {
+                            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                        } else {
+                            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                        }
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP, 
+                            triggerAtMillis, 
+                            pendingIntent
+                        )
+                    } else {
+                        alarmManager.setExact(
+                            AlarmManager.RTC_WAKEUP,
+                            triggerAtMillis,
+                            pendingIntent
+                        )
+                    }
                 }
+            } catch (e: Throwable) {
+                android.util.Log.w("ClipboardSecurity", "Failed to schedule background alarm clear", e)
             }
 
             clearJob = scope.launch {

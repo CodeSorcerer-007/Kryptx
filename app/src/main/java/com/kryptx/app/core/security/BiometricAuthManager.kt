@@ -76,12 +76,16 @@ class BiometricAuthManager(private val context: Context) {
             .setAllowedAuthenticators(if (cryptoObject != null) BIOMETRIC_STRONG else (BIOMETRIC_STRONG or BIOMETRIC_WEAK))
             .build()
 
-        val biometricPrompt = BiometricPrompt(activity, executor, callback)
+        try {
+            val biometricPrompt = BiometricPrompt(activity, executor, callback)
 
-        if (cryptoObject != null) {
-            biometricPrompt.authenticate(promptInfo, cryptoObject)
-        } else {
-            biometricPrompt.authenticate(promptInfo)
+            if (cryptoObject != null) {
+                biometricPrompt.authenticate(promptInfo, cryptoObject)
+            } else {
+                biometricPrompt.authenticate(promptInfo)
+            }
+        } catch (e: Throwable) {
+            onError(BiometricPrompt.ERROR_UNABLE_TO_PROCESS, e.localizedMessage ?: "Biometric prompt failed to launch")
         }
     }
 }

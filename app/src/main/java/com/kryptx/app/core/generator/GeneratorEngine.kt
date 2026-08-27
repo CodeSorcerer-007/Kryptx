@@ -151,7 +151,7 @@ object GeneratorEngine {
     }
 
     private fun generatePassphrase(config: GeneratorConfig): String {
-        val count = config.wordCount.coerceIn(3, 12)
+        val count = config.wordCount.coerceIn(3, 8)
         val selectedWords = mutableListOf<String>()
 
         for (i in 0 until count) {
@@ -179,7 +179,7 @@ object GeneratorEngine {
     }
 
     private fun generatePin(config: GeneratorConfig): String {
-        val safeLength = config.pinLength.coerceIn(4, 32)
+        val safeLength = config.pinLength.coerceIn(4, 16)
         val builder = StringBuilder(safeLength)
         
         var lastDigit = -1

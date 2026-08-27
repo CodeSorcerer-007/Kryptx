@@ -212,10 +212,6 @@ tasks.register<Exec>("generateRustBindings") {
     description = "Generates Kotlin bindings using Mozilla UniFFI from the kryptx_crypto crate"
     workingDir = rustSrcDir
     
-    doFirst {
-        generatedKotlinDir.mkdirs()
-    }
-    
     val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
     val libExtension = if (isWindows) "dll" else "so"
     val libPrefix = if (isWindows) "" else "lib"
@@ -250,26 +246,9 @@ tasks.register<Exec>("buildRustEngine") {
     if (ndkDir.isNotEmpty()) {
         environment("ANDROID_NDK_HOME", ndkDir)
     }
-
-    doFirst {
-        if (ndkDir.isEmpty()) {
-            println("ANDROID_NDK_HOME or ndk.dir in local.properties is not set! Skipping rust ndk build.")
-            throw org.gradle.api.tasks.StopExecutionException("NDK not configured")
-        }
-    }
     
     commandLine(
         "cargo", "ndk", "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86", "-t", "x86_64", 
         "-o", jniLibsDir.absolutePath, "build", "--release"
     )
-}
-
-// Hook into Android build lifecycle
-tasks.whenTaskAdded {
-    if (name.startsWith("merge") && name.endsWith("JniLibFolders")) {
-        dependsOn("buildRustEngine")
-    }
-    if (name.startsWith("compile") && name.endsWith("Kotlin")) {
-        dependsOn("generateRustBindings")
-    }
 }

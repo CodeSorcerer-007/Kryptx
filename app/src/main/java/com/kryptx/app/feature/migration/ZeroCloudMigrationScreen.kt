@@ -254,7 +254,11 @@ fun ZeroCloudMigrationScreen(
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                             hasCameraPermission = true
                         } else {
-                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                            try {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            } catch (e: Throwable) {
+                                android.util.Log.e("Migration", "Camera permission launch failed", e)
+                            }
                         }
                     }
 
