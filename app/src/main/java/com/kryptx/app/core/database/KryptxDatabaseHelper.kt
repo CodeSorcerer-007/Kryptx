@@ -37,29 +37,65 @@ class KryptxDatabaseHelper(
         }
     }
 ) {
-    // TODO: The KDF salt metadata must be migrated to EncryptedSharedPreferences because 
-    // the database can no longer be opened without the key derived from the salt.
-    var databaseKey: ByteArray? = null
+    /**
+     * The SQLCipher page-encryption key derived from the vault master password.
+     * Must be set via [setDatabaseKey] immediately after the VEK is resolved at
+     * setup/unlock time. While null, the SQLCipher container opens with an empty
+     * passphrase — which is intentionally rejected by [requireDatabaseKey].
+     */
+    @Volatile
+    private var databaseKey: ByteArray? = null
 
     init {
         SQLiteDatabase.loadLibs(context)
     }
 
-    // Implicitly pass the SQLCipher key to all legacy queries
+    /**
+     * Sets the SQLCipher database encryption key derived from the active VEK.
+     * Call this once at setup and once at every successful unlock before any DB access.
+     * The key is stored only in memory and wiped alongside the VEK on lock.
+     */
+    fun setDatabaseKey(key: ByteArray) {
+        // Wipe any previous key material before overwriting
+        databaseKey?.let { com.kryptx.app.core.crypto.SecureMemory.wipe(it) }
+        databaseKey = key.copyOf()
+    }
+
+    /**
+     * Clears the in-memory SQLCipher key. Call when the vault is locked.
+     */
+    fun clearDatabaseKey() {
+        databaseKey?.let { com.kryptx.app.core.crypto.SecureMemory.wipe(it) }
+        databaseKey = null
+    }
+
+    /**
+     * Returns the current database key, or throws if the vault is locked.
+     * This prevents silent fallback to an empty-passphrase open.
+     */
+    private fun requireDatabaseKey(): ByteArray {
+        return databaseKey
+            ?: throw IllegalStateException(
+                "SQLCipher database key is not set — vault must be unlocked before accessing the database."
+            )
+    }
+
+    // Pass the SQLCipher key to all database accessors
     val writableDatabase: SQLiteDatabase
-        get() = getWritableDatabase(databaseKey ?: ByteArray(0))
+        get() = getWritableDatabase(requireDatabaseKey())
 
     val readableDatabase: SQLiteDatabase
-        get() = getReadableDatabase(databaseKey ?: ByteArray(0))
+        get() = getReadableDatabase(requireDatabaseKey())
 
     companion object {
         private const val DATABASE_NAME = "kryptx_vault.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
 
         // Tables
         private const val TABLE_VAULT_ITEMS = "vault_items"
         private const val TABLE_VAULT_METADATA = "vault_metadata"
         private const val TABLE_SECURITY_HISTORY = "security_history"
+        private const val TABLE_ACTIVITY_LOG = "activity_log"
 
         // Columns for vault_items
         private const val COL_ID = "id"
@@ -78,6 +114,12 @@ class KryptxDatabaseHelper(
         private const val COL_HIST_TIMESTAMP = "timestamp"
         private const val COL_HIST_SCORE = "score"
 
+        // Columns for activity_log
+        private const val COL_ACT_ID = "id"
+        private const val COL_ACT_TIMESTAMP = "timestamp"
+        private const val COL_ACT_TYPE = "type"
+        private const val COL_ACT_DESC = "description"
+
         // Metadata keys
         const val KEY_SALT = "kdf_salt"
         const val KEY_VERIFICATION_TOKEN = "verification_token"
@@ -92,6 +134,9 @@ class KryptxDatabaseHelper(
         const val KEY_HARDWARE_KEY_LABEL = "hardware_key_label"
         const val KEY_HARDWARE_KEY_CHALLENGE = "hardware_key_challenge"
         const val KEY_ACTIVE_VAULT = "active_vault_id"
+        const val KEY_KDF_ALGORITHM = "kdf_algorithm"
+        const val KEY_PQC_IDENTITY_PUBLIC_KEY = "pqc_identity_public_key"
+        const val KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT = "pqc_identity_private_key_ct"
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -146,17 +191,28 @@ class KryptxDatabaseHelper(
             """.trimIndent()
         )
 
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_ACTIVITY_LOG (
+                $COL_ACT_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COL_ACT_TIMESTAMP INTEGER NOT NULL,
+                $COL_ACT_TYPE TEXT NOT NULL,
+                $COL_ACT_DESC TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+
         // Performance indices — created at table creation time for fresh installs
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_log_ts ON $TABLE_ACTIVITY_LOG($COL_ACT_TIMESTAMP DESC)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // Version 2: Add performance indices on vault_items and decoy_vault_items.
-        // No schema column changes — purely additive index creation.
         if (oldVersion < 2) {
             try {
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
@@ -165,11 +221,27 @@ class KryptxDatabaseHelper(
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
             } catch (_: Exception) {
-                // Index creation failures are non-fatal — the database remains consistent
+            }
+        }
+        
+        // Version 3: Add activity_log table.
+        if (oldVersion < 3) {
+            try {
+                db.execSQL(
+                    """
+                    CREATE TABLE $TABLE_ACTIVITY_LOG (
+                        $COL_ACT_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                        $COL_ACT_TIMESTAMP INTEGER NOT NULL,
+                        $COL_ACT_TYPE TEXT NOT NULL,
+                        $COL_ACT_DESC TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_log_ts ON $TABLE_ACTIVITY_LOG($COL_ACT_TIMESTAMP DESC)")
+            } catch (_: Exception) {
             }
         }
         // Future schema versions: add sequential if (oldVersion < N) blocks here.
-        // Never use DROP TABLE — always use ALTER TABLE ADD COLUMN or CREATE TABLE for new tables.
     }
 
     // ==========================================
@@ -601,6 +673,65 @@ class KryptxDatabaseHelper(
     }
 
     // ==========================================
+    // Activity Log CRUD
+    // ==========================================
+
+    suspend fun insertActivityEvent(timestamp: Long, type: String, description: String) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put(COL_ACT_TIMESTAMP, timestamp)
+            put(COL_ACT_TYPE, type)
+            put(COL_ACT_DESC, description)
+        }
+        db.insert(TABLE_ACTIVITY_LOG, null, values)
+    }
+
+    suspend fun getActivityEvents(limit: Int): List<com.kryptx.app.core.security.ActivityEvent> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<com.kryptx.app.core.security.ActivityEvent>()
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_ACTIVITY_LOG,
+            arrayOf(COL_ACT_TIMESTAMP, COL_ACT_TYPE, COL_ACT_DESC),
+            null,
+            null,
+            null,
+            null,
+            "$COL_ACT_TIMESTAMP DESC",
+            limit.toString()
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                result.add(com.kryptx.app.core.security.ActivityEvent(
+                    timestamp = it.getLong(0),
+                    type = it.getString(1),
+                    description = it.getString(2)
+                ))
+            }
+        }
+        result
+    }
+
+    suspend fun enforceActivityEventLimit(limit: Int) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        // Delete all rows older than the latest 'limit' rows
+        db.execSQL(
+            """
+            DELETE FROM $TABLE_ACTIVITY_LOG 
+            WHERE $COL_ACT_ID NOT IN (
+                SELECT $COL_ACT_ID FROM $TABLE_ACTIVITY_LOG 
+                ORDER BY $COL_ACT_TIMESTAMP DESC 
+                LIMIT $limit
+            )
+            """.trimIndent()
+        )
+    }
+
+    suspend fun clearActivityEvents() = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        db.delete(TABLE_ACTIVITY_LOG, null, null)
+    }
+
+    // ==========================================
     // Decoy Vault CRUD & Realistic Provisioning
     // ==========================================
 
@@ -720,7 +851,7 @@ class KryptxDatabaseHelper(
     }
 
     /**
-     * Atomically clears all user data across all tables.
+     * Atomically clears all user data across all tables and wipes the in-memory DB key.
      */
     fun clearAllData() {
         val db = writableDatabase
@@ -729,10 +860,12 @@ class KryptxDatabaseHelper(
             db.execSQL("DELETE FROM $TABLE_VAULT_ITEMS")
             db.execSQL("DELETE FROM $TABLE_VAULT_METADATA")
             db.execSQL("DELETE FROM $TABLE_SECURITY_HISTORY")
+            db.execSQL("DELETE FROM $TABLE_ACTIVITY_LOG")
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
         _itemsFlow.value = emptyList()
+        clearDatabaseKey()
     }
 }

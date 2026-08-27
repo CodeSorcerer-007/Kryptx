@@ -15,7 +15,6 @@ import com.kryptx.app.core.security.AttachmentManager
 import com.kryptx.app.core.security.ClipboardSecurityManager
 import com.kryptx.app.core.security.IAttachmentManager
 import com.kryptx.app.core.security.IClipboardSecurityManager
-import com.kryptx.app.core.sync.KryptxLocalNetworkManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -33,7 +32,6 @@ class ArchitectureRuleTest {
             PostQuantumEngine::class.java,
             SecureMemory::class.java,
             AdaptiveKdfCalibrator::class.java,
-            com.kryptx.app.core.crypto.EphemeralTlsEngine::class.java,
             com.kryptx.app.core.crypto.HardwareEntropyHarvester::class.java
         )
 

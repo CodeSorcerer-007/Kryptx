@@ -30,15 +30,21 @@ data class GeneratorConfig(
     val includeNumbers: Boolean = true,
     val includeSymbols: Boolean = true,
     val avoidAmbiguous: Boolean = true, // Excludes 0, O, o, l, 1, I, etc.
+    val customSymbols: String = "!@#\$%^&*()_+-=[]{}|;:,.<>?",
+    val excludedCharacters: String = "",
+    val pronounceable: Boolean = false,
 
     // Passphrase mode options
     val wordCount: Int = 4,
     val separator: String = "-",
     val capitalizeWords: Boolean = true,
     val includeNumberInPassphrase: Boolean = true,
+    val includeSymbolInPassphrase: Boolean = false,
 
     // PIN mode options
     val pinLength: Int = 6,
+    val avoidRepeats: Boolean = false,
+    val avoidSequences: Boolean = false,
 
     // Username options
     val usernameStyle: UsernameStyle = UsernameStyle.MEMORABLE

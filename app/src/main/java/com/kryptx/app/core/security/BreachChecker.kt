@@ -2,27 +2,20 @@ package com.kryptx.app.core.security
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.URL
 import java.security.MessageDigest
 import java.util.Locale
 
 /**
- * Flagship Credential Security & Compromised Password Analysis Engine.
+ * 100% Isolated Sovereign Credential Security & Compromised Password Analysis Engine.
  * 
- * Supports:
- * 1. RFC-compliant zero-knowledge k-Anonymity checking against Have I Been Pwned (HIBP) Range API
- *    with 'Add-Padding: true' header (only the first 5 SHA-1 characters leave the device).
- * 2. Instant 100% offline analysis against 200+ high-risk dictionary items, keyboard walks,
- *    repeating sequences, and weak pattern templates with zero network queries.
+ * Operates strictly 100% offline in volatile RAM with zero network queries.
+ * Evaluates passwords against:
+ * 1. 200+ high-risk dictionary patterns and leaked phrases
+ * 2. Keyboard walks and geometric patterns
+ * 3. Trivial repeated sequences and short numeric PINs
+ * 4. Common year combinations and predictable suffixes
  */
 object BreachChecker {
-
-    private const val HIBP_RANGE_URL = "https://api.pwnedpasswords.com/range/"
-    private const val CONNECT_TIMEOUT_MS = 4000
-    private const val READ_TIMEOUT_MS = 4000
-    // Certificate pinning for api.pwnedpasswords.com is enforced declaratively via
-    // res/xml/network_security_config.xml — Android rejects connections that don't match
-    // the pinned SPKI hashes before any data reaches this code.
 
     // Top compromised, leaked, and predictable passwords list (Expanded)
     private val OFFLINE_COMPROMISED_PASSWORDS = setOf(
@@ -57,30 +50,20 @@ object BreachChecker {
     )
 
     /**
-     * Checks if a password matches known compromised credentials using either:
-     * - RFC k-Anonymity HIBP API (when enableNetworkCheck = true)
-     * - Instant offline dictionary and structural heuristics (fallback or default)
+     * Checks if a password matches known compromised credentials using instant offline
+     * dictionary and structural heuristics with 0 network queries.
      */
     suspend fun checkPassword(
-        password: String,
-        enableNetworkCheck: Boolean = false
-    ): BreachStatus = withContext(Dispatchers.IO) {
+        password: String
+    ): BreachStatus = withContext(Dispatchers.Default) {
         if (password.isBlank()) {
             return@withContext BreachStatus(false, 0, "Empty")
         }
 
-        // 1. Fast Local Offline Dictionary & Pattern Heuristics
+        // Fast Local Offline Dictionary & Pattern Heuristics
         val offlineResult = checkOffline(password)
         if (offlineResult.isBreached) {
             return@withContext offlineResult
-        }
-
-        // 2. Opt-in Zero-Knowledge k-Anonymity Cloud Query
-        if (enableNetworkCheck) {
-            val hibpResult = queryHibpRange(password)
-            if (hibpResult != null) {
-                return@withContext hibpResult
-            }
         }
 
         BreachStatus(false, 0, "Offline Security Check Passed")
@@ -134,72 +117,7 @@ object BreachChecker {
     }
 
     /**
-     * Queries Have I Been Pwned Range API with 5-character SHA-1 prefix and Add-Padding header.
-     * Certificate pinning is enforced at the OS level via network_security_config.xml —
-     * Android will reject any connection whose certificate chain does not match the pinned
-     * SPKI hashes before this code receives any data.
-     * Returns BreachStatus if query succeeded, or null if network error/timeout occurred.
-     */
-    fun queryHibpRange(password: String): BreachStatus? {
-        return try {
-            val sha1Hex = sha1Hex(password)
-            val prefix = sha1Hex.substring(0, 5)
-            val suffix = sha1Hex.substring(5)
-
-            val url = URL(HIBP_RANGE_URL + prefix)
-            val connection = (url.openConnection() as javax.net.ssl.HttpsURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
-                setRequestProperty("User-Agent", "Kryptx-Android-Password-Fortress")
-                setRequestProperty("Add-Padding", "true") // Zero-Knowledge response padding
-            }
-
-            if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
-                connection.disconnect()
-                return null
-            }
-
-            val reader = java.io.BufferedReader(java.io.InputStreamReader(connection.inputStream))
-            var line: String?
-            var breachCount = 0
-
-            while (reader.readLine().also { line = it } != null) {
-                val currentLine = line ?: continue
-                val parts = currentLine.split(":")
-                if (parts.size == 2) {
-                    val entrySuffix = parts[0].trim().uppercase(Locale.US)
-                    val count = parts[1].trim().toIntOrNull() ?: 0
-                    if (entrySuffix == suffix) {
-                        breachCount = count
-                        break
-                    }
-                }
-            }
-            reader.close()
-            connection.disconnect()
-
-            if (breachCount > 0) {
-                BreachStatus(
-                    isBreached = true,
-                    breachCount = breachCount,
-                    source = "Have I Been Pwned (k-Anonymity)"
-                )
-            } else {
-                BreachStatus(
-                    isBreached = false,
-                    breachCount = 0,
-                    source = "HIBP Verified Safe"
-                )
-            }
-        } catch (_: Exception) {
-            // Network failure, timeout, or OS-level pin rejection -> fall back to offline analysis
-            null
-        }
-    }
-
-    /**
-     * Computes SHA-1 hash of a string in uppercase hex.
+     * Computes SHA-1 hash of a string in uppercase hex for internal entropy/fingerprinting.
      */
     fun sha1Hex(input: String): String {
         val digest = MessageDigest.getInstance("SHA-1")
@@ -211,4 +129,3 @@ object BreachChecker {
         return sb.toString()
     }
 }
-

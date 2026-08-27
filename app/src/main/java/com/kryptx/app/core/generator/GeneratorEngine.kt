@@ -72,7 +72,7 @@ object GeneratorEngine {
         val generatedString = when (config.mode) {
             GeneratorMode.PASSWORD -> generatePassword(config)
             GeneratorMode.PASSPHRASE -> generatePassphrase(config)
-            GeneratorMode.PIN -> generatePin(config.pinLength)
+            GeneratorMode.PIN -> generatePin(config)
             GeneratorMode.USERNAME -> generateUsername(config.usernameStyle)
         }
 
@@ -81,11 +81,37 @@ object GeneratorEngine {
     }
 
     private fun generatePassword(config: GeneratorConfig): String {
+        val length = config.passwordLength.coerceIn(4, 64)
+        
+        if (config.pronounceable) {
+            val vowels = "aeiouy"
+            val consonants = "bcdfghjklmnpqrstvwxz"
+            val chars = CharArray(length)
+            
+            var isVowel = secureRandom.nextBoolean()
+            for (i in 0 until length) {
+                if (isVowel) {
+                    chars[i] = vowels[secureRandom.nextInt(vowels.length)]
+                } else {
+                    chars[i] = consonants[secureRandom.nextInt(consonants.length)]
+                }
+                isVowel = !isVowel
+            }
+            if (config.includeNumbers) {
+                 val numPos = secureRandom.nextInt(length)
+                 chars[numPos] = NUMBERS[secureRandom.nextInt(NUMBERS.length)]
+            }
+            if (config.includeUppercase) {
+                 chars[0] = chars[0].uppercaseChar()
+            }
+            return String(chars)
+        }
+
         var pool = buildString {
             if (config.includeUppercase) append(UPPERCASE)
             if (config.includeLowercase) append(LOWERCASE)
             if (config.includeNumbers) append(NUMBERS)
-            if (config.includeSymbols) append(SYMBOLS)
+            if (config.includeSymbols) append(config.customSymbols.ifEmpty { SYMBOLS })
         }
 
         if (pool.isEmpty()) {
@@ -95,16 +121,21 @@ object GeneratorEngine {
         if (config.avoidAmbiguous) {
             pool = pool.filter { !AMBIGUOUS_CHARS.contains(it) }
         }
+        
+        if (config.excludedCharacters.isNotEmpty()) {
+            pool = pool.filter { !config.excludedCharacters.contains(it) }
+        }
+        
+        if (pool.isEmpty()) pool = "a"
 
-        val length = config.passwordLength.coerceIn(4, 64)
         val chars = CharArray(length)
 
         // Ensure at least one character from each enabled set is included
         val guaranteedChars = mutableListOf<Char>()
-        if (config.includeUppercase) guaranteedChars.add(filterPool(UPPERCASE, config.avoidAmbiguous).randomSecure())
-        if (config.includeLowercase) guaranteedChars.add(filterPool(LOWERCASE, config.avoidAmbiguous).randomSecure())
-        if (config.includeNumbers) guaranteedChars.add(filterPool(NUMBERS, config.avoidAmbiguous).randomSecure())
-        if (config.includeSymbols) guaranteedChars.add(filterPool(SYMBOLS, config.avoidAmbiguous).randomSecure())
+        if (config.includeUppercase) guaranteedChars.add(filterPool(UPPERCASE, config.avoidAmbiguous, config.excludedCharacters).randomSecure(pool))
+        if (config.includeLowercase) guaranteedChars.add(filterPool(LOWERCASE, config.avoidAmbiguous, config.excludedCharacters).randomSecure(pool))
+        if (config.includeNumbers) guaranteedChars.add(filterPool(NUMBERS, config.avoidAmbiguous, config.excludedCharacters).randomSecure(pool))
+        if (config.includeSymbols) guaranteedChars.add(filterPool(config.customSymbols.ifEmpty { SYMBOLS }, config.avoidAmbiguous, config.excludedCharacters).randomSecure(pool))
 
         for (i in 0 until length) {
             if (i < guaranteedChars.size) {
@@ -120,7 +151,7 @@ object GeneratorEngine {
     }
 
     private fun generatePassphrase(config: GeneratorConfig): String {
-        val count = config.wordCount.coerceIn(3, 8)
+        val count = config.wordCount.coerceIn(3, 12)
         val selectedWords = mutableListOf<String>()
 
         for (i in 0 until count) {
@@ -136,15 +167,40 @@ object GeneratorEngine {
             val insertIndex = secureRandom.nextInt(selectedWords.size)
             selectedWords[insertIndex] = "${selectedWords[insertIndex]}$randomNum"
         }
+        
+        if (config.includeSymbolInPassphrase) {
+            val symbolPool = config.customSymbols.ifEmpty { SYMBOLS }
+            val randomSym = symbolPool[secureRandom.nextInt(symbolPool.length)]
+            val insertIndex = secureRandom.nextInt(selectedWords.size)
+            selectedWords[insertIndex] = "${selectedWords[insertIndex]}$randomSym"
+        }
 
         return selectedWords.joinToString(config.separator)
     }
 
-    private fun generatePin(length: Int): String {
-        val safeLength = length.coerceIn(4, 16)
+    private fun generatePin(config: GeneratorConfig): String {
+        val safeLength = config.pinLength.coerceIn(4, 32)
         val builder = StringBuilder(safeLength)
+        
+        var lastDigit = -1
+        
         for (i in 0 until safeLength) {
-            builder.append(secureRandom.nextInt(10))
+            var nextDigit: Int
+            var attempts = 0
+            do {
+                nextDigit = secureRandom.nextInt(10)
+                attempts++
+                // Fallback after 50 attempts if constraints are impossible
+                if (attempts > 50) break
+                val isValid = when {
+                    config.avoidRepeats && nextDigit == lastDigit -> false
+                    config.avoidSequences && lastDigit != -1 && (nextDigit == lastDigit + 1 || nextDigit == lastDigit - 1 || (lastDigit == 9 && nextDigit == 0) || (lastDigit == 0 && nextDigit == 9)) -> false
+                    else -> true
+                }
+            } while (!isValid)
+            
+            builder.append(nextDigit)
+            lastDigit = nextDigit
         }
         return builder.toString()
     }
@@ -173,11 +229,15 @@ object GeneratorEngine {
         }
     }
 
-    private fun filterPool(pool: String, avoidAmbiguous: Boolean): String {
-        return if (avoidAmbiguous) pool.filter { !AMBIGUOUS_CHARS.contains(it) } else pool
+    private fun filterPool(pool: String, avoidAmbiguous: Boolean, excludedChars: String): String {
+        var filtered = pool
+        if (avoidAmbiguous) filtered = filtered.filter { !AMBIGUOUS_CHARS.contains(it) }
+        if (excludedChars.isNotEmpty()) filtered = filtered.filter { !excludedChars.contains(it) }
+        return filtered
     }
 
-    private fun String.randomSecure(): Char {
+    private fun String.randomSecure(fallbackPool: String): Char {
+        if (this.isEmpty()) return fallbackPool[secureRandom.nextInt(fallbackPool.length)]
         return this[secureRandom.nextInt(this.length)]
     }
 

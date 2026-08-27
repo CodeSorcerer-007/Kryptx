@@ -23,11 +23,22 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,9 +68,11 @@ import com.kryptx.app.core.model.SecurityIssue
 fun SecurityCenterScreen(
     viewModel: SecurityCenterViewModel,
     onNavigateToFixItem: (String) -> Unit,
+    onNavigateToTimeline: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val report by viewModel.auditReport.collectAsState()
+    val missions by viewModel.missions.collectAsState()
     val isRemediating by viewModel.isRemediating.collectAsState()
     var celebrationTriggered by remember { mutableStateOf(false) }
     var showWizardSheet by remember { mutableStateOf(false) }
@@ -80,6 +93,12 @@ fun SecurityCenterScreen(
             KryptxTopBar(
                 title = "Security Pulse",
                 actions = {
+                    KryptxCircleIconButton(
+                        icon = Icons.Default.Timeline,
+                        contentDescription = "Security Timeline",
+                        onClick = onNavigateToTimeline
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     KryptxCircleIconButton(
                         icon = Icons.Default.Refresh,
                         contentDescription = "Refresh Audit",
@@ -237,6 +256,35 @@ fun SecurityCenterScreen(
                             color = KryptxBlue,
                             modifier = Modifier.weight(1f)
                         )
+                    }
+
+                    // Score History Timeline
+                    if (r.history.size >= 2) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "SCORE HISTORY",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        ScoreTimelineChart(history = r.history)
+                    }
+
+                    // Security Missions
+                    if (missions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "SECURITY MISSIONS",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        missions.forEach { mission ->
+                            SecurityMissionCard(mission = mission)
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -433,6 +481,140 @@ fun SecurityIssueCard(
                     borderColor = KryptxBlue,
                     textColor = KryptxBlue,
                     onClick = onFix
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SecurityMissionCard(mission: SecurityCenterViewModel.SecurityMission) {
+    val alpha = if (mission.isCompleted) 0.5f else 1.0f
+    val iconColor = if (mission.isCompleted) KryptxEmerald else KryptxAmber
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f * alpha))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (mission.isCompleted) Icons.Default.CheckCircle else Icons.Default.AutoFixHigh,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = mission.title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+                )
+                Text(
+                    text = mission.description,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+                    lineHeight = 16.sp
+                )
+            }
+            if (!mission.isCompleted) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "+${mission.rewardPoints}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = KryptxBlue
+                    )
+                    Text(
+                        text = "PTS",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ScoreTimelineChart(history: List<com.kryptx.app.core.model.SecurityScoreHistoryPoint>) {
+    val lineColor = KryptxBlue
+    val surfaceColor = MaterialTheme.colorScheme.onSurface
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            if (history.size < 2) return@Canvas
+
+            val minScore = 0f
+            val maxScore = 100f
+            val minTime = history.minOf { it.timestamp }.toFloat()
+            val maxTime = history.maxOf { it.timestamp }.toFloat()
+            
+            val timeRange = maxTime - minTime
+            val scoreRange = maxScore - minScore
+
+            val path = Path()
+            history.forEachIndexed { index, point ->
+                val x = if (timeRange == 0f) size.width else ((point.timestamp - minTime) / timeRange) * size.width
+                val y = size.height - (((point.score - minScore) / scoreRange) * size.height)
+
+                if (index == 0) {
+                    path.moveTo(x, y)
+                } else {
+                    path.lineTo(x, y)
+                }
+            }
+
+            drawPath(
+                path = path,
+                color = lineColor,
+                style = Stroke(
+                    width = 3.dp.toPx(),
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
+            )
+
+            // Draw points
+            history.forEach { point ->
+                val x = if (timeRange == 0f) size.width else ((point.timestamp - minTime) / timeRange) * size.width
+                val y = size.height - (((point.score - minScore) / scoreRange) * size.height)
+                
+                drawCircle(
+                    color = surfaceColor,
+                    radius = 4.dp.toPx(),
+                    center = Offset(x, y)
+                )
+                drawCircle(
+                    color = lineColor,
+                    radius = 3.dp.toPx(),
+                    center = Offset(x, y)
                 )
             }
         }

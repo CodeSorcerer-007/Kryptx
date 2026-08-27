@@ -52,6 +52,14 @@ android {
                 enableV3Signing = true
                 enableV4Signing = true
             }
+        } else if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
+            // On CI, missing signing credentials is a hard build failure — never silently
+            // fall back to the debug keystore in production/release builds.
+            error(
+                "Release signing credentials are missing on CI.\n" +
+                "Set KRYPTX_KEYSTORE_PASSWORD, KRYPTX_KEY_PASSWORD, and KRYPTX_KEY_ALIAS " +
+                "as environment variables, or add them to local.properties."
+            )
         }
     }
 
@@ -59,7 +67,15 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // Hard-fail if no release signing config is available. Shipping a release APK
+            // signed with the debug keystore is a supply-chain footgun.
+            val releaseSigningConfig = signingConfigs.findByName("release")
+                ?: error(
+                    "Release signing config not found.\n" +
+                    "Provide KRYPTX_KEYSTORE_PASSWORD / KRYPTX_KEY_PASSWORD via env vars " +
+                    "or local.properties before building a release APK."
+                )
+            signingConfig = releaseSigningConfig
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -144,6 +160,9 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
+    // Anti-Tampering
+    implementation("com.google.android.play:integrity:1.3.0")
+
     // Navigation
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.navigation3.runtime)
@@ -159,6 +178,9 @@ dependencies {
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
 
+    // JNA for UniFFI
+    implementation("net.java.dev.jna:jna:5.14.0@aar")
+
     // Instrumentation Testing
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
@@ -170,39 +192,84 @@ dependencies {
 // ==========================================
 // Rust Cryptographic Engine & UniFFI Binding
 // ==========================================
+// NOTE: The Rust kryptx_crypto crate (Argon2 + XChaCha20 + mlock JNI) and UniFFI
+// Kotlin bindings exist in app/src/main/rust/kryptx_crypto but are NOT yet wired
+// into the live production build path. The tasks below are scaffolding for when
+// the native engine graduates from prototype to production.
+//
+// Current production crypto path: BouncyCastle (JVM) — AES-256-GCM, PBKDF2, Argon2id, ML-KEM-768.
+// Do NOT enable these tasks until NativeCryptoEngine is callable from Kotlin production code.
+//
+// To wire up: implement NativeCryptoEngine.kt calling JNI mlock + XChaCha20 encrypt/decrypt,
+// generate UniFFI bindings, and replace CryptoEngine calls in VaultRepositoryImpl.
+
+val rustSrcDir = file("src/main/rust/kryptx_crypto")
+val jniLibsDir = file("src/main/jniLibs")
+val generatedKotlinDir = file("src/main/java/com/kryptx/app/core/crypto/generated")
+
 tasks.register<Exec>("generateRustBindings") {
     group = "rust"
     description = "Generates Kotlin bindings using Mozilla UniFFI from the kryptx_crypto crate"
+    workingDir = rustSrcDir
     
-    val rustProjectDir = file("src/main/rust/kryptx_crypto")
-    val outDir = file("src/main/java")
+    doFirst {
+        generatedKotlinDir.mkdirs()
+    }
     
-    workingDir = rustProjectDir
-    // In uniffi 0.32, we use `cargo run --bin uniffi-bindgen` directly.
+    val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+    val libExtension = if (isWindows) "dll" else "so"
+    val libPrefix = if (isWindows) "" else "lib"
+    
     commandLine(
-        "cargo", "run", "--features=uniffi/cli", "--bin", "uniffi-bindgen", "generate",
-        "--library", "../../jniLibs/arm64-v8a/libkryptx_crypto.so", // Requires build step first in real pipeline
-        "--language", "kotlin",
-        "--out-dir", outDir.absolutePath
+        "cargo", "run", "--features=uniffi/cli", "--bin", "uniffi-bindgen", "generate", 
+        "--library", "target/debug/${libPrefix}kryptx_crypto.$libExtension", 
+        "--language", "kotlin", "--out-dir", generatedKotlinDir.absolutePath
     )
+    
+    dependsOn("buildRustEngineDebug")
+}
+
+tasks.register<Exec>("buildRustEngineDebug") {
+    group = "rust"
+    description = "Compiles the kryptx_crypto core for host to generate bindings"
+    workingDir = rustSrcDir
+    commandLine("cargo", "build")
 }
 
 tasks.register<Exec>("buildRustEngine") {
     group = "rust"
-    description = "Compiles the kryptx_crypto core for Android targets"
+    description = "Compiles the kryptx_crypto core for Android targets using cargo-ndk"
+    workingDir = rustSrcDir
     
-    val rustProjectDir = file("src/main/rust/kryptx_crypto")
-    workingDir = rustProjectDir
+    val localProperties = Properties()
+    val localPropertiesFile = project.rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localProperties.load(localPropertiesFile.inputStream())
+    }
+    val ndkDir = localProperties.getProperty("ndk.dir") ?: System.getenv("ANDROID_NDK_HOME") ?: ""
+    if (ndkDir.isNotEmpty()) {
+        environment("ANDROID_NDK_HOME", ndkDir)
+    }
+
+    doFirst {
+        if (ndkDir.isEmpty()) {
+            println("ANDROID_NDK_HOME or ndk.dir in local.properties is not set! Skipping rust ndk build.")
+            throw org.gradle.api.tasks.StopExecutionException("NDK not configured")
+        }
+    }
     
-    // In a fully configured Android NDK environment, this would iterate over:
-    // aarch64-linux-android, x86_64-linux-android, etc.
-    // using `cargo build --target <target> --release`.
-    commandLine("cargo", "build", "--release", "-j", "1")
+    commandLine(
+        "cargo", "ndk", "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86", "-t", "x86_64", 
+        "-o", jniLibsDir.absolutePath, "build", "--release"
+    )
 }
 
-// Ensure Rust code compiles before Android builds
+// Hook into Android build lifecycle
 tasks.whenTaskAdded {
-    if (name == "javaPreCompileDebug" || name == "javaPreCompileRelease") {
+    if (name.startsWith("merge") && name.endsWith("JniLibFolders")) {
         dependsOn("buildRustEngine")
+    }
+    if (name.startsWith("compile") && name.endsWith("Kotlin")) {
+        dependsOn("generateRustBindings")
     }
 }

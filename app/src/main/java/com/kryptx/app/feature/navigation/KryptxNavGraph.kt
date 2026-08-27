@@ -66,6 +66,8 @@ import com.kryptx.app.feature.search.SearchScreen
 import com.kryptx.app.feature.search.SearchViewModel
 import com.kryptx.app.feature.securitycenter.SecurityCenterScreen
 import com.kryptx.app.feature.securitycenter.SecurityCenterViewModel
+import com.kryptx.app.feature.securitycenter.SecurityTimelineScreen
+import com.kryptx.app.feature.migration.ZeroCloudMigrationScreen
 import com.kryptx.app.feature.settings.AppearanceSettingsScreen
 import com.kryptx.app.feature.settings.BackupExportScreen
 import com.kryptx.app.feature.settings.SecuritySettingsScreen
@@ -103,7 +105,6 @@ fun KryptxNavGraph(
     settingsViewModel: SettingsViewModel,
     preferencesRepository: IPreferencesRepository,
     vaultRepository: com.kryptx.app.core.database.VaultRepository = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.kryptx.app.KryptxApplication).vaultRepository,
-    p2pSyncEngine: com.kryptx.app.core.sync.P2pSyncEngine = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.kryptx.app.KryptxApplication).p2pSyncEngine,
     pendingShortcutTarget: String? = null,
     onClearPendingShortcut: () -> Unit = {},
     onTriggerBiometrics: () -> Unit,
@@ -318,7 +319,8 @@ fun KryptxNavGraph(
                     Screen.SecurityCenter -> {
                         SecurityCenterScreen(
                             viewModel = securitycenterViewModel,
-                            onNavigateToFixItem = { id -> navigateTo(Screen.AddEditItem(id)) }
+                            onNavigateToFixItem = { id -> navigateTo(Screen.AddEditItem(id)) },
+                            onNavigateToTimeline = { navigateTo(Screen.SecurityTimeline) }
                         )
                     }
 
@@ -327,9 +329,7 @@ fun KryptxNavGraph(
                             onNavigateToSecurity = { navigateTo(Screen.SecuritySettings) },
                             onNavigateToAppearance = { navigateTo(Screen.AppearanceSettings) },
                             onNavigateToBackup = { navigateTo(Screen.BackupExport) },
-                            onNavigateToWebCompanion = { navigateTo(Screen.WebCompanion) },
-                            onNavigateToP2pSync = { navigateTo(Screen.P2pSync) },
-                            onNavigateToAutofillSetup = { navigateTo(Screen.SecuritySettings) },
+                            onNavigateToMigration = { navigateTo(Screen.ZeroCloudMigration) },
                             onReplayGuides = {
                                 preferencesRepository.resetAllFeatureIntros()
                                 activeIntroFeature = FeatureGuide.VAULT
@@ -385,16 +385,16 @@ fun KryptxNavGraph(
                         )
                     }
 
-                    Screen.WebCompanion -> {
-                        com.kryptx.app.feature.settings.WebCompanionScreen(
-                            vaultRepository = vaultRepository,
+                    Screen.SecurityTimeline -> {
+                        SecurityTimelineScreen(
+                            viewModel = securitycenterViewModel,
                             onNavigateBack = { navigateBack() }
                         )
                     }
 
-                    Screen.P2pSync -> {
-                        com.kryptx.app.feature.settings.P2pSyncScreen(
-                            p2pSyncEngine = p2pSyncEngine,
+                    Screen.ZeroCloudMigration -> {
+                        ZeroCloudMigrationScreen(
+                            viewModel = settingsViewModel,
                             onNavigateBack = { navigateBack() }
                         )
                     }

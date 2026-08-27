@@ -83,6 +83,42 @@ class GeneratorViewModel(
         regenerate(newConfig)
     }
 
+    fun updateCustomSymbols(symbols: String) {
+        val newConfig = _config.value.copy(customSymbols = symbols)
+        _config.value = newConfig
+        regenerate(newConfig)
+    }
+
+    fun updateExcludedCharacters(excluded: String) {
+        val newConfig = _config.value.copy(excludedCharacters = excluded)
+        _config.value = newConfig
+        regenerate(newConfig)
+    }
+
+    fun togglePronounceable(enabled: Boolean) {
+        val newConfig = _config.value.copy(pronounceable = enabled)
+        _config.value = newConfig
+        regenerate(newConfig)
+    }
+
+    fun toggleIncludeSymbolInPassphrase(enabled: Boolean) {
+        val newConfig = _config.value.copy(includeSymbolInPassphrase = enabled)
+        _config.value = newConfig
+        regenerate(newConfig)
+    }
+
+    fun toggleAvoidRepeats(avoid: Boolean) {
+        val newConfig = _config.value.copy(avoidRepeats = avoid)
+        _config.value = newConfig
+        regenerate(newConfig)
+    }
+
+    fun toggleAvoidSequences(avoid: Boolean) {
+        val newConfig = _config.value.copy(avoidSequences = avoid)
+        _config.value = newConfig
+        regenerate(newConfig)
+    }
+
     fun regenerate(customConfig: GeneratorConfig? = null) {
         val cfg = customConfig ?: _config.value
         _result.value = GeneratorEngine.generate(cfg)

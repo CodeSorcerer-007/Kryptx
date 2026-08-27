@@ -79,8 +79,8 @@ fun OnboardingScreen(
             accentColor = KryptxBlue
         ),
         OnboardingPageData(
-            title = "Security Pulse & Autofill",
-            description = "Audit compromised passwords, generate high-entropy passphrases, and fill credentials automatically across all Android apps.",
+            title = "100% Isolated Sovereign Security",
+            description = "Audit password strength, generate high-entropy passphrases, and safeguard records with zero internet access, zero external hooks, and zero network leaks.",
             icon = Icons.Default.AutoAwesome,
             accentColor = KryptxBlue
         )

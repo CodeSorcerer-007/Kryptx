@@ -11,41 +11,45 @@ import com.kryptx.app.core.database.VaultRepositoryImpl
 import com.kryptx.app.core.security.BiometricAuthManager
 import com.kryptx.app.core.security.ClipboardSecurityManager
 import com.kryptx.app.core.security.VaultSessionManager
+import com.kryptx.app.core.security.SecurityBootstrapper
+import com.kryptx.app.core.security.ActivityLogManager
 import java.util.concurrent.atomic.AtomicInteger
 
-class KryptxApplication : Application() {
+import com.kryptx.app.core.di.KryptxDependencies
 
-    lateinit var dbHelper: KryptxDatabaseHelper
+class KryptxApplication : Application(), KryptxDependencies {
+
+    override lateinit var dbHelper: KryptxDatabaseHelper
         private set
 
     lateinit var decoyDbHelper: KryptxDatabaseHelper
         private set
 
-    lateinit var sessionManager: VaultSessionManager
+    override lateinit var sessionManager: VaultSessionManager
         private set
 
-    lateinit var keystoreManager: KeystoreManager
+    override lateinit var keystoreManager: KeystoreManager
         private set
 
-    lateinit var vaultRepository: VaultRepository
+    override lateinit var vaultRepository: VaultRepository
         private set
 
-    lateinit var preferencesRepository: PreferencesRepository
+    override lateinit var preferencesRepository: PreferencesRepository
         private set
 
-    lateinit var clipboardManager: ClipboardSecurityManager
+    override lateinit var clipboardManager: ClipboardSecurityManager
         private set
 
-    lateinit var biometricManager: BiometricAuthManager
+    override lateinit var biometricManager: BiometricAuthManager
         private set
 
-    lateinit var attachmentManager: com.kryptx.app.core.security.IAttachmentManager
+    override lateinit var attachmentManager: com.kryptx.app.core.security.IAttachmentManager
         private set
 
-    lateinit var memoryWatchdog: com.kryptx.app.core.security.CryptographicMemoryWatchdog
+    override lateinit var memoryWatchdog: com.kryptx.app.core.security.CryptographicMemoryWatchdog
         private set
 
-    lateinit var p2pSyncEngine: com.kryptx.app.core.sync.P2pSyncEngine
+    lateinit var activityLogManager: ActivityLogManager
         private set
 
     private val activeActivityCount = AtomicInteger(0)
@@ -53,17 +57,20 @@ class KryptxApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        // 1. Run basic offline integrity checks
+        SecurityBootstrapper.checkDeviceIntegrity(this)
+
         dbHelper = KryptxDatabaseHelper(this)
         decoyDbHelper = KryptxDatabaseHelper(this, "kryptx_sys_cache.db") // True hidden volume
         sessionManager = VaultSessionManager()
         keystoreManager = KeystoreManager()
         preferencesRepository = PreferencesRepository(this)
         vaultRepository = VaultRepositoryImpl(dbHelper, decoyDbHelper, sessionManager, keystoreManager, preferencesRepository)
-        clipboardManager = ClipboardSecurityManager(this)
+        clipboardManager = ClipboardSecurityManager(this, preferencesRepository)
         biometricManager = BiometricAuthManager(this)
         attachmentManager = com.kryptx.app.core.security.AttachmentManager(this, sessionManager)
         memoryWatchdog = com.kryptx.app.core.security.CryptographicMemoryWatchdog(this, sessionManager).apply { register() }
-        p2pSyncEngine = com.kryptx.app.core.sync.P2pSyncEngine(vaultRepository)
+        activityLogManager = ActivityLogManager(this)
 
         // Set initial auto-lock configuration from saved preferences
         val autoLockSecs = preferencesRepository.autoLockSeconds.value

@@ -21,6 +21,7 @@ import com.kryptx.app.feature.securitycenter.SecurityCenterViewModel
 import com.kryptx.app.feature.settings.SettingsViewModel
 import com.kryptx.app.feature.totp.TotpViewModel
 import com.kryptx.app.feature.vault.VaultViewModel
+import com.kryptx.app.core.security.ContextualLockManager
 import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
@@ -40,6 +41,8 @@ class MainActivity : FragmentActivity() {
 
     private var hasAutoPromptedBiometrics = false
     private var pendingShortcutTarget by mutableStateOf<String?>(null)
+
+    private var contextualLockManager: ContextualLockManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +91,12 @@ class MainActivity : FragmentActivity() {
                 if (!unlocked) {
                     hasAutoPromptedBiometrics = false
                 }
+            }
+        }
+
+        contextualLockManager = ContextualLockManager(this) {
+            if (app.sessionManager.isUnlocked.value) {
+                app.sessionManager.lock()
             }
         }
 
@@ -161,6 +170,8 @@ class MainActivity : FragmentActivity() {
             hasAutoPromptedBiometrics = true
             triggerBiometricUnlock()
         }
+
+        contextualLockManager?.startListening()
     }
 
     override fun onPause() {
@@ -168,6 +179,8 @@ class MainActivity : FragmentActivity() {
         try {
             nfcAdapter?.disableForegroundDispatch(this)
         } catch (_: Exception) {}
+        
+        contextualLockManager?.stopListening()
     }
 
     private fun triggerBiometricUnlock() {

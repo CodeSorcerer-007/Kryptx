@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -230,6 +231,58 @@ fun VaultDashboardScreen(
                     },
                     onNavigateToSearch = onNavigateToSearch
                 )
+            }
+
+            // 2.5 Subtle Kryptx Pulse hero card
+            if (securityReport != null && securityReport!!.overallScore < 90) {
+                item {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(KryptxRed.copy(alpha = 0.08f))
+                            .border(1.dp, KryptxRed.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                            .clickable { onNavigateToSecurityCenter() }
+                            .padding(14.dp)
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Button
+                                contentDescription = "Action Required. ${securityReport!!.issues.size} security issues found in your vault. Double tap to review in Security Center."
+                            }
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(KryptxRed.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WarningAmber,
+                                    contentDescription = null,
+                                    tint = KryptxRed,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Action Required",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = KryptxRed
+                                )
+                                Text(
+                                    text = "${securityReport!!.issues.size} security issues found in your vault",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // 3. Floating 3D Category Badges Hero Area

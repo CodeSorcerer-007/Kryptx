@@ -89,6 +89,8 @@ fun VaultItemDetailScreen(
 ) {
     val items by viewModel.rawItems.collectAsState()
     val item = items.firstOrNull { it.id == itemId }
+    val securityReport by viewModel.securityReport.collectAsState()
+    val itemIssues = securityReport?.issues?.filter { it.itemId == itemId } ?: emptyList()
 
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -313,6 +315,7 @@ fun VaultItemDetailScreen(
                         context = context,
                         scope = scope,
                         snackbarHostState = snackbarHostState,
+                        issues = itemIssues,
                         onShowPasswordHistory = { showPasswordHistorySheet = true }
                     )
                     ItemType.PASSKEY -> PasskeyDetailSection(
@@ -364,12 +367,18 @@ fun VaultItemDetailScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
-                KryptxCard {
-                    Text(
-                        text = item.notes,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 20.sp
+                KryptxCard(modifier = Modifier.padding(bottom = 8.dp)) {
+                    com.kryptx.app.feature.vault.detail.StructuredNoteView(
+                        noteContent = item.notes,
+                        onNoteChanged = { updatedNote ->
+                            val updatedItem = item.copy(
+                                notes = updatedNote,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            viewModel.saveItem(updatedItem) {
+                                scope.launch { snackbarHostState.showSnackbar("Note updated") }
+                            }
+                        }
                     )
                 }
             }

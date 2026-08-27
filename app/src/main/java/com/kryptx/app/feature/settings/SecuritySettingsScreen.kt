@@ -71,7 +71,6 @@ fun SecuritySettingsScreen(
     val lockOnBackground by viewModel.lockOnBackground.collectAsState()
     val clipboardTimeout by viewModel.clipboardTimeout.collectAsState()
     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsState()
-    val breachCheckNetworkEnabled by viewModel.breachCheckNetworkEnabled.collectAsState()
     val hasDuress by viewModel.hasDuress.collectAsState()
     val hasPanic by viewModel.hasPanic.collectAsState()
 
@@ -255,7 +254,7 @@ fun SecuritySettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Have I Been Pwned k-Anonymity Breach Check
+            // 100% Offline Breach Analysis Card
             KryptxCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -263,29 +262,31 @@ fun SecuritySettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Have I Been Pwned Breach Check",
+                            text = "Offline Breach & Pattern Inspector",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Zero-knowledge check (RFC k-Anonymity). Only 5 SHA-1 prefix characters leave device with padded response matching.",
+                            text = "Instant 100% offline analysis against 200+ leaked dictionaries, keyboard walks, and weak patterns. Zero network requests.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(
-                        checked = breachCheckNetworkEnabled,
-                        onCheckedChange = { enabled ->
-                            viewModel.setBreachCheckNetworkEnabled(enabled)
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    if (enabled) "HIBP k-Anonymity breach check enabled"
-                                    else "Offline-only breach check active"
-                                )
-                            }
-                        }
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(KryptxEmerald.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = KryptxEmerald,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
@@ -412,6 +413,78 @@ fun SecuritySettingsScreen(
                 onClick = { showChangePasswordDialog = true }
             )
 
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "SYSTEM INTEGRATIONS",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            val context = androidx.compose.ui.platform.LocalContext.current
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .bounceClick(scaleDown = 0.98f, onClick = {
+                        try {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
+                                data = android.net.Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            try {
+                                val fallbackIntent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                                context.startActivity(fallbackIntent)
+                            } catch (e2: Exception) {
+                                // Ignore
+                            }
+                        }
+                    })
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(KryptxBlue.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shield, // You can change this to Autofill icon if you want
+                            contentDescription = null,
+                            tint = KryptxBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Enable OS Autofill",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Set Kryptx as your default Autofill provider to securely fill passwords in other apps.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -461,7 +534,7 @@ fun SecuritySettingsScreen(
             title = { Text("Clipboard Auto-Clear") },
             text = {
                 Column {
-                    listOf(0 to "Never", 15 to "15 Seconds", 30 to "30 Seconds", 60 to "60 Seconds", 120 to "2 Minutes").forEach { (sec, label) ->
+                    listOf(0 to "Never", 10 to "10 Seconds", 30 to "30 Seconds", 60 to "1 Minute", 300 to "5 Minutes").forEach { (sec, label) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -3,12 +3,13 @@ package com.kryptx.app.core.security
 import android.content.Context
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 
 /**
- * Native BiometricPrompt manager strictly enforcing Class 3 Hardware Strong Biometrics (BIOMETRIC_STRONG).
+ * Native BiometricPrompt manager supporting Class 3 (Strong) and Class 2 (Weak) biometrics.
  */
 class BiometricAuthManager(private val context: Context) {
 
@@ -20,11 +21,11 @@ class BiometricAuthManager(private val context: Context) {
     }
 
     /**
-     * Checks whether Class 3 Hardware Strong Biometrics (Fingerprint / 3D IR Face) are enrolled and available.
+     * Checks whether Biometrics (Fingerprint / Face) are enrolled and available.
      */
     fun checkBiometricAvailability(): BiometricStatus {
         val biometricManager = BiometricManager.from(context)
-        return when (biometricManager.canAuthenticate(BIOMETRIC_STRONG)) {
+        return when (biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)) {
             BiometricManager.BIOMETRIC_SUCCESS -> BiometricStatus.AVAILABLE
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> BiometricStatus.NOT_ENROLLED
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> BiometricStatus.NO_HARDWARE
@@ -37,7 +38,7 @@ class BiometricAuthManager(private val context: Context) {
     }
 
     /**
-     * Triggers the system BiometricPrompt modal backed strictly by BIOMETRIC_STRONG.
+     * Triggers the system BiometricPrompt modal.
      */
     fun promptBiometric(
         activity: FragmentActivity,
@@ -72,7 +73,7 @@ class BiometricAuthManager(private val context: Context) {
             .setSubtitle(subtitle)
             .setConfirmationRequired(false)
             .setNegativeButtonText("Use Master Password")
-            .setAllowedAuthenticators(BIOMETRIC_STRONG)
+            .setAllowedAuthenticators(if (cryptoObject != null) BIOMETRIC_STRONG else (BIOMETRIC_STRONG or BIOMETRIC_WEAK))
             .build()
 
         val biometricPrompt = BiometricPrompt(activity, executor, callback)

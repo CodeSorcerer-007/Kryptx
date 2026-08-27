@@ -7,6 +7,7 @@ import com.kryptx.app.core.database.VaultRepository
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.SecurityAuditReport
 import com.kryptx.app.core.model.VaultItem
+import com.kryptx.app.core.security.ActivityLogManager
 import com.kryptx.app.core.security.IClipboardSecurityManager
 import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,8 @@ class VaultViewModel(
     private val sessionManager: VaultSessionManager,
     private val clipboardSecurityManager: IClipboardSecurityManager,
     private val attachmentManager: com.kryptx.app.core.security.IAttachmentManager? = null,
-    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null
+    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null,
+    private val activityLogManager: ActivityLogManager? = null
 ) : ViewModel() {
 
     enum class SortOption(val label: String) {
@@ -148,6 +150,7 @@ class VaultViewModel(
             }
             clearSelection()
             refreshSecurityReport()
+            activityLogManager?.logEvent("Security", "Moved $count items to trash")
             onCompleted(count)
         }
     }
@@ -205,6 +208,7 @@ class VaultViewModel(
             val item = vaultRepository.getItemById(itemId)
             lastDeletedItem = item
             if (vaultRepository.moveToTrash(itemId).isSuccess) {
+                activityLogManager?.logEvent("Security", "Item '${item?.title}' moved to trash")
                 refreshSecurityReport()
                 onDeleted()
             }
@@ -245,6 +249,7 @@ class VaultViewModel(
     fun permanentlyDeleteItem(itemId: String, onDeleted: (() -> Unit)? = null) {
         viewModelScope.launch {
             if (vaultRepository.deleteItem(itemId).isSuccess) {
+                activityLogManager?.logEvent("Security", "Item permanently deleted")
                 refreshSecurityReport()
                 onDeleted?.invoke()
             }
@@ -264,6 +269,7 @@ class VaultViewModel(
     fun saveItem(item: VaultItem, onSaved: () -> Unit) {
         viewModelScope.launch {
             if (vaultRepository.saveItem(item).isSuccess) {
+                activityLogManager?.logEvent("Security", "Saved item '${item.title}'")
                 refreshSecurityReport()
                 onSaved()
             }
@@ -309,6 +315,7 @@ class VaultViewModel(
     }
 
     fun lockVault() {
+        activityLogManager?.logEvent("Lock", "Vault locked")
         sessionManager.lock()
         clipboardSecurityManager.clearNow()
     }

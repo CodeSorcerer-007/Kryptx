@@ -114,13 +114,9 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun testMinimalistAndReadOnlyPreferences() {
+    fun testMinimalistPreference() {
         assertFalse(viewModel.minimalistDashboardMode.value)
         viewModel.setMinimalistDashboardMode(true)
         assertTrue(viewModel.minimalistDashboardMode.value)
-
-        assertFalse(viewModel.webCompanionReadOnly.value)
-        viewModel.setWebCompanionReadOnly(true)
-        assertTrue(viewModel.webCompanionReadOnly.value)
     }
 }

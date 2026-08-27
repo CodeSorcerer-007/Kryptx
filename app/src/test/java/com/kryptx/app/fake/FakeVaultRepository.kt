@@ -307,4 +307,43 @@ class FakeVaultRepository : VaultRepository {
     override suspend fun vacuumDatabase(): KryptxResult<Unit> {
         return KryptxResult.Success(Unit)
     }
+
+    override fun getPqcIdentityPublicKey(): ByteArray? = null
+
+    override suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit> = KryptxResult.Success(Unit)
+
+    override suspend fun registerPasskey(
+        rpId: String,
+        rpName: String,
+        userHandle: String,
+        userName: String,
+        challenge: ByteArray
+    ): KryptxResult<VaultItem> {
+        val item = VaultItem(
+            id = "passkey-mock-1",
+            title = rpName.ifBlank { rpId },
+            username = userName,
+            type = com.kryptx.app.core.model.ItemType.PASSKEY,
+            passkeyRpId = rpId,
+            passkeyUserHandle = userHandle
+        )
+        saveItem(item)
+        return KryptxResult.Success(item)
+    }
+
+    override suspend fun assertPasskey(
+        item: VaultItem,
+        clientDataJsonBytes: ByteArray,
+        rpId: String
+    ): KryptxResult<com.kryptx.app.core.crypto.PasskeyEngine.PasskeyAssertionSignature> {
+        return KryptxResult.Success(
+            com.kryptx.app.core.crypto.PasskeyEngine.PasskeyAssertionSignature(
+                authenticatorDataBase64 = "mockAuthDataBase64",
+                clientDataJsonBase64 = "mockClientDataBase64",
+                signatureBase64 = "mockSignatureBase64",
+                userHandleBase64 = "mockUserHandleBase64",
+                credentialId = item.passkeyCredentialId.ifBlank { "mockCredId" }
+            )
+        )
+    }
 }

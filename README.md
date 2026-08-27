@@ -3,7 +3,7 @@
 <img src="Logo.png" alt="Kryptx Logo" width="160" />
 
 # Kryptx
-### Zero-Knowledge • Post-Quantum • Offline-First Native Android Fortress
+### 100% Isolated • Post-Quantum • Zero-Network Sovereign Native Android Fortress
 
 <p align="center">
   <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-16%20(API%2036)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="Android 16" /></a>
@@ -12,41 +12,42 @@
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203%20Expressive-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
   <br>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%200%20Trackers-10B981?style=for-the-badge" alt="Zero Trackers" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-1.1.0-FFB300?style=for-the-badge" alt="Version 1.1.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
-**Kryptx is an ultra-secure, zero-knowledge, post-quantum fortified, offline-first native Android password manager, multi-factor authenticator, passkey vault, and encrypted document fortress.**
+**Kryptx is an ultra-secure, zero-knowledge, post-quantum fortified, 100% offline-isolated native Android sovereign password manager, multi-factor authenticator, and encrypted document fortress.**
 
-*Built from the ground up for privacy maximalists, security professionals, and sovereign individuals who refuse to surrender their cryptographic keys to cloud servers.*
+*Built from the ground up for privacy maximalists, security professionals, and sovereign individuals who demand mathematical zero-knowledge and refuse to surrender cryptographic keys to cloud servers or external app hooks.*
 
 </div>
 
 ---
 
 ## ⚡ The Tech Stack
-Kryptx leverages the most powerful modern frameworks and languages to achieve military-grade security and buttery smooth 120fps performance.
+
+Kryptx leverages cutting-edge frameworks and bare-metal cryptography to achieve sovereign isolation and fluid 120fps performance.
 
 | Category | Technology & Tools | Purpose |
 |:---|:---|:---|
-| **Core Architecture** | **Kotlin & Android 16 (API 36)** | Modern native Android edge-to-edge framework. |
-| **Crypto Engine** | **Rust (via JNI/UniFFI)** | Bare-metal performance for cryptographic algorithms. |
+| **Core Architecture** | **Kotlin & Android 16 (API 36)** | Modern native Android edge-to-edge architecture. |
+| **Crypto Engine** | **BouncyCastle / Rust JNI** | Post-Quantum ML-KEM-768, AES-256-GCM, Argon2id, PBKDF2. |
 | **Post-Quantum** | **ML-KEM-768 (Kyber)** | NIST FIPS 203 quantum-resistant key encapsulation. |
 | **UI / UX** | **Jetpack Compose (Material 3)** | Reactive, declarative UI with fluid spring physics. |
 | **Database** | **Room & SQLite (WAL Mode)** | Zero-plaintext offline local encrypted data persistence. |
 | **Hardware Sec** | **Android Keystore & StrongBox** | TEE isolation, Hardware Key Attestation. |
-| **Scanning** | **CameraX API** | Real-time offline QR decoding in volatile RAM. |
+| **Scanning** | **CameraX API** | Real-time offline QR decoding strictly in volatile RAM. |
 
 ---
 
-## 🏛️ Cryptographic Architecture (Zero-Knowledge)
+## 🏛️ Cryptographic Architecture (Zero-Knowledge & Air-Gapped)
 
-Kryptx operates on a strict **Mathematical Zero-Knowledge** and **Sovereign Offline-First** model. Plaintext credentials, private keys, and biometric states are **never transmitted over the internet, never logged, and never stored unencrypted.**
+Kryptx operates on a strict **Mathematical Zero-Knowledge** and **100% Air-Gapped** model. Plaintext credentials, private keys, and biometric states are **never transmitted over any network, never hooked into external browser daemons, never logged, and never stored unencrypted.**
 
 ```mermaid
 graph TD;
-    A[User Master Password] -->|PBKDF2-HMAC-SHA256 <br/> 600,000 rounds + 32-byte Salt| B(Derived Master Key);
+    A[User Master Password] -->|Argon2id / PBKDF2-HMAC-SHA256 <br/> 600,000 rounds + 32-byte Salt| B(Derived Master Key);
     B -->|AES-256-GCM Decrypt <br/> 12-byte IV, 128-bit MAC| C[Vault Encryption Key 256-bit];
     C -.->|Hardware Wrap| D((Android Keystore <br/> StrongBox TEE));
     D -.-> E[BiometricPrompt <br/> CryptoObject];
@@ -54,80 +55,86 @@ graph TD;
 ```
 
 ### 🔒 Military-Grade Defenses
-*   ⚛️ **Post-Quantum Cryptography**: Hybrid ML-KEM-768 (Kyber) + ECDH + HKDF-SHA256 for future-proof quantum resistance.
-*   🛡️ **Hardware-Backed OS Attestation**: Cryptographic TEE Key Attestation verified against the root of trust. Spoofed boot states (like Magisk) are mathematically blocked.
-*   🧠 **Native Memory Locking (JNI)**: Rust executes `mlock` and `madvise(MADV_DONTDUMP)` to pin cryptographic buffers in physical RAM, completely preventing OS swapping to disk, and zeroing arrays (`SecureMemory`) after use to eliminate heap inspection.
-*   ⚔️ **Runtime Anti-Tamper Engine**: Defense-in-depth heuristic scanner checking `/proc/self/maps` for known hook signatures (Frida, Xposed), active debugger detection, and su/magisk binaries.
-*   🚫 **Strict Network Isolation**: Zero cleartext traffic allowed across all network stacks (`cleartextTrafficPermitted="false"`).
-*   👁️ **Anti-Screen & Clipboard Shield**: Dynamic `FLAG_SECURE` window protection and auto-clearing sensitive clipboard copy timers (30s).
+*   🚫 **Kernel-Enforced Network Isolation**: The Android manifest contains **0 network permissions** (`INTERNET` is completely removed). The Android Linux kernel socket sandbox blocks socket creation (`AF_INET`/`AF_INET6`) at the OS kernel level—0 bytes can physically leave the device.
+*   ⚛️ **Post-Quantum Cryptography**: Hybrid ML-KEM-768 (Kyber) + ECDH + HKDF-SHA256 for future-proof quantum resistance (NIST FIPS 203).
+*   🛡️ **Hardware-Backed OS Attestation**: Cryptographic TEE Key Attestation verified against the hardware root of trust.
+*   🧠 **Native Memory Locking & Zeroization**: Native buffers locked (`mlock`, `madvise(MADV_DONTDUMP)`) to prevent OS swapping to disk, with instant byte-level zeroization (`SecureMemory`) after use to eliminate RAM inspection.
+*   ⚔️ **Runtime Anti-Tamper Engine**: Scans `/proc/self/maps` for hook signatures (Frida, Xposed), active debuggers, and root binaries.
+*   👁️ **Anti-Screen & Protected Clipboard Shield**: Hardware `FLAG_SECURE` window protection and auto-clearing clipboard timers (10s, 30s, 60s).
 
 ---
 
-## 🚀 Mind-Blowing Features
+## 🚀 Complete Feature Inventory
 
-### 🎨 1. Deterministic Offline Identicons (Zero Network)
-*   **40+ Curated Brand Palettes**: High-resolution vector badges for global brands.
-*   **Deterministic Monograms**: Derives high-contrast geometric initials and complementary accent colors for any arbitrary domain with **0 network requests, 0 CDN leaks, and 0 latency**.
+### 🗂️ 1. The 12-Vault Multi-Category System
+1. 🔑 **Logins**: Website URL, Username/Email, Password, TOTP Secret, Notes, Password History.
+2. 🪪 **Passkey & FIDO2**: Relying Party ID, User Handle, Credential ID, ES256 P-256.
+3. 💳 **Credit & Debit Cards**: Luhn validation, Expiry, CVV, Card PIN.
+4. 👤 **Identities**: Full Name, Email, Phone, Address, DOB, Passport / National ID.
+5. 📝 **Secure Notes**: Confidential encrypted multi-line records.
+6. 📶 **Wi-Fi Credentials**: Protocol (WPA2/WPA3), offline QR Code generator.
+7. ⚡ **API Keys & Tokens**: Endpoint, Key ID, Secret Token, Scopes.
+8. 🏦 **Bank Accounts**: Routing, SWIFT/BIC, Account Number.
+9. 🪙 **Crypto Wallets**: Network, Public Address, Recovery Seed Phrase / Private Key.
+10. 🖥️ **SSH Keys**: Host, Public/Private Key (`.pem` support).
+11. 🩺 **Medical & Emergency**: Blood Type, Allergies, Emergency Contacts.
+12. 🧩 **Custom Fields**: User-defined key-value encrypted attributes.
 
-### 💻 2. Desktop Web Companion (Local Wi-Fi)
-*   **PC & Mac Desktop Access**: Manage your encrypted vault directly from any desktop browser over local Wi-Fi.
-*   **Zero Cloud Footprint**: Runs an ephemeral, local HTTP daemon with 6-digit cryptographic PIN handshakes and expiring session tokens. No desktop software required.
-
-### 📄 3. Printable Emergency Recovery Kit
-*   **Offline Master Custody**: Generates a 1-page **native Vector PDF** emergency sheet containing vault cryptographic parameters, safe deposit instructions, and an offline encrypted recovery QR key.
-
-### 🔑 4. Built-in Real-Time TOTP 2FA Authenticator (RFC 6238)
+### 🔑 2. Built-in Real-Time TOTP 2FA Authenticator (RFC 6238)
 *   Animated circular progress countdown rings with 30-second time steps.
 *   Supports SHA-1, SHA-256, and SHA-512 with 6/8-digit codes in high-readability monospace font.
 *   **Offline CameraX Scanner**: Decode TOTP QR codes directly in volatile RAM with zero persistent image caching.
 
-### 🗂️ 5. The 12-Vault Multi-Category System
-1. 🔑 **Logins**: Web, Username, Password, TOTP, Notes.
-2. 🪪 **Passkey & FIDO2**: Relying Party ID, Credential ID, ES256 P-256.
-3. 💳 **Credit & Debit Cards**: Luhn validation, Expiry, CVV, PIN.
-4. 👤 **Identities**: Full Name, Email, Address, DOB, Passport / National ID.
-5. 📝 **Secure Notes**: Confidential encrypted multi-line records.
-6. 📶 **Wi-Fi Credentials**: Protocol (WPA2/WPA3), offline QR Code generator.
-7. ⚡ **API Keys & Tokens**: Endpoint, Key ID, Secret Token.
-8. 🏦 **Bank Accounts**: Routing, SWIFT/BIC.
-9. 🪙 **Crypto Wallets**: Network, Public Address, Recovery Seed Phrase.
-10. 🖥️ **SSH Keys**: Host, Public/Private Key (`.pem` support).
-11. 🩺 **Medical & Emergency**: Blood Type, Allergies, Emergency Contacts.
-12. 🧩 **Custom Fields**: User-defined key-value fields.
+### 🛡️ 3. Anti-Coercion, Duress & Emergency Defense
+*   **Randomized PIN Pad**: Scrambles numeric keypad layout on each unlock to prevent shoulder-surfing and smudge detection.
+*   **Duress Decoy Vault**: Entering a secondary Duress PIN unlocks an innocent decoy vault with harmless decoy records.
+*   **Panic Self-Destruct**: Emergency wipe PIN instantly zeroes and cryptographically purges the database on entry.
+*   **Physical NFC Security Keys**: YubiKey / NFC hardware key tap unlock.
 
-### 📊 6. Security Pulse & Breach Radar
+### 📊 4. 100% Offline Security Pulse & Vault Audit
 *   **0–100 Vault Health Score** with dynamic letter grades (`A+` to `F`).
-*   **Privacy-Preserving Breach Detection (k-Anonymity)**: HIBP Range API queries with `Add-Padding: true` (only the first 5 characters of SHA-1 leave the device).
+*   **Offline Compromised Password Inspector**: 200+ top leaked passwords, sequential PINs, repeated characters, common year combinations (0 network queries).
+*   **Weak & Reused Password Detection**: Highlights duplicate or low-entropy credentials.
+*   **Missing 2FA & Overdue Rotation Radar**: Flags items without 2FA or with expired rotation dates.
+*   **Interactive Remediation Wizard**: Step-by-step guidance to upgrade weak credentials.
 
-### 🤖 7. Native Android 14+ System Integrations
-*   **Credential Provider Framework**: Native Android 14+ Passkey (WebAuthn / FIDO2) and Password provider integration.
-*   **Autofill Framework**: Native autofill provider matching package names and web domains across Android apps and Chrome.
+### 📦 5. Air-Gapped Backup & Migration
+*   **Air-Gapped Optical QR Sync**: High-density animated QR code stream for device-to-device transfers without any network connection.
+*   **Storage Access Framework (SAF) Encrypted JSON Backup**: Password-derived AES-256-GCM encrypted backup files.
+*   **Universal Importer**: Auto-detects and imports unencrypted CSV/JSON exports from Bitwarden, 1Password, LastPass, Dashlane, Chrome, and KeePass.
+*   **Printable Emergency Recovery Kit**: 1-page native Vector PDF emergency sheet containing vault cryptographic parameters and safe deposit instructions.
 
----
+### 🎲 6. High-Entropy Password & Passphrase Generator
+*   Configurable password generator (length, uppercase, lowercase, numbers, symbols, avoid ambiguous).
+*   Diceware / Wordlist passphrase generator with custom word count and separators.
+*   PIN generator (4–12 digits).
+*   Live Shannon entropy calculator and crack-time estimation.
 
-## 💎 Design System & Tactile Physics
+### 🎨 7. Deterministic Offline Identicons (Zero Network)
+*   **40+ Curated Brand Palettes**: High-resolution vector badges for global brands.
+*   **Deterministic Monograms**: Derives high-contrast geometric initials and accent colors with **0 network requests, 0 CDN leaks, and 0 latency**.
 
-Kryptx isn't just secure; it is a sensory, ultra-premium experience that feels alive.
-
-*   🪞 **True Frosted Glassmorphism**: Multi-layered translucent surface cards featuring 1px luminous specular gradient borders (`KryptxCyan -> KryptxViolet -> Specular White`).
-*   ⚛️ **Framer-Motion-Like Spring Physics**: Interactive micro-interactions on all cards, buttons, and category chips with spring bounce scale physics (`0.96f` on press).
-*   📳 **Tactile Haptics Engine (`KryptxHaptics`)**: Crisp vibration feedback tuned for keypresses, copy confirmations, slider ticks, and biometric triggers.
+### 💎 8. Tactile Design System & Privacy Physics
+*   🪞 **Frosted Glassmorphism**: Translucent surface cards with luminous specular borders.
+*   ⚛️ **Fluid Spring Physics**: Micro-interactions with tactile bounce scale physics (`0.96f` on press).
+*   📳 **Tactile Haptics Engine (`KryptxHaptics`)**: Crisp vibration feedback for keypresses, copy events, and biometric triggers.
 *   🎨 **4 Curated Color Themes**: **Obsidian Dark**, **Pure Black (AMOLED)**, **Solar Light**, and **Material You (Dynamic Color)**.
 
 ---
 
 ## 🛡️ Threat Model & Defense Matrix
 
-| Attack Vector | Vulnerability in Standard Apps | 🟢 Kryptx Cryptographic Defense |
+| Attack Vector | Vulnerability in Standard Apps | 🟢 Kryptx Sovereign Defense |
 |:---|:---|:---|
-| **Brute-Force Master Key** | 🔴 Weak dictionary cracking | **PBKDF2-HMAC-SHA256 (600,000 iters)** + 32-byte secure salt. |
-| **Quantum Decryption** | 🔴 RSA/ECC broken by Shor's | **Post-Quantum ML-KEM-768 (Kyber)** key encapsulation. |
+| **Network Data Leaks** | 🔴 Apps communicate with cloud servers / telemetry | **0 Network Permissions**. Kernel blocks all network sockets. |
+| **Browser & Autofill Exploits** | 🔴 Phishing overlays / hijacked accessibility trees | **Zero External Hooks**. No autofill daemons or browser hooks. |
+| **Brute-Force Master Key** | 🔴 Weak dictionary cracking | **Argon2id (RFC 9106) / PBKDF2 (600,000 iters)** + 32-byte salt. |
+| **Quantum Decryption** | 🔴 RSA/ECC broken by Shor's algorithm | **Post-Quantum ML-KEM-768 (Kyber)** key encapsulation. |
 | **RAM / Memory Dump** | 🔴 Plaintext keys sitting in heap | **JNI Memory Locking (`mlock`)** + byte-level zeroization. |
 | **Timing Side-Channels** | 🔴 String `equals` leaking timing | **Constant-Time comparisons** on byte/char arrays. |
 | **Hardware Keystore Hack** | 🔴 Software-only keystore keys | **Hardware StrongBox / TEE** + Boot Attestation. |
 | **Malicious Background Hooks** | 🔴 Frida / Xposed script injection | **Runtime Anti-Tamper scanner** + Root Detection. |
-| **Screen / Clipboard Leaks** | 🔴 Spyware captures screen/clipboard | **Hardware `FLAG_SECURE`** + 30s clipboard zeroization. |
-| **Cloud Breaches** | 🔴 Server database leaked/seized | **100% Offline Zero-Knowledge architecture**. |
+| **Screen / Clipboard Leaks** | 🔴 Spyware captures screen/clipboard | **Hardware `FLAG_SECURE`** + 10s/30s/60s clipboard zeroization. |
 
 ---
 
@@ -136,13 +143,25 @@ Kryptx isn't just secure; it is a sensory, ultra-premium experience that feels a
 ```text
 app/src/main/java/com/kryptx/app/
 ├── core/
-│   ├── crypto/         # Rust Engine, Post-Quantum, Passkeys, SecureMemory (mlock)
-│   ├── database/       # Room SQLite (WAL + Vacuum)
+│   ├── crypto/         # Post-Quantum ML-KEM-768, Passkeys, SecureMemory (mlock), Argon2id
+│   ├── database/       # Room / SQLCipher SQLite (WAL + Vacuum), Preferences, Importer/Exporter
 │   ├── designsystem/   # Glassmorphism, Haptics, Spring Physics, Identicons
-│   ├── security/       # RootDetector (Attestation), BreachChecker, Anti-Tamper
-│   └── sync/           # LocalWebCompanionServer (Zero-Cloud Desktop Wi-Fi)
-├── feature/            # Jetpack Compose Screens (Auth, Vault, TOTP, Generator)
-└── system/autofill/    # CredentialProviderService, AutofillService
+│   ├── di/             # KryptxDependencies DI Contract
+│   ├── generator/      # Entropy Calculator, Diceware Passphrase & Password Generator
+│   ├── model/          # 12 Vault Item Types, Payloads, Custom Fields
+│   ├── security/       # RootDetector, Anti-Tamper, Offline BreachChecker, Biometrics, Duress
+│   ├── sync/           # Air-Gapped Optical QR Encoder & Decoder (Zero Network)
+│   └── totp/           # RFC 6238 TOTP Engine (SHA-1/256/512)
+└── feature/            # Jetpack Compose UI Screens
+    ├── auth/           # Master Password, Scrambled PIN Pad, Biometrics, Duress
+    ├── generator/      # Password & Passphrase Generator UI
+    ├── navigation/     # NavGraph & Navigation Routing
+    ├── onboarding/     # Sovereign Architecture Onboarding
+    ├── search/         # Encrypted Full-Text Search
+    ├── securitycenter/ # Offline Health Audit, Remediation Wizard
+    ├── settings/       # Security Settings, Appearance, Air-Gapped Backup & SAF Export
+    ├── totp/           # 2FA Authenticator UI & Live Rings
+    └── vault/          # Vault Dashboard, 12 Categories, Item Detail, Add/Edit
 ```
 
 ---
@@ -153,9 +172,8 @@ app/src/main/java/com/kryptx/app/
 *   Android Studio Ladybug / Meerkat (or IntelliJ IDEA)
 *   JDK 21+
 *   Android SDK 36 (Android 16)
-*   **Rust (cargo)** (for compiling the `kryptx_crypto` JNI engine)
 
-### Run Unit Tests (340 Passing)
+### Run Unit Tests
 ```bash
 ./gradlew testDebugUnitTest
 ```

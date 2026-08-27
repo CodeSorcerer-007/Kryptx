@@ -28,6 +28,10 @@ data class VaultItem(
     val passkeyUserHandle: String = "",
     val passkeyCredentialId: String = "",
     val passkeyAlgorithm: String = "ES256 (ECDSA P-256)",
+    /** AES-256-GCM encrypted PKCS#8 private key bytes, base64-encoded. Decrypted only at assertion time. */
+    val passkeyPrivateKeyCiphertext: String = "",
+    val passkeyPublicKeyCoseBase64: String = "",
+    val passkeySignCount: Int = 0,
 
     // Credit Card fields
     val cardholderName: String = "",

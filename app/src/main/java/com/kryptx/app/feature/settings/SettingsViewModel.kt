@@ -9,6 +9,7 @@ import com.kryptx.app.core.database.VaultRepository
 import com.kryptx.app.core.migration.VaultExporter
 import com.kryptx.app.core.migration.VaultImporter
 import com.kryptx.app.core.model.EncryptedBackupPayload
+import com.kryptx.app.core.security.ActivityLogManager
 import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,8 @@ import kotlinx.serialization.json.Json
 class SettingsViewModel(
     private val preferencesRepository: IPreferencesRepository,
     private val vaultRepository: VaultRepository,
-    private val sessionManager: VaultSessionManager
+    private val sessionManager: VaultSessionManager,
+    private val activityLogManager: ActivityLogManager? = null
 ) : ViewModel() {
 
     val themeMode = preferencesRepository.themeMode
@@ -29,10 +31,8 @@ class SettingsViewModel(
     val biometricEnabled = preferencesRepository.biometricEnabled
     val clipboardTimeout = preferencesRepository.clipboardTimeout
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
-    val breachCheckNetworkEnabled = preferencesRepository.breachCheckNetworkEnabled
     val visibleCategories = preferencesRepository.visibleCategories
     val minimalistDashboardMode = preferencesRepository.minimalistDashboardMode
-    val webCompanionReadOnly = preferencesRepository.webCompanionReadOnly
 
     private val _hasDuress = MutableStateFlow(vaultRepository.hasDuressPassword())
     val hasDuress: StateFlow<Boolean> = _hasDuress.asStateFlow()
@@ -101,10 +101,6 @@ class SettingsViewModel(
         preferencesRepository.setFlagSecureEnabled(enabled)
     }
 
-    fun setBreachCheckNetworkEnabled(enabled: Boolean) {
-        preferencesRepository.setBreachCheckNetworkEnabled(enabled)
-    }
-
     fun toggleCategoryVisibility(category: com.kryptx.app.core.model.ItemType) {
         val current = visibleCategories.value.toMutableSet()
         if (current.contains(category.name)) {
@@ -122,10 +118,6 @@ class SettingsViewModel(
         preferencesRepository.setMinimalistDashboardMode(enabled)
     }
 
-    fun setWebCompanionReadOnly(readOnly: Boolean) {
-        preferencesRepository.setWebCompanionReadOnly(readOnly)
-    }
-
     fun setupDuressPassword(duressPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         if (duressPin.length < 4) {
             onError("Duress PIN/Password must be at least 4 characters")
@@ -140,6 +132,7 @@ class SettingsViewModel(
             }
             if (result.isSuccess) {
                 _hasDuress.value = true
+                activityLogManager?.logEvent("Security", "Configured Duress Vault")
                 onSuccess()
             } else {
                 onError("Failed to configure Duress Vault")
@@ -151,6 +144,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             vaultRepository.removeDuressPassword()
             _hasDuress.value = false
+            activityLogManager?.logEvent("Security", "Removed Duress Vault")
             onComplete()
         }
     }
@@ -243,6 +237,7 @@ class SettingsViewModel(
         return try {
             val result = vaultRepository.exportEncryptedBackup(chars)
             result.getOrNull()?.let { payload ->
+                activityLogManager?.logEvent("Backup", "Exported encrypted vault backup")
                 json.encodeToString(EncryptedBackupPayload.serializer(), payload)
                     .toByteArray(Charsets.UTF_8)
             }
@@ -254,6 +249,7 @@ class SettingsViewModel(
     suspend fun exportPlaintextCsv(): ByteArray? {
         return when (val result = vaultRepository.exportPlaintextJson()) {
             is com.kryptx.app.core.model.KryptxResult.Success -> {
+                activityLogManager?.logEvent("Security", "WARNING: Exported plaintext CSV backup")
                 val items = json.decodeFromString<List<com.kryptx.app.core.model.VaultItem>>(result.data)
                 VaultExporter.exportToCsv(items).toByteArray(Charsets.UTF_8)
             }
@@ -283,7 +279,11 @@ class SettingsViewModel(
             // Plain CSV/JSON importer (Bitwarden, 1Password, Google, etc.)
             val parsedItems = VaultImporter.importAutoDetect(content)
             val result = vaultRepository.importItems(parsedItems)
-            onResult(result.getOrDefault(0))
+            val count = result.getOrDefault(0)
+            if (count > 0) {
+                activityLogManager?.logEvent("Backup", "Imported $count items into vault")
+            }
+            onResult(count)
         }
     }
 

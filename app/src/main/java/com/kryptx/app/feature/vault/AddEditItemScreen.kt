@@ -412,7 +412,46 @@ fun AddEditItemScreen(
                     allergies = medicalAllergies,
                     onAllergiesChange = { medicalAllergies = it }
                 )
-                ItemType.SECURE_NOTE, ItemType.CUSTOM -> {}
+                ItemType.SECURE_NOTE -> {
+                    if (existingItem == null && notes.isBlank()) {
+                        Text(
+                            text = "Templates",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val templates = listOf(
+                                "Checklist" to "- [ ] Item 1\n- [ ] Item 2\n- [ ] Item 3",
+                                "Server Config" to "Host:\nIP:\nPort:\nRoot Password:\n\n- [ ] Firewall configured\n- [ ] Backups enabled",
+                                "Meeting" to "Date:\nAttendees:\n\nAgenda:\n- \n\nAction Items:\n- [ ] "
+                            )
+                            templates.forEach { (name, templateText) ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                        .clickable { notes = templateText }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = name,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                ItemType.CUSTOM -> {}
             }
 
             Spacer(modifier = Modifier.height(16.dp))

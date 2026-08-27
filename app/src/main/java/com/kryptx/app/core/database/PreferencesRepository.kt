@@ -28,10 +28,8 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_CLIPBOARD_TIMEOUT = "clipboard_timeout"
         private const val KEY_FLAG_SECURE = "flag_secure_enabled"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
-        private const val KEY_BREACH_CHECK_NETWORK = "breach_check_network"
         private const val KEY_VISIBLE_CATEGORIES = "visible_categories"
         private const val KEY_MINIMALIST_MODE = "minimalist_dashboard_mode"
-        private const val KEY_COMPANION_READ_ONLY = "companion_read_only"
         private const val KEY_SELECTED_PERSONA = "selected_persona"
     }
 
@@ -58,9 +56,6 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     private val _flagSecureEnabled = MutableStateFlow(prefs.getBoolean(KEY_FLAG_SECURE, true))
     override val flagSecureEnabled: StateFlow<Boolean> = _flagSecureEnabled.asStateFlow()
 
-    private val _breachCheckNetworkEnabled = MutableStateFlow(prefs.getBoolean(KEY_BREACH_CHECK_NETWORK, false))
-    override val breachCheckNetworkEnabled: StateFlow<Boolean> = _breachCheckNetworkEnabled.asStateFlow()
-
     private val _onboardingCompleted = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDING_DONE, false))
     override val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
 
@@ -71,9 +66,6 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
 
     private val _minimalistDashboardMode = MutableStateFlow(prefs.getBoolean(KEY_MINIMALIST_MODE, false))
     override val minimalistDashboardMode: StateFlow<Boolean> = _minimalistDashboardMode.asStateFlow()
-
-    private val _webCompanionReadOnly = MutableStateFlow(prefs.getBoolean(KEY_COMPANION_READ_ONLY, false))
-    override val webCompanionReadOnly: StateFlow<Boolean> = _webCompanionReadOnly.asStateFlow()
 
     private val _selectedPersona = MutableStateFlow(getSavedPersona())
     override val selectedPersona: StateFlow<UserPersona> = _selectedPersona.asStateFlow()
@@ -131,11 +123,6 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         _flagSecureEnabled.value = enabled
     }
 
-    override fun setBreachCheckNetworkEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_BREACH_CHECK_NETWORK, enabled).apply()
-        _breachCheckNetworkEnabled.value = enabled
-    }
-
     override fun setOnboardingCompleted(completed: Boolean) {
         prefs.edit().putBoolean(KEY_ONBOARDING_DONE, completed).apply()
         _onboardingCompleted.value = completed
@@ -149,11 +136,6 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     override fun setMinimalistDashboardMode(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_MINIMALIST_MODE, enabled).apply()
         _minimalistDashboardMode.value = enabled
-    }
-
-    override fun setWebCompanionReadOnly(readOnly: Boolean) {
-        prefs.edit().putBoolean(KEY_COMPANION_READ_ONLY, readOnly).apply()
-        _webCompanionReadOnly.value = readOnly
     }
 
     override fun setSelectedPersona(persona: UserPersona) {

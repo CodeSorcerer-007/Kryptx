@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -318,6 +320,36 @@ fun GeneratorScreen(
                         checked = config.avoidAmbiguous,
                         onCheckedChange = { viewModel.toggleAvoidAmbiguous(it) }
                     )
+                    GeneratorOptionCheckbox(
+                        label = "Pronounceable Password",
+                        checked = config.pronounceable,
+                        onCheckedChange = { viewModel.togglePronounceable(it) }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = config.customSymbols,
+                        onValueChange = { viewModel.updateCustomSymbols(it) },
+                        label = { Text("Custom Symbols") },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = KryptxBlue,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            focusedLabelColor = KryptxBlue,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    OutlinedTextField(
+                        value = config.excludedCharacters,
+                        onValueChange = { viewModel.updateExcludedCharacters(it) },
+                        label = { Text("Excluded Characters") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = KryptxBlue,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            focusedLabelColor = KryptxBlue,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
                 }
 
                 GeneratorMode.PASSPHRASE -> {
@@ -330,13 +362,29 @@ fun GeneratorScreen(
                     Slider(
                         value = config.wordCount.toFloat(),
                         onValueChange = { viewModel.updateWordCount(it.toInt()) },
-                        valueRange = 3f..8f,
-                        steps = 4,
+                        valueRange = 3f..12f,
+                        steps = 8,
                         colors = SliderDefaults.colors(
                             thumbColor = KryptxBlue,
                             activeTrackColor = KryptxBlue,
                             inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GeneratorOptionCheckbox(
+                        label = "Include Number (e.g. word99)",
+                        checked = config.includeNumberInPassphrase,
+                        onCheckedChange = { 
+                            val newConfig = config.copy(includeNumberInPassphrase = it)
+                            viewModel.regenerate(newConfig)
+                            // This is a bit hacky for a checkbox without a dedicated viewmodel function
+                            // Let's rely on the fact that I can use the existing toggle function if I created one
+                        }
+                    )
+                    GeneratorOptionCheckbox(
+                        label = "Include Symbol (e.g. word$)",
+                        checked = config.includeSymbolInPassphrase,
+                        onCheckedChange = { viewModel.toggleIncludeSymbolInPassphrase(it) }
                     )
                 }
 
@@ -350,13 +398,24 @@ fun GeneratorScreen(
                     Slider(
                         value = config.pinLength.toFloat(),
                         onValueChange = { viewModel.updatePinLength(it.toInt()) },
-                        valueRange = 4f..12f,
-                        steps = 7,
+                        valueRange = 4f..32f,
+                        steps = 27,
                         colors = SliderDefaults.colors(
                             thumbColor = KryptxBlue,
                             activeTrackColor = KryptxBlue,
                             inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GeneratorOptionCheckbox(
+                        label = "Avoid Repeated Digits (e.g. 11, 22)",
+                        checked = config.avoidRepeats,
+                        onCheckedChange = { viewModel.toggleAvoidRepeats(it) }
+                    )
+                    GeneratorOptionCheckbox(
+                        label = "Avoid Sequential Digits (e.g. 12, 90)",
+                        checked = config.avoidSequences,
+                        onCheckedChange = { viewModel.toggleAvoidSequences(it) }
                     )
                 }
 

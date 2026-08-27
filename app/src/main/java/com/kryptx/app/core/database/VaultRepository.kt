@@ -6,7 +6,6 @@ import com.kryptx.app.core.model.SecurityAuditReport
 import com.kryptx.app.core.model.VaultItem
 import kotlinx.coroutines.flow.Flow
 import javax.crypto.Cipher
-
 interface VaultRepository {
     fun hasVault(): Boolean
     fun isBiometricsConfigured(): Boolean
@@ -62,4 +61,23 @@ interface VaultRepository {
     suspend fun resetVault()
     fun getDatabaseDiagnostics(): KryptxDatabaseHelper.DatabaseDiagnostics
     suspend fun vacuumDatabase(): KryptxResult<Unit>
+
+    // PQC Identity Key Pair (ML-KEM-768) — generated at vault setup, used for backup encapsulation
+    fun getPqcIdentityPublicKey(): ByteArray?
+    suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit>
+
+    // Passkey (FIDO2 / WebAuthn) registration and assertion
+    suspend fun registerPasskey(
+        rpId: String,
+        rpName: String,
+        userHandle: String,
+        userName: String,
+        challenge: ByteArray
+    ): KryptxResult<VaultItem>
+
+    suspend fun assertPasskey(
+        item: VaultItem,
+        clientDataJsonBytes: ByteArray,
+        rpId: String
+    ): KryptxResult<com.kryptx.app.core.crypto.PasskeyEngine.PasskeyAssertionSignature>
 }

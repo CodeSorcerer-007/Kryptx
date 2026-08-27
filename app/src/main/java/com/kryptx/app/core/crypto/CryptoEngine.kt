@@ -147,4 +147,49 @@ object CryptoEngine {
             SecureMemory.wipe(decryptedBytes)
         }
     }
+
+    /**
+     * Helper to encrypt a CharArray into a Base64-encoded encrypted payload string.
+     * Minimizes String memory retention.
+     */
+    fun encryptCharArray(
+        chars: CharArray,
+        key: ByteArray,
+        associatedData: ByteArray? = null
+    ): String {
+        val byteBuffer = ByteBuffer.allocate(chars.size * 2)
+        for (c in chars) {
+            byteBuffer.putChar(c)
+        }
+        val plainBytes = byteBuffer.array()
+        return try {
+            val encrypted = encrypt(plainBytes, key, associatedData)
+            Base64.getEncoder().encodeToString(encrypted)
+        } finally {
+            SecureMemory.wipe(plainBytes)
+        }
+    }
+
+    /**
+     * Helper to decrypt a Base64-encoded encrypted payload string into a CharArray.
+     * Minimizes String memory retention.
+     */
+    fun decryptToCharArray(
+        encryptedBase64: String,
+        key: ByteArray,
+        associatedData: ByteArray? = null
+    ): CharArray {
+        val encryptedBytes = Base64.getDecoder().decode(encryptedBase64)
+        val decryptedBytes = decrypt(encryptedBytes, key, associatedData)
+        return try {
+            val byteBuffer = ByteBuffer.wrap(decryptedBytes)
+            val chars = CharArray(decryptedBytes.size / 2)
+            for (i in chars.indices) {
+                chars[i] = byteBuffer.char
+            }
+            chars
+        } finally {
+            SecureMemory.wipe(decryptedBytes)
+        }
+    }
 }

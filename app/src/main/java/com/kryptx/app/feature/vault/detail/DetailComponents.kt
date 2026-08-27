@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
@@ -366,6 +367,76 @@ fun PasswordHistorySheet(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun StructuredNoteView(
+    noteContent: String,
+    onNoteChanged: (String) -> Unit
+) {
+    val lines = noteContent.split("\n")
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        lines.forEachIndexed { index, line ->
+            val isUnchecked = line.trimStart().startsWith("- [ ]")
+            val isChecked = line.trimStart().startsWith("- [x]") || line.trimStart().startsWith("- [X]")
+
+            if (isUnchecked || isChecked) {
+                val text = line.trimStart().substring(5).trim()
+                val leadingWhitespace = line.takeWhile { it.isWhitespace() }
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            val newLines = lines.toMutableList()
+                            val prefix = if (isChecked) "- [ ]" else "- [x]"
+                            newLines[index] = "$leadingWhitespace$prefix $text"
+                            onNoteChanged(newLines.joinToString("\n"))
+                        }
+                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = if (isChecked) Icons.Default.Check else Icons.Default.Check, // I'll use Check for checked, maybe a border for unchecked. Wait, CheckBox icon isn't standard in basic icons. Let's use Icons.Default.Check for checked and no icon (just a box) for unchecked.
+                        contentDescription = "Toggle Checkbox",
+                        tint = if (isChecked) KryptxEmerald else Color.Transparent,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .padding(top = 2.dp)
+                            .border(
+                                width = 2.dp,
+                                color = if (isChecked) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .background(
+                                color = if (isChecked) KryptxEmerald.copy(alpha = 0.2f) else Color.Transparent,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = text,
+                        fontSize = 14.sp,
+                        color = if (isChecked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        style = if (isChecked) androidx.compose.ui.text.TextStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough) else androidx.compose.ui.text.TextStyle.Default,
+                        lineHeight = 20.sp
+                    )
+                }
+            } else {
+                Text(
+                    text = line,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
             }
         }
     }

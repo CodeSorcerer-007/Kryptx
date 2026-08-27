@@ -19,15 +19,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -47,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
-import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 
 @Composable
@@ -55,16 +51,15 @@ fun SettingsScreen(
     onNavigateToSecurity: () -> Unit,
     onNavigateToAppearance: () -> Unit,
     onNavigateToBackup: () -> Unit,
-    onNavigateToWebCompanion: () -> Unit,
-    onNavigateToP2pSync: () -> Unit,
-    onNavigateToAutofillSetup: () -> Unit,
+    onNavigateToMigration: () -> Unit,
     onReplayGuides: () -> Unit,
     vaultRepository: com.kryptx.app.core.database.VaultRepository? = null,
     settingsViewModel: SettingsViewModel? = null,
     modifier: Modifier = Modifier
 ) {
-    var showTrashSheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var showCategorySheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showTrashSheet by remember { mutableStateOf(false) }
+    var showCategorySheet by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier
             .fillMaxSize()
@@ -100,13 +95,13 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text(
-                            text = "Kryptx Password Manager",
+                            text = "Kryptx Sovereign Fortress",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Version 1.1.0 • Zero-Knowledge Architecture",
+                            text = "100% Isolated • Post-Quantum • Zero Network",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -127,16 +122,16 @@ fun SettingsScreen(
 
             SettingsNavRow(
                 title = "Security Center & Biometrics",
-                subtitle = "Biometric unlock, auto-lock timeout, duress PIN, security audit",
+                subtitle = "Biometric unlock, auto-lock timeout, duress PIN, auto-destruct",
                 icon = Icons.Default.Lock,
                 onClick = onNavigateToSecurity
             )
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // 2. DATA & LOCAL ACCESS
+            // 2. DATA & AIR-GAPPED BACKUPS
             Text(
-                text = "DATA & LOCAL ACCESS",
+                text = "DATA & AIR-GAPPED BACKUPS",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -144,24 +139,17 @@ fun SettingsScreen(
             )
 
             SettingsNavRow(
-                title = "Desktop Web Companion",
-                subtitle = "Access encrypted vault on PC / Mac browser over local Wi-Fi",
-                icon = Icons.Default.Wifi,
-                onClick = onNavigateToWebCompanion
-            )
-
-            SettingsNavRow(
-                title = "P2P Device Sync",
-                subtitle = "Synchronize differential vault items between devices over local Wi-Fi",
-                icon = Icons.Default.Sync,
-                onClick = onNavigateToP2pSync
-            )
-
-            SettingsNavRow(
-                title = "Backup & Migration",
-                subtitle = "Encrypted JSON backup, CSV export, Bitwarden/1Password import",
+                title = "Backup & Export",
+                subtitle = "Encrypted JSON backup, plaintext CSV, Bitwarden/1Password import",
                 icon = Icons.Default.FolderZip,
                 onClick = onNavigateToBackup
+            )
+            
+            SettingsNavRow(
+                title = "Zero-Cloud Migration",
+                subtitle = "Secure P2P Wi-Fi transfer, optical air-gap QR sync",
+                icon = Icons.Default.FolderZip,
+                onClick = onNavigateToMigration
             )
 
             SettingsNavRow(
@@ -184,7 +172,7 @@ fun SettingsScreen(
 
             SettingsNavRow(
                 title = "Appearance & Theme",
-                subtitle = "OLED Black, WorkONE Blue, Solar Light, Dynamic Color",
+                subtitle = "OLED Black, Obsidian Dark, Solar Light, Dynamic Color",
                 icon = Icons.Default.ColorLens,
                 onClick = onNavigateToAppearance
             )
@@ -197,15 +185,8 @@ fun SettingsScreen(
             )
 
             SettingsNavRow(
-                title = "Android Autofill & Passkeys",
-                subtitle = "Enable system autofill service, credential manager",
-                icon = Icons.Default.AutoAwesome,
-                onClick = onNavigateToAutofillSetup
-            )
-
-            SettingsNavRow(
                 title = "Feature Guides & Pro Tips",
-                subtitle = "Replay first-time feature introductions and usage tips",
+                subtitle = "Replay feature introductions and sovereign usage tips",
                 icon = Icons.Default.Info,
                 onClick = onReplayGuides
             )
@@ -214,7 +195,7 @@ fun SettingsScreen(
 
             // 4. ZERO-KNOWLEDGE ARCHITECTURE CARD
             Text(
-                text = "SECURITY GUARANTEE",
+                text = "SOVEREIGN SECURITY GUARANTEE",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -239,7 +220,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Zero-Knowledge & Offline First",
+                            text = "100% Isolated & Kernel Sandboxed",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -247,7 +228,7 @@ fun SettingsScreen(
                     }
 
                     Text(
-                        text = "• AES-256-GCM symmetric encryption with 128-bit authentication tags\n• PBKDF2 key derivation with 600,000 rounds\n• AndroidKeyStore hardware isolation with StrongBox support\n• Zero analytics, telemetry, or remote servers",
+                        text = "• Zero internet or network permissions in Android manifest\n• Zero external app hooks or browser autofill daemons\n• AES-256-GCM symmetric encryption with 128-bit MAC tags\n• Argon2id KDF (RFC 9106, 16MB memory-hard)\n• ML-KEM-768 post-quantum key encapsulation (NIST FIPS 203)\n• AndroidKeyStore hardware isolation with StrongBox support\n• Zero analytics, telemetry, or remote communication",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 18.sp
@@ -279,16 +260,17 @@ fun SettingsNavRow(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-            .bounceClick(scaleDown = 0.98f, onClick = onClick)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .bounceClick(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
@@ -297,15 +279,15 @@ fun SettingsNavRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(KryptxBlue.copy(alpha = 0.15f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = KryptxBlue,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -315,11 +297,10 @@ fun SettingsNavRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
@@ -331,7 +312,7 @@ fun SettingsNavRow(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(14.dp)
             )
         }

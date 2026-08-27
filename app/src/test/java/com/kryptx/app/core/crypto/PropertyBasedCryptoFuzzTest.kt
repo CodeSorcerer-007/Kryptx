@@ -61,16 +61,6 @@ class PropertyBasedCryptoFuzzTest {
     }
 
     @Test
-    fun testEphemeralTlsEngineCertGeneration() {
-        val tls = EphemeralTlsEngine.createEphemeralTls("Kryptx Unit Test Node", validityDays = 2)
-        assertNotNull(tls.sslContext)
-        assertNotNull(tls.certificate)
-        assertNotNull(tls.fingerprintSha256)
-        assertTrue(tls.fingerprintSha256.contains(":"))
-        assertEquals(32, tls.fingerprintSha256.split(":").size)
-    }
-
-    @Test
     fun testConstantTimeProperties() {
         // Safe equals reflexivity
         val a = "super_secret_token_alpha_123"

@@ -40,6 +40,8 @@ import com.kryptx.app.feature.vault.VaultViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
+import com.kryptx.app.core.model.SecurityIssue
+
 @Composable
 fun LoginDetailSection(
     item: VaultItem,
@@ -47,6 +49,7 @@ fun LoginDetailSection(
     context: Context,
     scope: CoroutineScope,
     snackbarHostState: SnackbarHostState,
+    issues: List<SecurityIssue> = emptyList(),
     onShowPasswordHistory: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -70,6 +73,11 @@ fun LoginDetailSection(
                     viewModel.copySecret("Password", item.password)
                     scope.launch { snackbarHostState.showSnackbar("Password copied! Clears in 30s.") }
                 }
+            )
+
+            PasswordDnaCard(
+                password = item.password,
+                issues = issues
             )
 
             if (item.passwordHistory.isNotEmpty()) {

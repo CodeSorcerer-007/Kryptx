@@ -28,7 +28,6 @@ sealed class Screen(val route: String) {
     data object SecuritySettings : Screen("security_settings")
     data object AppearanceSettings : Screen("appearance_settings")
     data object BackupExport : Screen("backup_export")
-    data object WebCompanion : Screen("web_companion")
-    data object P2pSync : Screen("p2p_sync")
+    data object SecurityTimeline : Screen("security_timeline")
+    data object ZeroCloudMigration : Screen("zero_cloud_migration")
 }
-

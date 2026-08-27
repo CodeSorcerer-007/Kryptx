@@ -17,7 +17,8 @@ enum class IssueType {
     REUSED_PASSWORD,
     OLD_PASSWORD,
     EXPIRED_PASSWORD,
-    MISSING_2FA
+    MISSING_2FA,
+    SIMILAR_PASSWORD
 }
 
 @Immutable
@@ -52,6 +53,7 @@ data class SecurityAuditReport(
     val oldPasswordCount: Int,
     val missing2faCount: Int,
     val expiredCount: Int = 0,
+    val similarCount: Int = 0,
     val issues: List<SecurityIssue>,
     val history: List<SecurityScoreHistoryPoint> = emptyList(),
     val timestamp: Long = System.currentTimeMillis()

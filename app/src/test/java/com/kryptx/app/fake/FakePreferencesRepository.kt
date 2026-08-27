@@ -29,9 +29,6 @@ class FakePreferencesRepository : IPreferencesRepository {
     private val _flagSecureEnabled = MutableStateFlow(true)
     override val flagSecureEnabled: StateFlow<Boolean> = _flagSecureEnabled.asStateFlow()
 
-    private val _breachCheckNetworkEnabled = MutableStateFlow(false)
-    override val breachCheckNetworkEnabled: StateFlow<Boolean> = _breachCheckNetworkEnabled.asStateFlow()
-
     private val _onboardingCompleted = MutableStateFlow(false)
     override val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
 
@@ -40,9 +37,6 @@ class FakePreferencesRepository : IPreferencesRepository {
 
     private val _minimalistDashboardMode = MutableStateFlow(false)
     override val minimalistDashboardMode: StateFlow<Boolean> = _minimalistDashboardMode.asStateFlow()
-
-    private val _webCompanionReadOnly = MutableStateFlow(false)
-    override val webCompanionReadOnly: StateFlow<Boolean> = _webCompanionReadOnly.asStateFlow()
 
     private val _selectedPersona = MutableStateFlow(UserPersona.POWER_USER)
     override val selectedPersona: StateFlow<UserPersona> = _selectedPersona.asStateFlow()
@@ -54,11 +48,9 @@ class FakePreferencesRepository : IPreferencesRepository {
     override fun setBiometricEnabled(enabled: Boolean) { _biometricEnabled.value = enabled }
     override fun setClipboardTimeout(seconds: Int) { _clipboardTimeout.value = seconds }
     override fun setFlagSecureEnabled(enabled: Boolean) { _flagSecureEnabled.value = enabled }
-    override fun setBreachCheckNetworkEnabled(enabled: Boolean) { _breachCheckNetworkEnabled.value = enabled }
     override fun setOnboardingCompleted(completed: Boolean) { _onboardingCompleted.value = completed }
     override fun setVisibleCategories(categories: Set<String>) { _visibleCategories.value = categories }
     override fun setMinimalistDashboardMode(enabled: Boolean) { _minimalistDashboardMode.value = enabled }
-    override fun setWebCompanionReadOnly(readOnly: Boolean) { _webCompanionReadOnly.value = readOnly }
     override fun setSelectedPersona(persona: UserPersona) {
         _selectedPersona.value = persona
         _visibleCategories.value = persona.recommendedCategories

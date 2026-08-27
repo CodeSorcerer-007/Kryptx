@@ -13,10 +13,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.kryptx.app.core.security.ActivityLogManager
+
 class UnlockViewModel(
     private val vaultRepository: VaultRepository,
     private val sessionManager: VaultSessionManager,
-    private val preferencesRepository: IPreferencesRepository
+    private val preferencesRepository: IPreferencesRepository,
+    private val activityLogManager: ActivityLogManager? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UnlockUiState())
@@ -75,6 +78,8 @@ class UnlockViewModel(
             when (result) {
                 is KryptxResult.Success -> {
                     _uiState.value = _uiState.value.copy(password = "")
+                    activityLogManager?.logEvent("Unlock", "Vault unlocked via Hardware Key (NFC)")
+                    activityLogManager?.loadEvents()
                     onSuccess()
                 }
                 is KryptxResult.Error -> {
@@ -124,7 +129,11 @@ class UnlockViewModel(
             _uiState.value = _uiState.value.copy(isLoading = false)
 
             when (result) {
-                is KryptxResult.Success -> onSuccess()
+                is KryptxResult.Success -> {
+                    activityLogManager?.logEvent("Unlock", "Vault unlocked via Master Password")
+                    activityLogManager?.loadEvents()
+                    onSuccess()
+                }
                 is KryptxResult.Error -> {
                     val message = when (result.type) {
                         KryptxErrorType.WRONG_PASSWORD -> "Incorrect master password. Please try again."
@@ -169,6 +178,8 @@ class UnlockViewModel(
                         isLoading = false,
                         isBiometricsAvailable = enableBiometrics
                     )
+                    activityLogManager?.logEvent("Security", "New Vault created")
+                    activityLogManager?.loadEvents()
                     onSuccess()
                 }
                 is KryptxResult.Error -> {
@@ -190,6 +201,8 @@ class UnlockViewModel(
             when (result) {
                 is KryptxResult.Success -> {
                     _uiState.value = _uiState.value.copy(password = "")
+                    activityLogManager?.logEvent("Unlock", "Vault unlocked via Biometrics")
+                    activityLogManager?.loadEvents()
                     onSuccess()
                 }
                 is KryptxResult.Error -> {

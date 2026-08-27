@@ -26,7 +26,8 @@ class KryptxViewModelFactory(
                 UnlockViewModel(
                     vaultRepository = app.vaultRepository,
                     sessionManager = app.sessionManager,
-                    preferencesRepository = app.preferencesRepository
+                    preferencesRepository = app.preferencesRepository,
+                    activityLogManager = app.activityLogManager
                 ) as T
             }
             modelClass.isAssignableFrom(VaultViewModel::class.java) -> {
@@ -35,7 +36,8 @@ class KryptxViewModelFactory(
                     sessionManager = app.sessionManager,
                     clipboardSecurityManager = app.clipboardManager,
                     attachmentManager = app.attachmentManager,
-                    preferencesRepository = app.preferencesRepository
+                    preferencesRepository = app.preferencesRepository,
+                    activityLogManager = app.activityLogManager
                 ) as T
             }
             modelClass.isAssignableFrom(GeneratorViewModel::class.java) -> {
@@ -46,7 +48,8 @@ class KryptxViewModelFactory(
             modelClass.isAssignableFrom(SecurityCenterViewModel::class.java) -> {
                 SecurityCenterViewModel(
                     vaultRepository = app.vaultRepository,
-                    clipboardSecurityManager = app.clipboardManager
+                    clipboardSecurityManager = app.clipboardManager,
+                    activityLogManager = app.activityLogManager
                 ) as T
             }
             modelClass.isAssignableFrom(TotpViewModel::class.java) -> {
@@ -65,7 +68,8 @@ class KryptxViewModelFactory(
                 SettingsViewModel(
                     preferencesRepository = app.preferencesRepository,
                     vaultRepository = app.vaultRepository,
-                    sessionManager = app.sessionManager
+                    sessionManager = app.sessionManager,
+                    activityLogManager = app.activityLogManager
                 ) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
