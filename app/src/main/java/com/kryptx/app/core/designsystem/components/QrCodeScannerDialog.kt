@@ -124,9 +124,12 @@ fun QrCodeScannerDialog(
         permissionRequested = true
     }
 
+    val app = remember(context) { context.applicationContext as? com.kryptx.app.KryptxApplication }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
             coroutineScope.launch {
                 try {
@@ -149,30 +152,25 @@ fun QrCodeScannerDialog(
     val launchGalleryPicker: () -> Unit = {
         try {
             KryptxHaptics.tap(view)
+            app?.sessionManager?.setPickerActive(true)
             photoPickerLauncher.launch("image/*")
         } catch (e: Throwable) {
+            app?.sessionManager?.setPickerActive(false)
             android.util.Log.e("QrScanner", "Failed to launch image picker", e)
             try {
                 val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
                     type = "image/*"
                     addCategory(Intent.CATEGORY_OPENABLE)
                 }
+                app?.sessionManager?.setPickerActive(true)
                 context.startActivity(Intent.createChooser(intent, "Select QR Code Image"))
             } catch (e2: Throwable) {
+                app?.sessionManager?.setPickerActive(false)
                 Toast.makeText(context, "No gallery or image picker app available", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            try {
-                permissionLauncher.launch(Manifest.permission.CAMERA)
-            } catch (e: Throwable) {
-                android.util.Log.e("QrScanner", "Initial permission launch failed", e)
-            }
-        }
-    }
 
     val openAppSettings: () -> Unit = {
         try {

@@ -400,11 +400,7 @@ fun SecurityCenterScreen(
 
         if (showRemediationWizard && report != null) {
             SecurityRemediationWizard(
-                auditReport = report!!,
-                isRemediating = isLoading,
-                onRemediateAllWeak = { onDone ->
-                    viewModel.remediateAllWeak(onDone)
-                },
+                viewModel = viewModel,
                 onDismiss = { showRemediationWizard = false }
             )
         }

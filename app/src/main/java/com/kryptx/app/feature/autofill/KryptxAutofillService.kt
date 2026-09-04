@@ -56,6 +56,7 @@ class KryptxAutofillService : AutofillService() {
 
         val structure = context.structure
         val parsedForm = ParsedForm()
+        parsedForm.packageName = structure.activityComponent?.packageName
 
         for (i in 0 until structure.windowNodeCount) {
             val windowNode = structure.getWindowNodeAt(i)
@@ -120,10 +121,12 @@ class KryptxAutofillService : AutofillService() {
             }
         }
 
-        // 2. If locked or no direct match, provide authenticated dataset
-        val intent = Intent(this, MainActivity::class.java).apply {
-            putExtra("navigate_target", "search")
-            parsedForm.webDomain?.let { putExtra("autofill_query", it) }
+        // 2. If locked or no direct match, route to dedicated AutofillAuthActivity
+        val intent = Intent(this, AutofillAuthActivity::class.java).apply {
+            parsedForm.webDomain?.let { putExtra(AutofillAuthActivity.EXTRA_WEB_DOMAIN, it) }
+            parsedForm.packageName?.let { putExtra(AutofillAuthActivity.EXTRA_PACKAGE_NAME, it) }
+            parsedForm.usernameFieldId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
+            parsedForm.passwordFieldId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
         }
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -171,19 +174,17 @@ class KryptxAutofillService : AutofillService() {
                 app.vaultRepository.getItems().first()
             }
 
-            val targetDomain = parsedForm.webDomain?.lowercase()?.removePrefix("www.")
-            val targetPackage = parsedForm.packageName?.lowercase()
+            val targetDomain = parsedForm.webDomain
+            val targetPackage = parsedForm.packageName
 
             allItems.filter { item ->
                 if (item.type != ItemType.LOGIN && item.type != ItemType.PASSKEY) return@filter false
 
-                val itemWebsite = item.website.lowercase().removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore('/')
-                val itemTitle = item.title.lowercase()
-
                 when {
-                    !targetDomain.isNullOrBlank() && itemWebsite.isNotBlank() && (itemWebsite.contains(targetDomain) || targetDomain.contains(itemWebsite)) -> true
-                    !targetDomain.isNullOrBlank() && itemTitle.contains(targetDomain) -> true
-                    !targetPackage.isNullOrBlank() && itemTitle.contains(targetPackage.substringAfterLast('.')) -> true
+                    // Strict host and subdomain boundary matching for web domains
+                    !targetDomain.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isDomainMatch(targetDomain, item.website)
+                    // Package matching for native Android applications
+                    !targetPackage.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isPackageMatch(targetPackage, item.website, item.title)
                     else -> false
                 }
             }

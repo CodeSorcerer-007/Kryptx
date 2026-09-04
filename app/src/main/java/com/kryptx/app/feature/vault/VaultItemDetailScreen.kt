@@ -37,6 +37,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -96,8 +97,13 @@ fun VaultItemDetailScreen(
     var isFocusMode by remember { mutableStateOf(false) }
     var showPasswordHistorySheet by remember { mutableStateOf(false) }
 
+    LaunchedEffect(item) {
+        if (item == null) {
+            onNavigateBack()
+        }
+    }
+
     if (item == null) {
-        onNavigateBack()
         return
     }
 

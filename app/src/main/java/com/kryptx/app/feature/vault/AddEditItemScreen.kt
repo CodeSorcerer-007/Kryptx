@@ -1,9 +1,23 @@
 package com.kryptx.app.feature.vault
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.core.content.ContextCompat
+import com.kryptx.app.KryptxApplication
+import com.kryptx.app.core.designsystem.components.KryptxPermissionRationaleDialog
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -147,22 +161,106 @@ fun AddEditItemScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+    val app = remember(context) { context.applicationContext as? KryptxApplication }
+
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showAttachmentTypeDialog by remember { mutableStateOf(false) }
+    var showMediaRationaleDialog by remember { mutableStateOf(false) }
+    var showCameraRationaleDialog by remember { mutableStateOf(false) }
+    var pendingAttachmentAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_IMAGES
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    val cameraPermission = Manifest.permission.CAMERA
+
+    val mediaPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        pendingAttachmentAction?.invoke()
+        pendingAttachmentAction = null
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showQrScanner = true
+        }
+    }
+
+    val hasMediaPermission = remember(context) {
+        {
+            ContextCompat.checkSelfPermission(
+                context,
+                mediaPermission
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    val hasCameraPermission = remember(context) {
+        {
+            ContextCompat.checkSelfPermission(
+                context,
+                cameraPermission
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    val requestCameraOrOpenScanner: () -> Unit = {
+        if (hasCameraPermission()) {
+            showQrScanner = true
+        } else {
+            showCameraRationaleDialog = true
+        }
+    }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
             scope.launch {
-                val fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment_${System.currentTimeMillis()}"
-                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
-                if (saved != null) {
-                    attachments.add(saved)
+                try {
+                    val rawName = resolveFileName(context, uri)
+                    val fileName = if (!rawName.contains('.')) "$rawName.jpg" else rawName
+                    val mimeType = resolveMimeType(context, uri, fileName)
+                    val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
+                    if (saved != null) {
+                        attachments.add(saved)
+                    } else {
+                        errorMessage = "Unable to encrypt photo into vault."
+                    }
+                } catch (t: Throwable) {
+                    errorMessage = "Error saving photo: ${t.message}"
                 }
             }
         }
     }
 
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val fileName = resolveFileName(context, uri)
+                    val mimeType = resolveMimeType(context, uri, fileName)
+                    val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
+                    if (saved != null) {
+                        attachments.add(saved)
+                    } else {
+                        errorMessage = "Unable to encrypt file into vault."
+                    }
+                } catch (t: Throwable) {
+                    errorMessage = "Error reading file: ${t.message}"
+                }
+            }
+        }
+    }
 
     LaunchedEffect(existingItem) {
         val item = existingItem ?: return@LaunchedEffect
@@ -286,7 +384,7 @@ fun AddEditItemScreen(
                     onWebsiteChange = { website = it },
                     totpSecret = totpSecret,
                     onTotpSecretChange = { totpSecret = it },
-                    onScanQrClick = { showQrScanner = true }
+                    onScanQrClick = requestCameraOrOpenScanner
                 )
                 ItemType.PASSKEY -> PasskeyFormFields(
                     passkeyRpId = passkeyRpId,
@@ -444,7 +542,7 @@ fun AddEditItemScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = { filePickerLauncher.launch("*/*") }) {
+                TextButton(onClick = { showAttachmentTypeDialog = true }) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = KryptxBlue)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Add File / Photo", color = KryptxBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -607,4 +705,200 @@ fun AddEditItemScreen(
             }
         )
     }
+
+    if (showAttachmentTypeDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAttachmentTypeDialog = false },
+            title = {
+                Text(
+                    text = "Add Private Attachment",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Attachments are AES-256-GCM encrypted in volatile RAM and stored inside Kryptx's zero-disk sandbox.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                            .clickable {
+                                showAttachmentTypeDialog = false
+                                val action = {
+                                    app?.sessionManager?.setPickerActive(true)
+                                    try {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    } catch (t: Throwable) {
+                                        app?.sessionManager?.setPickerActive(false)
+                                        // Fallback to general picker if PhotoPicker unavailable
+                                        filePickerLauncher.launch("image/*")
+                                    }
+                                }
+                                if (hasMediaPermission()) {
+                                    action()
+                                } else {
+                                    pendingAttachmentAction = action
+                                    showMediaRationaleDialog = true
+                                }
+                            }
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = null,
+                                tint = KryptxBlue,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Choose Photo from Gallery",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Private photos, ID cards, receipts",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                            .clickable {
+                                showAttachmentTypeDialog = false
+                                app?.sessionManager?.setPickerActive(true)
+                                try {
+                                    filePickerLauncher.launch("*/*")
+                                } catch (t: Throwable) {
+                                    app?.sessionManager?.setPickerActive(false)
+                                    errorMessage = "Unable to launch file selector: ${t.message}"
+                                }
+                            }
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Description,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Choose Document or Key File",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "PDF, recovery codes, certificates",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAttachmentTypeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showMediaRationaleDialog) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.Image,
+            title = "File & Media Storage Access",
+            description = "To select photos and documents for encrypted storage inside your Kryptx vault, Android requires media access. No files are ever shared or uploaded.",
+            privacyGuarantee = "100% Offline: Files are encrypted with AES-256-GCM directly into the vault database and never leave this device.",
+            confirmButtonText = "Grant Access",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showMediaRationaleDialog = false
+                mediaPermissionLauncher.launch(mediaPermission)
+            },
+            onDismiss = {
+                showMediaRationaleDialog = false
+                pendingAttachmentAction = null
+            }
+        )
+    }
+
+    if (showCameraRationaleDialog) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.CameraAlt,
+            title = "Camera Access Required",
+            description = "Kryptx needs camera access to scan 2FA TOTP setup QR codes.",
+            privacyGuarantee = "100% Offline: The camera stream is analyzed locally in real-time RAM and no image data is stored or transmitted.",
+            confirmButtonText = "Grant Permission",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showCameraRationaleDialog = false
+                cameraPermissionLauncher.launch(cameraPermission)
+            },
+            onDismiss = { showCameraRationaleDialog = false }
+        )
+    }
 }
+
+private fun resolveFileName(context: Context, uri: Uri): String {
+    var name: String? = null
+    if (uri.scheme == "content") {
+        try {
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) {
+                        name = cursor.getString(idx)
+                    }
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+    return name ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment_${System.currentTimeMillis()}"
+}
+
+private fun resolveMimeType(context: Context, uri: Uri, fileName: String): String {
+    val fromResolver = try { context.contentResolver.getType(uri) } catch (_: Throwable) { null }
+    if (!fromResolver.isNullOrBlank() && fromResolver != "application/octet-stream") {
+        return fromResolver
+    }
+    val ext = android.webkit.MimeTypeMap.getFileExtensionFromUrl(fileName)
+        ?.ifBlank { fileName.substringAfterLast('.', "") }
+    if (!ext.isNullOrBlank()) {
+        val mapped = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.lowercase())
+        if (!mapped.isNullOrBlank()) return mapped
+    }
+    return fromResolver ?: "application/octet-stream"
+}
+

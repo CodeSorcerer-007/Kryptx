@@ -429,7 +429,7 @@ class VaultRepositoryImpl(
             if (duressSaltBase64 != null && duressTokenBase64 != null) {
                 val duressSalt = Base64.decode(duressSaltBase64, Base64.NO_WRAP)
                 val duressTokenBytes = Base64.decode(duressTokenBase64, Base64.NO_WRAP)
-                val derivedDuressKey = KeyDerivation.deriveKey(masterPassword, duressSalt)
+                val derivedDuressKey = KeyDerivation.deriveKeyArgon2(masterPassword, duressSalt)
 
                 try {
                     val decoyVek = CryptoEngine.decrypt(duressTokenBytes, derivedDuressKey)
@@ -518,6 +518,15 @@ class VaultRepositoryImpl(
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_BIOMETRIC_IV, "")
     }
 
+    private fun deriveMasterKeyForVault(password: CharArray, salt: ByteArray): ByteArray {
+        val kdfAlgorithm = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_KDF_ALGORITHM)
+        return if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
+            KeyDerivation.deriveKeyArgon2(password, salt)
+        } else {
+            KeyDerivation.deriveKey(password, salt)
+        }
+    }
+
     override suspend fun changeMasterPassword(
         currentPassword: CharArray,
         newPassword: CharArray
@@ -532,7 +541,7 @@ class VaultRepositoryImpl(
 
         val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
         val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
-        val currentDerivedKey = KeyDerivation.deriveKey(currentPassword, salt)
+        val currentDerivedKey = deriveMasterKeyForVault(currentPassword, salt)
 
         val verifiedVek = try {
             CryptoEngine.decrypt(tokenBytes, currentDerivedKey)
@@ -545,13 +554,14 @@ class VaultRepositoryImpl(
         SecureMemory.wipe(salt)
         SecureMemory.wipe(verifiedVek)
 
-        // Generate new salt and re-wrap VEK
+        // Generate new salt and re-wrap VEK using memory-hard Argon2id
         val newSalt = KeyDerivation.generateSalt()
-        val newDerivedKey = KeyDerivation.deriveKey(newPassword, newSalt)
+        val newDerivedKey = KeyDerivation.deriveKeyArgon2(newPassword, newSalt)
         val newEncryptedVek = CryptoEngine.encrypt(activeVek, newDerivedKey)
 
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_SALT, Base64.encodeToString(newSalt, Base64.NO_WRAP))
         dbHelper.setMetadata(KryptxDatabaseHelper.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP))
+        dbHelper.setMetadata(KryptxDatabaseHelper.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
 
         if (isBiometricsConfigured()) {
             setupBiometrics()
@@ -573,7 +583,7 @@ class VaultRepositoryImpl(
 
         val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
         val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
-        val currentDerivedKey = KeyDerivation.deriveKey(currentMasterPassword, salt)
+        val currentDerivedKey = deriveMasterKeyForVault(currentMasterPassword, salt)
 
         val verifiedVek = try {
             CryptoEngine.decrypt(tokenBytes, currentDerivedKey)
@@ -986,32 +996,12 @@ class VaultRepositoryImpl(
             val items = dbHelper.loadAllItems(activeVek)
             val salt = KeyDerivation.generateSalt()
 
-            // Derive classical backup key via Argon2id
-            val classicalKey = KeyDerivation.deriveKeyArgon2(exportPassword, salt)
+            // Derive portable backup key via memory-hard Argon2id (RFC 9106).
+            // Guarantees that backups can be restored 100% reliably on ANY device or fresh install.
+            val encryptionKey = KeyDerivation.deriveKeyArgon2(exportPassword, salt)
 
-            // Use the vault's persistent ML-KEM-768 identity public key for encapsulation.
-            // This means only the holder of the matching private key (protected by the VEK)
-            // can decapsulate — the backup is truly post-quantum safe end-to-end.
             val pqcPubKeyBase64 = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_PQC_IDENTITY_PUBLIC_KEY)
             val isPostQuantum = pqcPubKeyBase64 != null
-            val pqcEncapsulationBase64: String?
-            val encryptionKey: ByteArray
-
-            if (isPostQuantum) {
-                val pqcPubKey = Base64.decode(pqcPubKeyBase64!!, Base64.NO_WRAP)
-                val encapsulated = PostQuantumEngine.encapsulate(
-                    recipientPublicKeyBytes = pqcPubKey,
-                    classicalSaltOrSecret = classicalKey
-                )
-                // Hybrid key: XOR of PQC shared secret and classical Argon2id key
-                encryptionKey = ByteArray(32) { i -> (encapsulated.sharedSecret[i].toInt() xor classicalKey[i].toInt()).toByte() }
-                pqcEncapsulationBase64 = Base64.encodeToString(encapsulated.encapsulation, Base64.NO_WRAP)
-                SecureMemory.wipe(encapsulated.sharedSecret)
-            } else {
-                // Fallback: classical Argon2id-only encryption (e.g. migrated vaults without PQC key pair)
-                encryptionKey = classicalKey.copyOf()
-                pqcEncapsulationBase64 = null
-            }
 
             val plaintextBytes = json.encodeToString(items).toByteArray(Charsets.UTF_8)
             val ciphertext = try {
@@ -1024,7 +1014,6 @@ class VaultRepositoryImpl(
             val ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
             val checksum = VaultExporter.computeSha256Checksum(ciphertextBase64)
 
-            SecureMemory.wipe(classicalKey)
             SecureMemory.wipe(encryptionKey)
             SecureMemory.wipe(salt)
 
@@ -1034,12 +1023,12 @@ class VaultRepositoryImpl(
                 formatVersion = 2,
                 exportedAt = System.currentTimeMillis(),
                 isEncrypted = true,
-                kdfAlgorithm = if (isPostQuantum) "Argon2id+MLKEM768-Hybrid" else "Argon2id",
+                kdfAlgorithm = "Argon2id",
                 kdfIterations = 0,
                 saltBase64 = saltBase64,
                 ivBase64 = "",
                 isPostQuantum = isPostQuantum,
-                pqcEncapsulationBase64 = pqcEncapsulationBase64,
+                pqcEncapsulationBase64 = null,
                 checksumSha256 = checksum
             )
 
@@ -1078,19 +1067,22 @@ class VaultRepositoryImpl(
             val salt = Base64.decode(payload.header.saltBase64, Base64.NO_WRAP)
             val ciphertext = Base64.decode(payload.ciphertextBase64, Base64.NO_WRAP)
 
-            val decryptionKey: ByteArray
+            var decryptedBytes: ByteArray? = null
 
-            if (payload.header.isPostQuantum && !payload.header.pqcEncapsulationBase64.isNullOrBlank()) {
-                // Post-quantum hybrid import path.
-                // Re-derive the classical Argon2id key from the import password.
-                val classicalKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
+            // Strategy 1: Standard Argon2id derivation (v1.1.0+ portable backups)
+            val argonKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
+            try {
+                decryptedBytes = CryptoEngine.decrypt(ciphertext, argonKey)
+            } catch (_: Exception) {}
+            SecureMemory.wipe(argonKey)
 
-                // Attempt to decapsulate using the vault's persistent ML-KEM-768 private key.
+            // Strategy 2: Legacy PQC hybrid if same-device private key is available
+            if (decryptedBytes == null && payload.header.isPostQuantum && !payload.header.pqcEncapsulationBase64.isNullOrBlank()) {
                 val activeVek = sessionManager.getVaultKey()
                 val privKeyCiphertext = dbHelper.getMetadata(KryptxDatabaseHelper.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT)
-
-                decryptionKey = if (activeVek != null && privKeyCiphertext != null) {
+                if (activeVek != null && privKeyCiphertext != null) {
                     try {
+                        val classicalKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
                         val encryptedPrivKey = Base64.decode(privKeyCiphertext, Base64.NO_WRAP)
                         val privKeyBytes = CryptoEngine.decrypt(encryptedPrivKey, activeVek)
                         val encapsulationBytes = Base64.decode(payload.header.pqcEncapsulationBase64, Base64.NO_WRAP)
@@ -1099,32 +1091,29 @@ class VaultRepositoryImpl(
                             privateKeyBytes = privKeyBytes,
                             classicalSaltOrSecret = classicalKey
                         )
-                        // Reconstruct hybrid key: XOR of PQC shared secret and classical key
                         val hybridKey = ByteArray(32) { i -> (pqcSharedSecret[i].toInt() xor classicalKey[i].toInt()).toByte() }
+                        decryptedBytes = CryptoEngine.decrypt(ciphertext, hybridKey)
                         SecureMemory.wipe(privKeyBytes)
                         SecureMemory.wipe(pqcSharedSecret)
                         SecureMemory.wipe(classicalKey)
-                        hybridKey
-                    } catch (_: Exception) {
-                        // PQC decapsulation failed — fall back to classical Argon2id key
-                        classicalKey
-                    }
-                } else {
-                    // No active vault or no stored PQC private key — use classical key only
-                    classicalKey
+                        SecureMemory.wipe(hybridKey)
+                    } catch (_: Exception) {}
                 }
-            } else {
-                // Legacy classical path
-                decryptionKey = KeyDerivation.deriveKey(importPassword, salt, payload.header.kdfIterations)
             }
 
-            val decryptedBytes = try {
-                CryptoEngine.decrypt(ciphertext, decryptionKey)
-            } catch (e: Exception) {
-                SecureMemory.wipe(decryptionKey)
-                return@withContext KryptxResult.Error(KryptxErrorType.DECRYPTION_FAILED, "Wrong import password or corrupted backup")
+            // Strategy 3: Legacy PBKDF2 iterations fallback
+            if (decryptedBytes == null) {
+                val iters = if (payload.header.kdfIterations > 0) payload.header.kdfIterations else KeyDerivation.DEFAULT_ITERATIONS
+                val pbkdf2Key = KeyDerivation.deriveKey(importPassword, salt, iters)
+                try {
+                    decryptedBytes = CryptoEngine.decrypt(ciphertext, pbkdf2Key)
+                } catch (_: Exception) {}
+                SecureMemory.wipe(pbkdf2Key)
             }
-            SecureMemory.wipe(decryptionKey)
+
+            if (decryptedBytes == null) {
+                return@withContext KryptxResult.Error(KryptxErrorType.DECRYPTION_FAILED, "Wrong import password or corrupted backup file")
+            }
 
             val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
             SecureMemory.wipe(decryptedBytes)

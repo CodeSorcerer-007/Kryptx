@@ -86,7 +86,7 @@ fun UnlockScreen(
     // Auto-prompt biometric authentication when screen appears and biometrics are ready
     LaunchedEffect(uiState.isBiometricsAvailable) {
         if (uiState.isBiometricsAvailable && lockoutSeconds == 0) {
-            delay(250)
+            delay(50)
             onTriggerBiometrics()
         }
     }

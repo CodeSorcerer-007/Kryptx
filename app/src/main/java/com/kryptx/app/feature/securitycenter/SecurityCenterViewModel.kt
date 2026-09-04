@@ -37,6 +37,32 @@ class SecurityCenterViewModel(
         }
     }
 
+    suspend fun getWeakItemsList(): List<com.kryptx.app.core.model.VaultItem> {
+        val report = _auditReport.value ?: vaultRepository.computeSecurityAudit()
+        val weakItemIds = report.issues
+            .filter { it.type == com.kryptx.app.core.model.IssueType.WEAK_PASSWORD }
+            .map { it.itemId }
+            .distinct()
+        return weakItemIds.mapNotNull { vaultRepository.getItemById(it) }
+    }
+
+    fun copyCandidatePassword(title: String, candidate: String) {
+        clipboardSecurityManager?.copySensitiveText(
+            label = "New Password for $title",
+            text = candidate,
+            timeoutSeconds = 60
+        )
+    }
+
+    fun commitPasswordChange(item: com.kryptx.app.core.model.VaultItem, newPassword: String, onDone: () -> Unit) {
+        viewModelScope.launch {
+            PasswordRotationHelper.commitPasswordChange(item, newPassword, vaultRepository)
+            activityLogManager?.logEvent("Security", "Guided password update for ${item.title}")
+            runAudit()
+            onDone()
+        }
+    }
+
     fun quickRotatePassword(itemId: String, onComplete: (PasswordRotationHelper.RotationResult) -> Unit) {
         viewModelScope.launch {
             val item = vaultRepository.getItemById(itemId) ?: return@launch

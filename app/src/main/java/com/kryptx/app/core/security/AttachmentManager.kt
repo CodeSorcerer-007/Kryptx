@@ -126,9 +126,13 @@ class AttachmentManager(
      * Decrypts an encrypted attachment into an in-memory byte array.
      */
     override suspend fun loadDecryptedAttachment(attachment: VaultAttachment): ByteArray? = withContext(Dispatchers.IO) {
-        val baos = ByteArrayOutputStream()
-        val success = writeDecryptedToStream(attachment, baos)
-        if (success) baos.toByteArray() else null
+        try {
+            val baos = ByteArrayOutputStream()
+            val success = writeDecryptedToStream(attachment, baos)
+            if (success) baos.toByteArray() else null
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     /**
@@ -160,6 +164,8 @@ class AttachmentManager(
                 val lenBuf = ByteArray(4)
                 while (fis.read(lenBuf) == 4) {
                     val chunkLen = ByteBuffer.wrap(lenBuf).int
+                    // Defensive guard: reject negative or abnormally huge chunks (> 10 MB) from corrupted files
+                    if (chunkLen <= 0 || chunkLen > 10 * 1024 * 1024) return@withContext false
                     val encryptedChunk = ByteArray(chunkLen)
                     var readSoFar = 0
                     while (readSoFar < chunkLen) {
@@ -175,7 +181,7 @@ class AttachmentManager(
                 }
             }
             true
-        } catch (e: Exception) {
+        } catch (_: Throwable) {
             false
         }
     }

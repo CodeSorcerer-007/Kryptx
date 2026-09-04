@@ -46,6 +46,54 @@ object PasswordRotationHelper {
     }
 
     /**
+     * Generates a high-entropy 20-character password.
+     */
+    fun generateStrongPassword(passwordLength: Int = 20): String {
+        val config = GeneratorConfig(
+            mode = GeneratorMode.PASSWORD,
+            passwordLength = passwordLength,
+            includeUppercase = true,
+            includeLowercase = true,
+            includeNumbers = true,
+            includeSymbols = true,
+            avoidAmbiguous = true
+        )
+        return GeneratorEngine.generate(config).value
+    }
+
+    /**
+     * Commits a confirmed password rotation to the vault and archives the old password.
+     */
+    suspend fun commitPasswordChange(
+        item: VaultItem,
+        newPassword: String,
+        vaultRepository: VaultRepository
+    ): VaultItem = withContext(Dispatchers.IO) {
+        val oldSecret = item.primarySecret
+        val now = System.currentTimeMillis()
+
+        val updatedHistory = if (oldSecret.isNotBlank()) {
+            val entry = PasswordHistoryEntry(
+                password = oldSecret,
+                changedAt = now,
+                note = "Guided security rotation"
+            )
+            listOf(entry) + item.passwordHistory
+        } else {
+            item.passwordHistory
+        }
+
+        val updatedItem = item.copy(
+            password = newPassword,
+            passwordHistory = updatedHistory,
+            updatedAt = now
+        )
+
+        vaultRepository.saveItem(updatedItem)
+        updatedItem
+    }
+
+    /**
      * Executes an automated rotation:
      * 1. Generates a new 24-char high-entropy password.
      * 2. Archives the old password to [VaultItem.passwordHistory].

@@ -39,7 +39,25 @@ object CryptoEngine {
      * @param associatedData Optional authenticated associated data (AAD).
      * @return Combined byte array containing [12-byte IV + Ciphertext with GCM Auth Tag].
      */
+    /**
+     * Encrypts plaintext bytes using Native Rust Engine when available, falling back to AES-256-GCM.
+     */
     fun encrypt(
+        plaintext: ByteArray,
+        key: ByteArray,
+        associatedData: ByteArray? = null
+    ): ByteArray {
+        return if (associatedData == null && NativeCryptoEngineWrapper.isNativeAvailable) {
+            NativeCryptoEngineWrapper.encrypt(plaintext, key, associatedData)
+        } else {
+            encryptJvm(plaintext, key, associatedData)
+        }
+    }
+
+    /**
+     * Standard JVM AES-256-GCM encryption.
+     */
+    fun encryptJvm(
         plaintext: ByteArray,
         key: ByteArray,
         associatedData: ByteArray? = null
@@ -68,15 +86,24 @@ object CryptoEngine {
     }
 
     /**
-     * Decrypts an encrypted payload using AES-256-GCM with the specified key.
-     *
-     * @param encryptedData Combined byte array of [12-byte IV + Ciphertext with GCM Auth Tag].
-     * @param key 256-bit symmetric key.
-     * @param associatedData Optional authenticated associated data (AAD) that must match encryption.
-     * @return Decrypted plaintext bytes.
-     * @throws javax.crypto.AEADBadTagException if authentication fails (tampered or wrong key).
+     * Decrypts an encrypted payload using Native Rust Engine when available, falling back to AES-256-GCM.
      */
     fun decrypt(
+        encryptedData: ByteArray,
+        key: ByteArray,
+        associatedData: ByteArray? = null
+    ): ByteArray {
+        return if (NativeCryptoEngineWrapper.isNativeAvailable) {
+            NativeCryptoEngineWrapper.decrypt(encryptedData, key, associatedData)
+        } else {
+            decryptJvm(encryptedData, key, associatedData)
+        }
+    }
+
+    /**
+     * Standard JVM AES-256-GCM decryption.
+     */
+    fun decryptJvm(
         encryptedData: ByteArray,
         key: ByteArray,
         associatedData: ByteArray? = null

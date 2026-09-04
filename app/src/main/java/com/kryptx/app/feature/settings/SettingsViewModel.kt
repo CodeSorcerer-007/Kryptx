@@ -284,31 +284,35 @@ class SettingsViewModel(
 
     fun importContent(content: String, password: String?, onResult: (count: Int) -> Unit) {
         viewModelScope.launch {
-            // Check if encrypted backup
-            if (content.contains("ciphertextBase64") && !password.isNullOrBlank()) {
-                try {
-                    val payload = json.decodeFromString<EncryptedBackupPayload>(content)
-                    val chars = password.toCharArray()
-                    val result = try {
-                        vaultRepository.importEncryptedBackup(payload, chars)
-                    } finally {
-                        SecureMemory.wipe(chars)
+            try {
+                // Check if encrypted backup
+                if (content.contains("ciphertextBase64") && !password.isNullOrBlank()) {
+                    try {
+                        val payload = json.decodeFromString<EncryptedBackupPayload>(content)
+                        val chars = password.toCharArray()
+                        val result = try {
+                            vaultRepository.importEncryptedBackup(payload, chars)
+                        } finally {
+                            SecureMemory.wipe(chars)
+                        }
+                        onResult(result.getOrDefault(0))
+                        return@launch
+                    } catch (_: Throwable) {
+                        // Fallthrough to plain importer
                     }
-                    onResult(result.getOrDefault(0))
-                    return@launch
-                } catch (_: Exception) {
-                    // Fallthrough to plain importer
                 }
-            }
 
-            // Plain CSV/JSON importer (Bitwarden, 1Password, Google, etc.)
-            val parsedItems = VaultImporter.importAutoDetect(content)
-            val result = vaultRepository.importItems(parsedItems)
-            val count = result.getOrDefault(0)
-            if (count > 0) {
-                activityLogManager?.logEvent("Backup", "Imported $count items into vault")
+                // Plain CSV/JSON importer (Bitwarden, 1Password, Google, etc.)
+                val parsedItems = VaultImporter.importAutoDetect(content)
+                val result = vaultRepository.importItems(parsedItems)
+                val count = result.getOrDefault(0)
+                if (count > 0) {
+                    activityLogManager?.logEvent("Backup", "Imported $count items into vault")
+                }
+                onResult(count)
+            } catch (_: Throwable) {
+                onResult(0)
             }
-            onResult(count)
         }
     }
 

@@ -83,10 +83,13 @@ fun BackupExportScreen(
     // Import bytes — held while the password dialog is open
     var pendingImportBytes by remember { mutableStateOf<ByteArray?>(null) }
 
+    val app = remember(context) { context.applicationContext as? com.kryptx.app.KryptxApplication }
+
     // Offline Web Vault HTML launcher
     val saveHtmlLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/html")
     ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
         val bytes = pendingHtmlBytes
         if (uri != null && bytes != null) {
             scope.launch {
@@ -108,6 +111,7 @@ fun BackupExportScreen(
     val saveEncryptedLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
         val bytes = pendingEncryptedBytes
         if (uri != null && bytes != null) {
             scope.launch {
@@ -127,6 +131,7 @@ fun BackupExportScreen(
     val saveCsvLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv")
     ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
         val bytes = pendingCsvBytes
         if (uri != null && bytes != null) {
             scope.launch {
@@ -146,11 +151,21 @@ fun BackupExportScreen(
     val savePdfLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
             scope.launch {
                 try {
+                    val saltBase64 = app?.dbHelper?.getMetadata(com.kryptx.app.core.database.KryptxDatabaseHelper.KEY_SALT) ?: ""
+                    val kdfAlgo = app?.dbHelper?.getMetadata(com.kryptx.app.core.database.KryptxDatabaseHelper.KEY_KDF_ALGORITHM) ?: "argon2id"
+                    val activeVaultId = app?.vaultRepository?.getActiveVaultId() ?: "personal"
+                    val recoveryUri = "kryptx://recovery?vault=$activeVaultId&salt=$saltBase64&kdf=$kdfAlgo"
+
                     val pdfFile = com.kryptx.app.core.generator.EmergencyKitGenerator
-                        .generateEmergencyKitPdf(context)
+                        .generateEmergencyKitPdf(
+                            context = context,
+                            accountIdentifier = "$activeVaultId Vault",
+                            recoveryPayload = recoveryUri
+                        )
                     val written = writeToUri(context, uri, pdfFile.readBytes())
                     pdfFile.delete() // clean up cache file
                     snackbarHostState.showSnackbar(
@@ -167,6 +182,7 @@ fun BackupExportScreen(
     val openImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
             scope.launch {
                 val bytes = readFromUri(context, uri)
@@ -285,7 +301,12 @@ fun BackupExportScreen(
                         textColor = KryptxEmerald,
                         onClick = {
                             val timestamp = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
-                            savePdfLauncher.launch("Kryptx_EmergencyKit_$timestamp.pdf")
+                            app?.sessionManager?.setPickerActive(true)
+                            try {
+                                savePdfLauncher.launch("Kryptx_EmergencyKit_$timestamp.pdf")
+                            } catch (_: Throwable) {
+                                app?.sessionManager?.setPickerActive(false)
+                            }
                         }
                     )
                 }
@@ -370,15 +391,20 @@ fun BackupExportScreen(
                         borderColor = KryptxBlue,
                         textColor = KryptxBlue,
                         onClick = {
-                            openImportLauncher.launch(
-                                arrayOf(
-                                    "application/json",
-                                    "text/csv",
-                                    "text/comma-separated-values",
-                                    "application/octet-stream",
-                                    "*/*"
+                            app?.sessionManager?.setPickerActive(true)
+                            try {
+                                openImportLauncher.launch(
+                                    arrayOf(
+                                        "application/json",
+                                        "text/csv",
+                                        "text/comma-separated-values",
+                                        "application/octet-stream",
+                                        "*/*"
+                                    )
                                 )
-                            )
+                            } catch (_: Throwable) {
+                                app?.sessionManager?.setPickerActive(false)
+                            }
                         }
                     )
                 }
@@ -465,7 +491,12 @@ fun BackupExportScreen(
                             if (bytes != null) {
                                 pendingEncryptedBytes = bytes
                                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                                saveEncryptedLauncher.launch("Kryptx_Backup_$timestamp.kryptx")
+                                app?.sessionManager?.setPickerActive(true)
+                                try {
+                                    saveEncryptedLauncher.launch("Kryptx_Backup_$timestamp.kryptx")
+                                } catch (_: Throwable) {
+                                    app?.sessionManager?.setPickerActive(false)
+                                }
                             } else {
                                 snackbarHostState.showSnackbar("Export failed — vault may be locked.")
                             }
@@ -516,7 +547,12 @@ fun BackupExportScreen(
                             if (bytes != null) {
                                 pendingHtmlBytes = bytes
                                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                                saveHtmlLauncher.launch("Kryptx_OfflineVault_$timestamp.html")
+                                app?.sessionManager?.setPickerActive(true)
+                                try {
+                                    saveHtmlLauncher.launch("Kryptx_OfflineVault_$timestamp.html")
+                                } catch (_: Throwable) {
+                                    app?.sessionManager?.setPickerActive(false)
+                                }
                             } else {
                                 snackbarHostState.showSnackbar("Export failed — vault may be locked.")
                             }
@@ -558,7 +594,12 @@ fun BackupExportScreen(
                             if (bytes != null) {
                                 pendingCsvBytes = bytes
                                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                                saveCsvLauncher.launch("Kryptx_Export_$timestamp.csv")
+                                app?.sessionManager?.setPickerActive(true)
+                                try {
+                                    saveCsvLauncher.launch("Kryptx_Export_$timestamp.csv")
+                                } catch (_: Throwable) {
+                                    app?.sessionManager?.setPickerActive(false)
+                                }
                             } else {
                                 snackbarHostState.showSnackbar("Export failed — vault may be locked.")
                             }
@@ -646,17 +687,28 @@ private fun writeToUri(context: Context, uri: Uri, bytes: ByteArray): Boolean {
             stream.flush()
         }
         true
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
         false
     }
 }
 
-private fun readFromUri(context: Context, uri: Uri): ByteArray? {
+private fun readFromUri(context: Context, uri: Uri, maxBytes: Int = 50 * 1024 * 1024): ByteArray? {
     return try {
         context.contentResolver.openInputStream(uri)?.use { stream ->
-            stream.readBytes()
+            val buffer = java.io.ByteArrayOutputStream()
+            val chunk = ByteArray(8192)
+            var totalRead = 0
+            var bytesRead: Int
+            while (stream.read(chunk).also { bytesRead = it } != -1) {
+                totalRead += bytesRead
+                if (totalRead > maxBytes) {
+                    return null // Protect against huge files causing OOM
+                }
+                buffer.write(chunk, 0, bytesRead)
+            }
+            buffer.toByteArray()
         }
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
         null
     }
 }

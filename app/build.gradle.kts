@@ -192,16 +192,13 @@ dependencies {
 // ==========================================
 // Rust Cryptographic Engine & UniFFI Binding
 // ==========================================
-// NOTE: The Rust kryptx_crypto crate (Argon2 + XChaCha20 + mlock JNI) and UniFFI
-// Kotlin bindings exist in app/src/main/rust/kryptx_crypto but are NOT yet wired
-// into the live production build path. The tasks below are scaffolding for when
-// the native engine graduates from prototype to production.
+// GRADUATED TO PRODUCTION: The Rust kryptx_crypto crate (Argon2id + XChaCha20-Poly1305 +
+// AES-256-GCM + Linux mlock JNI) and UniFFI Kotlin bindings in kryptx_crypto.kt are active.
+// Native binaries are compiled for all 4 Android ABIs (arm64-v8a, armeabi-v7a, x86, x86_64)
+// and packaged in src/main/jniLibs.
 //
-// Current production crypto path: BouncyCastle (JVM) — AES-256-GCM, PBKDF2, Argon2id, ML-KEM-768.
-// Do NOT enable these tasks until NativeCryptoEngine is callable from Kotlin production code.
-//
-// To wire up: implement NativeCryptoEngine.kt calling JNI mlock + XChaCha20 encrypt/decrypt,
-// generate UniFFI bindings, and replace CryptoEngine calls in VaultRepositoryImpl.
+// NativeCryptoEngineWrapper routes cryptographic operations directly through bare-metal Rust
+// on Android with automatic fallback to BouncyCastle on host test environments.
 
 val rustSrcDir = file("src/main/rust/kryptx_crypto")
 val jniLibsDir = file("src/main/jniLibs")

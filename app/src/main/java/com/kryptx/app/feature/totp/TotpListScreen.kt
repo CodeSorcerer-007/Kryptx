@@ -27,6 +27,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
@@ -34,6 +41,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VpnKey
+import com.kryptx.app.core.designsystem.components.KryptxPermissionRationaleDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -99,10 +107,33 @@ fun TotpListScreen(
     val scope = rememberCoroutineScope()
     val view = LocalView.current
 
+    val context = LocalContext.current
+
     var showAddDialog by remember { mutableStateOf(false) }
     var showQrScanner by remember { mutableStateOf(false) }
+    var showCameraRationaleDialog by remember { mutableStateOf(false) }
     var selectedAccountForOptions by remember { mutableStateOf<TotpViewModel.TotpAccount?>(null) }
     var accountToDelete by remember { mutableStateOf<TotpViewModel.TotpAccount?>(null) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showQrScanner = true
+        }
+    }
+
+    val requestCameraOrOpenScanner: () -> Unit = {
+        val hasCameraPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasCameraPermission) {
+            showQrScanner = true
+        } else {
+            showCameraRationaleDialog = true
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -121,7 +152,7 @@ fun TotpListScreen(
                     KryptxCircleIconButton(
                         icon = Icons.Default.QrCodeScanner,
                         contentDescription = "Scan 2FA QR Code",
-                        onClick = { showQrScanner = true }
+                        onClick = requestCameraOrOpenScanner
                     )
                 }
             )
@@ -157,7 +188,7 @@ fun TotpListScreen(
                     subtitle = "Scan QR codes or store time-based one-time password (TOTP) secret keys to generate live verification codes.",
                     icon = Icons.Default.Key,
                     actionButtonText = "Scan 2FA QR Code",
-                    onActionClick = { showQrScanner = true }
+                    onActionClick = requestCameraOrOpenScanner
                 )
             }
         } else {
@@ -308,6 +339,22 @@ fun TotpListScreen(
                 }
             }
         }
+    }
+
+    if (showCameraRationaleDialog) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.CameraAlt,
+            title = "Camera Access Required",
+            description = "Kryptx needs camera access to scan 2FA TOTP setup QR codes.",
+            privacyGuarantee = "100% Offline: The camera stream is analyzed locally in real-time RAM and no image data is stored or transmitted.",
+            confirmButtonText = "Grant Permission",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showCameraRationaleDialog = false
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            },
+            onDismiss = { showCameraRationaleDialog = false }
+        )
     }
 
     if (showQrScanner) {

@@ -144,11 +144,25 @@ class VaultSessionManager(
         }
     }
 
+    @Volatile
+    private var isPickerActive: Boolean = false
+
+    fun setPickerActive(active: Boolean) {
+        isPickerActive = active
+    }
+
+    fun isPickerActive(): Boolean = isPickerActive
+
     /**
      * Invoked when the app leaves the foreground.
      */
     @Synchronized
     fun onAppBackgrounded() {
+        if (isPickerActive) {
+            // User launched a system picker (e.g. Photo Picker, SAF document picker, Camera).
+            // Retain active key in volatile memory so operation succeeds on return.
+            return
+        }
         backgroundTimestamp = System.currentTimeMillis()
         if (lockOnBackground || autoLockTimeout == AutoLockTimeout.IMMEDIATELY) {
             lock(isTimeout = false)

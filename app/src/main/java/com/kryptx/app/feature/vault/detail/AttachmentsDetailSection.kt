@@ -86,6 +86,8 @@ fun AttachmentsDetailSection(
                                     }
                                 } catch (e: Exception) {
                                     snackbarHostState.showSnackbar("Unable to open attachment: ${e.message}")
+                                } catch (t: Throwable) {
+                                    snackbarHostState.showSnackbar("Unable to open attachment: Memory constrained or invalid format.")
                                 }
                             }
                         }

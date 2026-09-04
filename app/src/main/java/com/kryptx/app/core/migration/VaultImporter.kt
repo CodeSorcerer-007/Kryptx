@@ -22,10 +22,14 @@ object VaultImporter {
 
     fun importAutoDetect(content: String): List<VaultItem> {
         val trimmed = content.trim()
-        return if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-            importJson(trimmed)
-        } else {
-            importCsv(trimmed)
+        return try {
+            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                importJson(trimmed)
+            } else {
+                importCsv(trimmed)
+            }
+        } catch (_: Throwable) {
+            emptyList()
         }
     }
 
@@ -36,7 +40,11 @@ object VaultImporter {
 
             // Case 1: Plain list of VaultItem
             if (rootElement is kotlinx.serialization.json.JsonArray) {
-                return json.decodeFromString<List<VaultItem>>(jsonContent)
+                return try {
+                    json.decodeFromString<List<VaultItem>>(jsonContent)
+                } catch (_: Throwable) {
+                    emptyList()
+                }
             }
 
             val rootObj = rootElement.jsonObject
