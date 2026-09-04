@@ -111,30 +111,11 @@ fun TotpListScreen(
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showQrScanner by remember { mutableStateOf(false) }
-    var showCameraRationaleDialog by remember { mutableStateOf(false) }
     var selectedAccountForOptions by remember { mutableStateOf<TotpViewModel.TotpAccount?>(null) }
     var accountToDelete by remember { mutableStateOf<TotpViewModel.TotpAccount?>(null) }
 
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        val app = context.applicationContext as? com.kryptx.app.KryptxApplication
-        app?.sessionManager?.setPickerActive(false)
-        if (isGranted) {
-            showQrScanner = true
-        }
-    }
-
     val requestCameraOrOpenScanner: () -> Unit = {
-        val hasCameraPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-        if (hasCameraPermission) {
-            showQrScanner = true
-        } else {
-            showCameraRationaleDialog = true
-        }
+        showQrScanner = true
     }
 
     Scaffold(
@@ -343,27 +324,7 @@ fun TotpListScreen(
         }
     }
 
-    if (showCameraRationaleDialog) {
-        KryptxPermissionRationaleDialog(
-            icon = Icons.Default.CameraAlt,
-            title = "Camera Access Required",
-            description = "Kryptx needs camera access to scan 2FA TOTP setup QR codes.",
-            privacyGuarantee = "100% Offline: The camera stream is analyzed locally in real-time RAM and no image data is stored or transmitted.",
-            confirmButtonText = "Grant Permission",
-            dismissButtonText = "Not Now",
-            onConfirm = {
-                showCameraRationaleDialog = false
-                val app = context.applicationContext as? com.kryptx.app.KryptxApplication
-                app?.sessionManager?.setPickerActive(true)
-                try {
-                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                } catch (t: Throwable) {
-                    app?.sessionManager?.setPickerActive(false)
-                }
-            },
-            onDismiss = { showCameraRationaleDialog = false }
-        )
-    }
+
 
     if (showQrScanner) {
         QrCodeScannerDialog(

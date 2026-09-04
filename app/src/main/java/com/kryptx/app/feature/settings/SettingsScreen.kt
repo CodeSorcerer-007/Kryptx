@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -59,6 +60,7 @@ fun SettingsScreen(
     var showTrashSheet by remember { mutableStateOf(false) }
     var showCategorySheet by remember { mutableStateOf(false) }
     var showSecurityExplainer by remember { mutableStateOf(false) }
+    var showDeviceIntegrations by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
@@ -185,6 +187,13 @@ fun SettingsScreen(
             )
 
             SettingsNavRow(
+                title = "Device & System Integrations",
+                subtitle = "Android 16 permissions, camera, photo access, autofill, and hardware security status",
+                icon = Icons.Default.Devices,
+                onClick = { showDeviceIntegrations = true }
+            )
+
+            SettingsNavRow(
                 title = "Feature Guides & Pro Tips",
                 subtitle = "Replay feature introductions and sovereign usage tips",
                 icon = Icons.Default.Info,
@@ -256,6 +265,12 @@ fun SettingsScreen(
         if (showSecurityExplainer) {
             com.kryptx.app.core.designsystem.components.SecurityExplainerSheet(
                 onDismiss = { showSecurityExplainer = false }
+            )
+        }
+
+        if (showDeviceIntegrations) {
+            DeviceIntegrationsSheet(
+                onDismiss = { showDeviceIntegrations = false }
             )
         }
     }

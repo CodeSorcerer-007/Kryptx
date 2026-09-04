@@ -75,10 +75,12 @@ graph TD;
 3.  **Anti-Phishing Autofill Defense (`DomainMatcher`)**: Strict host and subdomain boundary validation prevents credential leakage to lookalike, homograph, or substring attacker domains (e.g. `evil-paypal.com` or `paypal.com.attacker.org` will **never** match `paypal.com`).
 4.  **Window & Screen Privacy (`FLAG_SECURE`)**: Both the main application and `AutofillAuthActivity` enforce `FLAG_SECURE`, blocking Android OS task snapshots, screen recorders, and malicious accessibility overlays.
 5.  **Crash-Proof Document & Photo Sandbox**:
-    *   **PDFs**: Rendered completely offline using Android's built-in `PdfRenderer` with multi-page navigation.
-    *   **Documents & Keys**: Text and certificates are inspected for printable characters with a safe display cap, while Word/binary documents can be opened in external viewer apps via temporary read-only `FileProvider` grants.
-    *   **Images**: Dynamic downsampling (`inSampleSize`) prevents out-of-memory crashes on high-res camera photos.
-6.  **"Explain Before Asking" Permission Dialogs**: System permission prompts for Camera and Media Storage are preceded by friendly in-app rationale modals explaining that data is handled strictly in volatile RAM.
+    *   **Universal Photo & Media Compatibility**: Full support for `.heic`, `.heif`, `.avif`, `.webp`, `.png`, `.jpg`, `.bmp`, and `.gif` camera attachments. On Android 9–16, utilizes native hardware `ImageDecoder` with dynamic downsampling (`inSampleSize`) to guarantee smooth, memory-safe previews with zero out-of-memory crashes.
+    *   **PDFs & Documents**: Rendered completely offline using Android's built-in `PdfRenderer` with multi-page navigation. Text and certificates are inspected for printable characters with a safe display cap, while external viewer delegation uses temporary read-only `FileProvider` grants.
+6.  **Android 16 System & Device Integrations Hub**:
+    *   **Predictive Back Navigation**: Native `enableOnBackInvokedCallback="true"` integration across Android 16 (API 36).
+    *   **Live Permissions & Integrations Dashboard**: Real-time Settings screen hub verifying Camera, Scoped Storage SAF, Android Autofill Service, and Hardware Keystore TEE / StrongBox isolation.
+    *   **Safe Picker Active Guards**: Launching system permission prompts, app details settings, or document pickers never triggers accidental background vault lockouts.
 
 ---
 

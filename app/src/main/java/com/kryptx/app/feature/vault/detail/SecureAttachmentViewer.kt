@@ -200,7 +200,12 @@ fun SecureAttachmentViewer(
                             attachment.fileName.endsWith(".jpg", ignoreCase = true) ||
                             attachment.fileName.endsWith(".jpeg", ignoreCase = true) ||
                             attachment.fileName.endsWith(".png", ignoreCase = true) ||
-                            attachment.fileName.endsWith(".webp", ignoreCase = true)
+                            attachment.fileName.endsWith(".webp", ignoreCase = true) ||
+                            attachment.fileName.endsWith(".heic", ignoreCase = true) ||
+                            attachment.fileName.endsWith(".heif", ignoreCase = true) ||
+                            attachment.fileName.endsWith(".gif", ignoreCase = true) ||
+                            attachment.fileName.endsWith(".bmp", ignoreCase = true) ||
+                            attachment.fileName.endsWith(".avif", ignoreCase = true)
 
                     val isPdf = attachment.mimeType.equals("application/pdf", ignoreCase = true) ||
                             attachment.fileName.endsWith(".pdf", ignoreCase = true)
@@ -621,6 +626,30 @@ private fun openAttachmentWithExternalApp(
  * Decodes a byte array into an ImageBitmap safely without triggering OutOfMemoryError.
  */
 private fun decodeSafeSampledBitmap(data: ByteArray, reqWidth: Int = 1200, reqHeight: Int = 1200): ImageBitmap? {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        try {
+            val byteBuffer = java.nio.ByteBuffer.wrap(data)
+            val source = android.graphics.ImageDecoder.createSource(byteBuffer)
+            val decoded = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                var sampleSize = 1
+                val width = info.size.width
+                val height = info.size.height
+                if (height > reqHeight || width > reqWidth) {
+                    val halfHeight = height / 2
+                    val halfWidth = width / 2
+                    while ((halfHeight / sampleSize) >= reqHeight && (halfWidth / sampleSize) >= reqWidth) {
+                        sampleSize *= 2
+                    }
+                }
+                decoder.setTargetSampleSize(sampleSize)
+                decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+            return decoded.asImageBitmap()
+        } catch (_: Throwable) {
+            // Fall through to BitmapFactory
+        }
+    }
+
     return try {
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true

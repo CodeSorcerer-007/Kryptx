@@ -2,6 +2,7 @@ package com.kryptx.app.feature.vault
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -166,40 +167,15 @@ fun AddEditItemScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAttachmentTypeDialog by remember { mutableStateOf(false) }
     var showMediaRationaleDialog by remember { mutableStateOf(false) }
-    var showCameraRationaleDialog by remember { mutableStateOf(false) }
     var hasGrantedMediaConsent by remember { mutableStateOf(false) }
     var pendingAttachmentType by remember { mutableStateOf<AttachmentType?>(null) }
 
-    val cameraPermission = Manifest.permission.CAMERA
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        app?.sessionManager?.setPickerActive(false)
-        if (isGranted) {
-            showQrScanner = true
-        }
-    }
-
-    val hasCameraPermission = remember(context) {
-        {
-            ContextCompat.checkSelfPermission(
-                context,
-                cameraPermission
-            ) == PackageManager.PERMISSION_GRANTED
-        }
-    }
-
     val requestCameraOrOpenScanner: () -> Unit = {
-        if (hasCameraPermission()) {
-            showQrScanner = true
-        } else {
-            showCameraRationaleDialog = true
-        }
+        showQrScanner = true
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
+        contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
@@ -242,6 +218,45 @@ fun AddEditItemScreen(
             }
         }
     }
+
+    val launchPhotoPicker: () -> Unit = {
+        app?.sessionManager?.setPickerActive(true)
+        try {
+            photoPickerLauncher.launch("image/*")
+        } catch (e: Throwable) {
+            try {
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                }
+                context.startActivity(Intent.createChooser(intent, "Select Photo"))
+            } catch (e2: Throwable) {
+                app?.sessionManager?.setPickerActive(false)
+                errorMessage = "Unable to open photo gallery: ${e2.message}"
+            }
+        }
+    }
+
+    val launchDocumentPicker: () -> Unit = {
+        app?.sessionManager?.setPickerActive(true)
+        try {
+            filePickerLauncher.launch("*/*")
+        } catch (e: Throwable) {
+            try {
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "*/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                }
+                context.startActivity(Intent.createChooser(intent, "Select Document or File"))
+            } catch (e2: Throwable) {
+                app?.sessionManager?.setPickerActive(false)
+                errorMessage = "Unable to open file selector: ${e2.message}"
+            }
+        }
+    }
+
+
+
 
     LaunchedEffect(existingItem) {
         val item = existingItem ?: return@LaunchedEffect
@@ -719,19 +734,7 @@ fun AddEditItemScreen(
                                     pendingAttachmentType = AttachmentType.PHOTO
                                     showMediaRationaleDialog = true
                                 } else {
-                                    app?.sessionManager?.setPickerActive(true)
-                                    try {
-                                        photoPickerLauncher.launch(
-                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                        )
-                                    } catch (t: Throwable) {
-                                        try {
-                                            filePickerLauncher.launch("image/*")
-                                        } catch (t2: Throwable) {
-                                            app?.sessionManager?.setPickerActive(false)
-                                            errorMessage = "Unable to open photo picker: ${t2.message}"
-                                        }
-                                    }
+                                    launchPhotoPicker()
                                 }
                             }
                             .padding(14.dp)
@@ -774,13 +777,7 @@ fun AddEditItemScreen(
                                     pendingAttachmentType = AttachmentType.DOCUMENT
                                     showMediaRationaleDialog = true
                                 } else {
-                                    app?.sessionManager?.setPickerActive(true)
-                                    try {
-                                        filePickerLauncher.launch("*/*")
-                                    } catch (t: Throwable) {
-                                        app?.sessionManager?.setPickerActive(false)
-                                        errorMessage = "Unable to launch file selector: ${t.message}"
-                                    }
+                                    launchDocumentPicker()
                                 }
                             }
                             .padding(14.dp)
@@ -839,55 +836,16 @@ fun AddEditItemScreen(
                 hasGrantedMediaConsent = true
                 val isPhoto = pendingAttachmentType != AttachmentType.DOCUMENT
                 pendingAttachmentType = null
-                app?.sessionManager?.setPickerActive(true)
                 if (isPhoto) {
-                    try {
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    } catch (t: Throwable) {
-                        try {
-                            filePickerLauncher.launch("image/*")
-                        } catch (t2: Throwable) {
-                            app?.sessionManager?.setPickerActive(false)
-                            errorMessage = "Unable to open photo picker: ${t2.message}"
-                        }
-                    }
+                    launchPhotoPicker()
                 } else {
-                    try {
-                        filePickerLauncher.launch("*/*")
-                    } catch (t: Throwable) {
-                        app?.sessionManager?.setPickerActive(false)
-                        errorMessage = "Unable to open document selector: ${t.message}"
-                    }
+                    launchDocumentPicker()
                 }
             },
             onDismiss = {
                 showMediaRationaleDialog = false
                 pendingAttachmentType = null
             }
-        )
-    }
-
-    if (showCameraRationaleDialog) {
-        KryptxPermissionRationaleDialog(
-            icon = Icons.Default.CameraAlt,
-            title = "Camera Access Required",
-            description = "Kryptx needs camera access to scan 2FA TOTP setup QR codes.",
-            privacyGuarantee = "100% Offline: The camera stream is analyzed locally in real-time RAM and no image data is stored or transmitted.",
-            confirmButtonText = "Grant Permission",
-            dismissButtonText = "Not Now",
-            onConfirm = {
-                showCameraRationaleDialog = false
-                app?.sessionManager?.setPickerActive(true)
-                try {
-                    cameraPermissionLauncher.launch(cameraPermission)
-                } catch (t: Throwable) {
-                    app?.sessionManager?.setPickerActive(false)
-                    errorMessage = "Unable to request camera permission: ${t.message}"
-                }
-            },
-            onDismiss = { showCameraRationaleDialog = false }
         )
     }
 }

@@ -117,14 +117,15 @@ fun QrCodeScannerDialog(
         }
     }
 
+    val app = remember(context) { context.applicationContext as? com.kryptx.app.KryptxApplication }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        app?.sessionManager?.setPickerActive(false)
         hasCameraPermission = isGranted
         permissionRequested = true
     }
-
-    val app = remember(context) { context.applicationContext as? com.kryptx.app.KryptxApplication }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -174,6 +175,7 @@ fun QrCodeScannerDialog(
 
     val openAppSettings: () -> Unit = {
         try {
+            app?.sessionManager?.setPickerActive(true)
             val intent = Intent(
                 Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                 Uri.fromParts("package", context.packageName, null)
@@ -182,6 +184,7 @@ fun QrCodeScannerDialog(
             }
             context.startActivity(intent)
         } catch (e: Throwable) {
+            app?.sessionManager?.setPickerActive(false)
             android.util.Log.e("QrScanner", "Failed to open app settings", e)
         }
     }
@@ -214,8 +217,10 @@ fun QrCodeScannerDialog(
                     onRequestPermission = {
                         try {
                             permissionRequested = true
+                            app?.sessionManager?.setPickerActive(true)
                             permissionLauncher.launch(Manifest.permission.CAMERA)
                         } catch (e: Throwable) {
+                            app?.sessionManager?.setPickerActive(false)
                             android.util.Log.e("QrScanner", "Permission launch failed", e)
                             openAppSettings()
                         }
