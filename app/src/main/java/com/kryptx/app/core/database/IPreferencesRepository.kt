@@ -40,6 +40,9 @@ interface IPreferencesRepository {
     val visibleCategories: StateFlow<Set<String>>
     val minimalistDashboardMode: StateFlow<Boolean>
     val selectedPersona: StateFlow<UserPersona>
+    val quickUnlockEnabled: StateFlow<Boolean>
+    val autofillNudgeDismissed: StateFlow<Boolean>
+    val scrambledPinDisabled: StateFlow<Boolean>
 
     fun setThemeMode(mode: AppThemeMode)
     fun setDynamicColor(enable: Boolean)
@@ -52,6 +55,9 @@ interface IPreferencesRepository {
     fun setVisibleCategories(categories: Set<String>)
     fun setMinimalistDashboardMode(enabled: Boolean)
     fun setSelectedPersona(persona: UserPersona)
+    fun setQuickUnlockEnabled(enabled: Boolean)
+    fun setAutofillNudgeDismissed(dismissed: Boolean)
+    fun setScrambledPinDisabled(disabled: Boolean)
 
     fun hasSeenFeatureIntro(featureKey: String): Boolean
     fun markFeatureIntroSeen(featureKey: String)

@@ -57,6 +57,14 @@ object KryptxHaptics {
         }
     }
 
+    fun error(view: View) {
+        warning(view)
+    }
+
+    fun success(view: View) {
+        confirm(view)
+    }
+
     private fun getVibrator(context: Context): Vibrator? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager

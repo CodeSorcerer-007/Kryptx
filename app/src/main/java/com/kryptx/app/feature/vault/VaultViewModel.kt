@@ -64,6 +64,13 @@ class VaultViewModel(
     val isMinimalistMode: StateFlow<Boolean> = preferencesRepository?.minimalistDashboardMode
         ?: MutableStateFlow(false).asStateFlow()
 
+    val autofillNudgeDismissed: StateFlow<Boolean> = preferencesRepository?.autofillNudgeDismissed
+        ?: MutableStateFlow(false).asStateFlow()
+
+    fun dismissAutofillNudge() {
+        preferencesRepository?.setAutofillNudgeDismissed(true)
+    }
+
     val categoryCounts: StateFlow<Map<ItemType, Int>> = rawItems.combine(_selectedCategory) { items, _ ->
         items.groupBy { it.type }.mapValues { it.value.size }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())

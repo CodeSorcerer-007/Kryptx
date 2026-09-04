@@ -19,8 +19,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
+import com.kryptx.app.feature.settings.dialogs.ChangeMasterPasswordDialog
+import com.kryptx.app.feature.settings.dialogs.DuressPinSetupDialog
+import com.kryptx.app.feature.settings.dialogs.PanicPinSetupDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -71,6 +76,8 @@ fun SecuritySettingsScreen(
     val lockOnBackground by viewModel.lockOnBackground.collectAsState()
     val clipboardTimeout by viewModel.clipboardTimeout.collectAsState()
     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsState()
+    val quickUnlockEnabled by viewModel.quickUnlockEnabled.collectAsState()
+    val scrambledPinDisabled by viewModel.scrambledPinDisabled.collectAsState()
     val hasDuress by viewModel.hasDuress.collectAsState()
     val hasPanic by viewModel.hasPanic.collectAsState()
 
@@ -82,13 +89,18 @@ fun SecuritySettingsScreen(
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showDuressDialog by remember { mutableStateOf(false) }
     var showPanicDialog by remember { mutableStateOf(false) }
+    var isAdvancedExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                com.kryptx.app.core.designsystem.components.KryptxSnackbar(data)
+            }
+        },
         topBar = {
             KryptxTopBar(
                 title = "Security & Vault Lock",
@@ -144,6 +156,47 @@ fun SecuritySettingsScreen(
                                     }
                                 }
                             }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = KryptxBlue
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Quick Unlock Mode
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Quick Unlock Mode",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Bypass the mechanical vault dial animation for instant decryption",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = quickUnlockEnabled,
+                        onCheckedChange = { enabled ->
+                            viewModel.setQuickUnlockEnabled(enabled)
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
@@ -294,7 +347,7 @@ fun SecuritySettingsScreen(
 
             // Duress / Decoy Vault Section
             Text(
-                text = "ANTI-COERCION & DURESS DEFENSE",
+                text = "ANTI-COERCION & THREAT DEFENSES",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -307,91 +360,129 @@ fun SecuritySettingsScreen(
                     .clip(RoundedCornerShape(18.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
-                    .bounceClick(scaleDown = 0.98f, onClick = { showDuressDialog = true })
+                    .clickable { isAdvancedExpanded = !isAdvancedExpanded }
                     .padding(16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background((if (hasDuress) KryptxEmerald else KryptxAmber).copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (hasDuress) Icons.Default.Shield else Icons.Default.LockOpen,
-                            contentDescription = null,
-                            tint = if (hasDuress) KryptxEmerald else KryptxAmber,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Duress Decoy Vault PIN",
+                            text = "Advanced Threat Protection",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (hasDuress) "Configured (Entering duress PIN unlocks safe decoy vault)" else "Not Configured (Tap to setup anti-coercion PIN)",
+                            text = if (hasDuress || hasPanic) "Active Defenses Armed (Tap to configure)" else "Duress decoy vault & panic self-destruct protocol",
                             fontSize = 12.sp,
-                            color = if (hasDuress) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (hasDuress || hasPanic) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Icon(
+                        imageVector = if (isAdvancedExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isAdvancedExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            if (isAdvancedExpanded) {
+                Spacer(modifier = Modifier.height(12.dp))
 
-            // Panic Vault Section
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
-                    .bounceClick(scaleDown = 0.98f, onClick = { showPanicDialog = true })
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                        .bounceClick(scaleDown = 0.98f, onClick = { showDuressDialog = true })
+                        .padding(16.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background((if (hasDuress) KryptxEmerald else KryptxAmber).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (hasDuress) Icons.Default.Shield else Icons.Default.LockOpen,
+                                contentDescription = null,
+                                tint = if (hasDuress) KryptxEmerald else KryptxAmber,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Duress Decoy Vault PIN",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (hasDuress) "Configured (Entering duress PIN unlocks safe decoy vault)" else "Not Configured (Tap to setup anti-coercion PIN)",
+                                fontSize = 12.sp,
+                                color = if (hasDuress) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
+                }
 
-                    Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Panic Self-Destruct PIN",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (hasPanic) "Configured (Entering panic PIN instantly wipes device data)" else "Not Configured (Tap to setup destruction PIN)",
-                            fontSize = 12.sp,
-                            color = if (hasPanic) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                // Panic Vault Section
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                        .bounceClick(scaleDown = 0.98f, onClick = { showPanicDialog = true })
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Panic Self-Destruct PIN",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (hasPanic) "Configured (Entering panic PIN instantly wipes device data)" else "Not Configured (Tap to setup destruction PIN)",
+                                fontSize = 12.sp,
+                                color = if (hasPanic) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -482,6 +573,45 @@ fun SecuritySettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Accessible Standard Keypad toggle
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Standard Keypad Layout",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Disable randomized PIN keys for improved motor accessibility and muscle memory",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = scrambledPinDisabled,
+                        onCheckedChange = { viewModel.setScrambledPinDisabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = KryptxBlue
+                        )
+                    )
                 }
             }
 
@@ -670,254 +800,3 @@ fun SettingItemCard(
     }
 }
 
-@Composable
-fun DuressPinSetupDialog(
-    isCurrentlyConfigured: Boolean,
-    onDismiss: () -> Unit,
-    onSetDuressPin: (String) -> Unit,
-    onRemoveDuressPin: () -> Unit
-) {
-    var duressPin by remember { mutableStateOf("") }
-    var confirmPin by remember { mutableStateOf("") }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("Duress Decoy Vault PIN", fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column {
-                Text(
-                    text = "If forced under coercion to open your vault, typing this separate Duress PIN on the unlock screen opens a completely isolated decoy database with plausible dummy logins. Your true vault remains 100% secret.",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-
-                KryptxTextField(
-                    value = duressPin,
-                    onValueChange = {
-                        duressPin = it
-                        errorMsg = null
-                    },
-                    label = "Duress PIN / Password",
-                    isPassword = true
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                KryptxTextField(
-                    value = confirmPin,
-                    onValueChange = {
-                        confirmPin = it
-                        errorMsg = null
-                    },
-                    label = "Confirm Duress PIN",
-                    isPassword = true
-                )
-
-                if (errorMsg != null) {
-                    Text(
-                        text = errorMsg!!,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-
-                if (isCurrentlyConfigured) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxOutlinedButton(
-                        text = "Disable Duress Vault",
-                        borderColor = MaterialTheme.colorScheme.error,
-                        textColor = MaterialTheme.colorScheme.error,
-                        onClick = onRemoveDuressPin,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (duressPin.length < 4) {
-                        errorMsg = "Duress PIN must be at least 4 characters"
-                        return@TextButton
-                    }
-                    if (duressPin != confirmPin) {
-                        errorMsg = "Duress PINs do not match"
-                        return@TextButton
-                    }
-                    onSetDuressPin(duressPin)
-                }
-            ) {
-                Text("Save Duress PIN", color = KryptxBlue, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-fun ChangeMasterPasswordDialog(
-    onDismiss: () -> Unit,
-    onSubmit: (curr: String, newPass: String) -> Unit
-) {
-    var currentPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var localError by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Change Master Password") },
-        text = {
-            Column {
-                KryptxTextField(
-                    value = currentPassword,
-                    onValueChange = { currentPassword = it },
-                    label = "Current Master Password",
-                    isPassword = true
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                KryptxTextField(
-                    value = newPassword,
-                    onValueChange = { newPassword = it },
-                    label = "New Master Password",
-                    isPassword = true
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                KryptxTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = "Confirm New Password",
-                    isPassword = true
-                )
-
-                if (localError != null) {
-                    Text(
-                        text = localError!!,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (newPassword.length < 8) {
-                        localError = "New password must be at least 8 characters"
-                        return@TextButton
-                    }
-                    if (newPassword != confirmPassword) {
-                        localError = "New passwords do not match"
-                        return@TextButton
-                    }
-                    onSubmit(currentPassword, newPassword)
-                }
-            ) {
-                Text("Update Password", color = KryptxBlue, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-fun PanicPinSetupDialog(
-    isCurrentlyConfigured: Boolean,
-    onDismiss: () -> Unit,
-    onSetPanicPin: (String) -> Unit,
-    onRemovePanicPin: () -> Unit
-) {
-    var panicPin by remember { mutableStateOf("") }
-    var confirmPin by remember { mutableStateOf("") }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("Panic Self-Destruct PIN", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-        },
-        text = {
-            Column {
-                Text(
-                    text = "If forced under extreme coercion, typing this Panic PIN on the unlock screen will IRREVERSIBLY WIPE the entire vault and lock the app. There is NO RECOVERY once triggered.",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.error,
-                    lineHeight = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-
-                KryptxTextField(
-                    value = panicPin,
-                    onValueChange = {
-                        panicPin = it
-                        errorMsg = null
-                    },
-                    label = "Panic PIN / Password",
-                    isPassword = true
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                KryptxTextField(
-                    value = confirmPin,
-                    onValueChange = {
-                        confirmPin = it
-                        errorMsg = null
-                    },
-                    label = "Confirm Panic PIN",
-                    isPassword = true
-                )
-
-                if (errorMsg != null) {
-                    Text(
-                        text = errorMsg!!,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-
-                if (isCurrentlyConfigured) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    KryptxOutlinedButton(
-                        text = "Disable Panic Protocol",
-                        borderColor = MaterialTheme.colorScheme.error,
-                        textColor = MaterialTheme.colorScheme.error,
-                        onClick = onRemovePanicPin,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (panicPin.length < 4) {
-                        errorMsg = "Panic PIN must be at least 4 characters"
-                        return@TextButton
-                    }
-                    if (panicPin != confirmPin) {
-                        errorMsg = "Panic PINs do not match"
-                        return@TextButton
-                    }
-                    onSetPanicPin(panicPin)
-                }
-            ) {
-                Text("Arm Panic Protocol", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}

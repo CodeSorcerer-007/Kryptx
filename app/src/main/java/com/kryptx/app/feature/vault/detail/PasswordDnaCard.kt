@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -157,7 +158,32 @@ fun PasswordDnaCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Animated Entropy Meter Bar
+            val entropyRatio = (analysis.entropyBits.toFloat() / 128f).coerceIn(0.05f, 1f)
+            val animatedEntropy by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = entropyRatio,
+                animationSpec = androidx.compose.animation.core.tween(500),
+                label = "entropyBar"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(animatedEntropy)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(strengthColor)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Character Composition
             Row(

@@ -76,4 +76,36 @@ class TotpViewModelTest {
         viewModel.copyCode(account)
         assertEquals("Google", fakeClipboard.lastCopiedLabel)
     }
+
+    @Test
+    fun testSearchFilterTotpAccounts() = runTest(testDispatcher) {
+        val item1 = VaultItem(id = "1", title = "GitHub", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP")
+        val item2 = VaultItem(id = "2", title = "Amazon AWS", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP")
+        fakeVaultRepository.saveItem(item1)
+        fakeVaultRepository.saveItem(item2)
+        testScheduler.runCurrent()
+
+        assertEquals(2, viewModel.filteredTotpAccounts.value.size)
+
+        viewModel.updateSearchQuery("Git")
+        testScheduler.runCurrent()
+
+        assertEquals(1, viewModel.filteredTotpAccounts.value.size)
+        assertEquals("GitHub", viewModel.filteredTotpAccounts.value.first().item.title)
+    }
+
+    @Test
+    fun testCategoryFilterFavorites() = runTest(testDispatcher) {
+        val item1 = VaultItem(id = "1", title = "GitHub", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP", isFavorite = true)
+        val item2 = VaultItem(id = "2", title = "Discord", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP", isFavorite = false)
+        fakeVaultRepository.saveItem(item1)
+        fakeVaultRepository.saveItem(item2)
+        testScheduler.runCurrent()
+
+        viewModel.selectCategory("FAVORITES")
+        testScheduler.runCurrent()
+
+        assertEquals(1, viewModel.filteredTotpAccounts.value.size)
+        assertEquals("GitHub", viewModel.filteredTotpAccounts.value.first().item.title)
+    }
 }

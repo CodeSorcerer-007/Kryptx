@@ -1,5 +1,9 @@
 package com.kryptx.app.feature.vault
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,11 +25,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +72,7 @@ import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
 import com.kryptx.app.core.designsystem.components.KryptxEmptyState
 import com.kryptx.app.core.designsystem.components.KryptxFolderCard
 import com.kryptx.app.core.designsystem.components.KryptxHaptics
+import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.components.staggeredEntrance
@@ -74,6 +82,7 @@ import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,6 +117,8 @@ fun VaultDashboardScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val view = LocalView.current
+    val context = LocalContext.current
+    val isAutofillNudgeDismissed by viewModel.autofillNudgeDismissed.collectAsState()
 
     var isSearchExpanded by remember { mutableStateOf(false) }
     var selectedItemForActions by remember { mutableStateOf<VaultItem?>(null) }
@@ -118,7 +129,11 @@ fun VaultDashboardScreen(
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                com.kryptx.app.core.designsystem.components.KryptxSnackbar(data)
+            }
+        },
         topBar = {
             if (isSelectionMode) {
                 Row(
@@ -210,28 +225,175 @@ fun VaultDashboardScreen(
             ) {
                 // 1. Top Header: User Profile Avatar + Welcome + Security Pulse + Lock Button
                 item {
-                VaultDashboardHeader(
-                    securityReport = securityReport,
-                    onNavigateToSecurityCenter = onNavigateToSecurityCenter,
-                    onLockVault = { viewModel.lockVault() }
-                )
-            }
+                    VaultDashboardHeader(
+                        securityReport = securityReport,
+                        onNavigateToSecurityCenter = onNavigateToSecurityCenter,
+                        onLockVault = { viewModel.lockVault() }
+                    )
+                }
 
-            // 2. Search Bar Capsule with inline expandable instant search
-            item {
-                VaultSearchBar(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                    isSearchExpanded = isSearchExpanded,
-                    onToggleSearchExpanded = {
-                        isSearchExpanded = !isSearchExpanded
-                        if (!isSearchExpanded) {
-                            viewModel.updateSearchQuery("")
+                // 1.5 Dismissible Autofill Setup Nudge
+                if (!isAutofillNudgeDismissed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    item {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(KryptxBlue.copy(alpha = 0.10f))
+                                .border(1.dp, KryptxBlue.copy(alpha = 0.30f), RoundedCornerShape(16.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(KryptxBlue.copy(alpha = 0.20f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = KryptxBrightBlue,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Enable 1-Tap Autofill",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Fill passwords into Chrome and apps instantly.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(KryptxBlue)
+                                        .clickable {
+                                            try {
+                                                val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
+                                                    data = Uri.parse("package:${context.packageName}")
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                try {
+                                                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                                                } catch (_: Exception) {}
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "Enable",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                androidx.compose.material3.IconButton(
+                                    onClick = { viewModel.dismissAutofillNudge() },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Dismiss",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
                         }
-                    },
-                    onNavigateToSearch = onNavigateToSearch
-                )
-            }
+                    }
+                }
+
+                if (allItems.isEmpty()) {
+                    // Empty Vault Focused Hero Experience
+                    item {
+                        Spacer(modifier = Modifier.height(28.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clip(CircleShape)
+                                        .background(KryptxBlue.copy(alpha = 0.15f))
+                                        .border(1.dp, KryptxBlue.copy(alpha = 0.35f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = KryptxBlue,
+                                        modifier = Modifier.size(34.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Your Vault is Empty",
+                                    fontSize = 19.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Safeguard your logins, credit cards, notes, and 2FA tokens with 100% offline zero-network security.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    lineHeight = 18.sp
+                                )
+                                Spacer(modifier = Modifier.height(22.dp))
+                                KryptxPrimaryButton(
+                                    text = "Add Your First Password",
+                                    containerColor = KryptxBlue,
+                                    contentColor = Color.White,
+                                    onClick = onNavigateToAddItem
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // 2. Search Bar Capsule with inline expandable instant search
+                    item {
+                        VaultSearchBar(
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                            isSearchExpanded = isSearchExpanded,
+                            onToggleSearchExpanded = {
+                                isSearchExpanded = !isSearchExpanded
+                                if (!isSearchExpanded) {
+                                    viewModel.updateSearchQuery("")
+                                }
+                            },
+                            onNavigateToSearch = onNavigateToSearch
+                        )
+                    }
 
             // 2.5 Subtle Kryptx Pulse hero card
             if (securityReport != null && securityReport!!.overallScore < 90) {
@@ -325,57 +487,8 @@ fun VaultDashboardScreen(
                     KryptxFolderCard(
                         title = when {
                             searchQuery.isNotBlank() -> "Search Results (${items.size})"
-                            selectedCategory == null -> "Documents"
-                            else -> selectedCategory!!.categoryName
-                        },
-                        tabTrailingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), CircleShape)
-                                    .clickable { onNavigateToSearch() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search Items",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        },
-                        footerContent = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                FolderStatPill(
-                                    icon = Icons.Default.Lock,
-                                    count = loginsCount,
-                                    label = "Logins",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                FolderStatPill(
-                                    icon = Icons.Default.CreditCard,
-                                    count = cardsCount,
-                                    label = "Cards",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                FolderStatPill(
-                                    icon = Icons.AutoMirrored.Filled.Note,
-                                    count = notesCount,
-                                    label = "Notes",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                FolderStatPill(
-                                    icon = Icons.Default.Key,
-                                    count = totpCount,
-                                    label = "2FA",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            selectedCategory == null -> "All Items (${items.size})"
+                            else -> "${selectedCategory!!.categoryName} (${items.size})"
                         }
                     ) {
                         if (items.isEmpty()) {
@@ -555,4 +668,5 @@ fun VaultDashboardScreen(
             }
         )
     }
+}
 }

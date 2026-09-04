@@ -55,18 +55,21 @@ object SecurityBootstrapper {
 
         // 3. Check for Magisk / Zygisk / Xposed / LSPosed hooks in process maps
         try {
-            val reader = BufferedReader(InputStreamReader(Runtime.getRuntime().exec("cat /proc/self/maps").inputStream))
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                if (line!!.contains("edxposed") || line!!.contains("lsposed") || line!!.contains("xposed") || line!!.contains("magisk")) {
-                    isCompromised = true
-                    details.add("Detected hooking framework in memory map")
-                    break
+            val mapsFile = File("/proc/self/maps")
+            if (mapsFile.exists() && mapsFile.canRead()) {
+                mapsFile.bufferedReader().useLines { lines ->
+                    for (line in lines) {
+                        val lower = line.lowercase()
+                        if (lower.contains("edxposed") || lower.contains("lsposed") || lower.contains("xposed") || lower.contains("magisk")) {
+                            isCompromised = true
+                            details.add("Detected hooking framework in memory map")
+                            break
+                        }
+                    }
                 }
             }
-            reader.close()
-        } catch (e: Exception) {
-            // Ignored if access denied (which is good)
+        } catch (_: Exception) {
+            // Ignored if access denied (which is normal on hardened SELinux)
         }
 
         // 4. Validate APK signature (rudimentary check against repackaging)

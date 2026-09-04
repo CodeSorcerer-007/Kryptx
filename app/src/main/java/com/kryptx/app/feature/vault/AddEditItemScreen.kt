@@ -62,15 +62,11 @@ import com.kryptx.app.core.model.VaultAttachment
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.totp.UriParser
 import com.kryptx.app.feature.vault.editor.ApiKeyFormFields
-import com.kryptx.app.feature.vault.editor.BankAccountFormFields
 import com.kryptx.app.feature.vault.editor.CreditCardFormFields
-import com.kryptx.app.feature.vault.editor.CryptoWalletFormFields
 import com.kryptx.app.feature.vault.editor.CustomFieldsEditor
 import com.kryptx.app.feature.vault.editor.IdentityFormFields
 import com.kryptx.app.feature.vault.editor.LoginFormFields
-import com.kryptx.app.feature.vault.editor.MedicalFormFields
 import com.kryptx.app.feature.vault.editor.PasskeyFormFields
-import com.kryptx.app.feature.vault.editor.SshKeyFormFields
 import com.kryptx.app.feature.vault.editor.WifiFormFields
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -130,27 +126,6 @@ fun AddEditItemScreen(
     var apiKey by remember { mutableStateOf(existingItem?.apiKey ?: "") }
     var apiSecret by remember { mutableStateOf(existingItem?.apiSecret ?: "") }
     var apiEndpoint by remember { mutableStateOf(existingItem?.apiEndpoint ?: "") }
-
-    // Bank Account fields
-    var bankName by remember { mutableStateOf(existingItem?.bankName ?: "") }
-    var bankAccountNumber by remember { mutableStateOf(existingItem?.bankAccountNumber ?: "") }
-    var bankRoutingNumber by remember { mutableStateOf(existingItem?.bankRoutingNumber ?: "") }
-    var bankSwiftBic by remember { mutableStateOf(existingItem?.bankSwiftBic ?: "") }
-
-    // Crypto fields
-    var cryptoWalletAddress by remember { mutableStateOf(existingItem?.cryptoWalletAddress ?: "") }
-    var cryptoSeedPhrase by remember { mutableStateOf(existingItem?.cryptoSeedPhrase ?: "") }
-    var cryptoNetwork by remember { mutableStateOf(existingItem?.cryptoNetwork ?: "") }
-
-    // SSH fields
-    var sshPublicKey by remember { mutableStateOf(existingItem?.sshPublicKey ?: "") }
-    var sshPrivateKey by remember { mutableStateOf(existingItem?.sshPrivateKey ?: "") }
-    var sshHost by remember { mutableStateOf(existingItem?.sshHost ?: "") }
-
-    // Medical fields
-    var medicalBloodType by remember { mutableStateOf(existingItem?.medicalBloodType ?: "") }
-    var medicalAllergies by remember { mutableStateOf(existingItem?.medicalAllergies ?: "") }
-    var medicalEmergencyContact by remember { mutableStateOf(existingItem?.medicalEmergencyContact ?: "") }
 
     // Custom fields list
     val customFields = remember {
@@ -220,20 +195,6 @@ fun AddEditItemScreen(
         wifiPassword = item.wifiPassword
         apiKey = item.apiKey
         apiSecret = item.apiSecret
-        apiEndpoint = item.apiEndpoint
-        bankName = item.bankName
-        bankAccountNumber = item.bankAccountNumber
-        bankRoutingNumber = item.bankRoutingNumber
-        bankSwiftBic = item.bankSwiftBic
-        cryptoWalletAddress = item.cryptoWalletAddress
-        cryptoSeedPhrase = item.cryptoSeedPhrase
-        cryptoNetwork = item.cryptoNetwork
-        sshPublicKey = item.sshPublicKey
-        sshPrivateKey = item.sshPrivateKey
-        sshHost = item.sshHost
-        medicalBloodType = item.medicalBloodType
-        medicalAllergies = item.medicalAllergies
-        medicalEmergencyContact = item.medicalEmergencyContact
         rotationIntervalDays = item.rotationIntervalDays
         customFields.clear()
         customFields.addAll(item.customFields)
@@ -377,40 +338,6 @@ fun AddEditItemScreen(
                     onApiSecretChange = { apiSecret = it },
                     apiEndpoint = apiEndpoint,
                     onApiEndpointChange = { apiEndpoint = it }
-                )
-                ItemType.BANK_ACCOUNT -> BankAccountFormFields(
-                    bankName = bankName,
-                    onBankNameChange = { bankName = it },
-                    accountNumber = bankAccountNumber,
-                    onAccountNumberChange = { bankAccountNumber = it },
-                    routingNumber = bankRoutingNumber,
-                    onRoutingNumberChange = { bankRoutingNumber = it },
-                    swiftBic = bankSwiftBic,
-                    onSwiftBicChange = { bankSwiftBic = it }
-                )
-                ItemType.CRYPTO_WALLET -> CryptoWalletFormFields(
-                    network = cryptoNetwork,
-                    onNetworkChange = { cryptoNetwork = it },
-                    walletAddress = cryptoWalletAddress,
-                    onWalletAddressChange = { cryptoWalletAddress = it },
-                    seedPhrase = cryptoSeedPhrase,
-                    onSeedPhraseChange = { cryptoSeedPhrase = it }
-                )
-                ItemType.SSH_KEY -> SshKeyFormFields(
-                    sshHost = sshHost,
-                    onSshHostChange = { sshHost = it },
-                    publicKey = sshPublicKey,
-                    onPublicKeyChange = { sshPublicKey = it },
-                    privateKey = sshPrivateKey,
-                    onPrivateKeyChange = { sshPrivateKey = it }
-                )
-                ItemType.MEDICAL -> MedicalFormFields(
-                    patientName = identityName,
-                    onPatientNameChange = { identityName = it },
-                    bloodType = medicalBloodType,
-                    onBloodTypeChange = { medicalBloodType = it },
-                    allergies = medicalAllergies,
-                    onAllergiesChange = { medicalAllergies = it }
                 )
                 ItemType.SECURE_NOTE -> {
                     if (existingItem == null && notes.isBlank()) {
@@ -645,20 +572,6 @@ fun AddEditItemScreen(
                         wifiPassword = wifiPassword,
                         apiKey = apiKey,
                         apiSecret = apiSecret,
-                        apiEndpoint = apiEndpoint,
-                        bankName = bankName,
-                        bankAccountNumber = bankAccountNumber,
-                        bankRoutingNumber = bankRoutingNumber,
-                        bankSwiftBic = bankSwiftBic,
-                        cryptoWalletAddress = cryptoWalletAddress,
-                        cryptoSeedPhrase = cryptoSeedPhrase,
-                        cryptoNetwork = cryptoNetwork,
-                        sshPublicKey = sshPublicKey,
-                        sshPrivateKey = sshPrivateKey,
-                        sshHost = sshHost,
-                        medicalBloodType = medicalBloodType,
-                        medicalAllergies = medicalAllergies,
-                        medicalEmergencyContact = medicalEmergencyContact,
                         customFields = customFields.toList(),
                         attachments = attachments.toList(),
                         expiresAt = computedExpiry,

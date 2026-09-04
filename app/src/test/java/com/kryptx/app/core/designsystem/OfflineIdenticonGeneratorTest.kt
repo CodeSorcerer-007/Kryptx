@@ -49,8 +49,8 @@ class OfflineIdenticonGeneratorTest {
 
     @Test
     fun testDeterministicColorAndMonogramConsistency() {
-        val identity1 = OfflineIdenticonGenerator.resolve("Acme Bank", "acme-bank.com", ItemType.BANK_ACCOUNT)
-        val identity2 = OfflineIdenticonGenerator.resolve("Acme Bank", "acme-bank.com", ItemType.BANK_ACCOUNT)
+        val identity1 = OfflineIdenticonGenerator.resolve("Acme Bank", "acme-bank.com", ItemType.CUSTOM)
+        val identity2 = OfflineIdenticonGenerator.resolve("Acme Bank", "acme-bank.com", ItemType.CUSTOM)
 
         assertEquals(identity1.primaryColor, identity2.primaryColor)
         assertEquals(identity1.secondaryColor, identity2.secondaryColor)

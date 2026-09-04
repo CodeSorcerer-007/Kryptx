@@ -11,7 +11,7 @@ class SearchQueryParserTest {
     fun testEmptyQueryReturnsAll() {
         val items = listOf(
             VaultItem(title = "Google", username = "user@gmail.com", type = ItemType.LOGIN),
-            VaultItem(title = "Chase Bank", type = ItemType.BANK_ACCOUNT)
+            VaultItem(title = "Chase Bank", type = ItemType.CUSTOM)
         )
         val filtered = SearchQueryParser.filter(items, "")
         assertEquals(2, filtered.size)
@@ -37,8 +37,8 @@ class SearchQueryParserTest {
     @Test
     fun testTagFilter() {
         val items = listOf(
-            VaultItem(title = "Server 1", tags = listOf("infrastructure", "prod"), type = ItemType.SSH_KEY),
-            VaultItem(title = "Server 2", tags = listOf("dev", "internal"), type = ItemType.SSH_KEY),
+            VaultItem(title = "Server 1", tags = listOf("infrastructure", "prod"), type = ItemType.CUSTOM),
+            VaultItem(title = "Server 2", tags = listOf("dev", "internal"), type = ItemType.CUSTOM),
             VaultItem(title = "AWS Key", tags = listOf("cloud", "prod"), type = ItemType.API_KEY)
         )
 

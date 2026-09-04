@@ -38,6 +38,15 @@ class FakePreferencesRepository : IPreferencesRepository {
     private val _minimalistDashboardMode = MutableStateFlow(false)
     override val minimalistDashboardMode: StateFlow<Boolean> = _minimalistDashboardMode.asStateFlow()
 
+    private val _quickUnlockEnabled = MutableStateFlow(false)
+    override val quickUnlockEnabled: StateFlow<Boolean> = _quickUnlockEnabled.asStateFlow()
+
+    private val _autofillNudgeDismissed = MutableStateFlow(false)
+    override val autofillNudgeDismissed: StateFlow<Boolean> = _autofillNudgeDismissed.asStateFlow()
+
+    private val _scrambledPinDisabled = MutableStateFlow(false)
+    override val scrambledPinDisabled: StateFlow<Boolean> = _scrambledPinDisabled.asStateFlow()
+
     private val _selectedPersona = MutableStateFlow(UserPersona.POWER_USER)
     override val selectedPersona: StateFlow<UserPersona> = _selectedPersona.asStateFlow()
 
@@ -51,6 +60,9 @@ class FakePreferencesRepository : IPreferencesRepository {
     override fun setOnboardingCompleted(completed: Boolean) { _onboardingCompleted.value = completed }
     override fun setVisibleCategories(categories: Set<String>) { _visibleCategories.value = categories }
     override fun setMinimalistDashboardMode(enabled: Boolean) { _minimalistDashboardMode.value = enabled }
+    override fun setQuickUnlockEnabled(enabled: Boolean) { _quickUnlockEnabled.value = enabled }
+    override fun setAutofillNudgeDismissed(dismissed: Boolean) { _autofillNudgeDismissed.value = dismissed }
+    override fun setScrambledPinDisabled(disabled: Boolean) { _scrambledPinDisabled.value = disabled }
     override fun setSelectedPersona(persona: UserPersona) {
         _selectedPersona.value = persona
         _visibleCategories.value = persona.recommendedCategories

@@ -1,11 +1,15 @@
 package com.kryptx.app.feature.vault.editor
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -17,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.crypto.EntropyCalculator
@@ -24,8 +30,11 @@ import com.kryptx.app.core.designsystem.components.CrackTimeBadge
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.StrengthBadge
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.generator.GeneratorEngine
 import com.kryptx.app.core.model.GeneratorConfig
+import com.kryptx.app.core.totp.TotpGenerator
 
 @Composable
 fun LoginFormFields(
@@ -112,5 +121,38 @@ fun LoginFormFields(
                 }
             }
         )
+
+        if (totpSecret.isNotBlank()) {
+            val liveTotp = remember(totpSecret) {
+                TotpGenerator.generateCurrentTotp(totpSecret)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            if (liveTotp != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(KryptxEmerald)
+                    )
+                    Text(
+                        text = "Live 2FA: ${liveTotp.formattedCode} (${liveTotp.secondsRemaining}s)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = KryptxEmerald
+                    )
+                }
+            } else {
+                Text(
+                    text = "Invalid Base32 Secret (use A-Z, 2-7)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = KryptxRed
+                )
+            }
+        }
     }
 }

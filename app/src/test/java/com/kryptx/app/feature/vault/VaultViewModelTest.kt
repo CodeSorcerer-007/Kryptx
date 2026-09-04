@@ -58,9 +58,8 @@ class VaultViewModelTest {
         val item2 = VaultItem(
             id = "2",
             title = "Chase Bank",
-            type = ItemType.BANK_ACCOUNT,
-            bankName = "Chase",
-            bankAccountNumber = "123456789"
+            type = ItemType.API_KEY,
+            apiKey = "key_123456789"
         )
 
         viewModel.saveItem(item1) {}
@@ -201,7 +200,7 @@ class VaultViewModelTest {
         val item2 = VaultItem(
             id = "s2",
             title = "Crypto Wallet",
-            type = ItemType.CRYPTO_WALLET,
+            type = ItemType.CUSTOM,
             notes = "Stored in cold storage vault"
         )
 

@@ -51,7 +51,6 @@ fun SettingsScreen(
     onNavigateToSecurity: () -> Unit,
     onNavigateToAppearance: () -> Unit,
     onNavigateToBackup: () -> Unit,
-    onNavigateToMigration: () -> Unit,
     onReplayGuides: () -> Unit,
     vaultRepository: com.kryptx.app.core.database.VaultRepository? = null,
     settingsViewModel: SettingsViewModel? = null,
@@ -59,6 +58,7 @@ fun SettingsScreen(
 ) {
     var showTrashSheet by remember { mutableStateOf(false) }
     var showCategorySheet by remember { mutableStateOf(false) }
+    var showSecurityExplainer by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
@@ -127,6 +127,13 @@ fun SettingsScreen(
                 onClick = onNavigateToSecurity
             )
 
+            SettingsNavRow(
+                title = "Security Architecture Explained",
+                subtitle = "Plain-English guide to zero-network, ML-KEM-768, Argon2id, and StrongBox",
+                icon = Icons.Default.Shield,
+                onClick = { showSecurityExplainer = true }
+            )
+
             Spacer(modifier = Modifier.height(18.dp))
 
             // 2. DATA & AIR-GAPPED BACKUPS
@@ -140,16 +147,9 @@ fun SettingsScreen(
 
             SettingsNavRow(
                 title = "Backup & Export",
-                subtitle = "Encrypted JSON backup, plaintext CSV, Bitwarden/1Password import",
+                subtitle = "Encrypted JSON backup, offline HTML web vault, Bitwarden/1Password import",
                 icon = Icons.Default.FolderZip,
                 onClick = onNavigateToBackup
-            )
-            
-            SettingsNavRow(
-                title = "Zero-Cloud Migration",
-                subtitle = "Secure P2P Wi-Fi transfer, optical air-gap QR sync",
-                icon = Icons.Default.FolderZip,
-                onClick = onNavigateToMigration
             )
 
             SettingsNavRow(
@@ -250,6 +250,12 @@ fun SettingsScreen(
             CategoryCustomizationSheet(
                 settingsViewModel = settingsViewModel,
                 onDismiss = { showCategorySheet = false }
+            )
+        }
+
+        if (showSecurityExplainer) {
+            com.kryptx.app.core.designsystem.components.SecurityExplainerSheet(
+                onDismiss = { showSecurityExplainer = false }
             )
         }
     }

@@ -48,10 +48,6 @@ fun ItemTypeBadge(type: ItemType, modifier: Modifier = Modifier) {
         ItemType.SECURE_NOTE -> Pair(Icons.AutoMirrored.Filled.Note, Color(0xFF26A69A))
         ItemType.WIFI -> Pair(Icons.Default.Wifi, Color(0xFF42A5F5))
         ItemType.API_KEY -> Pair(Icons.Default.Key, Color(0xFFFF7043))
-        ItemType.BANK_ACCOUNT -> Pair(Icons.Default.CreditCard, Color(0xFF4CAF50))
-        ItemType.CRYPTO_WALLET -> Pair(Icons.Default.Key, Color(0xFFFF9800))
-        ItemType.SSH_KEY -> Pair(Icons.Default.Key, Color(0xFF7E57C2))
-        ItemType.MEDICAL -> Pair(Icons.Default.Person, Color(0xFFEF5350))
         ItemType.CUSTOM -> Pair(Icons.Default.Lock, Color(0xFF78909C))
     }
 

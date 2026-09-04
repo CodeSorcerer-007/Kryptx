@@ -112,35 +112,20 @@ class EndToEndVaultLifecycleTest {
             VaultItem(
                 id = "item-bank-8",
                 title = "JPMorgan Chase Treasury",
-                type = ItemType.BANK_ACCOUNT,
-                bankName = "JPMorgan Chase Bank, N.A.",
-                bankAccountNumber = "987654321098",
-                bankRoutingNumber = "021000021",
-                bankSwiftBic = "CHASUS33"
+                type = ItemType.CUSTOM,
+                notes = "Account: 987654321098, Routing: 021000021, Swift: CHASUS33"
             ),
             VaultItem(
                 id = "item-crypto-9",
                 title = "Bitcoin Cold Storage",
-                type = ItemType.CRYPTO_WALLET,
-                cryptoWalletAddress = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
-                cryptoSeedPhrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-                cryptoNetwork = "Bitcoin Mainnet"
+                type = ItemType.CUSTOM,
+                notes = "Address: bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq (Bitcoin Mainnet)"
             ),
             VaultItem(
                 id = "item-ssh-10",
                 title = "Production Bastion Host",
-                type = ItemType.SSH_KEY,
-                sshHost = "bastion.infra.kryptx.internal",
-                sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGhub987 bastion-key",
-                sshPrivateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret_key_bytes\n-----END OPENSSH PRIVATE KEY-----"
-            ),
-            VaultItem(
-                id = "item-med-11",
-                title = "Emergency Medical Card",
-                type = ItemType.MEDICAL,
-                medicalBloodType = "O-Negative",
-                medicalAllergies = "Penicillin, Peanuts",
-                medicalEmergencyContact = "Dr. Robert Smith (+1 555-0199)"
+                type = ItemType.CUSTOM,
+                notes = "Host: bastion.infra.kryptx.internal"
             ),
             VaultItem(
                 id = "item-custom-12",
@@ -168,9 +153,9 @@ class EndToEndVaultLifecycleTest {
             assertTrue("Item ${item.title} must be saved successfully", saveResult.isSuccess)
         }
 
-        // Verify all 12 items present in repository flow
+        // Verify all 11 items present in repository flow
         val savedItems = repository.getItems().first()
-        assertEquals(12, savedItems.size)
+        assertEquals(11, savedItems.size)
 
         // 3. Verify TOTP Real-Time Algorithm for GitHub item
         val githubItem = repository.getItemById("item-login-1")
@@ -201,11 +186,11 @@ class EndToEndVaultLifecycleTest {
         val importResult = repository.importEncryptedBackup(backupPayload, backupPassword)
         assertTrue("Import must succeed", importResult.isSuccess)
         val importedCount = (importResult as KryptxResult.Success).data
-        assertEquals("Must restore all 12 items exactly", 12, importedCount)
+        assertEquals("Must restore all 11 items exactly", 11, importedCount)
 
         // 8. Assert Complete Cryptographic & Data Integrity
         val restoredItems = repository.getItems().first()
-        assertEquals(12, restoredItems.size)
+        assertEquals(11, restoredItems.size)
 
         val restoredGithub = repository.getItemById("item-login-1")
         assertNotNull(restoredGithub)

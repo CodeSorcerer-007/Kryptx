@@ -89,7 +89,11 @@ fun GeneratorScreen(
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                com.kryptx.app.core.designsystem.components.KryptxSnackbar(data)
+            }
+        },
         topBar = {
             KryptxTopBar(title = "Generator")
         }
@@ -166,17 +170,47 @@ fun GeneratorScreen(
                     AnimatedContent(targetState = result.value, label = "generated_text_anim") { text ->
                         Text(
                             text = text,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = MonospaceFont,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                            lineHeight = 28.sp
+                            style = com.kryptx.app.core.designsystem.theme.MonospaceSecret.copy(
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 30.sp
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Crack Time Pill
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Estimated Crack Time: ${result.analysis.crackTimeDisplay}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = when (result.analysis.strength) {
+                                    com.kryptx.app.core.crypto.EntropyCalculator.StrengthScore.VERY_STRONG,
+                                    com.kryptx.app.core.crypto.EntropyCalculator.StrengthScore.STRONG -> KryptxEmerald
+                                    com.kryptx.app.core.crypto.EntropyCalculator.StrengthScore.FAIR -> KryptxAmber
+                                    else -> KryptxRed
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Animated Entropy Strength Gradient Bar
                     val entropyRatio = (result.analysis.entropyBits.toFloat() / 128f).coerceIn(0.05f, 1f)

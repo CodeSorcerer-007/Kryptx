@@ -89,7 +89,7 @@ class KryptxDatabaseHelper(
 
     companion object {
         private const val DATABASE_NAME = "kryptx_vault.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 4
 
         // Tables
         private const val TABLE_VAULT_ITEMS = "vault_items"
@@ -238,6 +238,14 @@ class KryptxDatabaseHelper(
                     """.trimIndent()
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_log_ts ON $TABLE_ACTIVITY_LOG($COL_ACT_TIMESTAMP DESC)")
+            } catch (_: Exception) {
+            }
+        }
+        
+        // Version 4: Migrate any legacy stored ItemTypes to CUSTOM
+        if (oldVersion < 4) {
+            try {
+                db.execSQL("UPDATE $TABLE_VAULT_ITEMS SET $COL_TYPE = 'CUSTOM' WHERE $COL_TYPE IN ('SSH_KEY', 'CRYPTO_WALLET', 'BANK_ACCOUNT')")
             } catch (_: Exception) {
             }
         }

@@ -57,12 +57,9 @@ object SearchQueryParser {
                         "login", "logins", "password", "passwords" -> ItemType.LOGIN
                         "passkey", "passkeys", "fido", "fido2", "webauthn" -> ItemType.PASSKEY
                         "wifi", "wi-fi" -> ItemType.WIFI
-                        "bank", "banking", "bankaccount" -> ItemType.BANK_ACCOUNT
-                        "crypto", "cryptowallet", "wallet" -> ItemType.CRYPTO_WALLET
-                        "ssh", "sshkey" -> ItemType.SSH_KEY
+                        "bank", "banking", "bankaccount", "crypto", "cryptowallet", "wallet", "ssh", "sshkey" -> ItemType.CUSTOM
                         "api", "apikey", "token" -> ItemType.API_KEY
                         "id", "identity", "identities" -> ItemType.IDENTITY
-                        "medical", "health" -> ItemType.MEDICAL
                         "custom" -> ItemType.CUSTOM
                         else -> ItemType.entries.firstOrNull {
                             it.name.equals(typeStr, ignoreCase = true) ||
@@ -172,9 +169,6 @@ object SearchQueryParser {
                 append(item.notes).append(" ")
                 append(item.identityEmail).append(" ")
                 append(item.wifiSsid).append(" ")
-                append(item.bankName).append(" ")
-                append(item.cryptoNetwork).append(" ")
-                append(item.sshHost).append(" ")
                 for (tag in item.tags) {
                     append(tag).append(" ")
                 }

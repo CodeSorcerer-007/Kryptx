@@ -19,7 +19,7 @@
 
 **Kryptx is an ultra-secure, zero-knowledge, post-quantum fortified, 100% offline-isolated native Android sovereign password manager, multi-factor authenticator, and encrypted document fortress.**
 
-*Built from the ground up for privacy maximalists, security professionals, and sovereign individuals who demand mathematical zero-knowledge and refuse to surrender cryptographic keys to cloud servers or external app hooks.*
+*Built from the ground up for privacy maximalists, security professionals, and sovereign individuals who demand mathematical zero-knowledge and refuse to surrender cryptographic keys to cloud servers.*
 
 </div>
 
@@ -34,7 +34,7 @@ Kryptx leverages cutting-edge frameworks and bare-metal cryptography to achieve 
 | **Core Architecture** | **Kotlin & Android 16 (API 36)** | Modern native Android edge-to-edge architecture. |
 | **Crypto Engine** | **BouncyCastle / Rust JNI** | Post-Quantum ML-KEM-768, AES-256-GCM, Argon2id, PBKDF2. |
 | **Post-Quantum** | **ML-KEM-768 (Kyber)** | NIST FIPS 203 quantum-resistant key encapsulation. |
-| **UI / UX** | **Jetpack Compose (Material 3)** | Reactive, declarative UI with fluid spring physics. |
+| **UI / UX** | **Jetpack Compose (Material 3)** | Mechanical vault dial, spatial spring physics, frosted glass. |
 | **Database** | **Room & SQLite (WAL Mode)** | Zero-plaintext offline local encrypted data persistence. |
 | **Hardware Sec** | **Android Keystore & StrongBox** | TEE isolation, Hardware Key Attestation. |
 | **Scanning** | **CameraX API** | Real-time offline QR decoding strictly in volatile RAM. |
@@ -43,7 +43,7 @@ Kryptx leverages cutting-edge frameworks and bare-metal cryptography to achieve 
 
 ## 🏛️ Cryptographic Architecture (Zero-Knowledge & Air-Gapped)
 
-Kryptx operates on a strict **Mathematical Zero-Knowledge** and **100% Air-Gapped** model. Plaintext credentials, private keys, and biometric states are **never transmitted over any network, never hooked into external browser daemons, never logged, and never stored unencrypted.**
+Kryptx operates on a strict **Mathematical Zero-Knowledge** and **100% Air-Gapped** model. Plaintext credentials, private keys, and biometric states are **never transmitted over any network, never logged, and never stored unencrypted.**
 
 ```mermaid
 graph TD;
@@ -59,14 +59,14 @@ graph TD;
 *   ⚛️ **Post-Quantum Cryptography**: Hybrid ML-KEM-768 (Kyber) + ECDH + HKDF-SHA256 for future-proof quantum resistance (NIST FIPS 203).
 *   🛡️ **Hardware-Backed OS Attestation**: Cryptographic TEE Key Attestation verified against the hardware root of trust.
 *   🧠 **Native Memory Locking & Zeroization**: Native buffers locked (`mlock`, `madvise(MADV_DONTDUMP)`) to prevent OS swapping to disk, with instant byte-level zeroization (`SecureMemory`) after use to eliminate RAM inspection.
-*   ⚔️ **Runtime Anti-Tamper Engine**: Scans `/proc/self/maps` for hook signatures (Frida, Xposed), active debuggers, and root binaries.
-*   👁️ **Anti-Screen & Protected Clipboard Shield**: Hardware `FLAG_SECURE` window protection and auto-clearing clipboard timers (10s, 30s, 60s).
+*   ⚔️ **Runtime Anti-Tamper Engine**: Scans `/proc/self/maps` for hook signatures (Frida, Xposed), active debuggers, and root binaries without process spawns.
+*   👁️ **Anti-Screen & Protected Clipboard Shield**: Hardware `FLAG_SECURE` window protection, Android 13+ `EXTRA_IS_SENSITIVE` clipboard masking, and auto-clearing clipboard timers.
 
 ---
 
 ## 🚀 Complete Feature Inventory
 
-### 🗂️ 1. The 12-Vault Multi-Category System
+### 🗂️ 1. The 8 Core Vault Categories
 1. 🔑 **Logins**: Website URL, Username/Email, Password, TOTP Secret, Notes, Password History.
 2. 🪪 **Passkey & FIDO2**: Relying Party ID, User Handle, Credential ID, ES256 P-256.
 3. 💳 **Credit & Debit Cards**: Luhn validation, Expiry, CVV, Card PIN.
@@ -74,33 +74,34 @@ graph TD;
 5. 📝 **Secure Notes**: Confidential encrypted multi-line records.
 6. 📶 **Wi-Fi Credentials**: Protocol (WPA2/WPA3), offline QR Code generator.
 7. ⚡ **API Keys & Tokens**: Endpoint, Key ID, Secret Token, Scopes.
-8. 🏦 **Bank Accounts**: Routing, SWIFT/BIC, Account Number.
-9. 🪙 **Crypto Wallets**: Network, Public Address, Recovery Seed Phrase / Private Key.
-10. 🖥️ **SSH Keys**: Host, Public/Private Key (`.pem` support).
-11. 🩺 **Medical & Emergency**: Blood Type, Allergies, Emergency Contacts.
-12. 🧩 **Custom Fields**: User-defined key-value encrypted attributes.
+8. 🧩 **Custom Items & Fields**: User-defined key-value encrypted attributes.
 
 ### 🔑 2. Built-in Real-Time TOTP 2FA Authenticator (RFC 6238)
-*   Animated circular progress countdown rings with 30-second time steps.
-*   Supports SHA-1, SHA-256, and SHA-512 with 6/8-digit codes in high-readability monospace font.
+*   **Continuous Frame-by-Frame Progress Ring**: 100% smooth, stutter-free circular arc countdown.
+*   **Urgency Color Shifting**: Cyan/Blue (`>10s`) → Amber (`5–10s`) → Crimson Alert (`<5s`).
+*   **Tabular Monospace Typography**: Proportional `MonospaceTotp` with zero horizontal jitter.
+*   **One-Tap Copy Physics**: Instant spring-scale checkmark animation and floating frosted glass confirmation pill.
 *   **Offline CameraX Scanner**: Decode TOTP QR codes directly in volatile RAM with zero persistent image caching.
 
 ### 🛡️ 3. Anti-Coercion, Duress & Emergency Defense
+*   **Mechanical Vault Dial**: Custom Canvas mechanical lock dial with 12 radial gear notches, outer orbit ring, and error shake physics.
+*   **Particle Burst Explosion**: 32 radial particle bursts rendered on Canvas upon successful PIN/biometric authentication.
 *   **Randomized PIN Pad**: Scrambles numeric keypad layout on each unlock to prevent shoulder-surfing and smudge detection.
 *   **Duress Decoy Vault**: Entering a secondary Duress PIN unlocks an innocent decoy vault with harmless decoy records.
 *   **Panic Self-Destruct**: Emergency wipe PIN instantly zeroes and cryptographically purges the database on entry.
 *   **Physical NFC Security Keys**: YubiKey / NFC hardware key tap unlock.
 
 ### 📊 4. 100% Offline Security Pulse & Vault Audit
-*   **0–100 Vault Health Score** with dynamic letter grades (`A+` to `F`).
+*   **0–100 Animated Health Score** with dynamic letter grades (`A+` to `F`).
+*   **Deep Vault Radar Sweep**: Continuous radar beam scanning across the vault state.
+*   **1-Tap Batch Remediation Wizard**: Automatically upgrades all weak credentials in a single tap.
 *   **Offline Compromised Password Inspector**: 200+ top leaked passwords, sequential PINs, repeated characters, common year combinations (0 network queries).
 *   **Weak & Reused Password Detection**: Highlights duplicate or low-entropy credentials.
 *   **Missing 2FA & Overdue Rotation Radar**: Flags items without 2FA or with expired rotation dates.
-*   **Interactive Remediation Wizard**: Step-by-step guidance to upgrade weak credentials.
 
-### 📦 5. Air-Gapped Backup & Migration
-*   **Air-Gapped Optical QR Sync**: High-density animated QR code stream for device-to-device transfers without any network connection.
-*   **Storage Access Framework (SAF) Encrypted JSON Backup**: Password-derived AES-256-GCM encrypted backup files.
+### 📦 5. Sovereign Backup & Migration
+*   **Storage Access Framework (SAF) Encrypted Backup**: Password-derived AES-256-GCM encrypted backup files (`.kryptx`).
+*   **Offline Web Vault Companion**: Self-contained single-file HTML vault decryptable in any browser offline.
 *   **Universal Importer**: Auto-detects and imports unencrypted CSV/JSON exports from Bitwarden, 1Password, LastPass, Dashlane, Chrome, and KeePass.
 *   **Printable Emergency Recovery Kit**: 1-page native Vector PDF emergency sheet containing vault cryptographic parameters and safe deposit instructions.
 
@@ -108,16 +109,16 @@ graph TD;
 *   Configurable password generator (length, uppercase, lowercase, numbers, symbols, avoid ambiguous).
 *   Diceware / Wordlist passphrase generator with custom word count and separators.
 *   PIN generator (4–12 digits).
-*   Live Shannon entropy calculator and crack-time estimation.
+*   Live Shannon entropy gauge and instant crack-time visual feedback.
 
 ### 🎨 7. Deterministic Offline Identicons (Zero Network)
 *   **40+ Curated Brand Palettes**: High-resolution vector badges for global brands.
 *   **Deterministic Monograms**: Derives high-contrast geometric initials and accent colors with **0 network requests, 0 CDN leaks, and 0 latency**.
 
 ### 💎 8. Tactile Design System & Privacy Physics
-*   🪞 **Frosted Glassmorphism**: Translucent surface cards with luminous specular borders.
-*   ⚛️ **Fluid Spring Physics**: Micro-interactions with tactile bounce scale physics (`0.96f` on press).
-*   📳 **Tactile Haptics Engine (`KryptxHaptics`)**: Crisp vibration feedback for keypresses, copy events, and biometric triggers.
+*   🪞 **Frosted Glassmorphism**: Translucent surface cards with luminous specular borders (`frostedGlass`).
+*   ⚛️ **Spatial Spring Physics (`KryptxMotion.kt`)**: Micro-interactions with tactile bounce scale physics (`SpringBouncy`, `SpringSmooth`, `SpringSnappy`).
+*   📳 **Tactile Haptics Engine (`KryptxHaptics`)**: Crisp vibration feedback for keypresses, dial rotation, copy events, and unlock success/failure.
 *   🎨 **4 Curated Color Themes**: **Obsidian Dark**, **Pure Black (AMOLED)**, **Solar Light**, and **Material You (Dynamic Color)**.
 
 ---
@@ -127,14 +128,14 @@ graph TD;
 | Attack Vector | Vulnerability in Standard Apps | 🟢 Kryptx Sovereign Defense |
 |:---|:---|:---|
 | **Network Data Leaks** | 🔴 Apps communicate with cloud servers / telemetry | **0 Network Permissions**. Kernel blocks all network sockets. |
-| **Browser & Autofill Exploits** | 🔴 Phishing overlays / hijacked accessibility trees | **Zero External Hooks**. No autofill daemons or browser hooks. |
+| **Autofill Theft / Overlays** | 🔴 Malicious apps hijack autofill datasets | **In-Memory Matching Only**. No background network daemons. |
 | **Brute-Force Master Key** | 🔴 Weak dictionary cracking | **Argon2id (RFC 9106) / PBKDF2 (600,000 iters)** + 32-byte salt. |
 | **Quantum Decryption** | 🔴 RSA/ECC broken by Shor's algorithm | **Post-Quantum ML-KEM-768 (Kyber)** key encapsulation. |
 | **RAM / Memory Dump** | 🔴 Plaintext keys sitting in heap | **JNI Memory Locking (`mlock`)** + byte-level zeroization. |
 | **Timing Side-Channels** | 🔴 String `equals` leaking timing | **Constant-Time comparisons** on byte/char arrays. |
 | **Hardware Keystore Hack** | 🔴 Software-only keystore keys | **Hardware StrongBox / TEE** + Boot Attestation. |
-| **Malicious Background Hooks** | 🔴 Frida / Xposed script injection | **Runtime Anti-Tamper scanner** + Root Detection. |
-| **Screen / Clipboard Leaks** | 🔴 Spyware captures screen/clipboard | **Hardware `FLAG_SECURE`** + 10s/30s/60s clipboard zeroization. |
+| **Malicious Background Hooks** | 🔴 Frida / Xposed script injection | **Direct `/proc/self/maps` scanner** + Root Detection. |
+| **Screen / Clipboard Leaks** | 🔴 Spyware captures screen/clipboard | **Hardware `FLAG_SECURE`** + `EXTRA_IS_SENSITIVE` + auto-clearing timer. |
 
 ---
 
@@ -145,23 +146,24 @@ app/src/main/java/com/kryptx/app/
 ├── core/
 │   ├── crypto/         # Post-Quantum ML-KEM-768, Passkeys, SecureMemory (mlock), Argon2id
 │   ├── database/       # Room / SQLCipher SQLite (WAL + Vacuum), Preferences, Importer/Exporter
-│   ├── designsystem/   # Glassmorphism, Haptics, Spring Physics, Identicons
+│   ├── designsystem/   # Glassmorphism, Haptics, Spring Physics, Sovereign Typography, Identicons
 │   ├── di/             # KryptxDependencies DI Contract
 │   ├── generator/      # Entropy Calculator, Diceware Passphrase & Password Generator
-│   ├── model/          # 12 Vault Item Types, Payloads, Custom Fields
+│   ├── migration/      # Offline Web Vault Generator (Single-file HTML)
+│   ├── model/          # 8 Core Vault Item Types, Payloads, Custom Fields
 │   ├── security/       # RootDetector, Anti-Tamper, Offline BreachChecker, Biometrics, Duress
-│   ├── sync/           # Air-Gapped Optical QR Encoder & Decoder (Zero Network)
 │   └── totp/           # RFC 6238 TOTP Engine (SHA-1/256/512)
 └── feature/            # Jetpack Compose UI Screens
-    ├── auth/           # Master Password, Scrambled PIN Pad, Biometrics, Duress
-    ├── generator/      # Password & Passphrase Generator UI
-    ├── navigation/     # NavGraph & Navigation Routing
+    ├── auth/           # Mechanical Vault Dial, Master Password, Scrambled PIN Pad, Biometrics
+    ├── autofill/       # Native Sovereign Android Autofill Service
+    ├── generator/      # Password & Passphrase Generator UI with Entropy Gauge
+    ├── navigation/     # NavGraph & Shared-Axis Screen Transitions
     ├── onboarding/     # Sovereign Architecture Onboarding
     ├── search/         # Encrypted Full-Text Search
-    ├── securitycenter/ # Offline Health Audit, Remediation Wizard
+    ├── securitycenter/ # Offline Health Audit, Radar Scan, 1-Tap Remediation Wizard
     ├── settings/       # Security Settings, Appearance, Air-Gapped Backup & SAF Export
-    ├── totp/           # 2FA Authenticator UI & Live Rings
-    └── vault/          # Vault Dashboard, 12 Categories, Item Detail, Add/Edit
+    ├── totp/           # 2FA Authenticator UI & Smooth Countdown Rings
+    └── vault/          # Vault Dashboard, 8 Categories, Item Detail, Password DNA, Add/Edit
 ```
 
 ---

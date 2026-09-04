@@ -57,6 +57,15 @@ import com.kryptx.app.core.model.PasswordHistoryEntry
 import com.kryptx.app.core.totp.TotpGenerator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.scale
+import com.kryptx.app.core.designsystem.theme.KryptxAmber
+import com.kryptx.app.core.designsystem.theme.KryptxMotion
+import com.kryptx.app.core.designsystem.theme.MonospaceSecret
+import com.kryptx.app.core.designsystem.theme.MonospaceTotp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,19 +85,35 @@ fun DetailFieldCard(
     val view = LocalView.current
     val scope = rememberCoroutineScope()
 
+    val copyScale by animateFloatAsState(
+        targetValue = if (copied) 1.25f else 1.0f,
+        animationSpec = KryptxMotion.ExpressiveBouncy,
+        label = "fieldCopyScale"
+    )
+
+    val eyeScale by animateFloatAsState(
+        targetValue = if (revealed) 1.1f else 1.0f,
+        animationSpec = KryptxMotion.SnappySpring,
+        label = "eyeScale"
+    )
+
+    val bgColor by animateColorAsState(
+        targetValue = if (copied) KryptxEmerald.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        label = "fieldBg"
+    )
+
+    val borderColor by animateColorAsState(
+        targetValue = if (copied) KryptxEmerald.copy(alpha = 0.8f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+        label = "fieldBorder"
+    )
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (copied) KryptxEmerald.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-            )
-            .border(
-                1.dp,
-                if (copied) KryptxEmerald.copy(alpha = 0.8f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -98,37 +123,53 @@ fun DetailFieldCard(
                 Text(
                     text = label,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (revealed) value.ifBlank { "—" } else "••••••••••••",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = if (revealed && isSecret) MonospaceFont else FontFamily.Default,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = if (revealed) value.ifBlank { "—" } else "••••••••••••••••",
+                    style = if (revealed && isSecret) {
+                        MonospaceSecret.copy(color = MaterialTheme.colorScheme.onSurface)
+                    } else {
+                        MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 )
             }
 
             if (isSecret) {
-                IconButton(onClick = { revealed = !revealed }) {
+                IconButton(
+                    onClick = {
+                        com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
+                        revealed = !revealed
+                    },
+                    modifier = Modifier.size(34.dp)
+                ) {
                     Icon(
                         imageVector = if (revealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         contentDescription = if (revealed) "Hide" else "Reveal",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        tint = if (revealed) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(19.dp)
+                            .scale(eyeScale)
                     )
                 }
             }
 
             if (trailingActionIcon != null && onTrailingAction != null) {
-                IconButton(onClick = onTrailingAction) {
+                IconButton(
+                    onClick = onTrailingAction,
+                    modifier = Modifier.size(34.dp)
+                ) {
                     Icon(
                         imageVector = trailingActionIcon,
                         contentDescription = null,
                         tint = KryptxBlue,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
@@ -142,13 +183,16 @@ fun DetailFieldCard(
                         delay(2000L)
                         copied = false
                     }
-                }
+                },
+                modifier = Modifier.size(34.dp)
             ) {
                 Icon(
                     imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                     contentDescription = "Copy",
                     tint = if (copied) KryptxEmerald else KryptxBlue,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier
+                        .size(18.dp)
+                        .scale(copyScale)
                 )
             }
         }
@@ -174,6 +218,23 @@ fun TotpCountdownCard(
 
     if (totpCode == null) return
 
+    val secondsRemaining = totpCode!!.secondsRemaining
+    val urgencyColor by animateColorAsState(
+        targetValue = when {
+            secondsRemaining <= 5 -> KryptxRed
+            secondsRemaining <= 10 -> KryptxAmber
+            else -> KryptxBlue
+        },
+        animationSpec = tween(300),
+        label = "totpUrgencyColor"
+    )
+
+    val copyScale by animateFloatAsState(
+        targetValue = if (copied) 1.25f else 1.0f,
+        animationSpec = KryptxMotion.ExpressiveBouncy,
+        label = "totpCopyScale"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -188,9 +249,8 @@ fun TotpCountdownCard(
             )
             .padding(14.dp)
             .semantics(mergeDescendants = true) {
-                // Speak code characters individually so they are legible, e.g. "1, 2, 3, 4, 5, 6"
                 val spokenCode = totpCode!!.code.map { it }.joinToString(", ")
-                contentDescription = "2FA Authenticator Code. $spokenCode. ${totpCode!!.secondsRemaining} seconds remaining."
+                contentDescription = "2FA Authenticator Code. $spokenCode. ${secondsRemaining} seconds remaining."
                 onClick(label = "Copy 2FA Code", action = {
                     com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
                     copied = true
@@ -206,39 +266,41 @@ fun TotpCountdownCard(
         ) {
             Column {
                 Text(
-                    text = "2FA Authenticator Code",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = KryptxBlue
+                    text = "2FA AUTHENTICATOR CODE",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = urgencyColor
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = totpCode!!.formattedCode,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = MonospaceFont,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MonospaceTotp.copy(
+                        fontSize = 24.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Countdown seconds pill
+                // Countdown seconds ring
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(if (totpCode!!.secondsRemaining <= 5) KryptxRed.copy(alpha = 0.2f) else KryptxBlue.copy(alpha = 0.2f)),
+                        .background(urgencyColor.copy(alpha = 0.15f))
+                        .border(1.2.dp, urgencyColor.copy(alpha = 0.5f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "${totpCode!!.secondsRemaining}s",
+                        text = "${secondsRemaining}s",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (totpCode!!.secondsRemaining <= 5) KryptxRed else KryptxBlue
+                        fontWeight = FontWeight.Black,
+                        color = urgencyColor
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
                 IconButton(
                     onClick = {
@@ -249,13 +311,16 @@ fun TotpCountdownCard(
                             delay(2000L)
                             copied = false
                         }
-                    }
+                    },
+                    modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
                         imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                         contentDescription = "Copy 2FA Code",
-                        tint = if (copied) KryptxEmerald else KryptxBlue,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (copied) KryptxEmerald else urgencyColor,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .scale(copyScale)
                     )
                 }
             }

@@ -67,7 +67,11 @@ fun SearchScreen(
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                com.kryptx.app.core.designsystem.components.KryptxSnackbar(data)
+            }
+        },
         topBar = {
             KryptxTopBar(
                 title = "Search Vault",

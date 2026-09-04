@@ -14,6 +14,7 @@ import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
@@ -33,6 +34,8 @@ class SettingsViewModel(
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
     val visibleCategories = preferencesRepository.visibleCategories
     val minimalistDashboardMode = preferencesRepository.minimalistDashboardMode
+    val quickUnlockEnabled = preferencesRepository.quickUnlockEnabled
+    val scrambledPinDisabled = preferencesRepository.scrambledPinDisabled
 
     private val _hasDuress = MutableStateFlow(vaultRepository.hasDuressPassword())
     val hasDuress: StateFlow<Boolean> = _hasDuress.asStateFlow()
@@ -99,6 +102,14 @@ class SettingsViewModel(
 
     fun setFlagSecureEnabled(enabled: Boolean) {
         preferencesRepository.setFlagSecureEnabled(enabled)
+    }
+
+    fun setQuickUnlockEnabled(enabled: Boolean) {
+        preferencesRepository.setQuickUnlockEnabled(enabled)
+    }
+
+    fun setScrambledPinDisabled(disabled: Boolean) {
+        preferencesRepository.setScrambledPinDisabled(disabled)
     }
 
     fun toggleCategoryVisibility(category: com.kryptx.app.core.model.ItemType) {
@@ -254,6 +265,20 @@ class SettingsViewModel(
                 VaultExporter.exportToCsv(items).toByteArray(Charsets.UTF_8)
             }
             is com.kryptx.app.core.model.KryptxResult.Error -> null
+        }
+    }
+
+    suspend fun exportOfflineWebVault(password: String): ByteArray? {
+        val chars = password.toCharArray()
+        return try {
+            val items = vaultRepository.getItems().first()
+            activityLogManager?.logEvent("Backup", "Exported sovereign offline Web Vault (.html)")
+            com.kryptx.app.core.migration.OfflineWebVaultGenerator.generateOfflineHtml(items, chars)
+                .toByteArray(Charsets.UTF_8)
+        } catch (e: Exception) {
+            null
+        } finally {
+            SecureMemory.wipe(chars)
         }
     }
 

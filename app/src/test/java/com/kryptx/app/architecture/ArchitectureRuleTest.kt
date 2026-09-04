@@ -93,9 +93,9 @@ class ArchitectureRuleTest {
     }
 
     @Test
-    fun testAll12ItemTypesAreDeclared() {
+    fun testAllItemTypesAreDeclared() {
         val types = ItemType.entries
-        assertEquals("Vault must support all 12 multi-category item types", 12, types.size)
+        assertEquals("Vault must support all 8 core item types", 8, types.size)
         for (t in types) {
             assertNotNull(t.name)
             assertTrue(t.name.isNotBlank())

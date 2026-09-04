@@ -169,8 +169,7 @@ object VaultImporter {
                 typeStr == "identity" -> ItemType.IDENTITY
                 typeStr == "wifi" -> ItemType.WIFI
                 typeStr == "api_key" -> ItemType.API_KEY
-                typeStr == "crypto_wallet" -> ItemType.CRYPTO_WALLET
-                typeStr == "ssh_key" -> ItemType.SSH_KEY
+                typeStr == "crypto_wallet" || typeStr == "ssh_key" || typeStr == "bank_account" -> ItemType.CUSTOM
                 else -> ItemType.LOGIN
             }
 

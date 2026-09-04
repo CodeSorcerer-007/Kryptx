@@ -47,11 +47,14 @@ import java.security.SecureRandom
 @Composable
 fun ScrambledPinPad(
     pinLength: Int = 6,
+    isScrambleDisabled: Boolean = false,
     onPinComplete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var enteredPin by remember { mutableStateOf("") }
-    var digits by remember { mutableStateOf(generateShuffledDigits()) }
+    var digits by remember(isScrambleDisabled) {
+        mutableStateOf(if (isScrambleDisabled) listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 0) else generateShuffledDigits())
+    }
     val view = LocalView.current
 
     Column(
@@ -124,8 +127,10 @@ fun ScrambledPinPad(
                         .size(68.dp)
                         .clip(CircleShape)
                         .clickable {
-                            digits = generateShuffledDigits()
-                            KryptxHaptics.tap(view)
+                            if (!isScrambleDisabled) {
+                                digits = generateShuffledDigits()
+                                KryptxHaptics.tap(view)
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {

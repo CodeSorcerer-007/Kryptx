@@ -66,14 +66,24 @@ class MainActivity : FragmentActivity() {
         searchViewModel = viewModelProvider[SearchViewModel::class.java]
         settingsViewModel = viewModelProvider[SettingsViewModel::class.java]
 
-        nfcAdapter = android.nfc.NfcAdapter.getDefaultAdapter(this)
-        val nfcIntent = Intent(this, javaClass).apply {
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        nfcAdapter = try {
+            android.nfc.NfcAdapter.getDefaultAdapter(this)
+        } catch (_: Exception) {
+            null
         }
-        nfcPendingIntent = android.app.PendingIntent.getActivity(
-            this, 0, nfcIntent,
-            android.app.PendingIntent.FLAG_MUTABLE
-        )
+        if (nfcAdapter != null) {
+            val nfcIntent = Intent(this, javaClass).apply {
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                android.app.PendingIntent.FLAG_MUTABLE
+            } else {
+                0
+            }
+            nfcPendingIntent = android.app.PendingIntent.getActivity(
+                this, 0, nfcIntent, flags
+            )
+        }
 
         pendingShortcutTarget = intent?.getStringExtra("navigate_target")
             ?: intent?.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
@@ -156,8 +166,10 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         try {
-            nfcPendingIntent?.let { pending ->
-                nfcAdapter?.enableForegroundDispatch(this, pending, null, null)
+            if (nfcAdapter?.isEnabled == true) {
+                nfcPendingIntent?.let { pending ->
+                    nfcAdapter?.enableForegroundDispatch(this, pending, null, null)
+                }
             }
         } catch (_: Exception) {}
 

@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Wifi
@@ -132,10 +131,6 @@ object OfflineIdenticonGenerator {
             ItemType.SECURE_NOTE -> Icons.AutoMirrored.Filled.Note
             ItemType.WIFI -> Icons.Default.Wifi
             ItemType.API_KEY -> Icons.Default.DataObject
-            ItemType.BANK_ACCOUNT -> Icons.Default.AccountBalance
-            ItemType.CRYPTO_WALLET -> Icons.Default.Key
-            ItemType.SSH_KEY -> Icons.Default.Terminal
-            ItemType.MEDICAL -> Icons.Default.MedicalServices
             ItemType.CUSTOM -> Icons.Default.Lock
         }
 

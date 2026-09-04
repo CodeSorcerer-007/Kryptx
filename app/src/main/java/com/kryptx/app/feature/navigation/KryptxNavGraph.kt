@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.database.IPreferencesRepository
 import com.kryptx.app.core.designsystem.components.FeatureGuide
 import com.kryptx.app.core.designsystem.components.FeatureIntroSheet
+import com.kryptx.app.core.designsystem.theme.KryptxMotion
 import com.kryptx.app.feature.auth.SetupMasterPasswordScreen
 import com.kryptx.app.feature.auth.UnlockScreen
 import com.kryptx.app.feature.auth.UnlockViewModel
@@ -66,8 +67,6 @@ import com.kryptx.app.feature.search.SearchScreen
 import com.kryptx.app.feature.search.SearchViewModel
 import com.kryptx.app.feature.securitycenter.SecurityCenterScreen
 import com.kryptx.app.feature.securitycenter.SecurityCenterViewModel
-import com.kryptx.app.feature.securitycenter.SecurityTimelineScreen
-import com.kryptx.app.feature.migration.ZeroCloudMigrationScreen
 import com.kryptx.app.feature.settings.AppearanceSettingsScreen
 import com.kryptx.app.feature.settings.BackupExportScreen
 import com.kryptx.app.feature.settings.SecuritySettingsScreen
@@ -89,7 +88,6 @@ enum class BottomNavTab(
     VAULT("Vault", Icons.Default.Lock, Screen.VaultDashboard, FeatureGuide.VAULT),
     TOTP("2FA", Icons.Default.Key, Screen.TotpList, FeatureGuide.TOTP),
     GENERATOR("Generator", Icons.Default.AutoAwesome, Screen.Generator, FeatureGuide.GENERATOR),
-    SECURITY("Security", Icons.Default.Security, Screen.SecurityCenter, FeatureGuide.SECURITY),
     SETTINGS("Settings", Icons.Default.Settings, Screen.Settings, FeatureGuide.SETTINGS)
 }
 
@@ -115,19 +113,6 @@ fun KryptxNavGraph(
 
     var selectedBottomTab by remember { mutableStateOf(BottomNavTab.VAULT) }
     var activeIntroFeature by remember { mutableStateOf<FeatureGuide?>(null) }
-
-    fun checkAndShowFeatureIntro(feature: FeatureGuide) {
-        if (!preferencesRepository.hasSeenFeatureIntro(feature.key)) {
-            activeIntroFeature = feature
-        }
-    }
-
-    // Trigger initial Vault intro when unlocked for the first time
-    androidx.compose.runtime.LaunchedEffect(isUnlocked) {
-        if (isUnlocked) {
-            checkAndShowFeatureIntro(BottomNavTab.VAULT.featureGuide)
-        }
-    }
 
     // Navigation back stack
     val backStack = remember {
@@ -228,7 +213,6 @@ fun KryptxNavGraph(
             currentScreen == Screen.VaultDashboard ||
                     currentScreen == Screen.TotpList ||
                     currentScreen == Screen.Generator ||
-                    currentScreen == Screen.SecurityCenter ||
                     currentScreen == Screen.Settings
             )
 
@@ -244,7 +228,6 @@ fun KryptxNavGraph(
                             selectedBottomTab = tab
                             backStack.clear()
                             backStack.add(tab.screen)
-                            checkAndShowFeatureIntro(tab.featureGuide)
                         }
                     }
                 )
@@ -259,8 +242,17 @@ fun KryptxNavGraph(
             AnimatedContent(
                 targetState = currentScreen,
                 transitionSpec = {
-                    (slideInHorizontally { width -> width / 4 } + fadeIn())
-                        .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut())
+                    val isUnlockEntrance = (initialState is Screen.Unlock || initialState is Screen.SetupMasterPassword) &&
+                            targetState == Screen.VaultDashboard
+                    val isTabSwitch = (initialState in listOf(Screen.VaultDashboard, Screen.TotpList, Screen.Generator, Screen.Settings)) &&
+                            (targetState in listOf(Screen.VaultDashboard, Screen.TotpList, Screen.Generator, Screen.Settings))
+
+                    when {
+                        isUnlockEntrance -> KryptxMotion.vaultUnlockEntrance()
+                        isTabSwitch -> KryptxMotion.tabCrossfade()
+                        backStack.size > 1 && backStack.lastOrNull() == targetState -> KryptxMotion.forwardTransition()
+                        else -> KryptxMotion.backwardTransition()
+                    }
                 },
                 label = "navigation_transition"
             ) { screen ->
@@ -299,11 +291,7 @@ fun KryptxNavGraph(
                             viewModel = vaultViewModel,
                             onNavigateToItemDetail = { id -> navigateTo(Screen.ItemDetail(id)) },
                             onNavigateToAddItem = { navigateTo(Screen.AddEditItem(null)) },
-                            onNavigateToSecurityCenter = {
-                                selectedBottomTab = BottomNavTab.SECURITY
-                                backStack.clear()
-                                backStack.add(Screen.SecurityCenter)
-                            },
+                            onNavigateToSecurityCenter = { navigateTo(Screen.SecurityCenter) },
                             onNavigateToSearch = { navigateTo(Screen.Search) }
                         )
                     }
@@ -320,7 +308,7 @@ fun KryptxNavGraph(
                         SecurityCenterScreen(
                             viewModel = securitycenterViewModel,
                             onNavigateToFixItem = { id -> navigateTo(Screen.AddEditItem(id)) },
-                            onNavigateToTimeline = { navigateTo(Screen.SecurityTimeline) }
+                            onNavigateBack = { navigateBack() }
                         )
                     }
 
@@ -329,9 +317,7 @@ fun KryptxNavGraph(
                             onNavigateToSecurity = { navigateTo(Screen.SecuritySettings) },
                             onNavigateToAppearance = { navigateTo(Screen.AppearanceSettings) },
                             onNavigateToBackup = { navigateTo(Screen.BackupExport) },
-                            onNavigateToMigration = { navigateTo(Screen.ZeroCloudMigration) },
                             onReplayGuides = {
-                                preferencesRepository.resetAllFeatureIntros()
                                 activeIntroFeature = FeatureGuide.VAULT
                             },
                             vaultRepository = vaultRepository,
@@ -380,20 +366,6 @@ fun KryptxNavGraph(
 
                     Screen.BackupExport -> {
                         BackupExportScreen(
-                            viewModel = settingsViewModel,
-                            onNavigateBack = { navigateBack() }
-                        )
-                    }
-
-                    Screen.SecurityTimeline -> {
-                        SecurityTimelineScreen(
-                            viewModel = securitycenterViewModel,
-                            onNavigateBack = { navigateBack() }
-                        )
-                    }
-
-                    Screen.ZeroCloudMigration -> {
-                        ZeroCloudMigrationScreen(
                             viewModel = settingsViewModel,
                             onNavigateBack = { navigateBack() }
                         )

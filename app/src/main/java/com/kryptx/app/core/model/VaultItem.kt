@@ -58,27 +58,6 @@ data class VaultItem(
     val apiSecret: String = "",
     val apiEndpoint: String = "",
 
-    // Bank Account fields
-    val bankName: String = "",
-    val bankAccountNumber: String = "",
-    val bankRoutingNumber: String = "",
-    val bankSwiftBic: String = "",
-
-    // Crypto Wallet fields
-    val cryptoWalletAddress: String = "",
-    val cryptoSeedPhrase: String = "",
-    val cryptoNetwork: String = "",
-
-    // SSH Key fields
-    val sshPublicKey: String = "",
-    val sshPrivateKey: String = "",
-    val sshHost: String = "",
-
-    // Medical Info fields
-    val medicalBloodType: String = "",
-    val medicalAllergies: String = "",
-    val medicalEmergencyContact: String = "",
-
     // Attachments & Expiration Policy
     val attachments: List<VaultAttachment> = emptyList(),
     val expiresAt: Long? = null,
@@ -131,10 +110,6 @@ data class VaultItem(
             ItemType.SECURE_NOTE -> notes.lines().firstOrNull() ?: "Secure Note"
             ItemType.WIFI -> wifiSsid
             ItemType.API_KEY -> apiEndpoint.ifBlank { "API Token" }
-            ItemType.BANK_ACCOUNT -> if (bankAccountNumber.length >= 4) "$bankName •••• ${bankAccountNumber.takeLast(4)}" else bankName.ifBlank { "Bank Account" }
-            ItemType.CRYPTO_WALLET -> if (cryptoWalletAddress.length >= 10) "${cryptoWalletAddress.take(6)}...${cryptoWalletAddress.takeLast(4)}" else cryptoNetwork.ifBlank { "Crypto Wallet" }
-            ItemType.SSH_KEY -> sshHost.ifBlank { "SSH Key" }
-            ItemType.MEDICAL -> if (medicalBloodType.isNotBlank()) "Blood Type: $medicalBloodType" else medicalEmergencyContact.ifBlank { "Medical Information" }
             ItemType.CUSTOM -> customFields.firstOrNull()?.let { "${it.label}: ${it.value}" } ?: "Custom Entry"
         }
 
@@ -170,10 +145,6 @@ data class VaultItem(
             ItemType.WIFI -> wifiPassword
             ItemType.API_KEY -> apiKey.ifBlank { apiSecret }
             ItemType.IDENTITY -> identityIdNumber
-            ItemType.BANK_ACCOUNT -> bankAccountNumber
-            ItemType.CRYPTO_WALLET -> cryptoSeedPhrase.ifBlank { cryptoWalletAddress }
-            ItemType.SSH_KEY -> sshPrivateKey.ifBlank { sshPublicKey }
-            ItemType.MEDICAL -> medicalAllergies
             ItemType.CUSTOM -> customFields.firstOrNull { it.isSecured }?.value ?: ""
         }
 }

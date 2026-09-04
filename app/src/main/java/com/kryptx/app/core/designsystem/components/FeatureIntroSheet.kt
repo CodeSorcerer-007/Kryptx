@@ -108,12 +108,12 @@ enum class FeatureGuide(
     ),
     CATEGORIES(
         key = "categories_feature",
-        title = "11 Vault Categories",
+        title = "Structured Categories",
         subtitle = "Tailored For Every Secret",
         icon = Icons.Default.Category,
-        whatIsIt = "Dedicated fields for Bank Accounts, Crypto Seed Phrases, SSH Keys, Medical data, and Wi-Fi.",
+        whatIsIt = "Dedicated fields for Bank Accounts, Crypto Seed Phrases, SSH Keys, and Wi-Fi.",
         whyUseIt = "Structured layouts keep your sensitive recovery seeds and PINs cleanly organized and masked.",
-        proTip = "Use the horizontal category bar at the top to filter items instantly."
+        proTip = "Use the category bar at the top to filter items instantly."
     ),
     QR_SCANNER(
         key = "qr_scanner_feature",

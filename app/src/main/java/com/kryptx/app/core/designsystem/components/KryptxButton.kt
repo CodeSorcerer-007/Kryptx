@@ -1,5 +1,11 @@
 package com.kryptx.app.core.designsystem.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -16,19 +22,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
+import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 
 /**
- * Full-width capsule pill primary action button in WorkONE #1F75FE styling.
+ * Signature full-width capsule action button with tactile bounce physics and dynamic specular sheen.
  */
 @Composable
 fun KryptxPrimaryButton(
@@ -39,19 +52,48 @@ fun KryptxPrimaryButton(
     useBrandGradient: Boolean = false,
     containerColor: Color = KryptxBlue,
     contentColor: Color = Color.White,
+    height: Dp = 56.dp,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(28.dp)
+
+    val infiniteTransition = rememberInfiniteTransition(label = "btn_shimmer")
+    val shimmerProgress by infiniteTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "btn_shimmer_progress"
+    )
 
     if (useBrandGradient && enabled) {
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(height)
                 .bounceClick(scaleDown = 0.96f, onClick = onClick)
                 .clip(shape)
                 .background(KryptxElectricBlueGradient)
-                .border(1.dp, GlassmorphismSpecularBrush, shape),
+                .border(1.dp, GlassmorphismSpecularBrush, shape)
+                .drawWithContent {
+                    drawContent()
+                    // Dynamic light gleam across active gradient button
+                    val gleamWidth = size.width * 0.4f
+                    val gleamCenter = size.width * shimmerProgress
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.22f),
+                                Color.Transparent
+                            ),
+                            startX = gleamCenter - gleamWidth / 2,
+                            endX = gleamCenter + gleamWidth / 2
+                        )
+                    )
+                },
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -72,7 +114,7 @@ fun KryptxPrimaryButton(
             onClick = onClick,
             modifier = modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(height)
                 .bounceClick(scaleDown = 0.96f, onClick = onClick),
             enabled = enabled,
             shape = shape,
@@ -97,6 +139,9 @@ fun KryptxPrimaryButton(
     }
 }
 
+/**
+ * Secondary outlined capsule button with responsive scale interaction and border highlights.
+ */
 @Composable
 fun KryptxOutlinedButton(
     text: String,
@@ -105,6 +150,7 @@ fun KryptxOutlinedButton(
     enabled: Boolean = true,
     borderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
     textColor: Color = MaterialTheme.colorScheme.onSurface,
+    height: Dp = 52.dp,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(26.dp)
@@ -112,7 +158,7 @@ fun KryptxOutlinedButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(height)
             .bounceClick(scaleDown = 0.96f, onClick = onClick),
         enabled = enabled,
         shape = shape,
@@ -132,6 +178,9 @@ fun KryptxOutlinedButton(
     }
 }
 
+/**
+ * Frosted translucent glass action button with tactile response.
+ */
 @Composable
 fun KryptxGlassButton(
     text: String,
@@ -140,12 +189,13 @@ fun KryptxGlassButton(
     shape: Shape = RoundedCornerShape(26.dp),
     backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
     textColor: Color = KryptxBlue,
+    height: Dp = 52.dp,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(height)
             .bounceClick(scaleDown = 0.96f, onClick = onClick)
             .clip(shape)
             .background(backgroundColor)
@@ -167,4 +217,3 @@ fun KryptxGlassButton(
         }
     }
 }
-

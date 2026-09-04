@@ -87,13 +87,6 @@ sealed interface VaultPayload {
     ) : VaultPayload
 
     @Serializable
-    data class Medical(
-        val bloodType: String = "",
-        val allergies: String = "",
-        val emergencyContact: String = ""
-    ) : VaultPayload
-
-    @Serializable
     data class Custom(
         val fields: List<CustomField> = emptyList()
     ) : VaultPayload

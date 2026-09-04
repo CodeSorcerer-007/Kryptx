@@ -31,7 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,26 +65,26 @@ fun OnboardingScreen(
 ) {
     val pages = listOf(
         OnboardingPageData(
-            title = "Zero-Knowledge Architecture",
-            description = "Your master password is never stored or sent anywhere. Everything is encrypted locally with AES-256-GCM and 600,000 PBKDF2 rounds.",
+            title = "Your Passwords Stay Yours",
+            description = "Everything stays encrypted right on this device. No clouds, no tracking, and zero leaks. Your data never leaves your hands.",
             icon = Icons.Default.Shield,
             accentColor = KryptxBlue
         ),
         OnboardingPageData(
-            title = "Hardware Biometric Vault",
-            description = "Unlock your credentials instantly with fingerprint or facial recognition protected by Android Keystore hardware security.",
+            title = "Unlock in a Flash",
+            description = "Sign into your vault with a single touch of your fingerprint or face, protected by Android hardware-grade chip security.",
             icon = Icons.Default.Fingerprint,
             accentColor = KryptxBlue
         ),
         OnboardingPageData(
-            title = "Built-in 2FA Authenticator",
-            description = "Generate RFC 6238 TOTP codes directly inside Kryptx with real-time synchronized countdown timers and 1-tap copy.",
+            title = "All-in-One 2FA Codes",
+            description = "Generate 2-step verification codes with live countdown timers and 1-tap copy — no need for a separate authenticator app.",
             icon = Icons.Default.Key,
             accentColor = KryptxBlue
         ),
         OnboardingPageData(
-            title = "100% Isolated Sovereign Security",
-            description = "Audit password strength, generate high-entropy passphrases, and safeguard records with zero internet access, zero external hooks, and zero network leaks.",
+            title = "Seamless 1-Tap Auto-Fill",
+            description = "Log into websites and apps effortlessly. Kryptx safely fills and remembers your credentials as you browse.",
             icon = Icons.Default.AutoAwesome,
             accentColor = KryptxBlue
         )
@@ -229,7 +233,24 @@ fun OnboardingScreen(
                         }
                     }
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                var showExplainerSheet by remember { mutableStateOf(false) }
+                androidx.compose.material3.TextButton(onClick = { showExplainerSheet = true }) {
+                    Text(
+                        text = "Why zero-network? Learn how you're protected →",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = KryptxBlue
+                    )
+                }
+
+                if (showExplainerSheet) {
+                    com.kryptx.app.core.designsystem.components.SecurityExplainerSheet(
+                        onDismiss = { showExplainerSheet = false }
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
     }

@@ -1,8 +1,28 @@
 package com.kryptx.app.core.model
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
-@Serializable
+object ItemTypeSerializer : KSerializer<ItemType> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ItemType", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: ItemType) {
+        encoder.encodeString(value.name)
+    }
+
+    override fun deserialize(decoder: Decoder): ItemType {
+        val name = decoder.decodeString()
+        return ItemType.fromString(name)
+    }
+}
+
+@Serializable(with = ItemTypeSerializer::class)
 enum class ItemType(val displayName: String, val categoryName: String) {
     LOGIN("Login", "Logins"),
     CREDIT_CARD("Credit Card", "Cards"),
@@ -11,15 +31,14 @@ enum class ItemType(val displayName: String, val categoryName: String) {
     SECURE_NOTE("Secure Note", "Notes"),
     WIFI("Wi-Fi Network", "Wi-Fi"),
     API_KEY("API Key / Token", "API Keys"),
-    BANK_ACCOUNT("Bank Account", "Banking"),
-    CRYPTO_WALLET("Crypto Wallet", "Crypto"),
-    SSH_KEY("SSH Key", "SSH Keys"),
-    MEDICAL("Medical Info", "Medical"),
     CUSTOM("Custom Item", "Custom");
 
     companion object {
         fun fromString(value: String): ItemType {
-            return entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: LOGIN
+            return when (value.uppercase()) {
+                "BANK_ACCOUNT", "CRYPTO_WALLET", "SSH_KEY" -> CUSTOM
+                else -> entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: LOGIN
+            }
         }
     }
 }

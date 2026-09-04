@@ -19,7 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -57,11 +57,8 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Bitmap.CompressFormat
-import com.kryptx.app.core.security.SteganographyEngine
-import java.io.ByteArrayOutputStream
+
+
 
 @Composable
 fun BackupExportScreen(
@@ -75,17 +72,35 @@ fun BackupExportScreen(
 
     // Dialogs
     var showEncryptedExportDialog by remember { mutableStateOf(false) }
-    var showSteganographyDialog by remember { mutableStateOf(false) }
     var showPlaintextWarningDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showOfflineHtmlDialog by remember { mutableStateOf(false) }
 
     // Pending export bytes — held while waiting for SAF URI to be picked
     var pendingEncryptedBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingCsvBytes by remember { mutableStateOf<ByteArray?>(null) }
-    var pendingStegoBytes by remember { mutableStateOf<ByteArray?>(null) }
-    var stegoPassphrase by remember { mutableStateOf("") }
+    var pendingHtmlBytes by remember { mutableStateOf<ByteArray?>(null) }
     // Import bytes — held while the password dialog is open
     var pendingImportBytes by remember { mutableStateOf<ByteArray?>(null) }
+
+    // Offline Web Vault HTML launcher
+    val saveHtmlLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/html")
+    ) { uri: Uri? ->
+        val bytes = pendingHtmlBytes
+        if (uri != null && bytes != null) {
+            scope.launch {
+                val written = writeToUri(context, uri, bytes)
+                pendingHtmlBytes = null
+                snackbarHostState.showSnackbar(
+                    if (written) "Offline Web Vault (.html) saved successfully!"
+                    else "Failed to write HTML file."
+                )
+            }
+        } else {
+            pendingHtmlBytes = null
+        }
+    }
 
     // ── SAF launchers ──────────────────────────────────────────────────────────
 
@@ -148,65 +163,6 @@ fun BackupExportScreen(
         }
     }
 
-    // Steganography Image save launcher
-    val savePngLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("image/png")
-    ) { uri: Uri? ->
-        val bytes = pendingStegoBytes
-        if (uri != null && bytes != null) {
-            scope.launch {
-                val written = writeToUri(context, uri, bytes)
-                pendingStegoBytes = null
-                stegoPassphrase = ""
-                snackbarHostState.showSnackbar(
-                    if (written) "Steganographic backup saved successfully."
-                    else "Failed to write steganographic image."
-                )
-            }
-        } else {
-            pendingStegoBytes = null
-            stegoPassphrase = ""
-        }
-    }
-
-    // Photo picker for cover image
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch {
-                try {
-                    val stream = context.contentResolver.openInputStream(uri)
-                    val coverBitmap = BitmapFactory.decodeStream(stream)
-                    stream?.close()
-                    
-                    if (coverBitmap != null) {
-                        val pass = stegoPassphrase
-                        val bytes = viewModel.exportEncryptedBackup(pass)
-                        if (bytes != null) {
-                            val stegoBitmap = SteganographyEngine.embedPayload(coverBitmap, bytes)
-                            if (stegoBitmap != null) {
-                                val bos = ByteArrayOutputStream()
-                                stegoBitmap.compress(CompressFormat.PNG, 100, bos)
-                                pendingStegoBytes = bos.toByteArray()
-                                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                                savePngLauncher.launch("Kryptx_Stego_$timestamp.png")
-                            } else {
-                                snackbarHostState.showSnackbar("Image too small to hold the backup.")
-                            }
-                        } else {
-                            snackbarHostState.showSnackbar("Failed to encrypt backup.")
-                        }
-                    } else {
-                        snackbarHostState.showSnackbar("Could not decode selected image.")
-                    }
-                } catch (e: Exception) {
-                    snackbarHostState.showSnackbar("Error processing image: ${e.message}")
-                }
-            }
-        }
-    }
-
     // Import: user picks any backup file (JSON, CSV, .kryptx)
     val openImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -215,19 +171,8 @@ fun BackupExportScreen(
             scope.launch {
                 val bytes = readFromUri(context, uri)
                 if (bytes != null) {
-                    // Try steganography extraction first
-                    var stegoExtractedBytes: ByteArray? = null
-                    try {
-                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        if (bitmap != null) {
-                            stegoExtractedBytes = SteganographyEngine.extractPayload(bitmap)
-                        }
-                    } catch (e: Exception) {
-                        // ignore
-                    }
-                    
                     showImportDialog = true
-                    pendingImportBytes = stegoExtractedBytes ?: bytes
+                    pendingImportBytes = bytes
                 } else {
                     snackbarHostState.showSnackbar("Could not read the selected file.")
                 }
@@ -242,7 +187,11 @@ fun BackupExportScreen(
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                com.kryptx.app.core.designsystem.components.KryptxSnackbar(data)
+            }
+        },
         topBar = {
             KryptxTopBar(
                 title = "Backup & Migration",
@@ -344,26 +293,26 @@ fun BackupExportScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Steganographic Export
+            // Offline Web Vault Companion (.html)
             KryptxCard {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.Image,
+                            imageVector = Icons.Default.Language,
                             contentDescription = null,
-                            tint = KryptxBlue,
+                            tint = KryptxEmerald,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Steganographic Image Backup",
+                                text = "Offline Web Vault Companion (.html)",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Hides your encrypted backup entirely inside an ordinary photo (PNG). Visually indistinguishable.",
+                                text = "Self-contained single-file HTML vault with client-side WebCrypto AES-GCM. Opens offline in any desktop browser (PC/Mac).",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -371,13 +320,15 @@ fun BackupExportScreen(
                     }
                     Spacer(modifier = Modifier.height(14.dp))
                     KryptxOutlinedButton(
-                        text = "Create Hidden Backup",
-                        borderColor = KryptxBlue,
-                        textColor = KryptxBlue,
-                        onClick = { showSteganographyDialog = true }
+                        text = "Export Offline Web Vault (.html)",
+                        borderColor = KryptxEmerald,
+                        textColor = KryptxEmerald,
+                        onClick = { showOfflineHtmlDialog = true }
                     )
                 }
             }
+
+
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -532,16 +483,16 @@ fun BackupExportScreen(
         )
     }
 
-    // ── Steganography Export passphrase dialog ────────────────────────────────
-    if (showSteganographyDialog) {
+    // ── Offline Web Vault dialog ──────────────────────────────────────────────
+    if (showOfflineHtmlDialog) {
         var exportPass by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { showSteganographyDialog = false; exportPass = "" },
-            title = { Text("Hidden Backup Passphrase") },
+            onDismissRequest = { showOfflineHtmlDialog = false; exportPass = "" },
+            title = { Text("Offline Web Vault Companion") },
             text = {
                 Column {
                     Text(
-                        text = "Enter a password to encrypt the backup before hiding it in a photo.",
+                        text = "Enter a password to encrypt this offline HTML vault. You will enter this in your desktop browser to view and copy credentials 100% offline.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -558,26 +509,31 @@ fun BackupExportScreen(
                 TextButton(
                     onClick = {
                         val pass = exportPass
-                        showSteganographyDialog = false
+                        showOfflineHtmlDialog = false
                         exportPass = ""
-                        stegoPassphrase = pass
-                        try {
-                            photoPickerLauncher.launch("image/*")
-                        } catch (e: Throwable) {
-                            android.util.Log.e("BackupExport", "Failed to launch image picker", e)
+                        scope.launch {
+                            val bytes = viewModel.exportOfflineWebVault(pass)
+                            if (bytes != null) {
+                                pendingHtmlBytes = bytes
+                                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                                saveHtmlLauncher.launch("Kryptx_OfflineVault_$timestamp.html")
+                            } else {
+                                snackbarHostState.showSnackbar("Export failed — vault may be locked.")
+                            }
                         }
                     }
                 ) {
-                    Text("Select Cover Image", color = KryptxBlue, fontWeight = FontWeight.Bold)
+                    Text("Export HTML", color = KryptxEmerald, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSteganographyDialog = false; exportPass = "" }) {
+                TextButton(onClick = { showOfflineHtmlDialog = false; exportPass = "" }) {
                     Text("Cancel")
                 }
             }
         )
     }
+
 
     // ── Plaintext CSV warning dialog ──────────────────────────────────────────
     if (showPlaintextWarningDialog) {

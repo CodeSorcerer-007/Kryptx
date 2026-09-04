@@ -92,7 +92,7 @@ class VaultDashboardScreenTest {
     fun `search query filtering matches title, username, website and notes`() = runTest(testDispatcher) {
         val item1 = VaultItem(id = "1", title = "Spotify Music", username = "spotify_user", type = ItemType.LOGIN)
         val item2 = VaultItem(id = "2", title = "AWS Cloud Console", notes = "Production root access", type = ItemType.LOGIN)
-        val item3 = VaultItem(id = "3", title = "Bank of America", website = "https://bankofamerica.com", type = ItemType.BANK_ACCOUNT)
+        val item3 = VaultItem(id = "3", title = "Bank of America", website = "https://bankofamerica.com", type = ItemType.IDENTITY)
 
         fakeRepository.saveItem(item1)
         fakeRepository.saveItem(item2)

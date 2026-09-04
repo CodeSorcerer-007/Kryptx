@@ -31,6 +31,9 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_VISIBLE_CATEGORIES = "visible_categories"
         private const val KEY_MINIMALIST_MODE = "minimalist_dashboard_mode"
         private const val KEY_SELECTED_PERSONA = "selected_persona"
+        private const val KEY_QUICK_UNLOCK = "quick_unlock_enabled"
+        private const val KEY_AUTOFILL_NUDGE_DISMISSED = "autofill_nudge_dismissed"
+        private const val KEY_SCRAMBLED_PIN_DISABLED = "scrambled_pin_disabled"
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -69,6 +72,15 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
 
     private val _selectedPersona = MutableStateFlow(getSavedPersona())
     override val selectedPersona: StateFlow<UserPersona> = _selectedPersona.asStateFlow()
+
+    private val _quickUnlockEnabled = MutableStateFlow(prefs.getBoolean(KEY_QUICK_UNLOCK, false))
+    override val quickUnlockEnabled: StateFlow<Boolean> = _quickUnlockEnabled.asStateFlow()
+
+    private val _autofillNudgeDismissed = MutableStateFlow(prefs.getBoolean(KEY_AUTOFILL_NUDGE_DISMISSED, false))
+    override val autofillNudgeDismissed: StateFlow<Boolean> = _autofillNudgeDismissed.asStateFlow()
+
+    private val _scrambledPinDisabled = MutableStateFlow(prefs.getBoolean(KEY_SCRAMBLED_PIN_DISABLED, false))
+    override val scrambledPinDisabled: StateFlow<Boolean> = _scrambledPinDisabled.asStateFlow()
 
     private fun getSavedThemeMode(): AppThemeMode {
         val name = prefs.getString(KEY_THEME, AppThemeMode.DARK.name) ?: AppThemeMode.DARK.name
@@ -143,6 +155,21 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         _selectedPersona.value = persona
         setVisibleCategories(persona.recommendedCategories)
         setMinimalistDashboardMode(persona.minimalistDefault)
+    }
+
+    override fun setQuickUnlockEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_QUICK_UNLOCK, enabled).apply()
+        _quickUnlockEnabled.value = enabled
+    }
+
+    override fun setAutofillNudgeDismissed(dismissed: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTOFILL_NUDGE_DISMISSED, dismissed).apply()
+        _autofillNudgeDismissed.value = dismissed
+    }
+
+    override fun setScrambledPinDisabled(disabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SCRAMBLED_PIN_DISABLED, disabled).apply()
+        _scrambledPinDisabled.value = disabled
     }
 
     override fun hasSeenFeatureIntro(featureKey: String): Boolean {

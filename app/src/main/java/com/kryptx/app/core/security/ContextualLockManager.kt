@@ -16,8 +16,12 @@ class ContextualLockManager(
     private val onLockTriggered: () -> Unit
 ) : SensorEventListener {
 
-    private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val sensorManager = try {
+        context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    } catch (_: Exception) {
+        null
+    }
+    private val accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
     private var isListening = false
     
@@ -31,15 +35,19 @@ class ContextualLockManager(
     private val FACE_DOWN_GRAVITY_THRESHOLD = -8.5f
 
     fun startListening() {
-        if (!isListening && accelerometer != null) {
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
-            isListening = true
+        if (!isListening && accelerometer != null && sensorManager != null) {
+            try {
+                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+                isListening = true
+            } catch (_: Exception) {}
         }
     }
 
     fun stopListening() {
-        if (isListening) {
-            sensorManager.unregisterListener(this)
+        if (isListening && sensorManager != null) {
+            try {
+                sensorManager.unregisterListener(this)
+            } catch (_: Exception) {}
             isListening = false
         }
     }

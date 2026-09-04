@@ -21,7 +21,6 @@ import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Terminal
@@ -234,10 +233,6 @@ private fun getCategoryIcon(type: ItemType): ImageVector {
         ItemType.SECURE_NOTE -> Icons.AutoMirrored.Filled.Note
         ItemType.WIFI -> Icons.Default.Wifi
         ItemType.API_KEY -> Icons.Default.Token
-        ItemType.BANK_ACCOUNT -> Icons.Default.AccountBalance
-        ItemType.CRYPTO_WALLET -> Icons.Default.VpnKey
-        ItemType.SSH_KEY -> Icons.Default.Terminal
-        ItemType.MEDICAL -> Icons.Default.MedicalServices
         ItemType.CUSTOM -> Icons.Default.Tune
     }
 }

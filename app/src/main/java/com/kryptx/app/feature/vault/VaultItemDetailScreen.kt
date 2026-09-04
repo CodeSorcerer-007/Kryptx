@@ -66,16 +66,12 @@ import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.PasswordHistoryEntry
 import com.kryptx.app.feature.vault.detail.ApiKeyDetailSection
 import com.kryptx.app.feature.vault.detail.AttachmentsDetailSection
-import com.kryptx.app.feature.vault.detail.BankAccountDetailSection
 import com.kryptx.app.feature.vault.detail.CreditCardDetailSection
-import com.kryptx.app.feature.vault.detail.CryptoWalletDetailSection
 import com.kryptx.app.feature.vault.detail.DetailFieldCard
 import com.kryptx.app.feature.vault.detail.IdentityDetailSection
 import com.kryptx.app.feature.vault.detail.LoginDetailSection
-import com.kryptx.app.feature.vault.detail.MedicalDetailSection
 import com.kryptx.app.feature.vault.detail.PasskeyDetailSection
 import com.kryptx.app.feature.vault.detail.PasswordHistorySheet
-import com.kryptx.app.feature.vault.detail.SshKeyDetailSection
 import com.kryptx.app.feature.vault.detail.WifiDetailSection
 import kotlinx.coroutines.launch
 
@@ -110,7 +106,11 @@ fun VaultItemDetailScreen(
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                com.kryptx.app.core.designsystem.components.KryptxSnackbar(data)
+            }
+        },
         topBar = {
             KryptxTopBar(
                 title = if (isFocusMode) "Focus Mode" else "Credential Detail",
@@ -336,10 +336,6 @@ fun VaultItemDetailScreen(
                     ItemType.IDENTITY -> IdentityDetailSection(item = item, viewModel = viewModel)
                     ItemType.WIFI -> WifiDetailSection(item = item, viewModel = viewModel)
                     ItemType.API_KEY -> ApiKeyDetailSection(item = item, viewModel = viewModel)
-                    ItemType.BANK_ACCOUNT -> BankAccountDetailSection(item = item, viewModel = viewModel)
-                    ItemType.CRYPTO_WALLET -> CryptoWalletDetailSection(item = item, viewModel = viewModel)
-                    ItemType.SSH_KEY -> SshKeyDetailSection(item = item, viewModel = viewModel)
-                    ItemType.MEDICAL -> MedicalDetailSection(item = item, viewModel = viewModel)
                     ItemType.SECURE_NOTE, ItemType.CUSTOM -> {}
                 }
             }
