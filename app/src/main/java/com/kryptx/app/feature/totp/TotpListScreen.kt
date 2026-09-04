@@ -118,6 +118,8 @@ fun TotpListScreen(
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        val app = context.applicationContext as? com.kryptx.app.KryptxApplication
+        app?.sessionManager?.setPickerActive(false)
         if (isGranted) {
             showQrScanner = true
         }
@@ -351,7 +353,13 @@ fun TotpListScreen(
             dismissButtonText = "Not Now",
             onConfirm = {
                 showCameraRationaleDialog = false
-                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                val app = context.applicationContext as? com.kryptx.app.KryptxApplication
+                app?.sessionManager?.setPickerActive(true)
+                try {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                } catch (t: Throwable) {
+                    app?.sessionManager?.setPickerActive(false)
+                }
             },
             onDismiss = { showCameraRationaleDialog = false }
         )

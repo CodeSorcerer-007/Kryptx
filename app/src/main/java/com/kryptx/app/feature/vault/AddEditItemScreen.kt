@@ -167,36 +167,17 @@ fun AddEditItemScreen(
     var showAttachmentTypeDialog by remember { mutableStateOf(false) }
     var showMediaRationaleDialog by remember { mutableStateOf(false) }
     var showCameraRationaleDialog by remember { mutableStateOf(false) }
-    var pendingAttachmentAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var hasGrantedMediaConsent by remember { mutableStateOf(false) }
+    var pendingAttachmentType by remember { mutableStateOf<AttachmentType?>(null) }
 
-    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_IMAGES
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
-    }
     val cameraPermission = Manifest.permission.CAMERA
-
-    val mediaPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) {
-        pendingAttachmentAction?.invoke()
-        pendingAttachmentAction = null
-    }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        app?.sessionManager?.setPickerActive(false)
         if (isGranted) {
             showQrScanner = true
-        }
-    }
-
-    val hasMediaPermission = remember(context) {
-        {
-            ContextCompat.checkSelfPermission(
-                context,
-                mediaPermission
-            ) == PackageManager.PERMISSION_GRANTED
         }
     }
 
@@ -734,23 +715,23 @@ fun AddEditItemScreen(
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
                             .clickable {
                                 showAttachmentTypeDialog = false
-                                val action = {
+                                if (!hasGrantedMediaConsent) {
+                                    pendingAttachmentType = AttachmentType.PHOTO
+                                    showMediaRationaleDialog = true
+                                } else {
                                     app?.sessionManager?.setPickerActive(true)
                                     try {
                                         photoPickerLauncher.launch(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                         )
                                     } catch (t: Throwable) {
-                                        app?.sessionManager?.setPickerActive(false)
-                                        // Fallback to general picker if PhotoPicker unavailable
-                                        filePickerLauncher.launch("image/*")
+                                        try {
+                                            filePickerLauncher.launch("image/*")
+                                        } catch (t2: Throwable) {
+                                            app?.sessionManager?.setPickerActive(false)
+                                            errorMessage = "Unable to open photo picker: ${t2.message}"
+                                        }
                                     }
-                                }
-                                if (hasMediaPermission()) {
-                                    action()
-                                } else {
-                                    pendingAttachmentAction = action
-                                    showMediaRationaleDialog = true
                                 }
                             }
                             .padding(14.dp)
@@ -789,12 +770,17 @@ fun AddEditItemScreen(
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
                             .clickable {
                                 showAttachmentTypeDialog = false
-                                app?.sessionManager?.setPickerActive(true)
-                                try {
-                                    filePickerLauncher.launch("*/*")
-                                } catch (t: Throwable) {
-                                    app?.sessionManager?.setPickerActive(false)
-                                    errorMessage = "Unable to launch file selector: ${t.message}"
+                                if (!hasGrantedMediaConsent) {
+                                    pendingAttachmentType = AttachmentType.DOCUMENT
+                                    showMediaRationaleDialog = true
+                                } else {
+                                    app?.sessionManager?.setPickerActive(true)
+                                    try {
+                                        filePickerLauncher.launch("*/*")
+                                    } catch (t: Throwable) {
+                                        app?.sessionManager?.setPickerActive(false)
+                                        errorMessage = "Unable to launch file selector: ${t.message}"
+                                    }
                                 }
                             }
                             .padding(14.dp)
@@ -836,20 +822,49 @@ fun AddEditItemScreen(
     }
 
     if (showMediaRationaleDialog) {
+        val isDoc = pendingAttachmentType == AttachmentType.DOCUMENT
         KryptxPermissionRationaleDialog(
-            icon = Icons.Default.Image,
-            title = "File & Media Storage Access",
-            description = "To select photos and documents for encrypted storage inside your Kryptx vault, Android requires media access. No files are ever shared or uploaded.",
+            icon = if (isDoc) Icons.Default.Description else Icons.Default.Image,
+            title = if (isDoc) "File & Document Access" else "Photo & Media Access",
+            description = if (isDoc) {
+                "To select PDFs, documents, or key files for encrypted storage inside your Kryptx vault, Kryptx will open the secure Android document selector. No files are ever shared or uploaded."
+            } else {
+                "To select photos and ID cards for encrypted storage inside your Kryptx vault, Kryptx will open the secure Android photo selector. No files are ever shared or uploaded."
+            },
             privacyGuarantee = "100% Offline: Files are encrypted with AES-256-GCM directly into the vault database and never leave this device.",
             confirmButtonText = "Grant Access",
             dismissButtonText = "Not Now",
             onConfirm = {
                 showMediaRationaleDialog = false
-                mediaPermissionLauncher.launch(mediaPermission)
+                hasGrantedMediaConsent = true
+                val isPhoto = pendingAttachmentType != AttachmentType.DOCUMENT
+                pendingAttachmentType = null
+                app?.sessionManager?.setPickerActive(true)
+                if (isPhoto) {
+                    try {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    } catch (t: Throwable) {
+                        try {
+                            filePickerLauncher.launch("image/*")
+                        } catch (t2: Throwable) {
+                            app?.sessionManager?.setPickerActive(false)
+                            errorMessage = "Unable to open photo picker: ${t2.message}"
+                        }
+                    }
+                } else {
+                    try {
+                        filePickerLauncher.launch("*/*")
+                    } catch (t: Throwable) {
+                        app?.sessionManager?.setPickerActive(false)
+                        errorMessage = "Unable to open document selector: ${t.message}"
+                    }
+                }
             },
             onDismiss = {
                 showMediaRationaleDialog = false
-                pendingAttachmentAction = null
+                pendingAttachmentType = null
             }
         )
     }
@@ -864,11 +879,22 @@ fun AddEditItemScreen(
             dismissButtonText = "Not Now",
             onConfirm = {
                 showCameraRationaleDialog = false
-                cameraPermissionLauncher.launch(cameraPermission)
+                app?.sessionManager?.setPickerActive(true)
+                try {
+                    cameraPermissionLauncher.launch(cameraPermission)
+                } catch (t: Throwable) {
+                    app?.sessionManager?.setPickerActive(false)
+                    errorMessage = "Unable to request camera permission: ${t.message}"
+                }
             },
             onDismiss = { showCameraRationaleDialog = false }
         )
     }
+}
+
+private enum class AttachmentType {
+    PHOTO,
+    DOCUMENT
 }
 
 private fun resolveFileName(context: Context, uri: Uri): String {
