@@ -15,8 +15,8 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 9
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -67,6 +67,9 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
             // Hard-fail if no release signing config is available. Shipping a release APK
             // signed with the debug keystore is a supply-chain footgun.
             val releaseSigningConfig = signingConfigs.findByName("release")
@@ -244,6 +247,9 @@ tasks.register<Exec>("buildRustEngine") {
         environment("ANDROID_NDK_HOME", ndkDir)
     }
     
+    // Support Android 15's 16 KB page sizes by forcing the linker to align ELF segments
+    environment("RUSTFLAGS", "-C link-arg=-Wl,-z,max-page-size=16384")
+    
     commandLine(
         "cargo", "ndk", "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86", "-t", "x86_64", 
         "-o", jniLibsDir.absolutePath, "build", "--release"
@@ -259,4 +265,20 @@ tasks.register<Copy>("copyApk") {
     include("*.apk")
     into(rootProject.layout.projectDirectory.dir("apk"))
     rename { "Kryptx-Security-Debug.apk" }
+}
+
+afterEvaluate {
+    tasks.named("packageReleaseBundle").configure {
+        doLast {
+            println("PACKAGE BUNDLE FINISHED. Outputs:")
+            outputs.files.forEach { println(" - $it (exists=${it.exists()})") }
+        }
+    }
+
+    tasks.named("signReleaseBundle").configure {
+        doLast {
+            println("SIGN BUNDLE FINISHED. Outputs:")
+            outputs.files.forEach { println(" - $it (exists=${it.exists()})") }
+        }
+    }
 }

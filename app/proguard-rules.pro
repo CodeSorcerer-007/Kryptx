@@ -13,29 +13,21 @@
     kotlinx.serialization.KSerializer serializer(...);
     <fields>;
 }
--keep class com.kryptx.app.core.model.** { *; }
 
 # Security & Biometrics
--keep class androidx.biometric.** { *; }
 -keep class * extends androidx.biometric.BiometricPrompt$AuthenticationCallback { *; }
--keep class com.kryptx.app.core.crypto.** { *; }
+-keep class com.kryptx.app.core.crypto.generated.** { *; }
 -keep class com.kryptx.app.core.security.** { *; }
 
-# Autofill Service & Field Detection
--keep class com.kryptx.app.system.autofill.** { *; }
+# Autofill Service
 -keep class * extends android.service.autofill.AutofillService { *; }
 
-# Compose Runtime & UI
--keep class androidx.compose.runtime.** { *; }
+# Compose UI
 -keepclassmembers class * {
     @androidx.compose.runtime.Composable *;
 }
 
-# ZXing QR Generator & Scanner
--keep class com.google.zxing.** { *; }
-
 # CameraX
--keep class androidx.camera.** { *; }
 -dontwarn androidx.camera.**
 
 # Prevent stripping of cryptographic algorithms

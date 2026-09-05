@@ -13,7 +13,7 @@
   <br>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-1.2.0-FFB300?style=for-the-badge" alt="Version 1.2.0" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.1.0-FFB300?style=for-the-badge" alt="Version 2.1.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
