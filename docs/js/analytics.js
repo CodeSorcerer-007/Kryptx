@@ -39,7 +39,7 @@
         const downloadAttr = target.getAttribute('download');
 
         if (href.endsWith('.apk') || downloadAttr !== null || target.classList.contains('btn-download')) {
-          this.track('download_apk', { version: 'v1.0.0', href: href });
+          this.track('download_apk', { version: 'v2.2.0', href: href });
         } else if (href.includes('github.com')) {
           this.track('github_link_click', { url: href });
         }

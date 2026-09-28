@@ -26,37 +26,36 @@ This file is encrypted with AES-256-GCM. Without your master password, it is unr
 
 ---
 
-## 2. Optional Network Features
+## 2. Zero-Network Architecture
 
-Kryptx is offline-first. The only optional network operation is:
+Kryptx is 100% air-gapped and offline. The Android manifest strictly omits `android.permission.INTERNET`.
 
-**Have I Been Pwned (HIBP) Breach Check**
-
-- Off by default. You must explicitly enable it in Security Settings.
-- Uses RFC k-Anonymity: only the first 5 characters of the SHA-1 hash of a password are sent to `api.pwnedpasswords.com`. The full password never leaves your device.
-- The HIBP API is operated by Troy Hunt. Their privacy policy is at [haveibeenpwned.com/Privacy](https://haveibeenpwned.com/Privacy).
-- Kryptx does not log, store, or forward the query prefix or any response data.
-
-No other network requests are made by Kryptx under any circumstances.
+* **No Server Connections:** The app cannot create sockets or communicate across the internet.
+* **Offline Breach Checking:** Password breach assessment is performed 100% locally on-device using a pre-compiled Bloom filter and offline entropy scoring.
+* **No Telemetry or Analytics:** No crash reports, tracking IDs, or diagnostic packets are generated or sent.
 
 ---
 
 ## 3. Permissions Used
 
+Kryptx requests only the minimal, hardware-isolated permissions strictly required for offline operation:
+
 | Permission | Purpose |
 |---|---|
-| `USE_BIOMETRIC` | Biometric fingerprint/face unlock |
-| `CAMERA` | QR code scanning for TOTP seed import |
-| `INTERNET` | Optional HIBP breach check only |
-| `ACCESS_NETWORK_STATE` | Check network availability before HIBP query |
-| `ACCESS_WIFI_STATE` | Detect local IP for P2P LAN sync |
-| `CHANGE_WIFI_MULTICAST_STATE` | P2P LAN sync device discovery |
+| `USE_BIOMETRIC` / `USE_FINGERPRINT` | Hardware-backed biometric authentication via Android Keystore / StrongBox TEE. |
+| `CAMERA` | Real-time optical QR code scanning for TOTP two-factor setup. Decoded in volatile RAM only; no photos or video are saved to disk. |
+| `NFC` | Contactless communication with FIDO2 / OATH-TOTP hardware security keys (e.g., YubiKey). |
+| `BIND_AUTOFILL_SERVICE` | Enables system-level credential autofill directly into apps and browsers when authenticated. |
+| `BIND_QUICK_SETTINGS_TILE` | Provides the optional Quick Settings tile to instantly lock the vault from the notification shade. |
 
 ---
 
-## 4. Local P2P Sync
+## 4. Local Encrypted Backup & Transfers
 
-The Local Sync feature transfers your encrypted vault data directly between two devices on the same local network. No data passes through any server or third-party service. The transfer is protected with a one-time AES-256-GCM session key and a 6-digit verification PIN. Kryptx never facilitates, logs, or relays this transfer.
+Vault export and transfer functions operate strictly via user-controlled file exports:
+* **`.kryptx` Encrypted Archives:** Protected with Argon2id and AES-256-GCM.
+* **Self-Contained HTML Companion:** Decrypted locally inside any desktop web browser using standard client-side WebCrypto.
+* **Zero Cloud Relay:** No intermediate servers, relay brokers, or cloud sync endpoints exist.
 
 ---
 

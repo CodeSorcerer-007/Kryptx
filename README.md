@@ -126,21 +126,56 @@ Organize your life into clean, dedicated categories:
 
 ## 🛠️ Building & Running Locally
 
-### Requirements
-*   Android Studio Ladybug (2024.2.1+) or Meerkat
-*   Java Development Kit (JDK) 21+
-*   Android SDK 36 (Android 16)
+### Prerequisites
+* **Android Studio**: Ladybug (2024.2.1+) or Meerkat
+* **Java Development Kit (JDK)**: OpenJDK 21 LTS (pinned via `org.gradle.java.home` in `gradle.properties`)
+* **Android SDK**: Platform 36 (Android 16), Build-Tools 36.0.0
+* **Gradle**: 9.1.0 (managed via `./gradlew`)
 
-### Run Unit Tests
+### Run Tests & Verification
 ```bash
+# Run all unit tests
 ./gradlew testDebugUnitTest
+
+# Run Android Lint static security analysis
+./gradlew lintDebug
 ```
 
 ### Build Debug APK
 ```bash
 ./gradlew assembleDebug
 ```
-The compiled APK will be output to `app/build/outputs/apk/debug/app-debug.apk` (and `Kryptx-debug.apk` in project root).
+* **Output Path**: `app/build/outputs/apk/debug/app-debug.apk`
+
+### Build Production Android App Bundle (.aab)
+To generate the production-ready, signed `.aab` for Google Play Console:
+```bash
+./gradlew bundleRelease
+```
+* **Output Bundle**: `app/build/outputs/bundle/release/app-release.aab`
+* **ProGuard/R8 Mapping**: `app/build/outputs/mapping/release/mapping.txt`
+
+### Build Standalone Signed Release APK
+```bash
+./gradlew assembleRelease
+```
+* **Output APK**: `app/build/outputs/apk/release/app-release.apk`
+
+---
+
+## 🚀 Google Play Console Production Readiness
+
+Kryptx is fully audited and optimized for Google Play Store publication:
+
+| Criteria | Status | Implementation Details |
+|:---|:---:|:---|
+| **Packaging** | ✅ Ready | Android App Bundle (`.aab`) with embedded Baseline Profiles (`baseline.prof`) |
+| **Target SDK** | ✅ Compliant | **API 36 (Android 16)** compliant with Google Play target SDK policy |
+| **Minimum SDK** | ✅ Wide Reach | **API 26 (Android 8.0)**, covering >95% of active global devices |
+| **64-bit Architecture** | ✅ Verified | Complete 64-bit multi-ABI coverage (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) |
+| **Code Shrinking & Security** | ✅ Hardened | R8 Full Mode enabled; dead code & unused resources stripped; `FLAG_SECURE` screen privacy |
+| **Data Safety Declaration** | ✅ Frictionless | Zero network permissions (`android.permission.INTERNET` omitted); 0 bytes collected or transmitted |
+| **Export Compliance** | ✅ Exempt | Mass-market consumer cryptographic exemption (EAR Category 5, Part 2 Note 4) |
 
 ---
 
