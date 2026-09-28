@@ -85,16 +85,20 @@ class VaultSessionManager(
     @Synchronized
     fun getVaultKey(): ByteArray? {
         if (!_isUnlocked.value) return null
-        return activeVaultKey
+        return activeVaultKey?.copyOf()
     }
 
     /**
      * Scoped execution helper that passes the active vault key to a block
-     * without exposing persistent references.
+     * without exposing persistent references and guarantees immediate zeroization.
      */
     inline fun <R> withVaultKey(block: (ByteArray) -> R): R? {
         val key = getVaultKey() ?: return null
-        return block(key)
+        return try {
+            block(key)
+        } finally {
+            SecureMemory.wipe(key)
+        }
     }
 
     /**

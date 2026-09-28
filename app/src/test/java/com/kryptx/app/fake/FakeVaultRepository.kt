@@ -233,6 +233,10 @@ class FakeVaultRepository : VaultRepository {
         )
     }
 
+    override fun invalidateAuditCache() {
+        // No-op for fake test repository
+    }
+
     private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
     override suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload> {

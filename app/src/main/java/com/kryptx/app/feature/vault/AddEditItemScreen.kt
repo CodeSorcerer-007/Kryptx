@@ -79,6 +79,8 @@ import com.kryptx.app.core.totp.UriParser
 import com.kryptx.app.feature.vault.editor.ApiKeyFormFields
 import com.kryptx.app.feature.vault.editor.CreditCardFormFields
 import com.kryptx.app.feature.vault.editor.CustomFieldsEditor
+import com.kryptx.app.feature.vault.editor.EncryptedAttachmentsSection
+import com.kryptx.app.feature.vault.editor.ExpirationPolicySection
 import com.kryptx.app.feature.vault.editor.IdentityFormFields
 import com.kryptx.app.feature.vault.editor.LoginFormFields
 import com.kryptx.app.feature.vault.editor.PasskeyFormFields
@@ -483,112 +485,24 @@ fun AddEditItemScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Password Rotation & Expiration
-            Text(
-                text = "PASSWORD ROTATION & EXPIRATION",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 6.dp)
+            ExpirationPolicySection(
+                rotationIntervalDays = rotationIntervalDays,
+                onIntervalSelected = { rotationIntervalDays = it }
             )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    null to "Never",
-                    30 to "30 Days",
-                    60 to "60 Days",
-                    90 to "90 Days",
-                    180 to "180 Days",
-                    365 to "1 Year"
-                ).forEach { (days, label) ->
-                    val isSelected = rotationIntervalDays == days
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(1.dp, if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                            .clickable { rotationIntervalDays = days }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Encrypted Document & Photo Attachments
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "ENCRYPTED ATTACHMENTS (${attachments.size})",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(onClick = { showAttachmentTypeDialog = true }) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = KryptxBlue)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add File / Photo", color = KryptxBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            if (attachments.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    attachments.forEachIndexed { index, att ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = att.fileName,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${att.formattedSize} • AES-256-GCM Encrypted",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        scope.launch {
-                                            viewModel.deleteAttachment(context, att)
-                                            attachments.removeAt(index)
-                                        }
-                                    }
-                                ) {
-                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
+            EncryptedAttachmentsSection(
+                attachments = attachments,
+                onAddClicked = { showAttachmentTypeDialog = true },
+                onDeleteClicked = { index, att ->
+                    scope.launch {
+                        viewModel.deleteAttachment(context, att)
+                        attachments.removeAt(index)
                     }
                 }
-            }
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 

@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
+import com.kryptx.app.feature.settings.dialogs.AutoLockTimeoutDialog
 import com.kryptx.app.feature.settings.dialogs.ChangeMasterPasswordDialog
+import com.kryptx.app.feature.settings.dialogs.ClipboardTimeoutDialog
 import com.kryptx.app.feature.settings.dialogs.DuressPinSetupDialog
 import com.kryptx.app.feature.settings.dialogs.PanicPinSetupDialog
 import androidx.compose.material3.AlertDialog
@@ -621,77 +623,19 @@ fun SecuritySettingsScreen(
 
     // Auto-lock Dialog
     if (showAutoLockDialog) {
-        AlertDialog(
-            onDismissRequest = { showAutoLockDialog = false },
-            title = { Text("Auto-Lock Timeout") },
-            text = {
-                Column {
-                    VaultSessionManager.AutoLockTimeout.entries.forEach { timeout ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setAutoLockSeconds(timeout.seconds)
-                                    showAutoLockDialog = false
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = timeout.seconds == autoLockSeconds,
-                                onClick = {
-                                    viewModel.setAutoLockSeconds(timeout.seconds)
-                                    showAutoLockDialog = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = KryptxBlue)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = timeout.label, fontSize = 14.sp)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAutoLockDialog = false }) { Text("Close", color = KryptxBlue) }
-            }
+        AutoLockTimeoutDialog(
+            currentTimeoutSeconds = autoLockSeconds,
+            onSelectTimeout = { viewModel.setAutoLockSeconds(it) },
+            onDismiss = { showAutoLockDialog = false }
         )
     }
 
     // Clipboard Timeout Dialog
     if (showClipboardDialog) {
-        AlertDialog(
-            onDismissRequest = { showClipboardDialog = false },
-            title = { Text("Clipboard Auto-Clear") },
-            text = {
-                Column {
-                    listOf(0 to "Never", 10 to "10 Seconds", 30 to "30 Seconds", 60 to "1 Minute", 300 to "5 Minutes").forEach { (sec, label) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setClipboardTimeout(sec)
-                                    showClipboardDialog = false
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = sec == clipboardTimeout,
-                                onClick = {
-                                    viewModel.setClipboardTimeout(sec)
-                                    showClipboardDialog = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = KryptxBlue)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = label, fontSize = 14.sp)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showClipboardDialog = false }) { Text("Close", color = KryptxBlue) }
-            }
+        ClipboardTimeoutDialog(
+            currentTimeoutSeconds = clipboardTimeout,
+            onSelectTimeout = { viewModel.setClipboardTimeout(it) },
+            onDismiss = { showClipboardDialog = false }
         )
     }
 
@@ -765,38 +709,6 @@ fun SecuritySettingsScreen(
                 )
             }
         )
-    }
-}
-
-@Composable
-fun SettingItemCard(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
-            .bounceClick(scaleDown = 0.98f, onClick = onClick)
-            .padding(16.dp)
-    ) {
-        Column {
-            Text(
-                text = title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 

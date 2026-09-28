@@ -72,6 +72,13 @@ class KryptxApplication : Application(), KryptxDependencies {
         memoryWatchdog = com.kryptx.app.core.security.CryptographicMemoryWatchdog(this, sessionManager).apply { register() }
         activityLogManager = ActivityLogManager(this)
 
+        // Load offline Bloom filter for breach detection if present in assets
+        try {
+            assets.open("breach_filter.bin").use { inputStream ->
+                com.kryptx.app.core.security.BreachChecker.loadBloomFilterFromStream(inputStream)
+            }
+        } catch (_: Throwable) {}
+
         // Set initial auto-lock configuration from saved preferences
         val autoLockSecs = preferencesRepository.autoLockSeconds.value
         val timeoutEnum = VaultSessionManager.AutoLockTimeout.entries.firstOrNull { it.seconds == autoLockSecs }

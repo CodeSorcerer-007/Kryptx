@@ -105,6 +105,19 @@ object RootDetector {
             }
         } catch (_: Throwable) {}
 
+        // 5c. ptrace self-check — a debugger or Frida attaches via ptrace(PTRACE_ATTACH).
+        // Check /proc/self/status for TracerPid != 0
+        try {
+            val statusFile = File("/proc/self/status")
+            if (statusFile.exists()) {
+                val tracerLine = statusFile.readLines().find { it.startsWith("TracerPid:") }
+                val tracerPid = tracerLine?.split(":")?.getOrNull(1)?.trim()?.toIntOrNull() ?: 0
+                if (tracerPid != 0) {
+                    indicators.add("Active ptrace debugger detected (TracerPid: $tracerPid)")
+                }
+            }
+        } catch (_: Throwable) {}
+
         // 6. Check emulator properties safely with null checks for JVM testing
         val fingerprint = Build.FINGERPRINT.orEmpty()
         val model = Build.MODEL.orEmpty()

@@ -1,83 +1,8 @@
 package com.kryptx.app.core.database
 
-import com.kryptx.app.core.model.EncryptedBackupPayload
-import com.kryptx.app.core.model.KryptxResult
-import com.kryptx.app.core.model.SecurityAuditReport
-import com.kryptx.app.core.model.VaultItem
-import kotlinx.coroutines.flow.Flow
-import javax.crypto.Cipher
-interface VaultRepository {
-    fun hasVault(): Boolean
-    fun isBiometricsConfigured(): Boolean
-
-    suspend fun setupNewVault(masterPassword: CharArray): KryptxResult<Unit>
-    suspend fun unlockWithPassword(masterPassword: CharArray): KryptxResult<Unit>
-    suspend fun setupBiometrics(): KryptxResult<Unit>
-    suspend fun setupBiometricsWithCipher(cipher: Cipher): KryptxResult<Unit>
-    suspend fun unlockWithBiometrics(): KryptxResult<Unit>
-    suspend fun unlockWithBiometricCipher(cipher: Cipher): KryptxResult<Unit>
-    fun getBiometricDecryptCipher(): Cipher?
-    fun getBiometricEncryptCipher(): Cipher?
-    suspend fun disableBiometrics()
-    suspend fun changeMasterPassword(currentPassword: CharArray, newPassword: CharArray): KryptxResult<Unit>
-    suspend fun rotateVaultEncryptionKey(currentMasterPassword: CharArray): KryptxResult<Unit>
-
-    fun hasDuressPassword(): Boolean
-    suspend fun setupDuressPassword(duressPassword: CharArray): KryptxResult<Unit>
-    suspend fun removeDuressPassword()
-
-    fun hasPanicPassword(): Boolean
-    suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit>
-    suspend fun removePanicPassword()
-    suspend fun triggerPanicSelfDestruct()
-
-    fun isHardwareKeyEnrolled(): Boolean
-    fun getHardwareKeyLabel(): String?
-    fun getHardwareKeyChallenge(): ByteArray?
-    fun getHardwareKeyUidHash(): String?
-    suspend fun enrollHardwareKey(label: String, uidHash: String, challenge: ByteArray, hardwareSecret: ByteArray, masterPassword: CharArray): KryptxResult<Unit>
-    suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit>
-    suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit>
-
-    fun getActiveVaultId(): String
-    suspend fun switchVault(vaultId: String): KryptxResult<Unit>
-
-    fun getItems(): Flow<List<VaultItem>>
-    fun getTrashItems(): Flow<List<VaultItem>>
-    suspend fun getItemById(id: String): VaultItem?
-    suspend fun saveItem(item: VaultItem): KryptxResult<Unit>
-    suspend fun moveToTrash(itemId: String): KryptxResult<Unit>
-    suspend fun restoreFromTrash(itemId: String): KryptxResult<Unit>
-    suspend fun emptyTrash(): KryptxResult<Int>
-    suspend fun deleteItem(itemId: String): KryptxResult<Unit>
-    suspend fun toggleFavorite(itemId: String): KryptxResult<Unit>
-    suspend fun recordItemUsage(itemId: String): KryptxResult<Unit>
-
-    suspend fun computeSecurityAudit(): SecurityAuditReport
-    suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload>
-    suspend fun exportPlaintextJson(): KryptxResult<String>
-    suspend fun importEncryptedBackup(payload: EncryptedBackupPayload, importPassword: CharArray): KryptxResult<Int>
-    suspend fun importItems(items: List<VaultItem>): KryptxResult<Int>
-    suspend fun resetVault()
-    fun getDatabaseDiagnostics(): KryptxDatabaseHelper.DatabaseDiagnostics
-    suspend fun vacuumDatabase(): KryptxResult<Unit>
-
-    // PQC Identity Key Pair (ML-KEM-768) — generated at vault setup, used for backup encapsulation
-    fun getPqcIdentityPublicKey(): ByteArray?
-    suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit>
-
-    // Passkey (FIDO2 / WebAuthn) registration and assertion
-    suspend fun registerPasskey(
-        rpId: String,
-        rpName: String,
-        userHandle: String,
-        userName: String,
-        challenge: ByteArray
-    ): KryptxResult<VaultItem>
-
-    suspend fun assertPasskey(
-        item: VaultItem,
-        clientDataJsonBytes: ByteArray,
-        rpId: String
-    ): KryptxResult<com.kryptx.app.core.crypto.PasskeyEngine.PasskeyAssertionSignature>
-}
+/**
+ * Unified interface for Kryptx Vault operations, composing focused domain
+ * interfaces for Authentication & Keys, CRUD Data Storage, Trash Lifecycle,
+ * and Security Auditing in adherence to the Interface Segregation Principle.
+ */
+interface VaultRepository : VaultAuthRepository, VaultCrudRepository, VaultTrashRepository, VaultAuditRepository

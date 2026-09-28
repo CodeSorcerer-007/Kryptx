@@ -147,4 +147,316 @@ data class VaultItem(
             ItemType.IDENTITY -> identityIdNumber
             ItemType.CUSTOM -> customFields.firstOrNull { it.isSecured }?.value ?: ""
         }
+
+    /**
+     * Strongly-typed credential payload representing type-specific secret fields.
+     */
+    val payload: VaultPayload
+        get() = when (type) {
+            ItemType.LOGIN -> VaultPayload.Login(
+                username = username,
+                password = password,
+                website = website,
+                totpSecret = totpSecret,
+                passwordHistory = passwordHistory
+            )
+            ItemType.PASSKEY -> VaultPayload.Passkey(
+                rpId = passkeyRpId,
+                userHandle = passkeyUserHandle,
+                credentialId = passkeyCredentialId,
+                algorithm = passkeyAlgorithm,
+                privateKeyCiphertext = passkeyPrivateKeyCiphertext,
+                publicKeyCoseBase64 = passkeyPublicKeyCoseBase64,
+                signCount = passkeySignCount
+            )
+            ItemType.CREDIT_CARD -> VaultPayload.CreditCard(
+                cardholderName = cardholderName,
+                cardNumber = cardNumber,
+                cardExpiry = cardExpiry,
+                cardCvv = cardCvv,
+                cardPin = cardPin
+            )
+            ItemType.IDENTITY -> VaultPayload.Identity(
+                fullName = identityFullName,
+                email = identityEmail,
+                phone = identityPhone,
+                address = identityAddress,
+                dob = identityDob,
+                idNumber = identityIdNumber
+            )
+            ItemType.WIFI -> VaultPayload.Wifi(
+                ssid = wifiSsid,
+                password = wifiPassword,
+                securityType = wifiSecurityType
+            )
+            ItemType.API_KEY -> VaultPayload.ApiKey(
+                key = apiKey,
+                secret = apiSecret,
+                endpoint = apiEndpoint
+            )
+            ItemType.SECURE_NOTE -> VaultPayload.SecureNote(
+                content = notes
+            )
+            ItemType.CUSTOM -> VaultPayload.Custom(
+                fields = customFields
+            )
+        }
+
+    /**
+     * Converts this item into an exhaustive algebraic sum type [TypedVaultItem].
+     */
+    fun asTyped(): TypedVaultItem = when (val p = payload) {
+        is VaultPayload.Login -> TypedVaultItem.Login(this, p)
+        is VaultPayload.Passkey -> TypedVaultItem.Passkey(this, p)
+        is VaultPayload.CreditCard -> TypedVaultItem.CreditCard(this, p)
+        is VaultPayload.Identity -> TypedVaultItem.Identity(this, p)
+        is VaultPayload.Wifi -> TypedVaultItem.Wifi(this, p)
+        is VaultPayload.ApiKey -> TypedVaultItem.ApiKey(this, p)
+        is VaultPayload.SecureNote -> TypedVaultItem.SecureNote(this, p)
+        is VaultPayload.BankAccount -> TypedVaultItem.BankAccount(this, p)
+        is VaultPayload.CryptoWallet -> TypedVaultItem.CryptoWallet(this, p)
+        is VaultPayload.SshKey -> TypedVaultItem.SshKey(this, p)
+        is VaultPayload.Custom -> TypedVaultItem.Custom(this, p)
+    }
+
+    companion object {
+        /**
+         * Factory function to instantiate a [VaultItem] directly from a strongly-typed [VaultPayload].
+         */
+        fun fromPayload(
+            title: String,
+            payload: VaultPayload,
+            id: String = UUID.randomUUID().toString(),
+            isFavorite: Boolean = false,
+            tags: List<String> = emptyList(),
+            notes: String = "",
+            customFields: List<CustomField> = emptyList(),
+            attachments: List<VaultAttachment> = emptyList(),
+            expiresAt: Long? = null,
+            rotationIntervalDays: Int? = null,
+            deletedAt: Long? = null,
+            createdAt: Long = System.currentTimeMillis(),
+            updatedAt: Long = System.currentTimeMillis(),
+            lastUsedAt: Long = System.currentTimeMillis()
+        ): VaultItem = when (payload) {
+            is VaultPayload.Login -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.LOGIN,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = customFields,
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt,
+                username = payload.username,
+                password = payload.password,
+                website = payload.website,
+                totpSecret = payload.totpSecret,
+                passwordHistory = payload.passwordHistory
+            )
+            is VaultPayload.Passkey -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.PASSKEY,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = customFields,
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt,
+                passkeyRpId = payload.rpId,
+                passkeyUserHandle = payload.userHandle,
+                passkeyCredentialId = payload.credentialId,
+                passkeyAlgorithm = payload.algorithm,
+                passkeyPrivateKeyCiphertext = payload.privateKeyCiphertext,
+                passkeyPublicKeyCoseBase64 = payload.publicKeyCoseBase64,
+                passkeySignCount = payload.signCount
+            )
+            is VaultPayload.CreditCard -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.CREDIT_CARD,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = customFields,
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt,
+                cardholderName = payload.cardholderName,
+                cardNumber = payload.cardNumber,
+                cardExpiry = payload.cardExpiry,
+                cardCvv = payload.cardCvv,
+                cardPin = payload.cardPin
+            )
+            is VaultPayload.Identity -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.IDENTITY,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = customFields,
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt,
+                identityFullName = payload.fullName,
+                identityEmail = payload.email,
+                identityPhone = payload.phone,
+                identityAddress = payload.address,
+                identityDob = payload.dob,
+                identityIdNumber = payload.idNumber
+            )
+            is VaultPayload.Wifi -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.WIFI,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = customFields,
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt,
+                wifiSsid = payload.ssid,
+                wifiPassword = payload.password,
+                wifiSecurityType = payload.securityType
+            )
+            is VaultPayload.ApiKey -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.API_KEY,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = customFields,
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt,
+                apiKey = payload.key,
+                apiSecret = payload.secret,
+                apiEndpoint = payload.endpoint
+            )
+            is VaultPayload.SecureNote -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.SECURE_NOTE,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = payload.content.ifBlank { notes },
+                customFields = customFields,
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt
+            )
+            is VaultPayload.BankAccount -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.CUSTOM,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = listOf(
+                    CustomField(id = UUID.randomUUID().toString(), label = "Bank Name", value = payload.bankName),
+                    CustomField(id = UUID.randomUUID().toString(), label = "Account Number", value = payload.accountNumber, isSecured = true),
+                    CustomField(id = UUID.randomUUID().toString(), label = "Routing Number", value = payload.routingNumber),
+                    CustomField(id = UUID.randomUUID().toString(), label = "SWIFT / BIC", value = payload.swiftBic)
+                ),
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt
+            )
+            is VaultPayload.CryptoWallet -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.CUSTOM,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = listOf(
+                    CustomField(id = UUID.randomUUID().toString(), label = "Address", value = payload.address),
+                    CustomField(id = UUID.randomUUID().toString(), label = "Seed Phrase", value = payload.seedPhrase, isSecured = true),
+                    CustomField(id = UUID.randomUUID().toString(), label = "Network", value = payload.network)
+                ),
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt
+            )
+            is VaultPayload.SshKey -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.CUSTOM,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = listOf(
+                    CustomField(id = UUID.randomUUID().toString(), label = "Public Key", value = payload.publicKey),
+                    CustomField(id = UUID.randomUUID().toString(), label = "Private Key", value = payload.privateKey, isSecured = true),
+                    CustomField(id = UUID.randomUUID().toString(), label = "Host", value = payload.host)
+                ),
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt
+            )
+            is VaultPayload.Custom -> VaultItem(
+                id = id,
+                title = title,
+                type = ItemType.CUSTOM,
+                isFavorite = isFavorite,
+                tags = tags,
+                notes = notes,
+                customFields = payload.fields.ifEmpty { customFields },
+                attachments = attachments,
+                expiresAt = expiresAt,
+                rotationIntervalDays = rotationIntervalDays,
+                deletedAt = deletedAt,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                lastUsedAt = lastUsedAt
+            )
+        }
+    }
 }

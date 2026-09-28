@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    id("jacoco")
 }
 
 android {
@@ -15,7 +16,7 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
+        versionCode = 10
         versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -28,7 +29,8 @@ android {
         }
     }
 
-    val releaseKeyStore = file("kryptx-release-key.jks")
+    val releaseKeyStore = System.getenv("KRYPTX_KEYSTORE_FILE")?.let { file(it) }
+        ?: file("kryptx-release-key.jks")
     val keyStorePassword = System.getenv("KRYPTX_KEYSTORE_PASSWORD")
         ?: localProperties.getProperty("kryptx.keystore.password")
         ?: (project.findProperty("kryptx.keystore.password") as? String)
@@ -163,8 +165,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
-    // Anti-Tampering
-    implementation("com.google.android.play:integrity:1.3.0")
+    // Anti-Tampering (Play Integrity removed: requires network, incompatible with zero-network design; RootDetector performs local hardware Keystore attestation)
 
     // Navigation
     implementation(libs.androidx.navigation3.ui)
@@ -281,4 +282,36 @@ afterEvaluate {
             outputs.files.forEach { println(" - $it (exists=${it.exists()})") }
         }
     }
+}
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    group = "Reporting"
+    description = "Generate Jacoco coverage reports for debug unit tests"
+    dependsOn("testDebugUnitTest")
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+        exclude(
+            "**/R.class",
+            "**/R$*.class",
+            "**/BuildConfig.*",
+            "**/Manifest*.*",
+            "**/*Test*.*",
+            "android/**/*.*",
+            "**/ui/**"
+        )
+    }
+    val mainSrc = "${project.projectDir}/src/main/java"
+
+    sourceDirectories.setFrom(files(mainSrc))
+    classDirectories.setFrom(files(debugTree))
+    executionData.setFrom(fileTree(layout.buildDirectory.get()) {
+        include(
+            "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
+            "jacoco/testDebugUnitTest.exec"
+        )
+    })
 }

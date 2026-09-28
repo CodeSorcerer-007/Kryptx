@@ -32,7 +32,11 @@ class ClipboardSecurityManager(
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     private val scope = CoroutineScope(Dispatchers.Default)
     private var clearJob: Job? = null
-    private var lastCopiedText: String? = null
+    private var lastCopiedHash: ByteArray? = null
+
+    private fun sha256(str: String): ByteArray {
+        return java.security.MessageDigest.getInstance("SHA-256").digest(str.toByteArray(Charsets.UTF_8))
+    }
 
     private val _remainingSeconds = MutableStateFlow(0)
     override val remainingSeconds: StateFlow<Int> = _remainingSeconds.asStateFlow()
@@ -48,6 +52,7 @@ class ClipboardSecurityManager(
     ) {
         if (clipboardManager == null) return
 
+        val hash = sha256(text)
         try {
             val clip = ClipData.newPlainText(label, text).apply {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -58,7 +63,7 @@ class ClipboardSecurityManager(
             }
 
             clipboardManager.setPrimaryClip(clip)
-            lastCopiedText = text
+            lastCopiedHash = hash
         } catch (_: Exception) {
             return
         }
@@ -75,7 +80,7 @@ class ClipboardSecurityManager(
                 if (alarmManager != null) {
                     val intent = Intent(context, ClipboardClearReceiver::class.java).apply {
                         action = "com.kryptx.app.ACTION_CLEAR_CLIPBOARD"
-                        putExtra("EXTRA_TEXT_TO_CLEAR", text)
+                        putExtra("EXTRA_HASH_TO_CLEAR", hash)
                     }
                     val pendingIntent = PendingIntent.getBroadcast(
                         context, 
@@ -132,15 +137,20 @@ class ClipboardSecurityManager(
         try {
             val currentClip = clipboardManager.primaryClip
             if (currentClip != null && currentClip.itemCount > 0) {
-                val currentText = currentClip.getItemAt(0).text?.toString()
-                if (currentText == text || currentText == lastCopiedText) {
+                val currentText = currentClip.getItemAt(0).text?.toString() ?: ""
+                val currentHash = sha256(currentText)
+                val targetHash = sha256(text)
+                val matches = java.security.MessageDigest.isEqual(currentHash, targetHash) ||
+                        (lastCopiedHash != null && java.security.MessageDigest.isEqual(currentHash, lastCopiedHash))
+                if (matches) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         clipboardManager.clearPrimaryClip()
                     } else {
                         val emptyClip = ClipData.newPlainText("", "")
                         clipboardManager.setPrimaryClip(emptyClip)
                     }
-                    lastCopiedText = null
+                    lastCopiedHash?.fill(0)
+                    lastCopiedHash = null
                 }
             }
         } catch (_: Exception) {}
@@ -150,6 +160,24 @@ class ClipboardSecurityManager(
      * Immediately clears any Kryptx-copied secret from clipboard.
      */
     override fun clearNow() {
-        lastCopiedText?.let { clearIfMatching(it) }
+        if (clipboardManager == null) return
+        try {
+            val currentClip = clipboardManager.primaryClip
+            if (currentClip != null && currentClip.itemCount > 0) {
+                val currentText = currentClip.getItemAt(0).text?.toString() ?: ""
+                val currentHash = sha256(currentText)
+                if (lastCopiedHash != null && java.security.MessageDigest.isEqual(currentHash, lastCopiedHash)) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        clipboardManager.clearPrimaryClip()
+                    } else {
+                        val emptyClip = ClipData.newPlainText("", "")
+                        clipboardManager.setPrimaryClip(emptyClip)
+                    }
+                }
+            }
+        } catch (_: Exception) {} finally {
+            lastCopiedHash?.fill(0)
+            lastCopiedHash = null
+        }
     }
 }

@@ -43,6 +43,42 @@ object BreachChecker {
         "freedom", "whatever", "superstar", "champion", "winner", "matrix", "hacker", "galaxy"
     )
 
+    private var bloomFilter: BloomBreachFilter? = null
+
+    // Horizontal, vertical, and diagonal keyboard walks
+    private val KEYBOARD_WALKS = listOf(
+        "1234567890", "0987654321",
+        "qwertyuiop", "poiuytrewq",
+        "asdfghjkl", "lkjhgfdsa",
+        "zxcvbnm", "mnbvcxz",
+        "1qaz", "2wsx", "3edc", "4rfv", "5tgb", "6yhn", "7ujm",
+        "zaq1", "xsw2", "cde3", "vfr4", "bgt5", "nhy6", "mju7",
+        "qweasd", "asdzxc"
+    )
+
+    // Calendar date pattern: MMDDYYYY, DDMMYYYY, YYYYMMDD
+    private val DATE_REGEX = Regex(
+        "^((0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])|(0[1-9]|[12]\\d|3[01])(0[1-9]|1[0-2]))(19|20)\\d{2}$|^(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])$"
+    )
+
+    /**
+     * Normalizes l33tspeak substitutions back to standard alphabetical characters.
+     */
+    fun normalizeLeet(s: String): String = s
+        .replace("@", "a").replace("3", "e").replace("1", "i")
+        .replace("0", "o").replace("5", "s").replace("7", "t")
+        .replace("$", "s").replace("!", "i")
+
+    fun initializeBloomFilter(filter: BloomBreachFilter) {
+        this.bloomFilter = filter
+    }
+
+    fun loadBloomFilterFromStream(inputStream: java.io.InputStream) {
+        try {
+            this.bloomFilter = BloomBreachFilter.fromStream(inputStream)
+        } catch (_: Throwable) {}
+    }
+
     data class BreachStatus(
         val isBreached: Boolean,
         val breachCount: Int,
@@ -51,7 +87,7 @@ object BreachChecker {
 
     /**
      * Checks if a password matches known compromised credentials using instant offline
-     * dictionary and structural heuristics with 0 network queries.
+     * dictionary, bloom filter, and structural heuristics with 0 network queries.
      */
     suspend fun checkPassword(
         password: String
@@ -73,10 +109,19 @@ object BreachChecker {
      * Internal offline pattern and dictionary inspector.
      */
     fun checkOffline(password: String): BreachStatus {
-        val cleanLower = password.lowercase().trim()
+        if (password.isBlank()) {
+            return BreachStatus(
+                isBreached = false,
+                breachCount = 0,
+                source = "Empty"
+            )
+        }
 
-        // Direct dictionary match
-        if (OFFLINE_COMPROMISED_PASSWORDS.contains(cleanLower)) {
+        val cleanLower = password.lowercase().trim()
+        val leetClean = normalizeLeet(cleanLower)
+
+        // 1. Direct dictionary match
+        if (OFFLINE_COMPROMISED_PASSWORDS.contains(cleanLower) || OFFLINE_COMPROMISED_PASSWORDS.contains(leetClean)) {
             return BreachStatus(
                 isBreached = true,
                 breachCount = 100_000,
@@ -84,7 +129,18 @@ object BreachChecker {
             )
         }
 
-        // Trivial repeated single character (e.g. 'aaaaaa', '11111111')
+        // 2. Probabilistic Bloom Filter check (top 100K+ passwords)
+        bloomFilter?.let { filter ->
+            if (filter.mightContain(cleanLower) || filter.mightContain(leetClean)) {
+                return BreachStatus(
+                    isBreached = true,
+                    breachCount = 100_000,
+                    source = "Offline Bloom Filter Match"
+                )
+            }
+        }
+
+        // 3. Trivial repeated single character (e.g. 'aaaaaa', '11111111')
         if (cleanLower.length >= 4 && cleanLower.all { it == cleanLower[0] }) {
             return BreachStatus(
                 isBreached = true,
@@ -93,7 +149,7 @@ object BreachChecker {
             )
         }
 
-        // Short purely numeric sequence
+        // 4. Short purely numeric sequence
         if (cleanLower.matches(Regex("^[0-9]{1,6}$"))) {
             return BreachStatus(
                 isBreached = true,
@@ -102,7 +158,31 @@ object BreachChecker {
             )
         }
 
-        // Common year combinations (e.g. 1970-2030 at start or end)
+        // 5. Calendar date pattern (MMDDYYYY, DDMMYYYY, YYYYMMDD)
+        if (cleanLower.matches(DATE_REGEX)) {
+            return BreachStatus(
+                isBreached = true,
+                breachCount = 40_000,
+                source = "Predictable Date Pattern"
+            )
+        }
+
+        // 6. Keyboard walk detection (horizontal, vertical, diagonal)
+        if (cleanLower.length >= 4) {
+            for (walk in KEYBOARD_WALKS) {
+                if (walk.contains(cleanLower) || walk.contains(cleanLower.take(4)) ||
+                    walk.contains(leetClean) || walk.contains(leetClean.take(4))
+                ) {
+                    return BreachStatus(
+                        isBreached = true,
+                        breachCount = 75_000,
+                        source = "Keyboard Walk Pattern"
+                    )
+                }
+            }
+        }
+
+        // 7. Common year combinations (e.g. 1970-2030 at start or end)
         if (cleanLower.matches(Regex("^(19[5-9][0-9]|20[0-3][0-9])[a-z]{1,4}$")) ||
             cleanLower.matches(Regex("^[a-z]{1,4}(19[5-9][0-9]|20[0-3][0-9])$"))
         ) {

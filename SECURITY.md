@@ -4,8 +4,9 @@
 
 | Version | Supported          | Security State |
 | ------- | ------------------ | -------------- |
-| 1.1.x   | :white_check_mark: | Active Production Release |
-| 1.0.x   | :white_check_mark: | Maintenance / Legacy |
+| 2.2.x   | :white_check_mark: | Active Production Release |
+| 2.1.x   | :white_check_mark: | Security Patches Only |
+| < 2.0   | :x:                | End of Life |
 
 ---
 

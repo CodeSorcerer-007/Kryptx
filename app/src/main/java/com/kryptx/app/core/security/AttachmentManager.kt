@@ -94,15 +94,18 @@ class AttachmentManager(
                 fos.write(headerBuf.array())
 
                 var bytesRead: Int
+                var chunkIndex = 0
                 while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                     totalPlainBytes += bytesRead
                     val chunkPlaintext = if (bytesRead == CHUNK_SIZE) buffer else buffer.copyOf(bytesRead)
-                    val encryptedChunk = CryptoEngine.encrypt(chunkPlaintext, activeVek)
+                    val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
+                    val encryptedChunk = CryptoEngine.encrypt(chunkPlaintext, activeVek, aad)
 
                     // Write 4-byte chunk length + chunk bytes
                     val lenBuf = ByteBuffer.allocate(4).putInt(encryptedChunk.size).array()
                     fos.write(lenBuf)
                     fos.write(encryptedChunk)
+                    chunkIndex++
                 }
             }
 
@@ -161,6 +164,7 @@ class AttachmentManager(
                     return@withContext true
                 }
 
+                var chunkIndex = 0
                 val lenBuf = ByteArray(4)
                 while (fis.read(lenBuf) == 4) {
                     val chunkLen = ByteBuffer.wrap(lenBuf).int
@@ -175,9 +179,15 @@ class AttachmentManager(
                     }
                     if (readSoFar != chunkLen) return@withContext false
 
-                    val decryptedChunk = CryptoEngine.decrypt(encryptedChunk, activeVek)
+                    val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
+                    val decryptedChunk = try {
+                        CryptoEngine.decrypt(encryptedChunk, activeVek, aad)
+                    } catch (_: Throwable) {
+                        CryptoEngine.decrypt(encryptedChunk, activeVek, null)
+                    }
                     outputStream.write(decryptedChunk)
                     SecureMemory.wipe(decryptedChunk)
+                    chunkIndex++
                 }
             }
             true

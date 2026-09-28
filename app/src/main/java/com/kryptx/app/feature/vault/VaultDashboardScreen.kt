@@ -136,53 +136,19 @@ fun VaultDashboardScreen(
         },
         topBar = {
             if (isSelectionMode) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.IconButton(onClick = { viewModel.clearSelection() }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Cancel Selection",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Text(
-                        text = "${selectedItemIds.size} Selected",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    androidx.compose.material3.TextButton(onClick = { viewModel.selectAllFiltered() }) {
-                        Text("Select All", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    androidx.compose.material3.IconButton(onClick = { viewModel.batchToggleFavorite() }) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Batch Favorite",
-                            tint = com.kryptx.app.core.designsystem.theme.KryptxAmber
-                        )
-                    }
-                    androidx.compose.material3.IconButton(
-                        onClick = {
-                            viewModel.batchMoveToTrash { count ->
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("$count items moved to Trash")
-                                }
+                VaultSelectionTopBar(
+                    selectedCount = selectedItemIds.size,
+                    onClearSelection = { viewModel.clearSelection() },
+                    onSelectAll = { viewModel.selectAllFiltered() },
+                    onBatchToggleFavorite = { viewModel.batchToggleFavorite() },
+                    onBatchMoveToTrash = {
+                        viewModel.batchMoveToTrash { count ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar("$count items moved to Trash")
                             }
                         }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Batch Move to Trash",
-                            tint = KryptxRed
-                        )
                     }
-                }
+                )
             }
         },
         floatingActionButton = {
@@ -236,87 +202,10 @@ fun VaultDashboardScreen(
                 if (!isAutofillNudgeDismissed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     item {
                         Spacer(modifier = Modifier.height(10.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(KryptxBlue.copy(alpha = 0.10f))
-                                .border(1.dp, KryptxBlue.copy(alpha = 0.30f), RoundedCornerShape(16.dp))
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(KryptxBlue.copy(alpha = 0.20f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = null,
-                                        tint = KryptxBrightBlue,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Enable 1-Tap Autofill",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Fill passwords into Chrome and apps instantly.",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(KryptxBlue)
-                                        .clickable {
-                                            try {
-                                                val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
-                                                    data = Uri.parse("package:${context.packageName}")
-                                                }
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                try {
-                                                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
-                                                } catch (_: Exception) {}
-                                            }
-                                        }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "Enable",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(4.dp))
-                                androidx.compose.material3.IconButton(
-                                    onClick = { viewModel.dismissAutofillNudge() },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                        }
+                        AutofillNudgeCard(
+                            context = context,
+                            onDismiss = { viewModel.dismissAutofillNudge() }
+                        )
                     }
                 }
 
@@ -324,59 +213,9 @@ fun VaultDashboardScreen(
                     // Empty Vault Focused Hero Experience
                     item {
                         Spacer(modifier = Modifier.height(28.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f))
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(68.dp)
-                                        .clip(CircleShape)
-                                        .background(KryptxBlue.copy(alpha = 0.15f))
-                                        .border(1.dp, KryptxBlue.copy(alpha = 0.35f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Shield,
-                                        contentDescription = null,
-                                        tint = KryptxBlue,
-                                        modifier = Modifier.size(34.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Your Vault is Empty",
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Safeguard your logins, credit cards, notes, and 2FA tokens with 100% offline zero-network security.",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    lineHeight = 18.sp
-                                )
-                                Spacer(modifier = Modifier.height(22.dp))
-                                KryptxPrimaryButton(
-                                    text = "Add Your First Password",
-                                    containerColor = KryptxBlue,
-                                    contentColor = Color.White,
-                                    onClick = onNavigateToAddItem
-                                )
-                            }
-                        }
+                        VaultEmptyHeroCard(
+                            onNavigateToAddItem = onNavigateToAddItem
+                        )
                     }
                 } else {
                     // 2. Search Bar Capsule with inline expandable instant search
@@ -399,51 +238,10 @@ fun VaultDashboardScreen(
             if (securityReport != null && securityReport!!.overallScore < 90) {
                 item {
                     Spacer(modifier = Modifier.height(14.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(KryptxRed.copy(alpha = 0.08f))
-                            .border(1.dp, KryptxRed.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                            .clickable { onNavigateToSecurityCenter() }
-                            .padding(14.dp)
-                            .semantics(mergeDescendants = true) {
-                                role = Role.Button
-                                contentDescription = "Action Required. ${securityReport!!.issues.size} security issues found in your vault. Double tap to review in Security Center."
-                            }
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(KryptxRed.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.WarningAmber,
-                                    contentDescription = null,
-                                    tint = KryptxRed,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Action Required",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = KryptxRed
-                                )
-                                Text(
-                                    text = "${securityReport!!.issues.size} security issues found in your vault",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+                    VaultSecurityAlertCard(
+                        report = securityReport!!,
+                        onClick = onNavigateToSecurityCenter
+                    )
                 }
             }
 

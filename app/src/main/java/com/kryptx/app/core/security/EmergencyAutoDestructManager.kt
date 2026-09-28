@@ -116,7 +116,8 @@ class EmergencyAutoDestructManager(
     }
 
     /**
-     * Overwrites a file on flash storage with random bytes before deletion to frustrate data recovery.
+     * Overwrites a file on flash storage with 3 passes (random -> zeros -> random)
+     * and forces physical hardware sync (fsync) before truncation and deletion.
      */
     private fun secureOverwriteFile(file: File) {
         try {
@@ -124,19 +125,26 @@ class EmergencyAutoDestructManager(
             val length = file.length()
             if (length <= 0) return
 
-            file.outputStream().use { fos ->
-                val bufferSize = 4096.coerceAtMost(length.toInt().coerceAtLeast(1))
-                val buffer = ByteArray(bufferSize)
-                var written = 0L
-                while (written < length) {
-                    secureRandom.nextBytes(buffer)
-                    val toWrite = (length - written).coerceAtMost(bufferSize.toLong()).toInt()
-                    fos.write(buffer, 0, toWrite)
-                    written += toWrite
+            // 3-pass overwrite: random -> zeros -> random
+            repeat(3) { pass ->
+                java.io.FileOutputStream(file).use { fos ->
+                    val fd = fos.fd
+                    val bufferSize = 4096.coerceAtMost(length.toInt().coerceAtLeast(1))
+                    val buffer = ByteArray(bufferSize)
+                    var written = 0L
+                    while (written < length) {
+                        if (pass == 1) buffer.fill(0) else secureRandom.nextBytes(buffer)
+                        val toWrite = (length - written).coerceAtMost(bufferSize.toLong()).toInt()
+                        fos.write(buffer, 0, toWrite)
+                        written += toWrite
+                    }
+                    fos.flush()
+                    try { fd.sync() } catch (_: Throwable) {}
+                    SecureMemory.wipe(buffer)
                 }
-                fos.flush()
-                SecureMemory.wipe(buffer)
             }
+            // Truncate to zero before deletion
+            java.io.FileOutputStream(file).use { it.channel.truncate(0) }
         } catch (_: Throwable) {
             // Continue best-effort wipe
         }

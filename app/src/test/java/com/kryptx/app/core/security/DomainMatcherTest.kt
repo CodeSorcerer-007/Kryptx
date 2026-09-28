@@ -69,7 +69,18 @@ class DomainMatcherTest {
         // Negative cases
         assertFalse(DomainMatcher.isPackageMatch("com.attacker.fakeapp", "paypal.com", "PayPal"))
         assertFalse(DomainMatcher.isPackageMatch("com.random.game", "netflix.com", "Netflix"))
+        assertFalse(DomainMatcher.isPackageMatch("com.evil.twitter.stealer", "twitter.com", null))
+        assertFalse(DomainMatcher.isPackageMatch("org.fake.spotify.downloader", "spotify.com", null))
         assertFalse(DomainMatcher.isPackageMatch(null, "paypal.com", "PayPal"))
         assertFalse(DomainMatcher.isPackageMatch("", "paypal.com", "PayPal"))
+    }
+
+    @Test
+    fun testIdnHomographRejection() {
+        // Cyrillic small letter 'a' (U+0430) looks identical to ASCII 'a' (U+0061)
+        val cyrillicA = "\u0430"
+        val spoofedDomain = "p${cyrillicA}ypal.com"
+        assertFalse(DomainMatcher.isDomainMatch(spoofedDomain, "paypal.com"))
+        assertFalse(DomainMatcher.isDomainMatch("paypal.com", spoofedDomain))
     }
 }

@@ -39,8 +39,19 @@ object CryptoEngine {
      * @param associatedData Optional authenticated associated data (AAD).
      * @return Combined byte array containing [12-byte IV + Ciphertext with GCM Auth Tag].
      */
+    const val CIPHER_TAG_XCHACHA = 0x01.toByte()
+    const val CIPHER_TAG_AES_GCM = 0x02.toByte()
+
     /**
-     * Encrypts plaintext bytes using Native Rust Engine when available, falling back to AES-256-GCM.
+     * Encrypts plaintext bytes using Native Rust Engine (XChaCha20-Poly1305) when available,
+     * falling back to AES-256-GCM on JVM.
+     * Prefixes payload with a 1-byte cipher discriminator tag (0x01 for XChaCha20, 0x02 for AES-GCM).
+     *
+     * @param plaintext Raw unencrypted bytes.
+     * @param key 256-bit symmetric encryption key.
+     * @param associatedData Optional authenticated associated data (AAD) to bind to ciphertext.
+     * @return Encrypted byte array prefixed with 1-byte cipher discriminator tag.
+     * @throws IllegalArgumentException if the key size is not exactly 32 bytes.
      */
     fun encrypt(
         plaintext: ByteArray,
@@ -48,14 +59,20 @@ object CryptoEngine {
         associatedData: ByteArray? = null
     ): ByteArray {
         return if (associatedData == null && NativeCryptoEngineWrapper.isNativeAvailable) {
-            NativeCryptoEngineWrapper.encrypt(plaintext, key, associatedData)
+            byteArrayOf(CIPHER_TAG_XCHACHA) + NativeCryptoEngineWrapper.encryptNative(plaintext, key)
         } else {
-            encryptJvm(plaintext, key, associatedData)
+            byteArrayOf(CIPHER_TAG_AES_GCM) + encryptJvm(plaintext, key, associatedData)
         }
     }
 
     /**
      * Standard JVM AES-256-GCM encryption.
+     *
+     * @param plaintext Raw bytes to encrypt.
+     * @param key 256-bit (32 bytes) symmetric key.
+     * @param associatedData Optional authenticated associated data (AAD).
+     * @return Combined byte array containing [12-byte IV + Ciphertext with GCM Auth Tag].
+     * @throws IllegalArgumentException if the key size is not 32 bytes.
      */
     fun encryptJvm(
         plaintext: ByteArray,
@@ -86,15 +103,51 @@ object CryptoEngine {
     }
 
     /**
-     * Decrypts an encrypted payload using Native Rust Engine when available, falling back to AES-256-GCM.
+     * Decrypts an encrypted payload using the cipher tag prefix, with legacy untagged fallback.
+     *
+     * @param encryptedData Combined byte array with prefix tag or legacy IV + ciphertext.
+     * @param key 256-bit symmetric key.
+     * @param associatedData Optional authenticated associated data (AAD) matching encryption.
+     * @return Decrypted plaintext bytes.
+     * @throws IllegalArgumentException if the encrypted payload is empty or key size is invalid.
+     * @throws javax.crypto.AEADBadTagException if the payload authentication tag fails verification.
      */
     fun decrypt(
         encryptedData: ByteArray,
         key: ByteArray,
         associatedData: ByteArray? = null
     ): ByteArray {
-        return if (NativeCryptoEngineWrapper.isNativeAvailable) {
-            NativeCryptoEngineWrapper.decrypt(encryptedData, key, associatedData)
+        require(encryptedData.isNotEmpty()) { "Invalid encrypted payload: empty" }
+        return when (encryptedData[0]) {
+            CIPHER_TAG_XCHACHA -> {
+                val payload = encryptedData.copyOfRange(1, encryptedData.size)
+                if (NativeCryptoEngineWrapper.isNativeAvailable) {
+                    NativeCryptoEngineWrapper.decryptNative(payload, key)
+                } else {
+                    throw IllegalStateException("Native crypto engine required for XChaCha20-Poly1305 is not available")
+                }
+            }
+            CIPHER_TAG_AES_GCM -> {
+                val payload = encryptedData.copyOfRange(1, encryptedData.size)
+                decryptJvm(payload, key, associatedData)
+            }
+            else -> {
+                decryptLegacy(encryptedData, key, associatedData)
+            }
+        }
+    }
+
+    private fun decryptLegacy(
+        encryptedData: ByteArray,
+        key: ByteArray,
+        associatedData: ByteArray?
+    ): ByteArray {
+        return if (NativeCryptoEngineWrapper.isNativeAvailable && associatedData == null && encryptedData.size >= 24) {
+            try {
+                NativeCryptoEngineWrapper.decryptNative(encryptedData, key)
+            } catch (_: uniffi.kryptx_crypto.NativeCryptoException) {
+                decryptJvm(encryptedData, key, associatedData)
+            }
         } else {
             decryptJvm(encryptedData, key, associatedData)
         }
@@ -102,6 +155,13 @@ object CryptoEngine {
 
     /**
      * Standard JVM AES-256-GCM decryption.
+     *
+     * @param encryptedData Combined byte array [12-byte IV + Ciphertext with GCM Auth Tag].
+     * @param key 256-bit (32 bytes) symmetric key.
+     * @param associatedData Optional authenticated associated data (AAD).
+     * @return Decrypted plaintext bytes.
+     * @throws IllegalArgumentException if key size is not 32 bytes or payload is too short.
+     * @throws javax.crypto.AEADBadTagException if authentication tag is corrupted or mismatched.
      */
     fun decryptJvm(
         encryptedData: ByteArray,

@@ -51,6 +51,16 @@ object NativeCryptoEngineWrapper {
         return KeyDerivation.deriveKeyArgon2(password, salt)
     }
 
+    fun encryptNative(plaintext: ByteArray, key: ByteArray): ByteArray {
+        val eng = engineInstance ?: throw IllegalStateException("Native crypto engine is unavailable")
+        return eng.encrypt(plaintext, key)
+    }
+
+    fun decryptNative(ciphertext: ByteArray, key: ByteArray): ByteArray {
+        val eng = engineInstance ?: throw IllegalStateException("Native crypto engine is unavailable")
+        return eng.decrypt(ciphertext, key)
+    }
+
     fun encrypt(plaintext: ByteArray, key: ByteArray, associatedData: ByteArray? = null): ByteArray {
         val eng = engineInstance
         return if (eng != null && associatedData == null) {

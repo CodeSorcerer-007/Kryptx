@@ -87,27 +87,31 @@ The following features require physical device testing before shipping to the Pl
 
 ---
 
-## 5. HIBP Certificate Pin
+## 5. Offline Breach Detection & Automated Test Suite
 
-Before shipping, run the pin update script to get the real leaf certificate pin:
+Kryptx operates 100% offline with zero network queries. Breach checking uses a local Bloom filter (`breach_filter.bin`) alongside dictionary and structural pattern heuristics.
 
+### Offline Breach Verification
+1. Open Security Audit screen in the app.
+2. Verify passwords matching common dictionaries or patterns are flagged immediately:
+   - "password", "123456", "admin123" (Flagged: Offline Compromised Dictionary)
+   - "p@ssw0rd", "p@55w0rd" (Flagged: L33tspeak normalization)
+   - "qwertyuiop", "1qaz2wsx" (Flagged: Keyboard Walk Pattern)
+   - "12311995" (Flagged: Predictable Date Pattern)
+   - "random#Long_unbreached_2026_phrase" (Status: Clean)
+
+### Automated Test Commands
+Run full test coverage locally:
 ```bash
-chmod +x scripts/update_hibp_pins.sh
-./scripts/update_hibp_pins.sh
+# Android JVM Unit & Concurrency Tests
+./gradlew testDebugUnitTest --stacktrace
+
+# Android Instrumented Tests (requires connected emulator/device)
+./gradlew connectedDebugAndroidTest
+
+# Rust Cryptographic Engine Tests
+cd app/src/main/rust/kryptx_crypto && cargo test --verbose
 ```
-
-Replace the placeholder `BBBBBBB...` value in `app/src/main/res/xml/network_security_config.xml`
-with the printed leaf pin. Keep the two backup pins (DigiCert G2 and Cloudflare) unchanged.
-
-**Verify pinning works**
-1. Enable the HIBP breach check in Security Settings
-2. Run the security audit on a vault with known-breached passwords (e.g. "password", "123456")
-3. Confirm breached status is detected
-
-**Verify pin rejection (optional, requires a proxy)**
-1. Set up an mitmproxy on your test network
-2. Point the device at the proxy
-3. Enable HIBP check — it must fail silently (no crash, falls back to offline check)
 
 ---
 
@@ -144,7 +148,7 @@ with the printed leaf pin. Keep the two backup pins (DigiCert G2 and Cloudflare)
 
 ## Pre-Submission Checklist
 
-- [ ] Leaf HIBP cert pin updated in `network_security_config.xml`
+- [ ] Offline Bloom filter asset verified in `app/src/main/assets/breach_filter.bin`
 - [ ] All 6 physical test scenarios above pass on at least two devices
 - [ ] Privacy policy URL added to Play Console listing
 - [ ] Data safety form completed (no data collected, no data shared, all encrypted on device)

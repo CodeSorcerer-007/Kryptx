@@ -45,6 +45,26 @@ jobs:
           name: unit-test-results
           path: app/build/reports/tests/testDebugUnitTest/
 
+      - name: Run Android Lint
+        run: ./gradlew lintDebug --no-daemon --stacktrace
+
+      - name: Upload Lint Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+
+      - name: Generate Coverage Report
+        run: ./gradlew jacocoTestReport --no-daemon || true
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: app/build/reports/jacoco/jacocoTestReport/
+
   build:
     name: Build Debug APK
     runs-on: ubuntu-latest
@@ -113,6 +133,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Decode Release Keystore
+        if: ${{ env.KRYPTX_KEYSTORE_BASE64 != '' }}
+        env:
+          KRYPTX_KEYSTORE_BASE64: ${{ secrets.KRYPTX_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KRYPTX_KEYSTORE_BASE64" | base64 --decode > app/kryptx-release-key.jks
+
       - name: Build Release APK (signed via CI secrets)
         env:
           KRYPTX_KEYSTORE_PASSWORD: ${{ secrets.KRYPTX_KEYSTORE_PASSWORD }}
@@ -120,8 +147,34 @@ jobs:
           KRYPTX_KEY_ALIAS: ${{ secrets.KRYPTX_KEY_ALIAS }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
+      - name: Secure Cleanup of Keystore
+        if: always()
+        run: |
+          if [ -f app/kryptx-release-key.jks ]; then
+            shred -u app/kryptx-release-key.jks 2>/dev/null || rm -f app/kryptx-release-key.jks
+          fi
+
+      - name: Generate SBOM
+        run: ./gradlew dependencies --configuration releaseRuntimeClasspath > sbom-dependencies.txt
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: kryptx-sbom
+          path: sbom-dependencies.txt
+
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: kryptx-release-apk
           path: app/build/outputs/apk/release/app-release.apk
+
+  rust-tests:
+    name: Rust Crypto Engine Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run Rust Tests
+        working-directory: app/src/main/rust/kryptx_crypto
+        run: cargo test --verbose

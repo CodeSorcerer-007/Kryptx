@@ -37,7 +37,16 @@ object DomainMatcher {
             cleaned = cleaned.removePrefix("www.")
         }
 
-        return cleaned.trim()
+        cleaned = cleaned.trim()
+
+        // Normalize IDN to ASCII Punycode to defeat homograph attacks
+        cleaned = try {
+            java.net.IDN.toASCII(cleaned, java.net.IDN.ALLOW_UNASSIGNED)
+        } catch (_: IllegalArgumentException) {
+            cleaned
+        }
+
+        return cleaned.trim().lowercase()
     }
 
     /**
@@ -73,24 +82,31 @@ object DomainMatcher {
 
     /**
      * Evaluates whether an Android native app package matches a vault item.
+     * Enforces strict reverse-domain prefix validation (e.g. `twitter.com` -> `com.twitter`)
+     * to prevent lookalike packages (e.g. `com.evil.twitter.stealer`) from hijacking autofill.
      */
     fun isPackageMatch(targetPackage: String?, itemWebsite: String?, itemTitle: String?): Boolean {
         if (targetPackage.isNullOrBlank()) return false
         val pkgClean = targetPackage.trim().lowercase()
 
-        // 1. Check if the package is a reverse domain of the item website (e.g. com.twitter.android vs twitter.com)
+        // 1. Check if the package starts with the reverse domain of the item website (e.g. com.twitter.android vs twitter.com)
         val itemHost = normalizeHost(itemWebsite)
         if (itemHost.isNotEmpty()) {
-            val domainBase = itemHost.substringBeforeLast('.') // e.g. "twitter" from "twitter.com"
-            val parts = pkgClean.split('.')
-            if (parts.contains(domainBase)) return true
+            val hostParts = itemHost.split('.')
+            if (hostParts.size >= 2) {
+                // e.g. "twitter.com" -> "com.twitter"
+                val reverseDomain = hostParts.reversed().joinToString(".")
+                if (pkgClean == reverseDomain || pkgClean.startsWith("$reverseDomain.")) {
+                    return true
+                }
+            }
         }
 
-        // 2. Check title matching against package tokens
+        // 2. Check title matching against package tokens (e.g. "Authenticator" vs "com.google.android.apps.authenticator2")
         if (!itemTitle.isNullOrBlank()) {
             val titleClean = itemTitle.trim().lowercase().replace(" ", "").replace("-", "").replace("_", "")
             val lastSegment = pkgClean.substringAfterLast('.')
-            if (titleClean.isNotEmpty() && (lastSegment == titleClean || pkgClean.contains(".$titleClean"))) {
+            if (titleClean.isNotEmpty() && (lastSegment == titleClean || lastSegment.startsWith(titleClean) || pkgClean.contains(".$titleClean"))) {
                 return true
             }
         }

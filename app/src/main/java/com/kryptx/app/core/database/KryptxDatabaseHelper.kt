@@ -88,55 +88,55 @@ class KryptxDatabaseHelper(
         get() = getReadableDatabase(requireDatabaseKey())
 
     companion object {
-        private const val DATABASE_NAME = "kryptx_vault.db"
-        private const val DATABASE_VERSION = 4
+        const val DATABASE_NAME = KryptxDbSchema.DATABASE_NAME
+        const val DATABASE_VERSION = KryptxDbSchema.DATABASE_VERSION
 
         // Tables
-        private const val TABLE_VAULT_ITEMS = "vault_items"
-        private const val TABLE_VAULT_METADATA = "vault_metadata"
-        private const val TABLE_SECURITY_HISTORY = "security_history"
-        private const val TABLE_ACTIVITY_LOG = "activity_log"
+        const val TABLE_VAULT_ITEMS = KryptxDbSchema.TABLE_VAULT_ITEMS
+        const val TABLE_VAULT_METADATA = KryptxDbSchema.TABLE_VAULT_METADATA
+        const val TABLE_SECURITY_HISTORY = KryptxDbSchema.TABLE_SECURITY_HISTORY
+        const val TABLE_ACTIVITY_LOG = KryptxDbSchema.TABLE_ACTIVITY_LOG
 
         // Columns for vault_items
-        private const val COL_ID = "id"
-        private const val COL_TYPE = "type"
-        private const val COL_IS_FAVORITE = "is_favorite"
-        private const val COL_ENCRYPTED_PAYLOAD = "encrypted_payload"
-        private const val COL_CREATED_AT = "created_at"
-        private const val COL_UPDATED_AT = "updated_at"
-        private const val COL_LAST_USED_AT = "last_used_at"
+        const val COL_ID = KryptxDbSchema.COL_ID
+        const val COL_TYPE = KryptxDbSchema.COL_TYPE
+        const val COL_IS_FAVORITE = KryptxDbSchema.COL_IS_FAVORITE
+        const val COL_ENCRYPTED_PAYLOAD = KryptxDbSchema.COL_ENCRYPTED_PAYLOAD
+        const val COL_CREATED_AT = KryptxDbSchema.COL_CREATED_AT
+        const val COL_UPDATED_AT = KryptxDbSchema.COL_UPDATED_AT
+        const val COL_LAST_USED_AT = KryptxDbSchema.COL_LAST_USED_AT
 
         // Columns for vault_metadata
-        private const val COL_META_KEY = "meta_key"
-        private const val COL_META_VALUE = "meta_value"
+        const val COL_META_KEY = KryptxDbSchema.COL_META_KEY
+        const val COL_META_VALUE = KryptxDbSchema.COL_META_VALUE
 
         // Columns for security_history
-        private const val COL_HIST_TIMESTAMP = "timestamp"
-        private const val COL_HIST_SCORE = "score"
+        const val COL_HIST_TIMESTAMP = KryptxDbSchema.COL_HIST_TIMESTAMP
+        const val COL_HIST_SCORE = KryptxDbSchema.COL_HIST_SCORE
 
         // Columns for activity_log
-        private const val COL_ACT_ID = "id"
-        private const val COL_ACT_TIMESTAMP = "timestamp"
-        private const val COL_ACT_TYPE = "type"
-        private const val COL_ACT_DESC = "description"
+        const val COL_ACT_ID = KryptxDbSchema.COL_ACT_ID
+        const val COL_ACT_TIMESTAMP = KryptxDbSchema.COL_ACT_TIMESTAMP
+        const val COL_ACT_TYPE = KryptxDbSchema.COL_ACT_TYPE
+        const val COL_ACT_DESC = KryptxDbSchema.COL_ACT_DESC
 
         // Metadata keys
-        const val KEY_SALT = "kdf_salt"
-        const val KEY_VERIFICATION_TOKEN = "verification_token"
-        const val KEY_BIOMETRIC_WRAPPED_VEK = "biometric_wrapped_vek"
-        const val KEY_BIOMETRIC_IV = "biometric_iv"
-        const val KEY_HAS_SETUP = "has_completed_setup"
-        const val KEY_DURESS_SALT = "duress_kdf_salt"
-        const val KEY_DURESS_TOKEN = "duress_verification_token"
-        const val KEY_HAS_DURESS = "has_duress_setup"
-        const val KEY_HARDWARE_KEY_ENROLLED = "hardware_key_enrolled"
-        const val KEY_HARDWARE_KEY_UID_HASH = "hardware_key_uid_hash"
-        const val KEY_HARDWARE_KEY_LABEL = "hardware_key_label"
-        const val KEY_HARDWARE_KEY_CHALLENGE = "hardware_key_challenge"
-        const val KEY_ACTIVE_VAULT = "active_vault_id"
-        const val KEY_KDF_ALGORITHM = "kdf_algorithm"
-        const val KEY_PQC_IDENTITY_PUBLIC_KEY = "pqc_identity_public_key"
-        const val KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT = "pqc_identity_private_key_ct"
+        const val KEY_SALT = KryptxDbSchema.KEY_SALT
+        const val KEY_VERIFICATION_TOKEN = KryptxDbSchema.KEY_VERIFICATION_TOKEN
+        const val KEY_BIOMETRIC_WRAPPED_VEK = KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK
+        const val KEY_BIOMETRIC_IV = KryptxDbSchema.KEY_BIOMETRIC_IV
+        const val KEY_HAS_SETUP = KryptxDbSchema.KEY_HAS_SETUP
+        const val KEY_DURESS_SALT = KryptxDbSchema.KEY_DURESS_SALT
+        const val KEY_DURESS_TOKEN = KryptxDbSchema.KEY_DURESS_TOKEN
+        const val KEY_HAS_DURESS = KryptxDbSchema.KEY_HAS_DURESS
+        const val KEY_HARDWARE_KEY_ENROLLED = KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED
+        const val KEY_HARDWARE_KEY_UID_HASH = KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH
+        const val KEY_HARDWARE_KEY_LABEL = KryptxDbSchema.KEY_HARDWARE_KEY_LABEL
+        const val KEY_HARDWARE_KEY_CHALLENGE = KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE
+        const val KEY_ACTIVE_VAULT = KryptxDbSchema.KEY_ACTIVE_VAULT
+        const val KEY_KDF_ALGORITHM = KryptxDbSchema.KEY_KDF_ALGORITHM
+        const val KEY_PQC_IDENTITY_PUBLIC_KEY = KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY
+        const val KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT = KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -159,97 +159,15 @@ class KryptxDatabaseHelper(
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE $TABLE_VAULT_ITEMS (
-                $COL_ID TEXT PRIMARY KEY,
-                $COL_TYPE TEXT NOT NULL,
-                $COL_IS_FAVORITE INTEGER NOT NULL DEFAULT 0,
-                $COL_ENCRYPTED_PAYLOAD TEXT NOT NULL,
-                $COL_CREATED_AT INTEGER NOT NULL,
-                $COL_UPDATED_AT INTEGER NOT NULL,
-                $COL_LAST_USED_AT INTEGER NOT NULL
-            )
-            """.trimIndent()
-        )
-
-        db.execSQL(
-            """
-            CREATE TABLE $TABLE_VAULT_METADATA (
-                $COL_META_KEY TEXT PRIMARY KEY,
-                $COL_META_VALUE TEXT NOT NULL
-            )
-            """.trimIndent()
-        )
-
-        db.execSQL(
-            """
-            CREATE TABLE $TABLE_SECURITY_HISTORY (
-                $COL_HIST_TIMESTAMP INTEGER PRIMARY KEY,
-                $COL_HIST_SCORE INTEGER NOT NULL
-            )
-            """.trimIndent()
-        )
-
-        db.execSQL(
-            """
-            CREATE TABLE $TABLE_ACTIVITY_LOG (
-                $COL_ACT_ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                $COL_ACT_TIMESTAMP INTEGER NOT NULL,
-                $COL_ACT_TYPE TEXT NOT NULL,
-                $COL_ACT_DESC TEXT NOT NULL
-            )
-            """.trimIndent()
-        )
-
-        // Performance indices — created at table creation time for fresh installs
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_log_ts ON $TABLE_ACTIVITY_LOG($COL_ACT_TIMESTAMP DESC)")
+        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_VAULT_ITEMS)
+        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_VAULT_METADATA)
+        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_SECURITY_HISTORY)
+        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_ACTIVITY_LOG)
+        KryptxDbSchema.SQL_CREATE_INDICES.forEach { db.execSQL(it) }
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Version 2: Add performance indices on vault_items and decoy_vault_items.
-        if (oldVersion < 2) {
-            try {
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type ON $TABLE_VAULT_ITEMS($COL_TYPE)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_updated ON $TABLE_VAULT_ITEMS($COL_UPDATED_AT DESC)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
-            } catch (_: Exception) {
-            }
-        }
-        
-        // Version 3: Add activity_log table.
-        if (oldVersion < 3) {
-            try {
-                db.execSQL(
-                    """
-                    CREATE TABLE $TABLE_ACTIVITY_LOG (
-                        $COL_ACT_ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                        $COL_ACT_TIMESTAMP INTEGER NOT NULL,
-                        $COL_ACT_TYPE TEXT NOT NULL,
-                        $COL_ACT_DESC TEXT NOT NULL
-                    )
-                    """.trimIndent()
-                )
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_log_ts ON $TABLE_ACTIVITY_LOG($COL_ACT_TIMESTAMP DESC)")
-            } catch (_: Exception) {
-            }
-        }
-        
-        // Version 4: Migrate any legacy stored ItemTypes to CUSTOM
-        if (oldVersion < 4) {
-            try {
-                db.execSQL("UPDATE $TABLE_VAULT_ITEMS SET $COL_TYPE = 'CUSTOM' WHERE $COL_TYPE IN ('SSH_KEY', 'CRYPTO_WALLET', 'BANK_ACCOUNT')")
-            } catch (_: Exception) {
-            }
-        }
-        // Future schema versions: add sequential if (oldVersion < N) blocks here.
+        KryptxDbMigrations.onUpgrade(db, oldVersion, newVersion)
     }
 
     // ==========================================
