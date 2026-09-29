@@ -76,12 +76,14 @@ fun SecuritySettingsScreen(
     val biometricEnabled by viewModel.biometricEnabled.collectAsState()
     val autoLockSeconds by viewModel.autoLockSeconds.collectAsState()
     val lockOnBackground by viewModel.lockOnBackground.collectAsState()
+    val shakeToLockEnabled by viewModel.shakeToLockEnabled.collectAsState()
     val clipboardTimeout by viewModel.clipboardTimeout.collectAsState()
     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsState()
     val quickUnlockEnabled by viewModel.quickUnlockEnabled.collectAsState()
     val scrambledPinDisabled by viewModel.scrambledPinDisabled.collectAsState()
     val hasDuress by viewModel.hasDuress.collectAsState()
     val hasPanic by viewModel.hasPanic.collectAsState()
+    val activityEvents by viewModel.activityEvents.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -91,6 +93,7 @@ fun SecuritySettingsScreen(
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showDuressDialog by remember { mutableStateOf(false) }
     var showPanicDialog by remember { mutableStateOf(false) }
+    var showActivityLogSheet by remember { mutableStateOf(false) }
     var isAdvancedExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -251,6 +254,45 @@ fun SecuritySettingsScreen(
                     Switch(
                         checked = lockOnBackground,
                         onCheckedChange = { viewModel.setLockOnBackground(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = KryptxBlue
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Shake to Lock
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Shake to Lock",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Vigorously shake device to immediately lock vault & clear clipboard",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = shakeToLockEnabled,
+                        onCheckedChange = { viewModel.setShakeToLockEnabled(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = KryptxBlue
@@ -617,6 +659,18 @@ fun SecuritySettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Security & Activity Audit Log
+            SettingItemCard(
+                title = "Security & Activity Audit Log",
+                subtitle = "Inspect chronological log of vault accesses, autofill events, and exports",
+                onClick = {
+                    viewModel.refreshActivityLog()
+                    showActivityLogSheet = true
+                }
+            )
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -708,6 +762,18 @@ fun SecuritySettingsScreen(
                     }
                 )
             }
+        )
+    }
+
+    // Security Audit Log Sheet
+    if (showActivityLogSheet) {
+        ActivityLogSheet(
+            events = activityEvents,
+            onClearLog = {
+                viewModel.clearActivityLog()
+                scope.launch { snackbarHostState.showSnackbar("Audit log cleared") }
+            },
+            onDismiss = { showActivityLogSheet = false }
         )
     }
 }

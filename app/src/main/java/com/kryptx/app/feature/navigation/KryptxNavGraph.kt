@@ -7,6 +7,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,9 +22,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.scale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Key
@@ -393,56 +398,127 @@ fun KryptxBottomNavBar(
 ) {
     val view = androidx.compose.ui.platform.LocalView.current
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val navBg = if (isDark) Color(0xFF0A0F1A).copy(alpha = 0.94f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
-    val navBorder = if (isDark) com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
-    val selectedPillBg = if (isDark) Color.White else com.kryptx.app.core.designsystem.theme.KryptxBlue
-    val selectedIconTint = if (isDark) Color(0xFF070A12) else Color.White
-    val unselectedIconTint = if (isDark) Color(0xFF8E9CAE) else MaterialTheme.colorScheme.onSurfaceVariant
+    val navBg = if (isDark) Color(0xFF070B14).copy(alpha = 0.92f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+    val navBorder = if (isDark) com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+    
+    val pillBgBrush = if (isDark) {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            listOf(
+                Color.White,
+                Color(0xFFE2E8F0)
+            )
+        )
+    } else {
+        com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
+    }
+    
+    val selectedIconTint = if (isDark) Color(0xFF04060A) else Color.White
+    val unselectedIconTint = if (isDark) Color(0xFF7E8B9E) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+
+    val tabs = remember { BottomNavTab.entries }
+    val selectedIndex = remember(selectedTab) { tabs.indexOf(selectedTab).coerceAtLeast(0) }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(
+        androidx.compose.foundation.layout.BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
                 .clip(RoundedCornerShape(32.dp))
                 .background(navBg)
                 .border(1.dp, navBorder, RoundedCornerShape(32.dp))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
-            BottomNavTab.entries.forEach { tab ->
-                val isSelected = selectedTab == tab
+            val totalWidth = maxWidth
+            val tabCount = tabs.size
+            val slotWidth = totalWidth / tabCount
+            val pillWidth = (slotWidth - 8.dp).coerceAtLeast(44.dp)
+            val pillHeight = 52.dp
 
-                Box(
-                    modifier = Modifier
-                        .size(if (isSelected) 46.dp else 40.dp)
-                        .clip(RoundedCornerShape(if (isSelected) 18.dp else 12.dp))
-                        .background(if (isSelected) selectedPillBg else Color.Transparent)
-                        .clickable {
-                            com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
-                            onTabSelected(tab)
-                        }
-                        .semantics {
-                            role = androidx.compose.ui.semantics.Role.Tab
-                            contentDescription = "${tab.label} tab"
-                            selected = isSelected
-                        }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label,
-                        tint = if (isSelected) selectedIconTint else unselectedIconTint,
-                        modifier = Modifier.size(if (isSelected) 22.dp else 20.dp)
+            val animatedIndex by animateFloatAsState(
+                targetValue = selectedIndex.toFloat(),
+                animationSpec = spring(
+                    dampingRatio = 0.74f,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
+                label = "magnetic_pill_offset"
+            )
+
+            // 1. Fluid Magnetic Gliding Pill Indicator
+            Box(
+                modifier = Modifier
+                    .offset(
+                        x = (slotWidth * animatedIndex) + ((slotWidth - pillWidth) / 2)
                     )
+                    .size(width = pillWidth, height = pillHeight)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(pillBgBrush)
+                    .border(
+                        1.dp,
+                        if (isDark) Color.White.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.25f),
+                        RoundedCornerShape(26.dp)
+                    )
+            )
+
+            // 2. Interactive Tab Targets
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    val isSelected = selectedIndex == index
+
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.14f else 1.0f,
+                        animationSpec = spring(
+                            dampingRatio = 0.65f,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "tab_icon_scale"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(pillHeight)
+                            .clip(RoundedCornerShape(26.dp))
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (!isSelected) {
+                                    com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
+                                    onTabSelected(tab)
+                                }
+                            }
+                            .semantics {
+                                role = androidx.compose.ui.semantics.Role.Tab
+                                contentDescription = "${tab.label} tab"
+                                selected = isSelected
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.label,
+                                tint = if (isSelected) selectedIconTint else unselectedIconTint,
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .scale(iconScale)
+                            )
+                        }
+                    }
                 }
             }
         }

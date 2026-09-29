@@ -72,24 +72,49 @@ class EmergencyAutoDestructManager(
             // 1. Wipe in-memory session
             sessionManager?.lock()
 
-            // 2. Overwrite & delete database files
-            val dbFile = context.getDatabasePath("kryptx_vault.db")
-            if (dbFile.exists()) {
-                secureOverwriteFile(dbFile)
-                context.deleteDatabase("kryptx_vault.db")
+            // 2. Overwrite & delete primary and decoy hidden volume database files
+            val dbNames = listOf("kryptx_vault.db", "kryptx_sys_cache.db")
+            for (dbName in dbNames) {
+                val dbFile = context.getDatabasePath(dbName)
+                if (dbFile.exists()) {
+                    secureOverwriteFile(dbFile)
+                    context.deleteDatabase(dbName)
+                }
+
+                val parentDir = dbFile.parentFile
+                if (parentDir != null) {
+                    val dbWal = File(parentDir, "$dbName-wal")
+                    if (dbWal.exists()) {
+                        secureOverwriteFile(dbWal)
+                        dbWal.delete()
+                    }
+
+                    val dbShm = File(parentDir, "$dbName-shm")
+                    if (dbShm.exists()) {
+                        secureOverwriteFile(dbShm)
+                        dbShm.delete()
+                    }
+
+                    val dbJournal = File(parentDir, "$dbName-journal")
+                    if (dbJournal.exists()) {
+                        secureOverwriteFile(dbJournal)
+                        dbJournal.delete()
+                    }
+                }
             }
 
-            val dbWal = File(dbFile.parentFile, "kryptx_vault.db-wal")
-            if (dbWal.exists()) {
-                secureOverwriteFile(dbWal)
-                dbWal.delete()
-            }
-
-            val dbShm = File(dbFile.parentFile, "kryptx_vault.db-shm")
-            if (dbShm.exists()) {
-                secureOverwriteFile(dbShm)
-                dbShm.delete()
-            }
+            // Also scan and purge any remaining database files in app sandbox
+            try {
+                context.databaseList()?.forEach { extraDb ->
+                    if (extraDb.startsWith("kryptx")) {
+                        val file = context.getDatabasePath(extraDb)
+                        if (file.exists()) {
+                            secureOverwriteFile(file)
+                            context.deleteDatabase(extraDb)
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
 
             // 3. Overwrite & delete attachments
             val attachmentsDir = File(context.filesDir, "vault_attachments")

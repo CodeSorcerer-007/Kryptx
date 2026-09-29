@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -262,26 +263,43 @@ fun VaultItemRow(
                     )
                 }
 
-                // Quick Copy Secret button with spring scale and haptic confirm
+                // Quick 1-Tap Copy Secret button with spring scale and haptic confirm
                 if (item.primarySecret.isNotBlank()) {
-                    IconButton(
-                        onClick = {
-                            KryptxHaptics.confirm(view)
-                            isCopied = true
-                            onCopySecret()
-                            scope.launch {
-                                delay(2000L)
-                                isCopied = false
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isCopied) KryptxEmerald.copy(alpha = 0.22f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
+                            .border(
+                                1.dp,
+                                if (isCopied) KryptxEmerald.copy(alpha = 0.7f)
+                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                CircleShape
+                            )
+                            .clickable {
+                                KryptxHaptics.confirm(view)
+                                isCopied = true
+                                onCopySecret()
+                                scope.launch {
+                                    delay(2000L)
+                                    isCopied = false
+                                }
                             }
-                        },
-                        modifier = Modifier.size(34.dp)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = if (isCopied) "Secret copied" else "Copy secret for ${item.title}"
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
-                            contentDescription = "Copy Secret",
-                            tint = if (isCopied) KryptxEmerald else KryptxBlue,
+                            contentDescription = null,
+                            tint = if (isCopied) KryptxEmerald else KryptxBrightBlue,
                             modifier = Modifier
-                                .size(17.dp)
+                                .size(16.dp)
                                 .scale(copyScale)
                         )
                     }

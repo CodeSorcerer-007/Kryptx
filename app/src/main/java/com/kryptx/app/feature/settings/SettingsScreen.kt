@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
@@ -31,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,8 @@ fun SettingsScreen(
     var showCategorySheet by remember { mutableStateOf(false) }
     var showSecurityExplainer by remember { mutableStateOf(false) }
     var showDeviceIntegrations by remember { mutableStateOf(false) }
+    var showActivityLogSheet by remember { mutableStateOf(false) }
+    val activityEvents = settingsViewModel?.activityEvents?.collectAsState(initial = emptyList())?.value ?: emptyList()
 
     Scaffold(
         modifier = modifier
@@ -134,6 +138,16 @@ fun SettingsScreen(
                 subtitle = "Plain-English guide to zero-network, ML-KEM-768, Argon2id, and StrongBox",
                 icon = Icons.Default.Shield,
                 onClick = { showSecurityExplainer = true }
+            )
+
+            SettingsNavRow(
+                title = "Security & Activity Audit Log",
+                subtitle = "Forensic record of vault unlocks, edits, autofill actions, and exports",
+                icon = Icons.Default.History,
+                onClick = {
+                    settingsViewModel?.refreshActivityLog()
+                    showActivityLogSheet = true
+                }
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -259,6 +273,14 @@ fun SettingsScreen(
             CategoryCustomizationSheet(
                 settingsViewModel = settingsViewModel,
                 onDismiss = { showCategorySheet = false }
+            )
+        }
+
+        if (showActivityLogSheet && settingsViewModel != null) {
+            ActivityLogSheet(
+                events = activityEvents,
+                onClearLog = { settingsViewModel.clearActivityLog() },
+                onDismiss = { showActivityLogSheet = false }
             )
         }
 

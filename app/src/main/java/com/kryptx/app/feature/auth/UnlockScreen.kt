@@ -76,6 +76,8 @@ fun UnlockScreen(
     val uiState by viewModel.uiState.collectAsState()
     val lockoutSeconds by viewModel.lockoutSecondsRemaining.collectAsState()
     val isQuickUnlock by viewModel.quickUnlockEnabled.collectAsState()
+    val isScrambleDisabled by viewModel.scrambledPinDisabled.collectAsState()
+    var usePinPad by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(true) }
     var triggerCelebration by remember { mutableStateOf(false) }
 
@@ -219,7 +221,61 @@ fun UnlockScreen(
                     lineHeight = 18.sp
                 )
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Input Mode Toggle: Password vs Scrambled PIN Pad
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (!usePinPad) KryptxBlue else Color.Transparent)
+                            .clickable {
+                                if (usePinPad) {
+                                    usePinPad = false
+                                    viewModel.onPasswordChanged("")
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Password",
+                            fontSize = 12.sp,
+                            fontWeight = if (!usePinPad) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!usePinPad) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (usePinPad) KryptxBlue else Color.Transparent)
+                            .clickable {
+                                if (!usePinPad) {
+                                    usePinPad = true
+                                    viewModel.onPasswordChanged("")
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "PIN Pad",
+                            fontSize = 12.sp,
+                            fontWeight = if (usePinPad) FontWeight.Bold else FontWeight.Medium,
+                            color = if (usePinPad) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // Input Section with Shake Physics
                 Box(
@@ -227,22 +283,34 @@ fun UnlockScreen(
                         .fillMaxWidth()
                         .offset { IntOffset(shakeOffset.value.roundToInt(), 0) }
                 ) {
-                    Column {
-                        KryptxTextField(
-                            value = uiState.password,
-                            onValueChange = { viewModel.onPasswordChanged(it) },
-                            label = "Master Password",
-                            placeholder = "Enter master password to decrypt",
-                            isPassword = true,
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = KryptxBlue,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (usePinPad) {
+                            ScrambledPinPad(
+                                pinLength = 6,
+                                isScrambleDisabled = isScrambleDisabled,
+                                resetKey = uiState.errorMessage,
+                                onPinComplete = { pin ->
+                                    viewModel.onPasswordChanged(pin)
+                                    submitUnlock()
+                                }
+                            )
+                        } else {
+                            KryptxTextField(
+                                value = uiState.password,
+                                onValueChange = { viewModel.onPasswordChanged(it) },
+                                label = "Master Password",
+                                placeholder = "Enter master password to decrypt",
+                                isPassword = true,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = KryptxBlue,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            )
+                        }
 
                         if (uiState.isHardwareKeyRequired) {
                             Spacer(modifier = Modifier.height(12.dp))
@@ -351,7 +419,7 @@ fun UnlockScreen(
                 // Sign In Action Button
                 if (uiState.isLoading) {
                     CircularProgressIndicator(color = KryptxBlue)
-                } else {
+                } else if (!usePinPad) {
                     KryptxPrimaryButton(
                         text = "Unlock Vault",
                         useBrandGradient = true,

@@ -33,13 +33,13 @@ object OfflineWebVaultGenerator {
 
         val plaintextBytes = json.encodeToString(items).toByteArray(Charsets.UTF_8)
         val encryptedPayload = try {
-            CryptoEngine.encrypt(plaintextBytes, derivedKey)
+            CryptoEngine.encryptJvm(plaintextBytes, derivedKey)
         } finally {
             SecureMemory.wipe(plaintextBytes)
             SecureMemory.wipe(derivedKey)
         }
 
-        // CryptoEngine prepends 12-byte IV to ciphertext + 16-byte GCM tag
+        // CryptoEngine.encryptJvm outputs pure [12-byte IV] + [Ciphertext + 16-byte GCM tag] without prefix discriminator
         val ivBytes = encryptedPayload.copyOfRange(0, 12)
         val ciphertextAndTag = encryptedPayload.copyOfRange(12, encryptedPayload.size)
 

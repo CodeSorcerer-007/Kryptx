@@ -28,6 +28,7 @@ class UnlockViewModel(
     val isUnlocked = sessionManager.isUnlocked
     val lockoutSecondsRemaining = sessionManager.lockoutSecondsRemaining
     val quickUnlockEnabled: StateFlow<Boolean> = preferencesRepository.quickUnlockEnabled
+    val scrambledPinDisabled: StateFlow<Boolean> = preferencesRepository.scrambledPinDisabled
 
     init {
         checkVaultStatus()

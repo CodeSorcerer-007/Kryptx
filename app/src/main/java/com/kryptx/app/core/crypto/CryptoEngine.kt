@@ -118,6 +118,7 @@ object CryptoEngine {
         associatedData: ByteArray? = null
     ): ByteArray {
         require(encryptedData.isNotEmpty()) { "Invalid encrypted payload: empty" }
+        require(encryptedData.size >= IV_LENGTH_BYTES) { "Invalid encrypted payload: too short (${encryptedData.size} bytes, minimum $IV_LENGTH_BYTES bytes required)" }
         return when (encryptedData[0]) {
             CIPHER_TAG_XCHACHA -> {
                 val payload = encryptedData.copyOfRange(1, encryptedData.size)

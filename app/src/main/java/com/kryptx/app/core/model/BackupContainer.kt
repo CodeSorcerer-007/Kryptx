@@ -27,10 +27,3 @@ data class EncryptedBackupPayload(
     val ciphertextBase64: String
 )
 
-@Immutable
-@Serializable
-data class PlaintextBackupData(
-    val header: BackupHeader,
-    val items: List<VaultItem>
-)
-

@@ -77,7 +77,7 @@ class OfflineWebVaultGeneratorTest {
         System.arraycopy(iv, 0, combined, 0, iv.size)
         System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
 
-        val decryptedBytes = CryptoEngine.decrypt(combined, derivedKey)
+        val decryptedBytes = CryptoEngine.decryptJvm(combined, derivedKey)
         val decryptedJson = String(decryptedBytes, Charsets.UTF_8)
         val decryptedItems = json.decodeFromString<List<VaultItem>>(decryptedJson)
 

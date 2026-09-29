@@ -101,6 +101,16 @@ class VaultSessionManager(
         }
     }
 
+    private val lockListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+
+    fun addLockListener(listener: () -> Unit) {
+        lockListeners.add(listener)
+    }
+
+    fun removeLockListener(listener: () -> Unit) {
+        lockListeners.remove(listener)
+    }
+
     /**
      * Locks the vault and immediately zeroizes the in-memory cryptographic key.
      */
@@ -117,6 +127,12 @@ class VaultSessionManager(
         _isUnlocked.value = false
         _isDecoy.value = false
         _isLockedDueToTimeout.value = isTimeout
+
+        lockListeners.forEach { listener ->
+            try {
+                listener()
+            } catch (_: Throwable) {}
+        }
     }
 
     /**

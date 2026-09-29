@@ -128,4 +128,21 @@ class VaultSessionManagerTest {
         val resultUnlocked = sessionManager.withVaultKey { it.size }
         assertEquals(32, resultUnlocked)
     }
+
+    @Test
+    fun testLockListenersInvokedOnLock() {
+        val sessionManager = VaultSessionManager(testScope)
+        var listenerInvoked = false
+
+        sessionManager.addLockListener {
+            listenerInvoked = true
+        }
+
+        val key = ByteArray(32) { 1 }
+        sessionManager.unlock(key)
+        assertFalse(listenerInvoked)
+
+        sessionManager.lock()
+        assertTrue(listenerInvoked)
+    }
 }

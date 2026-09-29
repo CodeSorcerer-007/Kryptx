@@ -104,9 +104,31 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        contextualLockManager = ContextualLockManager(this) {
-            if (app.sessionManager.isUnlocked.value) {
-                app.sessionManager.lock()
+        contextualLockManager = ContextualLockManager(
+            context = this,
+            onShakeTriggered = {
+                if (app.sessionManager.isUnlocked.value) {
+                    app.sessionManager.lock()
+                    app.clipboardManager.copySensitiveText("", "", 0)
+                    app.clipboardManager.clearNow()
+                    com.kryptx.app.core.designsystem.components.KryptxHaptics.warning(window.decorView)
+                }
+            },
+            onFaceDownTriggered = {
+                if (app.sessionManager.isUnlocked.value) {
+                    app.sessionManager.lock()
+                }
+            }
+        )
+
+        // Observe shake-to-lock preference changes
+        lifecycleScope.launch {
+            app.preferencesRepository.shakeToLockEnabled.collect { enabled ->
+                if (enabled && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                    contextualLockManager?.startListening()
+                } else if (!enabled) {
+                    contextualLockManager?.stopListening()
+                }
             }
         }
 
@@ -183,7 +205,9 @@ class MainActivity : FragmentActivity() {
             triggerBiometricUnlock()
         }
 
-        contextualLockManager?.startListening()
+        if (app.preferencesRepository.shakeToLockEnabled.value) {
+            contextualLockManager?.startListening()
+        }
     }
 
     override fun onPause() {

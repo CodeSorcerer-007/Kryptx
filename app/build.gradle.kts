@@ -11,6 +11,7 @@ plugins {
 android {
     namespace = "com.kryptx.app"
     compileSdk = 36
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.kryptx.app"
@@ -20,6 +21,10 @@ android {
         versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        }
     }
 
     val localProperties = Properties().apply {
@@ -145,8 +150,7 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.bouncycastle.bcprov)
 
-    // DataStore & Serialization
-    implementation(libs.androidx.datastore.preferences)
+    // Serialization
     implementation(libs.kotlinx.serialization.json)
 
     // Hardware Security Keys (YubiKey)
@@ -183,7 +187,7 @@ dependencies {
     testImplementation(libs.mockito.kotlin)
 
     // JNA for UniFFI
-    implementation("net.java.dev.jna:jna:5.16.0@aar")
+    implementation("net.java.dev.jna:jna:5.19.1@aar")
 
     // Instrumentation Testing
     androidTestImplementation(libs.androidx.test.core)
@@ -248,8 +252,8 @@ tasks.register<Exec>("buildRustEngine") {
         environment("ANDROID_NDK_HOME", ndkDir)
     }
     
-    // Support Android 15's 16 KB page sizes by forcing the linker to align ELF segments
-    environment("RUSTFLAGS", "-C link-arg=-Wl,-z,max-page-size=16384")
+    // Support Android 15's 16 KB page sizes by forcing the linker to align ELF segments and RELRO boundaries
+    environment("RUSTFLAGS", "-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=16384")
     
     commandLine(
         "cargo", "ndk", "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86", "-t", "x86_64", 

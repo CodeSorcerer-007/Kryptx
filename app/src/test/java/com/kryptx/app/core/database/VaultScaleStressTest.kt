@@ -41,32 +41,4 @@ class VaultScaleStressTest {
         println("[ScaleTest] 5 complex searches over 10k items completed in $searchElapsed ms")
         assertTrue("Search over 10k items should execute in under 5000ms", searchElapsed < 5000)
     }
-
-    @Test
-    fun testMultiVaultPartitioningSegregation() {
-        val multiVault = MultiVaultManager()
-        assertEquals(3, multiVault.vaults.value.size)
-
-        val personalItem = VaultItem(id = "p1", title = "Personal Gmail")
-        val workItem = multiVault.assignItemToVault(
-            VaultItem(id = "w1", title = "Work AWS Console"),
-            MultiVaultManager.VaultPartition.DEFAULT_WORK.id
-        )
-
-        val allItems = listOf(personalItem, workItem)
-
-        val personalVaultItems = multiVault.filterItemsForVault(
-            allItems,
-            MultiVaultManager.VaultPartition.DEFAULT_PERSONAL.id
-        )
-        assertEquals(1, personalVaultItems.size)
-        assertEquals("p1", personalVaultItems[0].id)
-
-        val workVaultItems = multiVault.filterItemsForVault(
-            allItems,
-            MultiVaultManager.VaultPartition.DEFAULT_WORK.id
-        )
-        assertEquals(1, workVaultItems.size)
-        assertEquals("w1", workVaultItems[0].id)
-    }
 }

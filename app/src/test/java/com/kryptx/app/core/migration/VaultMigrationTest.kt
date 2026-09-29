@@ -88,4 +88,16 @@ class VaultMigrationTest {
         val invalid = VaultImporter.importAutoDetect("NotAValidFormat")
         assertTrue(invalid.isEmpty())
     }
+
+    @Test
+    fun testExportCsvEscapesCarriageReturn() {
+        val itemWithCr = VaultItem(
+            id = "crlf_1",
+            title = "CRLF\rTitle",
+            notes = "Line1\r\nLine2"
+        )
+        val csv = VaultExporter.exportToCsv(listOf(itemWithCr))
+        assertTrue(csv.contains("\"CRLF\rTitle\""))
+        assertTrue(csv.contains("\"Line1\r\nLine2\""))
+    }
 }

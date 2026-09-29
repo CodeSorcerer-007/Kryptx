@@ -43,6 +43,7 @@ interface IPreferencesRepository {
     val quickUnlockEnabled: StateFlow<Boolean>
     val autofillNudgeDismissed: StateFlow<Boolean>
     val scrambledPinDisabled: StateFlow<Boolean>
+    val shakeToLockEnabled: StateFlow<Boolean>
 
     fun setThemeMode(mode: AppThemeMode)
     fun setDynamicColor(enable: Boolean)
@@ -58,6 +59,7 @@ interface IPreferencesRepository {
     fun setQuickUnlockEnabled(enabled: Boolean)
     fun setAutofillNudgeDismissed(dismissed: Boolean)
     fun setScrambledPinDisabled(disabled: Boolean)
+    fun setShakeToLockEnabled(enabled: Boolean)
 
     fun hasSeenFeatureIntro(featureKey: String): Boolean
     fun markFeatureIntroSeen(featureKey: String)

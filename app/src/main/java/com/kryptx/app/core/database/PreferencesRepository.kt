@@ -34,6 +34,7 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_QUICK_UNLOCK = "quick_unlock_enabled"
         private const val KEY_AUTOFILL_NUDGE_DISMISSED = "autofill_nudge_dismissed"
         private const val KEY_SCRAMBLED_PIN_DISABLED = "scrambled_pin_disabled"
+        private const val KEY_SHAKE_TO_LOCK = "shake_to_lock_enabled"
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -81,6 +82,9 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
 
     private val _scrambledPinDisabled = MutableStateFlow(prefs.getBoolean(KEY_SCRAMBLED_PIN_DISABLED, false))
     override val scrambledPinDisabled: StateFlow<Boolean> = _scrambledPinDisabled.asStateFlow()
+
+    private val _shakeToLockEnabled = MutableStateFlow(prefs.getBoolean(KEY_SHAKE_TO_LOCK, true))
+    override val shakeToLockEnabled: StateFlow<Boolean> = _shakeToLockEnabled.asStateFlow()
 
     private fun getSavedThemeMode(): AppThemeMode {
         val name = prefs.getString(KEY_THEME, AppThemeMode.DARK.name) ?: AppThemeMode.DARK.name
@@ -170,6 +174,11 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     override fun setScrambledPinDisabled(disabled: Boolean) {
         prefs.edit().putBoolean(KEY_SCRAMBLED_PIN_DISABLED, disabled).apply()
         _scrambledPinDisabled.value = disabled
+    }
+
+    override fun setShakeToLockEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SHAKE_TO_LOCK, enabled).apply()
+        _shakeToLockEnabled.value = enabled
     }
 
     override fun hasSeenFeatureIntro(featureKey: String): Boolean {

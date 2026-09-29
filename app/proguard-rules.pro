@@ -19,6 +19,17 @@
 -keep class com.kryptx.app.core.crypto.generated.** { *; }
 -keep class com.kryptx.app.core.security.** { *; }
 
+# Mozilla UniFFI & JNA Native Bindings
+-keep class uniffi.** { *; }
+-keep class com.sun.jna.** { *; }
+-keepclassmembers class * extends com.sun.jna.Structure { *; }
+-keepclassmembers class * extends com.sun.jna.Callback { *; }
+-dontwarn java.awt.**
+
+# SQLCipher
+-keep class net.zetetic.database.** { *; }
+-keep class net.zetetic.database.sqlcipher.** { *; }
+
 # Autofill Service
 -keep class * extends android.service.autofill.AutofillService { *; }
 

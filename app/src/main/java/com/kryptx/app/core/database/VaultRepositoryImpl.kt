@@ -50,7 +50,6 @@ class VaultRepositoryImpl(
             decoyDbHelper = decoyDbHelper,
             sessionManager = sessionManager,
             keystoreManager = keystoreManager,
-            preferencesRepository = preferencesRepository,
             onAuditInvalidated = { auditRepo.invalidateAuditCache() }
         ),
         crudRepo = VaultCrudRepositoryImpl(

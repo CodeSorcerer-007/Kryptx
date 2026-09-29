@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.generator
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -167,7 +168,14 @@ fun GeneratorScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    AnimatedContent(targetState = result.value, label = "generated_text_anim") { text ->
+                    AnimatedContent(
+                        targetState = result.value,
+                        transitionSpec = {
+                            (androidx.compose.animation.slideInVertically(animationSpec = androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { height -> height / 2 } + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(180))) togetherWith
+                            (androidx.compose.animation.slideOutVertically(animationSpec = androidx.compose.animation.core.tween(180)) { height -> -height / 2 } + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(140)))
+                        },
+                        label = "generated_text_anim"
+                    ) { text ->
                         Text(
                             text = text,
                             style = com.kryptx.app.core.designsystem.theme.MonospaceSecret.copy(

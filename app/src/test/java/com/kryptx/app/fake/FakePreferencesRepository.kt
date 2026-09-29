@@ -47,6 +47,9 @@ class FakePreferencesRepository : IPreferencesRepository {
     private val _scrambledPinDisabled = MutableStateFlow(false)
     override val scrambledPinDisabled: StateFlow<Boolean> = _scrambledPinDisabled.asStateFlow()
 
+    private val _shakeToLockEnabled = MutableStateFlow(true)
+    override val shakeToLockEnabled: StateFlow<Boolean> = _shakeToLockEnabled.asStateFlow()
+
     private val _selectedPersona = MutableStateFlow(UserPersona.POWER_USER)
     override val selectedPersona: StateFlow<UserPersona> = _selectedPersona.asStateFlow()
 
@@ -63,6 +66,7 @@ class FakePreferencesRepository : IPreferencesRepository {
     override fun setQuickUnlockEnabled(enabled: Boolean) { _quickUnlockEnabled.value = enabled }
     override fun setAutofillNudgeDismissed(dismissed: Boolean) { _autofillNudgeDismissed.value = dismissed }
     override fun setScrambledPinDisabled(disabled: Boolean) { _scrambledPinDisabled.value = disabled }
+    override fun setShakeToLockEnabled(enabled: Boolean) { _shakeToLockEnabled.value = enabled }
     override fun setSelectedPersona(persona: UserPersona) {
         _selectedPersona.value = persona
         _visibleCategories.value = persona.recommendedCategories

@@ -1,6 +1,12 @@
 package com.kryptx.app.feature.totp
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -607,8 +613,22 @@ fun TotpAccountCard(
                         label = "ringColor"
                     )
 
+                    val urgencyTransition = rememberInfiniteTransition(label = "totp_urgency")
+                    val rawUrgencyScale by urgencyTransition.animateFloat(
+                        initialValue = 0.94f,
+                        targetValue = 1.06f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(350, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "urgencyScale"
+                    )
+                    val urgencyScale = if (code.secondsRemaining <= 5) rawUrgencyScale else 1.0f
+
                     Box(
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier
+                            .size(44.dp)
+                            .scale(urgencyScale),
                         contentAlignment = Alignment.Center
                     ) {
                         androidx.compose.foundation.Canvas(modifier = Modifier.size(44.dp)) {

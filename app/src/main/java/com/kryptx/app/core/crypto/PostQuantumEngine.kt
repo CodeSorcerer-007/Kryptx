@@ -214,7 +214,11 @@ object PostQuantumEngine {
         associatedData: ByteArray? = null
     ): Pair<ByteArray, ByteArray> {
         val encapsulated = encapsulate(recipientPublicKeyBytes)
-        val ciphertext = CryptoEngine.encrypt(plaintext, encapsulated.sharedSecret, associatedData)
+        val ciphertext = try {
+            CryptoEngine.encrypt(plaintext, encapsulated.sharedSecret, associatedData)
+        } finally {
+            SecureMemory.wipe(encapsulated.sharedSecret)
+        }
         return Pair(encapsulated.encapsulation, ciphertext)
     }
 

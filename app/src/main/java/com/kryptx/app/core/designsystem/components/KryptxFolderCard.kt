@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -25,84 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
-
-/**
- * Custom Folder Tab Shape matching the WorkONE organic folder cutout.
- * Tab on top-left rises higher than the shoulder on top-right.
- */
-fun createFolderTabShape(
-    tabWidthRatio: Float = 0.48f,
-    tabHeight: Float = 44f,
-    cornerRadius: Float = 36f
-): Shape {
-    return GenericShape { size: Size, _: LayoutDirection ->
-        val w = size.width
-        val h = size.height
-        val tabW = (w * tabWidthRatio).coerceAtMost(w - 60f)
-        val r = cornerRadius.coerceAtMost(tabHeight / 2f)
-
-        reset()
-        // Start top-left of tab
-        moveTo(0f, r)
-        arcTo(
-            rect = Rect(Offset(0f, 0f), Size(r * 2, r * 2)),
-            startAngleDegrees = 180f,
-            sweepAngleDegrees = 90f,
-            forceMoveTo = false
-        )
-        // Top edge of tab
-        lineTo(tabW - r, 0f)
-        // Curve down to shoulder
-        arcTo(
-            rect = Rect(Offset(tabW - r * 2, 0f), Size(r * 2, r * 2)),
-            startAngleDegrees = 270f,
-            sweepAngleDegrees = 45f,
-            forceMoveTo = false
-        )
-        // Shoulder transition
-        quadraticTo(
-            tabW + r * 0.4f, tabHeight,
-            tabW + r * 1.5f, tabHeight
-        )
-        // Shoulder to right edge
-        lineTo(w - r, tabHeight)
-        arcTo(
-            rect = Rect(Offset(w - r * 2, tabHeight), Size(r * 2, r * 2)),
-            startAngleDegrees = 270f,
-            sweepAngleDegrees = 90f,
-            forceMoveTo = false
-        )
-        // Right edge down
-        lineTo(w, h - r)
-        arcTo(
-            rect = Rect(Offset(w - r * 2, h - r * 2), Size(r * 2, r * 2)),
-            startAngleDegrees = 0f,
-            sweepAngleDegrees = 90f,
-            forceMoveTo = false
-        )
-        // Bottom edge
-        lineTo(r, h)
-        arcTo(
-            rect = Rect(Offset(0f, h - r * 2), Size(r * 2, r * 2)),
-            startAngleDegrees = 90f,
-            sweepAngleDegrees = 90f,
-            forceMoveTo = false
-        )
-        // Left edge up
-        close()
-    }
-}
 
 /**
  * Signature WorkONE Folder Tab Card with glassmorphic backdrop,

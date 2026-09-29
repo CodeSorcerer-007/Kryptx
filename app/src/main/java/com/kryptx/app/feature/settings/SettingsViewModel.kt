@@ -9,6 +9,7 @@ import com.kryptx.app.core.database.VaultRepository
 import com.kryptx.app.core.migration.VaultExporter
 import com.kryptx.app.core.migration.VaultImporter
 import com.kryptx.app.core.model.EncryptedBackupPayload
+import com.kryptx.app.core.security.ActivityEvent
 import com.kryptx.app.core.security.ActivityLogManager
 import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,9 @@ class SettingsViewModel(
     val minimalistDashboardMode = preferencesRepository.minimalistDashboardMode
     val quickUnlockEnabled = preferencesRepository.quickUnlockEnabled
     val scrambledPinDisabled = preferencesRepository.scrambledPinDisabled
+    val shakeToLockEnabled = preferencesRepository.shakeToLockEnabled
+
+    val activityEvents: StateFlow<List<ActivityEvent>> = activityLogManager?.events ?: MutableStateFlow(emptyList())
 
     private val _hasDuress = MutableStateFlow(vaultRepository.hasDuressPassword())
     val hasDuress: StateFlow<Boolean> = _hasDuress.asStateFlow()
@@ -53,6 +57,14 @@ class SettingsViewModel(
     val hardwareKeyLabel: StateFlow<String?> = _hardwareKeyLabel.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    fun refreshActivityLog() {
+        activityLogManager?.loadEvents()
+    }
+
+    fun clearActivityLog() {
+        activityLogManager?.clearLog()
+    }
 
     fun refreshDuressStatus() {
         _hasDuress.value = vaultRepository.hasDuressPassword()
@@ -110,6 +122,10 @@ class SettingsViewModel(
 
     fun setScrambledPinDisabled(disabled: Boolean) {
         preferencesRepository.setScrambledPinDisabled(disabled)
+    }
+
+    fun setShakeToLockEnabled(enabled: Boolean) {
+        preferencesRepository.setShakeToLockEnabled(enabled)
     }
 
     fun toggleCategoryVisibility(category: com.kryptx.app.core.model.ItemType) {

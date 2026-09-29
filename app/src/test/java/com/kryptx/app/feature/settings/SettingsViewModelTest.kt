@@ -119,4 +119,22 @@ class SettingsViewModelTest {
         viewModel.setMinimalistDashboardMode(true)
         assertTrue(viewModel.minimalistDashboardMode.value)
     }
+
+    @Test
+    fun testShakeToLockToggle() {
+        assertTrue(viewModel.shakeToLockEnabled.value)
+        viewModel.setShakeToLockEnabled(false)
+        assertFalse(viewModel.shakeToLockEnabled.value)
+        viewModel.setShakeToLockEnabled(true)
+        assertTrue(viewModel.shakeToLockEnabled.value)
+    }
+
+    @Test
+    fun testActivityEventsDefaultAndClear() {
+        assertNotNull(viewModel.activityEvents.value)
+        assertTrue(viewModel.activityEvents.value.isEmpty())
+        viewModel.refreshActivityLog()
+        viewModel.clearActivityLog()
+        assertTrue(viewModel.activityEvents.value.isEmpty())
+    }
 }

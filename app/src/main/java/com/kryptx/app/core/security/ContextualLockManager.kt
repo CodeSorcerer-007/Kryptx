@@ -9,12 +9,23 @@ import kotlin.math.sqrt
 
 /**
  * Monitors device sensors (Accelerometer) to trigger contextual locking of the vault.
- * Detects "Face Down" and "Shake" events.
+ * Calibrated for high-velocity "Shake-to-Lock" (2.7g) with cooldown protection
+ * and debounced "Face Down" privacy locking.
  */
 class ContextualLockManager(
     context: Context,
-    private val onLockTriggered: () -> Unit
+    private val onShakeTriggered: () -> Unit,
+    private val onFaceDownTriggered: (() -> Unit)? = null
 ) : SensorEventListener {
+
+    constructor(
+        context: Context,
+        onLockTriggered: () -> Unit
+    ) : this(
+        context = context,
+        onShakeTriggered = onLockTriggered,
+        onFaceDownTriggered = onLockTriggered
+    )
 
     private val sensorManager = try {
         context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -24,21 +35,32 @@ class ContextualLockManager(
     private val accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
     private var isListening = false
-    
+
     // Shake detection state
     private var acceleration = 0f
     private var currentAcceleration = SensorManager.GRAVITY_EARTH
     private var lastAcceleration = SensorManager.GRAVITY_EARTH
-    
-    // Thresholds
-    private val SHAKE_THRESHOLD = 12f
-    private val FACE_DOWN_GRAVITY_THRESHOLD = -8.5f
+    private var lastShakeTimestamp = 0L
+
+    // Face-down state
+    private var faceDownStartTime = 0L
+
+    companion object {
+        // 2.7g threshold matching physical device security standard in TESTING.md
+        const val SHAKE_THRESHOLD_ACCELERATION = 14.5f
+        const val SHAKE_COOLDOWN_MS = 1000L
+
+        const val FACE_DOWN_GRAVITY_THRESHOLD = -8.5f
+        const val FACE_DOWN_SUSTAINED_MS = 600L
+    }
 
     fun startListening() {
         if (!isListening && accelerometer != null && sensorManager != null) {
             try {
-                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
                 isListening = true
+                faceDownStartTime = 0L
+                acceleration = 0f
             } catch (_: Exception) {}
         }
     }
@@ -49,6 +71,7 @@ class ContextualLockManager(
                 sensorManager.unregisterListener(this)
             } catch (_: Exception) {}
             isListening = false
+            faceDownStartTime = 0L
         }
     }
 
@@ -58,30 +81,35 @@ class ContextualLockManager(
         val x = event.values[0]
         val y = event.values[1]
         val z = event.values[2]
+        val now = System.currentTimeMillis()
 
-        // 1. Detect Face Down (Z-axis gravity heavily negative)
+        // 1. Debounced Face Down Detection (Z-axis gravity heavily negative for sustained duration)
         if (z < FACE_DOWN_GRAVITY_THRESHOLD) {
-            triggerLock()
-            return
+            if (faceDownStartTime == 0L) {
+                faceDownStartTime = now
+            } else if (now - faceDownStartTime >= FACE_DOWN_SUSTAINED_MS) {
+                faceDownStartTime = 0L
+                onFaceDownTriggered?.invoke()
+                return
+            }
+        } else {
+            faceDownStartTime = 0L
         }
 
-        // 2. Detect Shake
+        // 2. High-Energy Shake Detection with cooldown
         lastAcceleration = currentAcceleration
         currentAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
-        val delta = currentAcceleration - lastAcceleration
-        acceleration = acceleration * 0.9f + delta // low-cut filter
+        val delta = kotlin.math.abs(currentAcceleration - lastAcceleration)
+        acceleration = acceleration * 0.85f + delta
 
-        if (acceleration > SHAKE_THRESHOLD) {
-            triggerLock()
+        if (acceleration > SHAKE_THRESHOLD_ACCELERATION && (now - lastShakeTimestamp) >= SHAKE_COOLDOWN_MS) {
+            lastShakeTimestamp = now
+            acceleration = 0f
+            onShakeTriggered()
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
         // No-op
-    }
-
-    private fun triggerLock() {
-        // Debounce or immediately trigger
-        onLockTriggered()
     }
 }

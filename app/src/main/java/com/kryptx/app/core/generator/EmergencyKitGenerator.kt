@@ -192,6 +192,14 @@ object EmergencyKitGenerator {
 
         pdfDocument.finishPage(page)
 
+        try {
+            context.cacheDir.listFiles()?.forEach { file ->
+                if (file.name.startsWith("Kryptx_Emergency_Kit_") && file.name.endsWith(".pdf")) {
+                    file.delete()
+                }
+            }
+        } catch (_: Throwable) {}
+
         val outputFile = File(context.cacheDir, "Kryptx_Emergency_Kit_${System.currentTimeMillis()}.pdf")
         try {
             FileOutputStream(outputFile).use { out ->

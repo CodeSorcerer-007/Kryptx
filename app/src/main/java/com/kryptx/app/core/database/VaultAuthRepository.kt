@@ -6,7 +6,6 @@ import com.kryptx.app.core.crypto.KeyDerivation
 import com.kryptx.app.core.crypto.PostQuantumEngine
 import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.crypto.SecureMemory
-import com.kryptx.app.core.database.IPreferencesRepository
 import com.kryptx.app.core.model.KryptxErrorType
 import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.security.VaultSessionManager
@@ -60,7 +59,6 @@ class VaultAuthRepositoryImpl(
     private val decoyDbHelper: KryptxDatabaseHelper,
     private val sessionManager: VaultSessionManager,
     private val keystoreManager: KeystoreManager,
-    private val preferencesRepository: IPreferencesRepository? = null,
     private val onAuditInvalidated: (() -> Unit)? = null
 ) : VaultAuthRepository {
 
@@ -85,10 +83,12 @@ class VaultAuthRepositoryImpl(
     override fun getBiometricEncryptCipher(): Cipher? = keystoreManager.getEncryptCipher()
 
     override suspend fun setupNewVault(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        val salt = KeyDerivation.generateSalt()
+        var derivedMasterKey: ByteArray? = null
+        var vek: ByteArray? = null
         try {
-            val salt = KeyDerivation.generateSalt()
-            val derivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, salt)
-            val vek = CryptoEngine.generateVaultKey()
+            derivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, salt)
+            vek = CryptoEngine.generateVaultKey()
 
             val encryptedVekPayload = CryptoEngine.encrypt(vek, derivedMasterKey)
             val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
@@ -109,14 +109,14 @@ class VaultAuthRepositoryImpl(
             dbHelper.recordSecurityScore(100)
             sessionManager.unlock(vek)
 
-            SecureMemory.wipe(vek)
-            SecureMemory.wipe(derivedMasterKey)
-            SecureMemory.wipe(salt)
-
             onAuditInvalidated?.invoke()
             KryptxResult.Success(Unit)
         } catch (e: Exception) {
             KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to create vault", e)
+        } finally {
+            SecureMemory.wipe(vek)
+            SecureMemory.wipe(derivedMasterKey)
+            SecureMemory.wipe(salt)
         }
     }
 
@@ -156,8 +156,10 @@ class VaultAuthRepositoryImpl(
                 KeyDerivation.deriveKey(masterPassword, salt)
             }
 
+            var vek: ByteArray? = null
+            var success = false
             try {
-                val vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
+                vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
 
                 val dbKey = deriveSqlCipherKey(vek)
                 dbHelper.setDatabaseKey(dbKey)
@@ -168,14 +170,18 @@ class VaultAuthRepositoryImpl(
                 sessionManager.withVaultKey { activeKey ->
                     dbHelper.loadAllItems(activeKey)
                 }
+                success = true
+                onAuditInvalidated?.invoke()
+            } catch (_: Exception) {
+                // Decryption failure falls through
+            } finally {
                 SecureMemory.wipe(vek)
                 SecureMemory.wipe(derivedMasterKey)
                 SecureMemory.wipe(salt)
-                onAuditInvalidated?.invoke()
+            }
+
+            if (success) {
                 return@withContext KryptxResult.Success(Unit)
-            } catch (_: Exception) {
-                SecureMemory.wipe(derivedMasterKey)
-                SecureMemory.wipe(salt)
             }
         }
 
@@ -188,8 +194,10 @@ class VaultAuthRepositoryImpl(
                 val duressTokenBytes = Base64.decode(duressTokenBase64, Base64.NO_WRAP)
                 val derivedDuressKey = KeyDerivation.deriveKeyArgon2(masterPassword, duressSalt)
 
+                var decoyVek: ByteArray? = null
+                var duressSuccess = false
                 try {
-                    val decoyVek = CryptoEngine.decrypt(duressTokenBytes, derivedDuressKey)
+                    decoyVek = CryptoEngine.decrypt(duressTokenBytes, derivedDuressKey)
 
                     val dbKey = deriveSqlCipherKey(decoyVek)
                     decoyDbHelper.setDatabaseKey(dbKey)
@@ -197,15 +205,18 @@ class VaultAuthRepositoryImpl(
 
                     sessionManager.unlock(decoyVek, isDecoy = true)
                     decoyDbHelper.loadAllItems(decoyVek)
-
+                    duressSuccess = true
+                    onAuditInvalidated?.invoke()
+                } catch (_: Exception) {
+                    // Decryption failure falls through
+                } finally {
                     SecureMemory.wipe(decoyVek)
                     SecureMemory.wipe(derivedDuressKey)
                     SecureMemory.wipe(duressSalt)
-                    onAuditInvalidated?.invoke()
+                }
+
+                if (duressSuccess) {
                     return@withContext KryptxResult.Success(Unit)
-                } catch (_: Exception) {
-                    SecureMemory.wipe(derivedDuressKey)
-                    SecureMemory.wipe(duressSalt)
                 }
             }
         }

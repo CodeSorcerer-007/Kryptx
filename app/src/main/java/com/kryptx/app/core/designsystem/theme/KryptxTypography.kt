@@ -6,9 +6,31 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.ui.text.font.Font
+import com.kryptx.app.R
+
 // ── Font Families ────────────────────────────────────────────────────────────
-val SovereignSans = FontFamily.SansSerif
-val SovereignMono = FontFamily.Monospace
+// Bundled offline bespoke fonts: Plus Jakarta Sans for UI, JetBrains Mono for security/TOTP
+val SovereignSans = try {
+    FontFamily(
+        Font(R.font.plus_jakarta_sans_regular, FontWeight.Normal),
+        Font(R.font.plus_jakarta_sans_medium, FontWeight.Medium),
+        Font(R.font.plus_jakarta_sans_semibold, FontWeight.SemiBold),
+        Font(R.font.plus_jakarta_sans_bold, FontWeight.Bold)
+    )
+} catch (_: Throwable) {
+    FontFamily.SansSerif
+}
+
+val SovereignMono = try {
+    FontFamily(
+        Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
+        Font(R.font.jetbrains_mono_medium, FontWeight.Medium),
+        Font(R.font.jetbrains_mono_bold, FontWeight.Bold)
+    )
+} catch (_: Throwable) {
+    FontFamily.Monospace
+}
 
 // ── Dedicated Security & Cryptography Text Styles ────────────────────────────
 val MonospaceFont = SovereignMono

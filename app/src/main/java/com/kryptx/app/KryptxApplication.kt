@@ -62,7 +62,12 @@ class KryptxApplication : Application(), KryptxDependencies {
 
         dbHelper = KryptxDatabaseHelper(this)
         decoyDbHelper = KryptxDatabaseHelper(this, "kryptx_sys_cache.db") // True hidden volume
-        sessionManager = VaultSessionManager()
+        sessionManager = VaultSessionManager().apply {
+            addLockListener {
+                dbHelper.clearDatabaseKey()
+                decoyDbHelper.clearDatabaseKey()
+            }
+        }
         keystoreManager = KeystoreManager()
         preferencesRepository = PreferencesRepository(this)
         vaultRepository = VaultRepositoryImpl(dbHelper, decoyDbHelper, sessionManager, keystoreManager, preferencesRepository)

@@ -49,6 +49,8 @@ class KryptxAutofillService : AutofillService() {
         cancellationSignal: CancellationSignal,
         callback: FillCallback
     ) {
+        if (cancellationSignal.isCanceled) return
+
         val context = request.fillContexts.lastOrNull() ?: run {
             callback.onSuccess(null)
             return
@@ -59,14 +61,15 @@ class KryptxAutofillService : AutofillService() {
         parsedForm.packageName = structure.activityComponent?.packageName
 
         for (i in 0 until structure.windowNodeCount) {
+            if (cancellationSignal.isCanceled) return
             val windowNode = structure.getWindowNodeAt(i)
             val root = windowNode?.rootViewNode
             if (root != null) {
-                traverseNode(root, parsedForm)
+                traverseNode(root, parsedForm, 0)
             }
         }
 
-        if (parsedForm.allAutofillIds.isEmpty()) {
+        if (parsedForm.allAutofillIds.isEmpty() || cancellationSignal.isCanceled) {
             callback.onSuccess(null)
             return
         }
@@ -200,12 +203,10 @@ class KryptxAutofillService : AutofillService() {
         }
     }
 
-    private fun traverseNode(node: AssistStructure.ViewNode?, parsed: ParsedForm) {
-        if (node == null) return
+    private fun traverseNode(node: AssistStructure.ViewNode?, parsed: ParsedForm, depth: Int = 0) {
+        if (node == null || depth > 30) return
 
         node.autofillId?.let { id ->
-            parsed.allAutofillIds.add(id)
-
             // Extract web domain from browser node
             node.webDomain?.let { domain ->
                 if (parsed.webDomain == null && domain.isNotBlank()) {
@@ -236,15 +237,24 @@ class KryptxAutofillService : AutofillService() {
 
             if (isPassword && parsed.passwordFieldId == null) {
                 parsed.passwordFieldId = id
+                if (!parsed.allAutofillIds.contains(id)) parsed.allAutofillIds.add(id)
             } else if (isUsername && parsed.usernameFieldId == null) {
                 parsed.usernameFieldId = id
+                if (!parsed.allAutofillIds.contains(id)) parsed.allAutofillIds.add(id)
+            } else if (parsed.allAutofillIds.size < 40) {
+                val isEditable = node.isFocused ||
+                        node.autofillType == View.AUTOFILL_TYPE_TEXT ||
+                        node.className?.contains("EditText", ignoreCase = true) == true
+                if (isEditable && !parsed.allAutofillIds.contains(id)) {
+                    parsed.allAutofillIds.add(id)
+                }
             }
         }
 
         for (i in 0 until node.childCount) {
             val child = node.getChildAt(i)
             if (child != null) {
-                traverseNode(child, parsed)
+                traverseNode(child, parsed, depth + 1)
             }
         }
     }

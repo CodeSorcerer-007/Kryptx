@@ -90,8 +90,15 @@ object RootDetector {
         try {
             val mapsFile = File("/proc/self/maps")
             if (mapsFile.exists()) {
-                val mapsContent = mapsFile.readText()
-                if (mapsContent.contains("frida") || mapsContent.contains("xposed") || mapsContent.contains("substrate") || mapsContent.contains("gum-js")) {
+                val isHooked = mapsFile.useLines { lines ->
+                    lines.any { line ->
+                        line.contains("frida", ignoreCase = true) ||
+                        line.contains("xposed", ignoreCase = true) ||
+                        line.contains("substrate", ignoreCase = true) ||
+                        line.contains("gum-js", ignoreCase = true)
+                    }
+                }
+                if (isHooked) {
                     indicators.add("Runtime hooking framework detected in memory maps")
                 }
             }

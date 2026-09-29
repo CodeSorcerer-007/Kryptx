@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
@@ -279,148 +281,245 @@ fun VaultDashboardScreen(
             }
 
             // 5. Main Signature WorkONE Folder Tab Card
-            item {
-                Spacer(modifier = Modifier.height(18.dp))
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    KryptxFolderCard(
-                        title = when {
-                            searchQuery.isNotBlank() -> "Search Results (${items.size})"
-                            selectedCategory == null -> "All Items (${items.size})"
-                            else -> "${selectedCategory!!.categoryName} (${items.size})"
-                        }
-                    ) {
-                        if (items.isEmpty()) {
+            if (items.isEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        KryptxFolderCard(
+                            title = when {
+                                searchQuery.isNotBlank() -> "Search Results (${items.size})"
+                                selectedCategory == null -> "All Items (${items.size})"
+                                else -> "${selectedCategory!!.categoryName} (${items.size})"
+                            }
+                        ) {
                             KryptxEmptyState(
                                 title = if (allItems.isEmpty()) "Your Vault is Empty" else "No matching items",
                                 subtitle = if (allItems.isEmpty()) "Secure your logins, credit cards, identities, and notes in one place." else "Try adjusting your search query or select another category.",
                                 actionButtonText = if (allItems.isEmpty()) "Add Your First Item" else null,
                                 onActionClick = onNavigateToAddItem
                             )
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                // Smart Sort Chips
-                                Row(
+                        }
+                    }
+                }
+            } else {
+                item(key = "vault_items_header") {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                    ) {
+                        // Section Header Title Pill
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(KryptxBlue.copy(alpha = 0.18f))
+                                    .border(1.dp, KryptxBlue.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(KryptxBlue)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = when {
+                                        searchQuery.isNotBlank() -> "Search Results (${items.size})"
+                                        selectedCategory == null -> "All Items (${items.size})"
+                                        else -> "${selectedCategory!!.categoryName} (${items.size})"
+                                    },
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        // Smart Sort Chips
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Sort:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                            VaultViewModel.SortOption.entries.forEach { opt ->
+                                val isOptSelected = sortOption == opt
+                                val optBgColor: Color = if (isOptSelected) KryptxBlue.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                val optBorderColor: Color = if (isOptSelected) KryptxBrightBlue else Color.Transparent
+                                val optTextColor: Color = if (isOptSelected) KryptxBrightBlue else MaterialTheme.colorScheme.onSurfaceVariant
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(optBgColor)
+                                        .border(1.dp, optBorderColor, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            KryptxHaptics.tap(view)
+                                            viewModel.setSortOption(opt)
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "Sort:",
+                                        text = opt.label,
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        fontWeight = if (isOptSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = optTextColor
                                     )
-                                    VaultViewModel.SortOption.values().forEach { opt ->
-                                        val isOptSelected = sortOption == opt
-                                        val optBgColor: Color = if (isOptSelected) KryptxBlue.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                        val optBorderColor: Color = if (isOptSelected) KryptxBrightBlue else Color.Transparent
-                                        val optTextColor: Color = if (isOptSelected) KryptxBrightBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            }
+                        }
+                    }
+                }
 
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(optBgColor)
-                                                .border(1.dp, optBorderColor, RoundedCornerShape(8.dp))
-                                                .clickable {
-                                                    KryptxHaptics.tap(view)
-                                                    viewModel.setSortOption(opt)
+                itemsIndexed(
+                    items = items,
+                    key = { _, item -> item.id }
+                ) { index, item ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 4.dp)
+                    ) {
+                        @Suppress("DEPRECATION")
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { dismissValue ->
+                                when (dismissValue) {
+                                    SwipeToDismissBoxValue.StartToEnd -> {
+                                        // Swipe Right: 1-Touch Quick Copy
+                                        if (item.primarySecret.isNotBlank()) {
+                                            KryptxHaptics.confirm(view)
+                                            viewModel.copySecret(item.title, item.primarySecret)
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = "Copied '${item.title}' secret (auto-clears in 30s)",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                            }
+                                        } else {
+                                            KryptxHaptics.tap(view)
+                                        }
+                                        // Return false so card springs back into place after copying
+                                        false
+                                    }
+                                    SwipeToDismissBoxValue.EndToStart -> {
+                                        // Swipe Left: Move to Trash / Delete
+                                        KryptxHaptics.warning(view)
+                                        val itemTitle = item.title
+                                        viewModel.deleteItemWithUndo(item.id) { _ ->
+                                            scope.launch {
+                                                val result = snackbarHostState.showSnackbar(
+                                                    message = "'$itemTitle' deleted",
+                                                    actionLabel = "Undo",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                                if (result == SnackbarResult.ActionPerformed) {
+                                                    viewModel.undoLastDelete {
+                                                        KryptxHaptics.confirm(view)
+                                                    }
                                                 }
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
+                                            }
+                                        }
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                        )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            modifier = Modifier
+                                .animateItem()
+                                .staggeredEntrance(index = index),
+                            backgroundContent = {
+                                val isDismissing = dismissState.targetValue != SwipeToDismissBoxValue.Settled
+                                val isCopyGesture = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+
+                                val swipeBg = if (isCopyGesture) {
+                                    KryptxElectricBlueGradient
+                                } else {
+                                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                        listOf(KryptxRed.copy(alpha = 0.7f), KryptxRed)
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(swipeBg)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = if (isCopyGesture) Alignment.CenterStart else Alignment.CenterEnd
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (isCopyGesture) {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentCopy,
+                                                contentDescription = "Copy Secret",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
                                             Text(
-                                                text = opt.label,
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isOptSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = optTextColor
+                                                text = "Copy Secret",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete item",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Delete",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
                                             )
                                         }
                                     }
                                 }
-
-                                items.forEachIndexed { index, item ->
-                                    @Suppress("DEPRECATION")
-                                    val dismissState = rememberSwipeToDismissBoxState(
-                                        confirmValueChange = { dismissValue ->
-                                            if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
-                                                KryptxHaptics.warning(view)
-                                                val itemTitle = item.title
-                                                viewModel.deleteItemWithUndo(item.id) { _ ->
-                                                    scope.launch {
-                                                        val result = snackbarHostState.showSnackbar(
-                                                            message = "'$itemTitle' deleted",
-                                                            actionLabel = "Undo",
-                                                            duration = SnackbarDuration.Short
-                                                        )
-                                                        if (result == SnackbarResult.ActionPerformed) {
-                                                            viewModel.undoLastDelete {
-                                                                KryptxHaptics.confirm(view)
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                true
-                                            } else {
-                                                false
-                                            }
-                                        }
-                                    )
-
-                                    SwipeToDismissBox(
-                                        state = dismissState,
-                                        modifier = Modifier
-                                            .animateItem()
-                                            .staggeredEntrance(index = index),
-                                        backgroundContent = {
-                                            val isDismissing = dismissState.targetValue != SwipeToDismissBoxValue.Settled
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .clip(RoundedCornerShape(16.dp))
-                                                    .background(KryptxRed.copy(alpha = if (isDismissing) 0.85f else 0.4f))
-                                                    .padding(horizontal = 20.dp),
-                                                contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                            ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Delete,
-                                                        contentDescription = "Delete item",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(
-                                                        text = "Delete",
-                                                        color = Color.White,
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    ) {
-                                        VaultItemRow(
-                                            item = item,
-                                            onClick = { onNavigateToItemDetail(item.id) },
-                                            onLongClick = {
-                                                KryptxHaptics.confirm(view)
-                                                selectedItemForActions = item
-                                            },
-                                            onToggleFavorite = { viewModel.toggleFavorite(item.id) },
-                                            onCopySecret = {
-                                                viewModel.copySecret(item.title, item.primarySecret)
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar("Password copied! Clears automatically in 30s.")
-                                                }
-                                            },
-                                            isSelected = selectedItemIds.contains(item.id),
-                                            isSelectionMode = isSelectionMode,
-                                            onSelectToggle = { viewModel.toggleSelectItem(item.id) }
-                                        )
-                                    }
-                                }
                             }
+                        ) {
+                            VaultItemRow(
+                                item = item,
+                                onClick = { onNavigateToItemDetail(item.id) },
+                                onLongClick = {
+                                    KryptxHaptics.confirm(view)
+                                    selectedItemForActions = item
+                                },
+                                onToggleFavorite = { viewModel.toggleFavorite(item.id) },
+                                onCopySecret = {
+                                    viewModel.copySecret(item.title, item.primarySecret)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Password copied! Clears automatically in 30s.")
+                                    }
+                                },
+                                isSelected = selectedItemIds.contains(item.id),
+                                isSelectionMode = isSelectionMode,
+                                onSelectToggle = { viewModel.toggleSelectItem(item.id) }
+                            )
                         }
                     }
                 }

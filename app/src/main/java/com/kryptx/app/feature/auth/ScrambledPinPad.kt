@@ -48,10 +48,11 @@ import java.security.SecureRandom
 fun ScrambledPinPad(
     pinLength: Int = 6,
     isScrambleDisabled: Boolean = false,
+    resetKey: Any? = null,
     onPinComplete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var enteredPin by remember { mutableStateOf("") }
+    var enteredPin by remember(resetKey) { mutableStateOf("") }
     var digits by remember(isScrambleDisabled) {
         mutableStateOf(if (isScrambleDisabled) listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 0) else generateShuffledDigits())
     }
