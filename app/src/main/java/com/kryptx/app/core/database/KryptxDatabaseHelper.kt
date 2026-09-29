@@ -2,9 +2,9 @@ package com.kryptx.app.core.database
 
 import android.content.ContentValues
 import android.content.Context
-import net.sqlcipher.database.SQLiteDatabase
-import net.sqlcipher.database.SQLiteOpenHelper
-import net.sqlcipher.database.SQLiteDatabaseHook
+import net.zetetic.database.sqlcipher.SQLiteDatabase
+import net.zetetic.database.sqlcipher.SQLiteOpenHelper
+import net.zetetic.database.sqlcipher.SQLiteDatabaseHook
 import com.kryptx.app.core.crypto.CryptoEngine
 import com.kryptx.app.core.model.CustomField
 import com.kryptx.app.core.model.ItemType
@@ -24,68 +24,97 @@ import java.security.SecureRandom
  */
 class KryptxDatabaseHelper(
     private val context: Context,
-    databaseName: String = DATABASE_NAME
-) : SQLiteOpenHelper(
-    context,
-    databaseName,
-    null,
-    DATABASE_VERSION,
-    object : SQLiteDatabaseHook {
-        override fun preKey(db: SQLiteDatabase?) {}
-        override fun postKey(db: SQLiteDatabase?) {
-            db?.rawExecSQL("PRAGMA cipher_memory_security = ON")
-        }
-    }
+    private val databaseName: String = DATABASE_NAME
 ) {
-    /**
-     * The SQLCipher page-encryption key derived from the vault master password.
-     * Must be set via [setDatabaseKey] immediately after the VEK is resolved at
-     * setup/unlock time. While null, the SQLCipher container opens with an empty
-     * passphrase — which is intentionally rejected by [requireDatabaseKey].
-     */
     @Volatile
-    private var databaseKey: ByteArray? = null
+    private var internalHelper: InternalOpenHelper? = null
 
     init {
-        SQLiteDatabase.loadLibs(context)
+        System.loadLibrary("sqlcipher")
+    }
+
+    private class InternalOpenHelper(
+        context: Context,
+        name: String,
+        password: ByteArray,
+        version: Int
+    ) : SQLiteOpenHelper(
+        context,
+        name,
+        password,
+        null,
+        version,
+        0,
+        null,
+        object : SQLiteDatabaseHook {
+            override fun preKey(connection: net.zetetic.database.sqlcipher.SQLiteConnection?) {}
+            override fun postKey(connection: net.zetetic.database.sqlcipher.SQLiteConnection?) {
+                connection?.executeRaw("PRAGMA cipher_memory_security = ON", null, null)
+            }
+        },
+        true
+    ) {
+        override fun onConfigure(db: SQLiteDatabase) {
+            super.onConfigure(db)
+            try {
+                db.enableWriteAheadLogging()
+                db.execSQL("PRAGMA auto_vacuum = FULL")
+                db.execSQL("PRAGMA mmap_size = 268435456") // 256MB memory mapping for zero-copy queries
+                db.execSQL("PRAGMA temp_store = MEMORY")   // RAM-only temp tables & indices
+                db.execSQL("PRAGMA synchronous = NORMAL")  // Maximum write throughput with WAL safety
+                db.execSQL("PRAGMA secure_delete = FAST")  // Cryptographic block overwrite on delete
+            } catch (_: Exception) {}
+        }
+
+        override fun onCreate(db: SQLiteDatabase) {
+            db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_VAULT_ITEMS)
+            db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_VAULT_METADATA)
+            db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_SECURITY_HISTORY)
+            db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_ACTIVITY_LOG)
+            KryptxDbSchema.SQL_CREATE_INDICES.forEach { db.execSQL(it) }
+        }
+
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            KryptxDbMigrations.onUpgrade(db, oldVersion, newVersion)
+        }
     }
 
     /**
      * Sets the SQLCipher database encryption key derived from the active VEK.
      * Call this once at setup and once at every successful unlock before any DB access.
-     * The key is stored only in memory and wiped alongside the VEK on lock.
      */
+    @Synchronized
     fun setDatabaseKey(key: ByteArray) {
-        // Wipe any previous key material before overwriting
-        databaseKey?.let { com.kryptx.app.core.crypto.SecureMemory.wipe(it) }
-        databaseKey = key.copyOf()
+        internalHelper?.close()
+        internalHelper = InternalOpenHelper(context, databaseName, key, DATABASE_VERSION)
     }
 
     /**
-     * Clears the in-memory SQLCipher key. Call when the vault is locked.
+     * Clears the in-memory SQLCipher key and closes database connections. Call when vault is locked.
      */
+    @Synchronized
     fun clearDatabaseKey() {
-        databaseKey?.let { com.kryptx.app.core.crypto.SecureMemory.wipe(it) }
-        databaseKey = null
+        internalHelper?.close()
+        internalHelper = null
     }
 
-    /**
-     * Returns the current database key, or throws if the vault is locked.
-     * This prevents silent fallback to an empty-passphrase open.
-     */
-    private fun requireDatabaseKey(): ByteArray {
-        return databaseKey
-            ?: throw IllegalStateException(
-                "SQLCipher database key is not set — vault must be unlocked before accessing the database."
-            )
+    fun close() {
+        internalHelper?.close()
+        internalHelper = null
     }
 
     // Pass the SQLCipher key to all database accessors
     val writableDatabase: SQLiteDatabase
-        get() = getWritableDatabase(requireDatabaseKey())
+        get() = internalHelper?.writableDatabase
+            ?: throw IllegalStateException(
+                "SQLCipher database key is not set — vault must be unlocked before accessing the database."
+            )
 
     val readableDatabase: SQLiteDatabase
-        get() = getReadableDatabase(requireDatabaseKey())
+        get() = internalHelper?.readableDatabase
+            ?: throw IllegalStateException(
+                "SQLCipher database key is not set — vault must be unlocked before accessing the database."
+            )
 
     companion object {
         const val DATABASE_NAME = KryptxDbSchema.DATABASE_NAME
@@ -145,30 +174,6 @@ class KryptxDatabaseHelper(
     val itemsFlow: Flow<List<VaultItem>> = _itemsFlow.asStateFlow()
     private val _trashFlow = MutableStateFlow<List<VaultItem>>(emptyList())
     val trashFlow: Flow<List<VaultItem>> = _trashFlow.asStateFlow()
-
-    override fun onConfigure(db: SQLiteDatabase) {
-        super.onConfigure(db)
-        try {
-            db.enableWriteAheadLogging()
-            db.execSQL("PRAGMA auto_vacuum = FULL")
-            db.execSQL("PRAGMA mmap_size = 268435456") // 256MB memory mapping for zero-copy queries
-            db.execSQL("PRAGMA temp_store = MEMORY")   // RAM-only temp tables & indices
-            db.execSQL("PRAGMA synchronous = NORMAL")  // Maximum write throughput with WAL safety
-            db.execSQL("PRAGMA secure_delete = FAST")  // Cryptographic block overwrite on delete
-        } catch (_: Exception) {}
-    }
-
-    override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_VAULT_ITEMS)
-        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_VAULT_METADATA)
-        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_SECURITY_HISTORY)
-        db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_ACTIVITY_LOG)
-        KryptxDbSchema.SQL_CREATE_INDICES.forEach { db.execSQL(it) }
-    }
-
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        KryptxDbMigrations.onUpgrade(db, oldVersion, newVersion)
-    }
 
     // ==========================================
     // Metadata / Vault Auth Storage (Migrated to EncryptedSharedPreferences)

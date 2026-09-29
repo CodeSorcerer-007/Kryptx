@@ -1,6 +1,6 @@
 package com.kryptx.app.core.database
 
-import net.sqlcipher.database.SQLiteDatabase
+import net.zetetic.database.sqlcipher.SQLiteDatabase
 import com.kryptx.app.core.database.KryptxDbSchema.COL_ACT_DESC
 import com.kryptx.app.core.database.KryptxDbSchema.COL_ACT_ID
 import com.kryptx.app.core.database.KryptxDbSchema.COL_ACT_TIMESTAMP

@@ -16,7 +16,7 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
+        versionCode = 11
         versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -154,8 +154,8 @@ dependencies {
     implementation("com.yubico.yubikit:core:2.4.0")
     implementation("com.yubico.yubikit:yubiotp:2.4.0")
 
-    // SQLCipher Database Encryption
-    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+    // SQLCipher Database Encryption (16 KB page-size compatible)
+    implementation("net.zetetic:sqlcipher-android:4.14.0@aar")
     implementation("androidx.sqlite:sqlite:2.4.0")
 
     // Barcode / QR Code Generation & Scanning (TOTP QR & Wi-Fi QR)
@@ -183,7 +183,7 @@ dependencies {
     testImplementation(libs.mockito.kotlin)
 
     // JNA for UniFFI
-    implementation("net.java.dev.jna:jna:5.14.0@aar")
+    implementation("net.java.dev.jna:jna:5.16.0@aar")
 
     // Instrumentation Testing
     androidTestImplementation(libs.androidx.test.core)
