@@ -116,6 +116,7 @@ fun UnlockScreen(
         if (uiState.password.isNotBlank() && lockoutSeconds == 0) {
             viewModel.unlockWithPassword(onSuccess = {
                 KryptxHaptics.confirm(view)
+                com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(view.context)
                 triggerCelebration = true
                 scope.launch {
                     delay(180)

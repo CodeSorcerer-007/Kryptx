@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -185,12 +186,24 @@ fun VaultDashboardScreen(
             contentAlignment = Alignment.TopCenter
         ) {
             val isWideScreen = maxWidth >= 720.dp
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(if (isWideScreen) Modifier.width(760.dp) else Modifier.fillMaxWidth()),
-                contentPadding = PaddingValues(bottom = 100.dp)
-            ) {
+            var selectedInspectorItemId by remember { mutableStateOf<String?>(null) }
+            val selectedInspectorItem = remember(selectedInspectorItemId, allItems) {
+                allItems.firstOrNull { it.id == selectedInspectorItemId }
+            }
+
+            androidx.compose.runtime.LaunchedEffect(isWideScreen, items) {
+                if (isWideScreen && selectedInspectorItemId == null && items.isNotEmpty()) {
+                    selectedInspectorItemId = items.first().id
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .then(if (isWideScreen) Modifier.width(380.dp) else Modifier.fillMaxWidth())
+                        .fillMaxHeight(),
+                    contentPadding = PaddingValues(bottom = 100.dp)
+                ) {
                 // 1. Top Header: User Profile Avatar + Welcome + Security Pulse + Lock Button
                 item {
                     VaultDashboardHeader(
@@ -405,6 +418,7 @@ fun VaultDashboardScreen(
                                         // Swipe Right: 1-Touch Quick Copy
                                         if (item.primarySecret.isNotBlank()) {
                                             KryptxHaptics.confirm(view)
+                                            com.kryptx.app.core.designsystem.components.KryptxAudio.snap(context)
                                             viewModel.copySecret(item.title, item.primarySecret)
                                             scope.launch {
                                                 snackbarHostState.showSnackbar(
@@ -502,30 +516,76 @@ fun VaultDashboardScreen(
                                 }
                             }
                         ) {
-                            VaultItemRow(
-                                item = item,
-                                onClick = { onNavigateToItemDetail(item.id) },
-                                onLongClick = {
-                                    KryptxHaptics.confirm(view)
-                                    selectedItemForActions = item
-                                },
-                                onToggleFavorite = { viewModel.toggleFavorite(item.id) },
-                                onCopySecret = {
-                                    viewModel.copySecret(item.title, item.primarySecret)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Password copied! Clears automatically in 30s.")
-                                    }
-                                },
-                                isSelected = selectedItemIds.contains(item.id),
-                                isSelectionMode = isSelectionMode,
-                                onSelectToggle = { viewModel.toggleSelectItem(item.id) }
-                            )
+                            val isInspectorSelected = isWideScreen && selectedInspectorItemId == item.id
+                            Box(
+                                modifier = if (isInspectorSelected) {
+                                    Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .border(1.5.dp, KryptxBrightBlue, RoundedCornerShape(16.dp))
+                                } else {
+                                    Modifier
+                                }
+                            ) {
+                                VaultItemRow(
+                                    item = item,
+                                    onClick = {
+                                        if (isWideScreen) {
+                                            selectedInspectorItemId = item.id
+                                            com.kryptx.app.core.designsystem.components.KryptxAudio.click(context)
+                                        } else {
+                                            onNavigateToItemDetail(item.id)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        KryptxHaptics.confirm(view)
+                                        selectedItemForActions = item
+                                    },
+                                    onToggleFavorite = { viewModel.toggleFavorite(item.id) },
+                                    onCopySecret = {
+                                        viewModel.copySecret(item.title, item.primarySecret)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Password copied! Clears automatically in 30s.")
+                                        }
+                                    },
+                                    isSelected = selectedItemIds.contains(item.id),
+                                    isSelectionMode = isSelectionMode,
+                                    onSelectToggle = { viewModel.toggleSelectItem(item.id) }
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     }
+
+    if (isWideScreen) {
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        )
+
+        VaultInspectorPane(
+            selectedItem = selectedInspectorItem,
+            totalItemsCount = allItems.size,
+            favoritesCount = favorites.size,
+            totpCount = totpCount,
+            securityReport = securityReport,
+            viewModel = viewModel,
+            snackbarHostState = snackbarHostState,
+            onNavigateToEdit = onNavigateToItemDetail,
+            onNavigateToAddItem = onNavigateToAddItem,
+            onNavigateToSecurityCenter = onNavigateToSecurityCenter,
+            onDeselectItem = { selectedInspectorItemId = null },
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        )
+    }
+}
+}
 }
 
     // Quick Actions Context Menu Bottom Sheet on Card Long-Press
@@ -565,5 +625,4 @@ fun VaultDashboardScreen(
             }
         )
     }
-}
 }

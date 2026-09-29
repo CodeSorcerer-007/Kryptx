@@ -38,6 +38,7 @@ class SettingsViewModel(
     val quickUnlockEnabled = preferencesRepository.quickUnlockEnabled
     val scrambledPinDisabled = preferencesRepository.scrambledPinDisabled
     val shakeToLockEnabled = preferencesRepository.shakeToLockEnabled
+    val acousticFeedbackEnabled = preferencesRepository.acousticFeedbackEnabled
 
     val activityEvents: StateFlow<List<ActivityEvent>> = activityLogManager?.events ?: MutableStateFlow(emptyList())
 
@@ -143,6 +144,10 @@ class SettingsViewModel(
 
     fun setMinimalistDashboardMode(enabled: Boolean) {
         preferencesRepository.setMinimalistDashboardMode(enabled)
+    }
+
+    fun setAcousticFeedbackEnabled(enabled: Boolean) {
+        preferencesRepository.setAcousticFeedbackEnabled(enabled)
     }
 
     fun setupDuressPassword(duressPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {

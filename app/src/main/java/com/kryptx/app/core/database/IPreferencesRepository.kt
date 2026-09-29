@@ -44,6 +44,7 @@ interface IPreferencesRepository {
     val autofillNudgeDismissed: StateFlow<Boolean>
     val scrambledPinDisabled: StateFlow<Boolean>
     val shakeToLockEnabled: StateFlow<Boolean>
+    val acousticFeedbackEnabled: StateFlow<Boolean>
 
     fun setThemeMode(mode: AppThemeMode)
     fun setDynamicColor(enable: Boolean)
@@ -60,6 +61,7 @@ interface IPreferencesRepository {
     fun setAutofillNudgeDismissed(dismissed: Boolean)
     fun setScrambledPinDisabled(disabled: Boolean)
     fun setShakeToLockEnabled(enabled: Boolean)
+    fun setAcousticFeedbackEnabled(enabled: Boolean)
 
     fun hasSeenFeatureIntro(featureKey: String): Boolean
     fun markFeatureIntroSeen(featureKey: String)

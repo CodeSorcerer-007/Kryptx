@@ -46,6 +46,7 @@ fun AppearanceSettingsScreen(
 ) {
     val currentTheme by viewModel.themeMode.collectAsState()
     val dynamicColor by viewModel.dynamicColor.collectAsState()
+    val acousticFeedbackEnabled by viewModel.acousticFeedbackEnabled.collectAsState()
 
     Scaffold(
         modifier = modifier
@@ -160,6 +161,52 @@ fun AppearanceSettingsScreen(
                             )
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "SENSORY & ACOUSTICS",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Acoustic Feedback",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Synthesized micro-clicks, snaps, and unlock chime (zero-latency, muted on vibrate)",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = acousticFeedbackEnabled,
+                        onCheckedChange = { viewModel.setAcousticFeedbackEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = KryptxBlue
+                        )
+                    )
                 }
             }
 

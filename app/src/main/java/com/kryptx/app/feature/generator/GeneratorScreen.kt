@@ -273,6 +273,7 @@ fun GeneratorScreen(
                             },
                             onClick = {
                                 KryptxHaptics.tap(view)
+                                com.kryptx.app.core.designsystem.components.KryptxAudio.tick(view.context)
                                 viewModel.regenerate()
                             }
                         )
@@ -293,6 +294,7 @@ fun GeneratorScreen(
                             },
                             onClick = {
                                 KryptxHaptics.confirm(view)
+                                com.kryptx.app.core.designsystem.components.KryptxAudio.snap(view.context)
                                 viewModel.copyToClipboard()
                                 isCopied = true
                                 scope.launch {

@@ -281,6 +281,7 @@ fun VaultItemRow(
                             )
                             .clickable {
                                 KryptxHaptics.confirm(view)
+                                com.kryptx.app.core.designsystem.components.KryptxAudio.snap(view.context)
                                 isCopied = true
                                 onCopySecret()
                                 scope.launch {

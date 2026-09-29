@@ -495,6 +495,7 @@ fun KryptxBottomNavBar(
                             ) {
                                 if (!isSelected) {
                                     com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
+                                    com.kryptx.app.core.designsystem.components.KryptxAudio.tick(view.context)
                                     onTabSelected(tab)
                                 }
                             }
