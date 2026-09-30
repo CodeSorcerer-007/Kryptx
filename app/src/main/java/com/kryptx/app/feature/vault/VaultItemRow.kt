@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -64,6 +65,7 @@ import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxMotion
 import com.kryptx.app.core.designsystem.theme.KryptxRed
+import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -121,6 +123,7 @@ fun VaultItemRow(
 
     Box(
         modifier = modifier
+            .testTag("vault_item_row_${item.id}")
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(backgroundColor)
@@ -137,10 +140,12 @@ fun VaultItemRow(
                 },
                 onLongClick = {
                     KryptxHaptics.heavyClick(view)
-                    if (onSelectToggle != null && !isSelectionMode) {
-                        onSelectToggle()
+                    if (isSelectionMode) {
+                        onSelectToggle?.invoke()
+                    } else if (onLongClick != null) {
+                        onLongClick.invoke()
                     } else {
-                        onLongClick?.invoke()
+                        onSelectToggle?.invoke()
                     }
                 }
             )
@@ -161,7 +166,9 @@ fun VaultItemRow(
                         KryptxHaptics.tap(view)
                         onSelectToggle?.invoke()
                     },
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier
+                        .size(38.dp)
+                        .testTag("vault_item_select_${item.id}")
                 ) {
                     Icon(
                         imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
@@ -251,7 +258,9 @@ fun VaultItemRow(
                         KryptxHaptics.tap(view)
                         onToggleFavorite()
                     },
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier
+                        .size(34.dp)
+                        .testTag("vault_item_favorite_${item.id}")
                 ) {
                     Icon(
                         imageVector = if (item.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
@@ -268,6 +277,7 @@ fun VaultItemRow(
                     Box(
                         modifier = Modifier
                             .size(34.dp)
+                            .testTag("vault_item_copy_${item.id}")
                             .clip(CircleShape)
                             .background(
                                 if (isCopied) KryptxEmerald.copy(alpha = 0.22f)
@@ -310,4 +320,24 @@ fun VaultItemRow(
     }
 }
 
-
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+fun VaultItemRowPreview() {
+    VaultItemRow(
+        item = VaultItem(
+            id = "test-item-1",
+            title = "Proton Mail",
+            username = "user@proton.me",
+            type = ItemType.LOGIN,
+            isFavorite = true,
+            totpSecret = "JBSWY3DPEHPK3PXP",
+            password = "super-secret-password"
+        ),
+        isSelectionMode = false,
+        isSelected = false,
+        onClick = {},
+        onLongClick = {},
+        onToggleFavorite = {},
+        onCopySecret = {}
+    )
+}

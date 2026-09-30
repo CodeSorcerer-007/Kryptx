@@ -170,15 +170,18 @@ class UnlockViewModel(
 
             when (result) {
                 is KryptxResult.Success -> {
-                    if (enableBiometrics) {
-                        vaultRepository.setupBiometrics()
-                        preferencesRepository.setBiometricEnabled(true)
-                    }
+                    val bioConfigured = if (enableBiometrics) {
+                        val bioResult = vaultRepository.setupBiometrics()
+                        val success = bioResult.isSuccess
+                        preferencesRepository.setBiometricEnabled(success)
+                        success
+                    } else false
+
                     _uiState.value = _uiState.value.copy(
                         hasVault = true,
                         password = "",
                         isLoading = false,
-                        isBiometricsAvailable = enableBiometrics
+                        isBiometricsAvailable = bioConfigured
                     )
                     activityLogManager?.logEvent("Security", "New Vault created")
                     activityLogManager?.loadEvents()
@@ -211,7 +214,8 @@ class UnlockViewModel(
                     val message = when (result.type) {
                         KryptxErrorType.KEYSTORE_INVALIDATED -> "Biometric enrollment changed. Please use your master password to re-enroll."
                         KryptxErrorType.BIOMETRICS_NOT_AVAILABLE -> "Biometric unlock not configured."
-                        else -> "Biometric authentication failed. Please try again."
+                        KryptxErrorType.BIOMETRICS_FAILED -> if (result.message.isNotBlank()) result.message else "Biometric authentication failed. Please try again."
+                        else -> if (result.message.isNotBlank()) result.message else "Biometric authentication failed. Please enter your master password."
                     }
                     _uiState.value = _uiState.value.copy(errorMessage = message)
                 }

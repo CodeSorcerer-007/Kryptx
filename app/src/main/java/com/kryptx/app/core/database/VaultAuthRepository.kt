@@ -66,15 +66,12 @@ class VaultAuthRepositoryImpl(
 
     override fun isBiometricsConfigured(): Boolean {
         return keystoreManager.hasBiometricKey() &&
-                !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank() &&
-                !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV).isNullOrBlank()
+                !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank()
     }
 
     override fun getBiometricDecryptCipher(): Cipher? {
-        val ivBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV) ?: return null
         return try {
-            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
-            keystoreManager.getDecryptCipher(iv)
+            keystoreManager.getDecryptCipher()
         } catch (_: Exception) {
             null
         }
@@ -226,26 +223,21 @@ class VaultAuthRepositoryImpl(
     }
 
     override suspend fun setupBiometrics(): KryptxResult<Unit> = withContext(Dispatchers.Default) {
-        val cipher = keystoreManager.getEncryptCipher()
-            ?: return@withContext KryptxResult.Error(KryptxErrorType.BIOMETRICS_NOT_AVAILABLE, "Could not initialize biometric cipher")
-        setupBiometricsWithCipher(cipher)
-    }
-
-    override suspend fun setupBiometricsWithCipher(cipher: Cipher): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { activeVek ->
             try {
-                val (wrappedVek, iv) = keystoreManager.wrapWithCipher(cipher, activeVek)
+                val wrappedVek = keystoreManager.wrapWithPublicKey(activeVek)
                 val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
-                val ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP)
 
                 dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, ivBase64)
+                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Failed to enroll biometric key", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
+
+    override suspend fun setupBiometricsWithCipher(cipher: Cipher): KryptxResult<Unit> = setupBiometrics()
 
     override suspend fun unlockWithBiometrics(): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         val cipher = getBiometricDecryptCipher()
@@ -588,7 +580,7 @@ class VaultAuthRepositoryImpl(
         sessionManager.lock()
         keystoreManager.removeBiometricKey()
         dbHelper.clearAllData()
-        decoyDbHelper.clearDatabaseKey()
+        decoyDbHelper.clearAllData()
     }
 
     override fun getPqcIdentityPublicKey(): ByteArray? {

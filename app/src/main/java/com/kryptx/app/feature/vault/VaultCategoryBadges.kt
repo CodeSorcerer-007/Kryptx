@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -147,6 +148,7 @@ fun FloatingCategoryBadge(
 
     Box(
         modifier = Modifier
+            .testTag("category_badge_${label.lowercase().replace(" ", "_")}")
             .clip(RoundedCornerShape(16.dp))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(16.dp))
@@ -203,3 +205,25 @@ fun FloatingCategoryBadge(
     }
 }
 
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+fun FloatingCategoryBadgePreview() {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FloatingCategoryBadge(
+            label = "Logins",
+            badgeText = "KEY",
+            count = 14,
+            color = KryptxBlue,
+            isSelected = true,
+            onClick = {}
+        )
+        FloatingCategoryBadge(
+            label = "Cards",
+            badgeText = "CARD",
+            count = 3,
+            color = KryptxBrightBlue,
+            isSelected = false,
+            onClick = {}
+        )
+    }
+}

@@ -3,23 +3,35 @@ package com.kryptx.app.core.crypto
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import java.security.KeyPair
+import java.security.KeyPairGenerator
 import java.security.KeyStore
+import java.security.PrivateKey
+import java.security.spec.MGF1ParameterSpec
 import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.OAEPParameterSpec
+import javax.crypto.spec.PSource
 
 /**
  * Android Keystore manager for protecting vault master keys with hardware-backed security (StrongBox / TEE).
- * Cryptographically binds the Vault Encryption Key (VEK) to hardware biometric authentication.
+ * Cryptographically binds the Vault Encryption Key (VEK) to hardware biometric authentication
+ * using asymmetric RSA-2048 OAEP.
+ *
+ * - Public Key (PURPOSE_ENCRYPT): Wraps the 32-byte VEK in background with zero user prompts.
+ * - Private Key (PURPOSE_DECRYPT): Hardware-bound to Class 3 Strong Biometrics with per-use authentication.
  */
 class KeystoreManager {
 
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val BIOMETRIC_KEY_ALIAS = "kryptx_biometric_master_key"
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private const val GCM_TAG_LENGTH_BITS = 128
+        private const val TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
+        private val OAEP_SPEC = OAEPParameterSpec(
+            "SHA-256",
+            "MGF1",
+            MGF1ParameterSpec.SHA256,
+            PSource.PSpecified.DEFAULT
+        )
     }
 
     private fun getKeyStore(): KeyStore {
@@ -33,7 +45,8 @@ class KeystoreManager {
      */
     fun hasBiometricKey(): Boolean {
         return try {
-            getKeyStore().containsAlias(BIOMETRIC_KEY_ALIAS)
+            val ks = getKeyStore()
+            ks.containsAlias(BIOMETRIC_KEY_ALIAS)
         } catch (_: Exception) {
             false
         }
@@ -54,33 +67,37 @@ class KeystoreManager {
     }
 
     /**
-     * Generates or retrieves the hardware-backed AES-256 key from Android Keystore.
-     * Cryptographically bound to Strong Biometrics (Class 3) with per-use authentication.
+     * Generates or retrieves the hardware-backed RSA-2048 key pair from Android Keystore.
+     * Decryption is cryptographically bound to Strong Biometrics (Class 3) with per-use authentication.
      * Enrolls StrongBox Keymaster when supported, falling back to standard TEE.
      */
     @Synchronized
-    fun getOrCreateBiometricKey(): SecretKey {
+    fun getOrCreateBiometricKeyPair(): KeyPair {
         val ks = getKeyStore()
         if (ks.containsAlias(BIOMETRIC_KEY_ALIAS)) {
-            val key = ks.getKey(BIOMETRIC_KEY_ALIAS, null) as? SecretKey
-            if (key != null) return key
+            val privateKey = ks.getKey(BIOMETRIC_KEY_ALIAS, null) as? PrivateKey
+            val cert = ks.getCertificate(BIOMETRIC_KEY_ALIAS)
+            if (privateKey != null && cert?.publicKey != null) {
+                return KeyPair(cert.publicKey, privateKey)
+            }
+            // Clear corrupted or legacy symmetric key entry
+            removeBiometricKey()
         }
 
-        val keyGenerator = KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_AES,
+        val keyPairGenerator = KeyPairGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_RSA,
             ANDROID_KEYSTORE
         )
 
-        // Configure strict hardware biometric authentication constraints
+        // Configure strict hardware biometric authentication constraints for decryption only
         fun configureBuilder(isStrongBox: Boolean): KeyGenParameterSpec.Builder {
             val builder = KeyGenParameterSpec.Builder(
                 BIOMETRIC_KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                KeyProperties.PURPOSE_DECRYPT
             )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .setRandomizedEncryptionRequired(true)
+                .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
+                .setKeySize(2048)
                 .setUserAuthenticationRequired(true)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -104,26 +121,31 @@ class KeystoreManager {
         // Attempt StrongBox Keymaster first on Android 9+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
-                keyGenerator.init(configureBuilder(isStrongBox = true).build())
-                return keyGenerator.generateKey()
+                keyPairGenerator.initialize(configureBuilder(isStrongBox = true).build())
+                return keyPairGenerator.generateKeyPair()
             } catch (_: Exception) {
-                // Fallback to TEE hardware security
+                // Fallback to standard TEE hardware security
             }
         }
 
-        keyGenerator.init(configureBuilder(isStrongBox = false).build())
-        return keyGenerator.generateKey()
+        keyPairGenerator.initialize(configureBuilder(isStrongBox = false).build())
+        return keyPairGenerator.generateKeyPair()
+    }
+
+    @Deprecated("Use getOrCreateBiometricKeyPair() for asymmetric RSA hardware keys")
+    fun getOrCreateBiometricKey(): java.security.Key {
+        return getOrCreateBiometricKeyPair().public
     }
 
     /**
      * Checks whether the biometric hardware key was permanently invalidated by a newly enrolled biometric.
      */
-    fun isBiometricKeyPermanentlyInvalidated(iv: ByteArray): Boolean {
+    fun isBiometricKeyPermanentlyInvalidated(iv: ByteArray = ByteArray(0)): Boolean {
+        if (!hasBiometricKey()) return false
         return try {
-            val secretKey = getOrCreateBiometricKey()
+            val keyPair = getOrCreateBiometricKeyPair()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            val spec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec)
+            cipher.init(Cipher.DECRYPT_MODE, keyPair.private, OAEP_SPEC)
             false
         } catch (e: Exception) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && e is android.security.keystore.KeyPermanentlyInvalidatedException) {
@@ -135,14 +157,25 @@ class KeystoreManager {
     }
 
     /**
-     * Creates an initialized decryption Cipher for BiometricPrompt.CryptoObject.
+     * Encrypts the raw Vault Encryption Key (VEK) directly using the RSA public key.
+     * Can execute in the background with zero user prompts required.
      */
-    fun getDecryptCipher(iv: ByteArray): Cipher? {
+    fun wrapWithPublicKey(vek: ByteArray): ByteArray {
+        val keyPair = getOrCreateBiometricKeyPair()
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, keyPair.public, OAEP_SPEC)
+        return cipher.doFinal(vek)
+    }
+
+    /**
+     * Creates an initialized decryption Cipher for BiometricPrompt.CryptoObject.
+     * Cryptographically requires hardware biometric verification to authorize decryption.
+     */
+    fun getDecryptCipher(iv: ByteArray = ByteArray(0)): Cipher? {
         return try {
-            val secretKey = getOrCreateBiometricKey()
+            val keyPair = getOrCreateBiometricKeyPair()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            val spec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec)
+            cipher.init(Cipher.DECRYPT_MODE, keyPair.private, OAEP_SPEC)
             cipher
         } catch (_: Exception) {
             null
@@ -150,13 +183,13 @@ class KeystoreManager {
     }
 
     /**
-     * Creates an initialized encryption Cipher for BiometricPrompt.CryptoObject.
+     * Creates an initialized encryption Cipher using the RSA public key.
      */
     fun getEncryptCipher(): Cipher? {
         return try {
-            val secretKey = getOrCreateBiometricKey()
+            val keyPair = getOrCreateBiometricKeyPair()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+            cipher.init(Cipher.ENCRYPT_MODE, keyPair.public, OAEP_SPEC)
             cipher
         } catch (_: Exception) {
             null
@@ -164,12 +197,12 @@ class KeystoreManager {
     }
 
     /**
-     * Encrypts the raw Vault Encryption Key (VEK) using an authenticated Cipher from BiometricPrompt.CryptoObject.
-     * @return Pair of (Ciphertext, IV)
+     * Encrypts the raw Vault Encryption Key (VEK) using an encryption Cipher.
+     * @return Pair of (Ciphertext, IV (empty byte array for RSA-OAEP))
      */
     fun wrapWithCipher(cipher: Cipher, vek: ByteArray): Pair<ByteArray, ByteArray> {
         val ciphertext = cipher.doFinal(vek)
-        return Pair(ciphertext, cipher.iv)
+        return Pair(ciphertext, ByteArray(0))
     }
 
     /**

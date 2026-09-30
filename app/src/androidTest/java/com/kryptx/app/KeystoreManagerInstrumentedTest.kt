@@ -31,18 +31,21 @@ class KeystoreManagerInstrumentedTest {
         assertNotNull("Biometric master key should be created in AndroidKeyStore", biometricKey)
 
         // Validate cipher initialization for encryption
-        val encryptCipher = keystoreManager.initBiometricCipher(forEncryption = true)
+        val encryptCipher = keystoreManager.getEncryptCipher()
         assertNotNull("Encryption cipher should be initialized", encryptCipher)
 
-        val encryptedPayload = keystoreManager.wrapVaultKey(masterKey, encryptCipher)
-        assertNotNull("Wrapped vault key should not be null", encryptedPayload)
-        assertTrue("Encrypted payload should contain IV and ciphertext", encryptedPayload.size > 12)
+        if (encryptCipher != null) {
+            val (ciphertext, iv) = keystoreManager.wrapWithCipher(encryptCipher, masterKey)
+            assertNotNull("Wrapped vault key should not be null", ciphertext)
+            assertTrue("Encrypted payload should contain ciphertext", ciphertext.isNotEmpty())
 
-        // In a non-biometric or unlocked environment, test unwrapping
-        val decryptCipher = keystoreManager.initBiometricCipher(forEncryption = false, iv = encryptedPayload.copyOfRange(0, 12))
-        assertNotNull("Decryption cipher should be initialized with IV", decryptCipher)
+            val decryptCipher = keystoreManager.getDecryptCipher(iv)
+            assertNotNull("Decryption cipher should be initialized with IV", decryptCipher)
 
-        val unwrappedKey = keystoreManager.unwrapVaultKey(encryptedPayload, decryptCipher)
-        assertArrayEquals("Unwrapped key should match original master key", masterKey, unwrappedKey)
+            if (decryptCipher != null) {
+                val unwrappedKey = keystoreManager.unwrapWithCipher(decryptCipher, ciphertext)
+                assertArrayEquals("Unwrapped key should match original master key", masterKey, unwrappedKey)
+            }
+        }
     }
 }

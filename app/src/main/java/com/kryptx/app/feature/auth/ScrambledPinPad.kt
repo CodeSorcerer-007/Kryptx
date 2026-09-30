@@ -36,6 +36,13 @@ import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.tooling.preview.Preview
 import java.security.SecureRandom
 
 /**
@@ -59,13 +66,21 @@ fun ScrambledPinPad(
     val view = LocalView.current
 
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("scrambled_pin_pad"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // PIN Dot Indicator
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(vertical = 20.dp)
+            modifier = Modifier
+                .padding(vertical = 20.dp)
+                .testTag("pin_dot_indicator")
+                .semantics {
+                    contentDescription = "PIN entry indicator"
+                    stateDescription = "${enteredPin.length} of $pinLength digits entered"
+                }
         ) {
             for (i in 0 until pinLength) {
                 val isFilled = i < enteredPin.length
@@ -127,11 +142,16 @@ fun ScrambledPinPad(
                     modifier = Modifier
                         .size(68.dp)
                         .clip(CircleShape)
+                        .testTag("pin_shuffle_button")
                         .clickable {
                             if (!isScrambleDisabled) {
                                 digits = generateShuffledDigits()
                                 KryptxHaptics.tap(view)
                             }
+                        }
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Scramble Keypad"
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -163,11 +183,16 @@ fun ScrambledPinPad(
                     modifier = Modifier
                         .size(68.dp)
                         .clip(CircleShape)
+                        .testTag("pin_backspace_button")
                         .clickable {
                             if (enteredPin.isNotEmpty()) {
                                 enteredPin = enteredPin.dropLast(1)
                                 KryptxHaptics.tap(view)
                             }
+                        }
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Backspace"
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -191,6 +216,7 @@ private fun PinKeyButton(
     Box(
         modifier = Modifier
             .size(68.dp)
+            .testTag("pin_key_$text")
             .bounceClick(scaleDown = 0.92f, onClick = onClick)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
@@ -198,7 +224,11 @@ private fun PinKeyButton(
                 1.dp,
                 MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
                 CircleShape
-            ),
+            )
+            .semantics {
+                role = Role.Button
+                contentDescription = "Digit $text"
+            },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -216,3 +246,13 @@ private fun generateShuffledDigits(): List<Int> {
     list.shuffle(random)
     return list
 }
+
+@Preview(showBackground = true)
+@Composable
+fun ScrambledPinPadPreview() {
+    ScrambledPinPad(
+        pinLength = 6,
+        onPinComplete = {}
+    )
+}
+

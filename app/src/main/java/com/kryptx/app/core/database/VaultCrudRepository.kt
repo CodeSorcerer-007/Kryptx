@@ -73,6 +73,17 @@ class VaultCrudRepositoryImpl(
         }
     }
 
+    private fun mapDatabaseException(e: Exception, defaultAction: String): String {
+        val msg = e.message ?: ""
+        return when {
+            e is android.database.sqlite.SQLiteFullException || msg.contains("disk full", ignoreCase = true) ->
+                "Disk storage is full. Please free up space on your device."
+            e is android.database.sqlite.SQLiteDatabaseLockedException || msg.contains("locked", ignoreCase = true) ->
+                "Database is temporarily busy. Please try again."
+            else -> "$defaultAction: ${if (msg.isNotBlank()) msg else "Unknown database error"}"
+        }
+    }
+
     override suspend fun saveItem(item: VaultItem): KryptxResult<Unit> = withContext(Dispatchers.IO) {
         sessionManager.withVaultKey { activeVek ->
             val isDecoy = sessionManager.isDecoy.value
@@ -86,7 +97,7 @@ class VaultCrudRepositoryImpl(
                     KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to save item")
                 }
             } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to save item", e)
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, mapDatabaseException(e, "Failed to save item"), e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
@@ -102,7 +113,7 @@ class VaultCrudRepositoryImpl(
                 KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found or could not be deleted")
             }
         } catch (e: Exception) {
-            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to delete item", e)
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, mapDatabaseException(e, "Failed to delete item"), e)
         }
     }
 
@@ -114,7 +125,7 @@ class VaultCrudRepositoryImpl(
                 if (success) KryptxResult.Success(Unit)
                 else KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
             } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to toggle favorite", e)
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, mapDatabaseException(e, "Failed to toggle favorite"), e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
@@ -127,7 +138,7 @@ class VaultCrudRepositoryImpl(
                 if (success) KryptxResult.Success(Unit)
                 else KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Item not found")
             } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to record usage", e)
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, mapDatabaseException(e, "Failed to record usage"), e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
@@ -153,13 +164,18 @@ class VaultCrudRepositoryImpl(
                 val ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
                 val checksum = VaultExporter.computeSha256Checksum(ciphertextBase64)
 
+                val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), encryptionKey)
+                val hmacBytes = VaultExporter.computeHmacSha256(ciphertext, hmacKey)
+                val hmacBase64 = Base64.encodeToString(hmacBytes, Base64.NO_WRAP)
+                SecureMemory.wipe(hmacKey)
+
                 SecureMemory.wipe(encryptionKey)
                 SecureMemory.wipe(salt)
 
                 val header = BackupHeader(
                     app = "Kryptx",
-                    version = "1.1.0",
-                    formatVersion = 2,
+                    version = "2.2.0",
+                    formatVersion = 3,
                     exportedAt = System.currentTimeMillis(),
                     isEncrypted = true,
                     kdfAlgorithm = "Argon2id",
@@ -168,7 +184,8 @@ class VaultCrudRepositoryImpl(
                     ivBase64 = "",
                     isPostQuantum = isPostQuantum,
                     pqcEncapsulationBase64 = null,
-                    checksumSha256 = checksum
+                    checksumSha256 = checksum,
+                    hmacSha256Base64 = hmacBase64
                 )
 
                 KryptxResult.Success(EncryptedBackupPayload(header, ciphertextBase64))
@@ -208,11 +225,23 @@ class VaultCrudRepositoryImpl(
 
             var decryptedBytes: ByteArray? = null
 
-            // Strategy 1: Standard Argon2id derivation
+            // Strategy 1: Standard Argon2id derivation with HMAC integrity check
             val argonKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
-            try {
-                decryptedBytes = CryptoEngine.decrypt(ciphertext, argonKey)
-            } catch (_: Exception) {}
+            if (!payload.header.hmacSha256Base64.isNullOrBlank()) {
+                val expectedHmac = Base64.decode(payload.header.hmacSha256Base64, Base64.NO_WRAP)
+                val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), argonKey)
+                val hmacValid = VaultExporter.verifyHmacSha256(ciphertext, hmacKey, expectedHmac)
+                SecureMemory.wipe(hmacKey)
+                if (hmacValid) {
+                    try {
+                        decryptedBytes = CryptoEngine.decrypt(ciphertext, argonKey)
+                    } catch (_: Exception) {}
+                }
+            } else {
+                try {
+                    decryptedBytes = CryptoEngine.decrypt(ciphertext, argonKey)
+                } catch (_: Exception) {}
+            }
             SecureMemory.wipe(argonKey)
 
             // Strategy 2: Legacy PQC hybrid if same-device private key is available

@@ -18,7 +18,7 @@ import kotlin.math.sin
  */
 object KryptxAudio {
 
-    private val executor = Executors.newSingleThreadExecutor()
+    private val scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
     private const val SAMPLE_RATE = 44100
 
     @Volatile
@@ -67,7 +67,7 @@ object KryptxAudio {
         if (!isEnabled) return
         if (context != null && isSystemAudioSilent(context)) return
 
-        executor.execute {
+        scheduler.execute {
             try {
                 val attributes = AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
@@ -90,15 +90,38 @@ object KryptxAudio {
 
                 track.write(pcmData, 0, pcmData.size)
                 track.setVolume(volume.coerceIn(0f, 1f))
+
+                val isReleased = java.util.concurrent.atomic.AtomicBoolean(false)
+                fun cleanupTrack() {
+                    if (isReleased.compareAndSet(false, true)) {
+                        try {
+                            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                                track.stop()
+                            }
+                            track.release()
+                        } catch (t: Throwable) {
+                            com.kryptx.app.core.security.SecurityLogger.trace("KryptxAudio", "AudioTrack release error", t)
+                        }
+                    }
+                }
+
+                track.notificationMarkerPosition = pcmData.size
+                track.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
+                    override fun onMarkerReached(t: AudioTrack?) {
+                        cleanupTrack()
+                    }
+                    override fun onPeriodicNotification(t: AudioTrack?) {}
+                })
+
                 track.play()
 
-                // Allow track to play out then release
-                val durationMs = (pcmData.size * 1000L / SAMPLE_RATE) + 20L
-                Thread.sleep(durationMs)
-                track.stop()
-                track.release()
-            } catch (_: Throwable) {
-                // Silently absorb audio buffer anomalies on specialized OEM ROMs
+                // Safety timeout fallback: schedule non-blocking release in case OEM marker callback is delayed/omitted
+                val durationMs = (pcmData.size * 1000L / SAMPLE_RATE) + 60L
+                scheduler.schedule({
+                    cleanupTrack()
+                }, durationMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } catch (e: Throwable) {
+                com.kryptx.app.core.security.SecurityLogger.trace("KryptxAudio", "OEM audio synthesis playback error", e)
             }
         }
     }

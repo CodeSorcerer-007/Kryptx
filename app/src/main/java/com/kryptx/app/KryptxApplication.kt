@@ -67,11 +67,25 @@ class KryptxApplication : Application(), KryptxDependencies {
                 dbHelper.clearDatabaseKey()
                 decoyDbHelper.clearDatabaseKey()
             }
+            setLockoutPersistence(
+                save = { attempts, untilMs ->
+                    dbHelper.setMetadata("vault_failed_attempts", attempts.toString())
+                    dbHelper.setMetadata("vault_lockout_until_ms", untilMs.toString())
+                },
+                load = {
+                    val attempts = dbHelper.getMetadata("vault_failed_attempts")?.toIntOrNull() ?: 0
+                    val untilMs = dbHelper.getMetadata("vault_lockout_until_ms")?.toLongOrNull() ?: 0L
+                    Pair(attempts, untilMs)
+                }
+            )
         }
         keystoreManager = KeystoreManager()
         preferencesRepository = PreferencesRepository(this)
         vaultRepository = VaultRepositoryImpl(dbHelper, decoyDbHelper, sessionManager, keystoreManager, preferencesRepository)
         clipboardManager = ClipboardSecurityManager(this, preferencesRepository)
+        sessionManager.addLockListener {
+            clipboardManager.clearNow()
+        }
         biometricManager = BiometricAuthManager(this)
         attachmentManager = com.kryptx.app.core.security.AttachmentManager(this, sessionManager)
         memoryWatchdog = com.kryptx.app.core.security.CryptographicMemoryWatchdog(this, sessionManager).apply { register() }

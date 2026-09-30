@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -88,6 +89,7 @@ fun GeneratorScreen(
     Scaffold(
         modifier = modifier
             .fillMaxSize()
+            .testTag("generator_screen")
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
@@ -123,6 +125,7 @@ fun GeneratorScreen(
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (isSelected) KryptxBlue else Color.Transparent)
+                            .testTag("mode_tab_${mode.name.lowercase()}")
                             .bounceClick(scaleDown = 0.94f) {
                                 KryptxHaptics.tap(view)
                                 viewModel.updateMode(mode)
@@ -185,7 +188,9 @@ fun GeneratorScreen(
                                 textAlign = TextAlign.Center,
                                 lineHeight = 30.sp
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("generated_credential_text")
                         )
                     }
 
@@ -259,7 +264,9 @@ fun GeneratorScreen(
                     ) {
                         KryptxOutlinedButton(
                             text = "Regenerate",
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("regenerate_button"),
                             borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
                             textColor = MaterialTheme.colorScheme.onSurface,
                             leadingIcon = {
@@ -280,7 +287,9 @@ fun GeneratorScreen(
 
                         KryptxPrimaryButton(
                             text = if (isCopied) "Copied!" else "Copy",
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("copy_credential_button"),
                             containerColor = if (isCopied) KryptxEmerald else KryptxBlue,
                             contentColor = Color.White,
                             leadingIcon = {
@@ -328,6 +337,7 @@ fun GeneratorScreen(
                                 viewModel.updatePasswordLength(newLen)
                             }
                         },
+                        modifier = Modifier.testTag("length_slider"),
                         valueRange = 8f..64f,
                         steps = 55,
                         colors = SliderDefaults.colors(
@@ -342,32 +352,38 @@ fun GeneratorScreen(
                     GeneratorOptionCheckbox(
                         label = "Include Uppercase (A-Z)",
                         checked = config.includeUppercase,
-                        onCheckedChange = { viewModel.toggleUppercase(it) }
+                        onCheckedChange = { viewModel.toggleUppercase(it) },
+                        modifier = Modifier.testTag("toggle_uppercase")
                     )
                     GeneratorOptionCheckbox(
                         label = "Include Lowercase (a-z)",
                         checked = config.includeLowercase,
-                        onCheckedChange = { viewModel.toggleLowercase(it) }
+                        onCheckedChange = { viewModel.toggleLowercase(it) },
+                        modifier = Modifier.testTag("toggle_lowercase")
                     )
                     GeneratorOptionCheckbox(
                         label = "Include Numbers (0-9)",
                         checked = config.includeNumbers,
-                        onCheckedChange = { viewModel.toggleNumbers(it) }
+                        onCheckedChange = { viewModel.toggleNumbers(it) },
+                        modifier = Modifier.testTag("toggle_numbers")
                     )
                     GeneratorOptionCheckbox(
                         label = "Include Symbols (!@#$%)",
                         checked = config.includeSymbols,
-                        onCheckedChange = { viewModel.toggleSymbols(it) }
+                        onCheckedChange = { viewModel.toggleSymbols(it) },
+                        modifier = Modifier.testTag("toggle_symbols")
                     )
                     GeneratorOptionCheckbox(
                         label = "Avoid Ambiguous Characters (0, O, 1, l, I)",
                         checked = config.avoidAmbiguous,
-                        onCheckedChange = { viewModel.toggleAvoidAmbiguous(it) }
+                        onCheckedChange = { viewModel.toggleAvoidAmbiguous(it) },
+                        modifier = Modifier.testTag("toggle_ambiguous")
                     )
                     GeneratorOptionCheckbox(
                         label = "Pronounceable Password",
                         checked = config.pronounceable,
-                        onCheckedChange = { viewModel.togglePronounceable(it) }
+                        onCheckedChange = { viewModel.togglePronounceable(it) },
+                        modifier = Modifier.testTag("toggle_pronounceable")
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
@@ -510,10 +526,11 @@ fun GeneratorScreen(
 fun GeneratorOptionCheckbox(
     label: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 6.dp),

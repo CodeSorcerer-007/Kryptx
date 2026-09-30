@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxCircleIconButton
@@ -79,6 +80,7 @@ fun SecurityCenterScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = modifier
+                .testTag("security_center_screen")
                 .fillMaxSize()
                 .atmosphericTopGlow(),
             containerColor = MaterialTheme.colorScheme.background,
@@ -91,6 +93,7 @@ fun SecurityCenterScreen(
                         KryptxCircleIconButton(
                             icon = Icons.Default.Refresh,
                             contentDescription = "Refresh Audit",
+                            modifier = Modifier.testTag("refresh_audit_button"),
                             onClick = {
                                 com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
                                 viewModel.runAudit()
@@ -135,6 +138,7 @@ fun SecurityCenterScreen(
                         // Main Health Score Hero Card
                         Box(
                             modifier = Modifier
+                                .testTag("security_score_card")
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(22.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
@@ -232,6 +236,7 @@ fun SecurityCenterScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             Box(
                                 modifier = Modifier
+                                    .testTag("security_wizard_button")
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(18.dp))
                                     .background(KryptxBlue.copy(alpha = 0.12f))
@@ -427,6 +432,7 @@ fun AuditStatBox(
 
     Box(
         modifier = modifier
+            .testTag("audit_stat_${label.lowercase().replace(" ", "_")}")
             .clip(RoundedCornerShape(16.dp))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(16.dp))

@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxEmptyState
@@ -64,6 +65,7 @@ fun SearchScreen(
 
     Scaffold(
         modifier = modifier
+            .testTag("search_screen")
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -91,6 +93,7 @@ fun SearchScreen(
                     value = query,
                     onValueChange = { viewModel.onQueryChanged(it) },
                     label = "Search passwords, websites, usernames...",
+                    modifier = Modifier.testTag("search_input_field"),
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
@@ -147,7 +150,9 @@ fun SearchScreen(
             // Search Results List
             if (results.isEmpty()) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .testTag("search_empty_state")
+                        .fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     KryptxEmptyState(
@@ -157,7 +162,9 @@ fun SearchScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .testTag("search_results_list")
+                        .fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -165,7 +172,7 @@ fun SearchScreen(
                         VaultItemRow(
                             item = item,
                             onClick = { onNavigateToItemDetail(item.id) },
-                            onToggleFavorite = {},
+                            onToggleFavorite = { viewModel.toggleFavorite(item.id) },
                             onCopySecret = {
                                 viewModel.copySecret(item.title, item.primarySecret)
                                 scope.launch {

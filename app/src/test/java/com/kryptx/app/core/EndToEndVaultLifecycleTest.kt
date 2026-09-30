@@ -23,10 +23,13 @@ import org.junit.Test
  * Real-Time TOTP -> AES-256-GCM Backup Export -> Integrity Checksum -> DB Wipe ->
  * Decrypted Import -> Data Verification.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class EndToEndVaultLifecycleTest {
 
     private lateinit var sessionManager: VaultSessionManager
     private lateinit var repository: FakeVaultRepository
+
+    private val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher()
 
     @Before
     fun setup() {
@@ -35,7 +38,7 @@ class EndToEndVaultLifecycleTest {
     }
 
     @Test
-    fun `complete end-to-end vault setup, multi-item population, encrypted export and restoration lifecycle`() = runTest {
+    fun `complete end-to-end vault setup, multi-item population, encrypted export and restoration lifecycle`() = runTest(testDispatcher) {
         val masterPassword = "AlphaNumericMaster#2026!".toCharArray()
         val backupPassword = "BackupEncryptionPassword999!".toCharArray()
 

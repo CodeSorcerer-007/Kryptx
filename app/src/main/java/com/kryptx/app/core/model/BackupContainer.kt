@@ -17,7 +17,8 @@ data class BackupHeader(
     val ivBase64: String = "",
     val isPostQuantum: Boolean = false,
     val pqcEncapsulationBase64: String? = null,
-    val checksumSha256: String? = null
+    val checksumSha256: String? = null,
+    val hmacSha256Base64: String? = null
 )
 
 @Immutable

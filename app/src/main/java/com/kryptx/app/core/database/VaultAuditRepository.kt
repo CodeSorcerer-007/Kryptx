@@ -81,12 +81,14 @@ class VaultAuditRepositoryImpl(
             // 1.5. Password similarity detection (Levenshtein distance)
             var similarCount = 0
             val checkedPairs = mutableSetOf<Pair<String, String>>()
-            for (i in loginItems.indices) {
+            val auditSampleSize = minOf(loginItems.size, 200)
+            for (i in 0 until auditSampleSize) {
                 val itemA = loginItems[i]
-                for (j in i + 1 until loginItems.size) {
+                for (j in i + 1 until auditSampleSize) {
                     val itemB = loginItems[j]
 
                     if (itemA.password == itemB.password) continue
+                    if (kotlin.math.abs(itemA.password.length - itemB.password.length) > 3) continue
 
                     val pair = if (itemA.password < itemB.password) itemA.password to itemB.password else itemB.password to itemA.password
                     if (checkedPairs.contains(pair)) continue

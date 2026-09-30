@@ -56,6 +56,23 @@ object VaultExporter {
         return actual.equals(expectedChecksum.trim(), ignoreCase = true)
     }
 
+    /**
+     * Computes an HMAC-SHA256 message authentication code over data using a symmetric key.
+     */
+    fun computeHmacSha256(data: ByteArray, key: ByteArray): ByteArray {
+        val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+        mac.init(javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"))
+        return mac.doFinal(data)
+    }
+
+    /**
+     * Verifies an HMAC-SHA256 tag in constant time using MessageDigest.isEqual.
+     */
+    fun verifyHmacSha256(data: ByteArray, key: ByteArray, expectedHmac: ByteArray): Boolean {
+        val actual = computeHmacSha256(data, key)
+        return java.security.MessageDigest.isEqual(actual, expectedHmac)
+    }
+
     private fun escapeCsv(value: String): String {
         if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
             return "\"${value.replace("\"", "\"\"")}\""

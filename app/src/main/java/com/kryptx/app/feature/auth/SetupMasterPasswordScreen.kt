@@ -46,6 +46,9 @@ import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 
+import androidx.compose.ui.platform.testTag
+import com.kryptx.app.core.designsystem.theme.KryptxShapes
+
 @Composable
 fun SetupMasterPasswordScreen(
     viewModel: UnlockViewModel,
@@ -65,6 +68,7 @@ fun SetupMasterPasswordScreen(
     Scaffold(
         modifier = modifier
             .fillMaxSize()
+            .testTag("setup_master_password_screen")
             .atmosphericTopGlow()
             .imePadding(),
         containerColor = MaterialTheme.colorScheme.background
@@ -105,7 +109,8 @@ fun SetupMasterPasswordScreen(
                 onValueChange = { password = it },
                 label = "Master Password",
                 placeholder = "Minimum 8+ characters",
-                isPassword = true
+                isPassword = true,
+                modifier = Modifier.testTag("password_input_field")
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -115,7 +120,8 @@ fun SetupMasterPasswordScreen(
                 onValueChange = { confirmPassword = it },
                 label = "Confirm Master Password",
                 placeholder = "Re-enter master password",
-                isPassword = true
+                isPassword = true,
+                modifier = Modifier.testTag("password_confirm_field")
             )
 
             // Password Entropy Radar Card
@@ -124,9 +130,9 @@ fun SetupMasterPasswordScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(KryptxShapes.CardMedium)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), KryptxShapes.CardMedium)
                         .padding(14.dp)
                 ) {
                     Row(
@@ -134,7 +140,12 @@ fun SetupMasterPasswordScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val scoreNormalized = (entropyAnalysis.entropyBits.coerceIn(0.0, 128.0) / 128.0 * 100).toInt()
-                        KryptxScoreRing(score = scoreNormalized, size = 48.dp, strokeWidth = 5.dp)
+                        KryptxScoreRing(
+                            score = scoreNormalized,
+                            size = 48.dp,
+                            strokeWidth = 5.dp,
+                            modifier = Modifier.testTag("setup_strength_ring")
+                        )
 
                         Column(modifier = Modifier.padding(start = 14.dp)) {
                             Text(
@@ -164,9 +175,9 @@ fun SetupMasterPasswordScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(KryptxShapes.CardMedium)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), KryptxShapes.CardMedium)
                     .padding(14.dp)
             ) {
                 Row(
@@ -189,6 +200,7 @@ fun SetupMasterPasswordScreen(
                     Switch(
                         checked = enableBiometrics,
                         onCheckedChange = { enableBiometrics = it },
+                        modifier = Modifier.testTag("setup_biometrics_switch"),
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = KryptxBlue
@@ -203,7 +215,8 @@ fun SetupMasterPasswordScreen(
                     text = uiState.errorMessage ?: "",
                     color = KryptxRed,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.testTag("setup_error_message")
                 )
             }
 
@@ -216,6 +229,7 @@ fun SetupMasterPasswordScreen(
                     text = "Initialize Encrypted Vault",
                     containerColor = KryptxBlue,
                     contentColor = Color.White,
+                    modifier = Modifier.testTag("create_vault_button"),
                     enabled = password.isNotBlank() && confirmPassword.isNotBlank(),
                     onClick = {
                         viewModel.setupNewVault(

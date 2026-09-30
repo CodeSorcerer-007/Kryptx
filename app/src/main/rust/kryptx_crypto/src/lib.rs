@@ -49,7 +49,7 @@ impl NativeCryptoEngine {
         res
     }
 
-    pub fn decrypt(&self, payload: Vec<u8>, mut key: Vec<u8>) -> Result<Vec<u8>, NativeCryptoError> {
+    pub fn decrypt(&self, mut payload: Vec<u8>, mut key: Vec<u8>) -> Result<Vec<u8>, NativeCryptoError> {
         let res = (|| {
             if payload.len() < 24 {
                 return Err(NativeCryptoError::InvalidPayloadLength);
@@ -62,6 +62,7 @@ impl NativeCryptoEngine {
             
             cipher.decrypt(&nonce, ciphertext).map_err(|_| NativeCryptoError::DecryptionFailed)
         })();
+        payload.zeroize();
         key.zeroize();
         res
     }
@@ -101,7 +102,7 @@ impl NativeCryptoEngine {
 
     pub fn decrypt_aes_gcm(
         &self,
-        payload: Vec<u8>,
+        mut payload: Vec<u8>,
         mut key: Vec<u8>,
         aad: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, NativeCryptoError> {
@@ -127,6 +128,7 @@ impl NativeCryptoEngine {
 
             Ok(plaintext)
         })();
+        payload.zeroize();
         key.zeroize();
         res
     }

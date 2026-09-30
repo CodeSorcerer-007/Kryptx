@@ -1,6 +1,12 @@
 package com.kryptx.app.core.security
 
 import android.os.Build
+import org.bouncycastle.asn1.ASN1Boolean
+import org.bouncycastle.asn1.ASN1Enumerated
+import org.bouncycastle.asn1.ASN1InputStream
+import org.bouncycastle.asn1.ASN1OctetString
+import org.bouncycastle.asn1.ASN1Sequence
+import org.bouncycastle.asn1.ASN1TaggedObject
 import java.io.File
 
 /**
@@ -13,7 +19,10 @@ object RootDetector {
         val isRooted: Boolean,
         val isEmulator: Boolean,
         val hasTestKeys: Boolean,
-        val detectedIndicators: List<String>
+        val detectedIndicators: List<String>,
+        val attestationSecurityLevel: String? = null,
+        val verifiedBootState: String? = null,
+        val isDeviceLocked: Boolean? = null
     )
 
     private val ROOT_PATHS = listOf(
@@ -61,8 +70,8 @@ object RootDetector {
                     hasRootBinary = true
                     indicators.add("Root/tampering binary found: $path")
                 }
-            } catch (_: Exception) {
-                // Ignore permission denial on strictly sandboxed paths
+            } catch (e: Exception) {
+                SecurityLogger.trace("RootDetector", "Permission denial scanning $path", e)
             }
         }
 
@@ -74,8 +83,8 @@ object RootDetector {
                     hasRootManager = true
                     indicators.add("Root management package detected: $pkgPath")
                 }
-            } catch (_: Exception) {
-                // Ignore permission denial
+            } catch (e: Exception) {
+                SecurityLogger.trace("RootDetector", "Permission denial scanning $pkgPath", e)
             }
         }
 
@@ -84,7 +93,9 @@ object RootDetector {
             if (android.os.Debug.isDebuggerConnected() || android.os.Debug.waitingForDebugger()) {
                 indicators.add("Debugger currently connected to application process")
             }
-        } catch (_: Throwable) {}
+        } catch (e: Throwable) {
+            SecurityLogger.trace("RootDetector", "Debugger check exception", e)
+        }
 
         // 5. Check memory maps for Frida or Xposed
         try {
@@ -102,7 +113,9 @@ object RootDetector {
                     indicators.add("Runtime hooking framework detected in memory maps")
                 }
             }
-        } catch (_: Throwable) {}
+        } catch (e: Throwable) {
+            SecurityLogger.trace("RootDetector", "Memory maps inspect exception", e)
+        }
 
         // 5b. Check for LD_PRELOAD injection
         try {
@@ -110,7 +123,9 @@ object RootDetector {
             if (!ldPreload.isNullOrBlank()) {
                 indicators.add("LD_PRELOAD injection detected: $ldPreload")
             }
-        } catch (_: Throwable) {}
+        } catch (e: Throwable) {
+            SecurityLogger.trace("RootDetector", "LD_PRELOAD check exception", e)
+        }
 
         // 5c. ptrace self-check — a debugger or Frida attaches via ptrace(PTRACE_ATTACH).
         // Check /proc/self/status for TracerPid != 0
@@ -123,7 +138,9 @@ object RootDetector {
                     indicators.add("Active ptrace debugger detected (TracerPid: $tracerPid)")
                 }
             }
-        } catch (_: Throwable) {}
+        } catch (e: Throwable) {
+            SecurityLogger.trace("RootDetector", "Proc status check exception", e)
+        }
 
         // 6. Check emulator properties safely with null checks for JVM testing
         val fingerprint = Build.FINGERPRINT.orEmpty()
@@ -148,6 +165,10 @@ object RootDetector {
 
         // 7. Hardware-Backed Key Attestation (Verified Boot Check)
         var hardwareAttestationFailed = false
+        var attestationSecLevel: String? = null
+        var verifiedBootState: String? = null
+        var isDeviceLocked: Boolean? = null
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
@@ -166,12 +187,12 @@ object RootDetector {
                 )
                 builder.setDigests(android.security.keystore.KeyProperties.DIGEST_SHA256)
                 builder.setAttestationChallenge("kryptx_secure_challenge".toByteArray())
-                
+
                 // Attempt to require StrongBox if available
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     builder.setIsStrongBoxBacked(true)
                 }
-                
+
                 try {
                     keyPairGenerator.initialize(builder.build())
                     keyPairGenerator.generateKeyPair()
@@ -188,16 +209,64 @@ object RootDetector {
                 if (certs != null && certs.isNotEmpty()) {
                     val leafCert = certs[0] as java.security.cert.X509Certificate
                     val attestationExtensionBytes = leafCert.getExtensionValue("1.3.6.1.4.1.11129.2.1.17")
-                    
+
                     if (attestationExtensionBytes == null) {
                         indicators.add("Hardware Attestation Extension missing from TEE certificate")
                         hardwareAttestationFailed = true
                     } else {
-                        // In a true enterprise environment, we'd parse the ASN.1 sequence of the extension
-                        // and explicitly read the Verified Boot state (0 = Verified).
-                        // If the KeyStore generated an attestation cert, the TEE itself is active.
-                        // If Magisk hides root, hardware attestation will still reflect an unlocked bootloader
-                        // in the ASN.1 payload.
+                        // Decode ASN.1 KeyDescription sequence
+                        try {
+                            val octetString = ASN1InputStream(attestationExtensionBytes).use { it.readObject() as? ASN1OctetString }
+                            if (octetString != null) {
+                                val recordSeq = ASN1InputStream(octetString.octets).use { it.readObject() as? ASN1Sequence }
+                                if (recordSeq != null && recordSeq.size() >= 8) {
+                                    val secLevelObj = recordSeq.getObjectAt(1) as? ASN1Enumerated
+                                    attestationSecLevel = when (secLevelObj?.value?.toInt()) {
+                                        0 -> "Software"
+                                        1 -> "TrustedEnvironment"
+                                        2 -> "StrongBox"
+                                        else -> "Unknown"
+                                    }
+
+                                    // teeEnforced is at index 7
+                                    val teeEnforced = recordSeq.getObjectAt(7) as? ASN1Sequence
+                                    if (teeEnforced != null) {
+                                        for (i in 0 until teeEnforced.size()) {
+                                            val taggedObj = teeEnforced.getObjectAt(i) as? ASN1TaggedObject ?: continue
+                                            if (taggedObj.tagNo == 704) { // rootOfTrust
+                                                val rootOfTrustSeq = (taggedObj.baseObject) as? ASN1Sequence
+                                                if (rootOfTrustSeq != null && rootOfTrustSeq.size() >= 3) {
+                                                    val deviceLockedObj = rootOfTrustSeq.getObjectAt(1) as? ASN1Boolean
+                                                    val verifiedBootStateObj = rootOfTrustSeq.getObjectAt(2) as? ASN1Enumerated
+
+                                                    isDeviceLocked = deviceLockedObj?.isTrue
+                                                    verifiedBootState = when (verifiedBootStateObj?.value?.toInt()) {
+                                                        0 -> "Verified"
+                                                        1 -> "SelfSigned"
+                                                        2 -> "Unverified"
+                                                        3 -> "Failed"
+                                                        else -> "Unknown"
+                                                    }
+
+                                                    if (isDeviceLocked == false) {
+                                                        indicators.add("Hardware Attestation: Bootloader unlocked (deviceLocked=false)")
+                                                        hardwareAttestationFailed = true
+                                                    }
+                                                    if (verifiedBootState != null && verifiedBootState != "Verified") {
+                                                        indicators.add("Hardware Attestation: Verified Boot State is $verifiedBootState")
+                                                        if (verifiedBootState != "SelfSigned" || !isEmulator) {
+                                                            hardwareAttestationFailed = true
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (asnE: Throwable) {
+                            SecurityLogger.trace("RootDetector", "Error decoding Hardware Attestation ASN.1", asnE)
+                        }
                     }
                 } else {
                     indicators.add("Could not retrieve Hardware Attestation certificate chain")
@@ -205,6 +274,7 @@ object RootDetector {
                 }
             } catch (e: Exception) {
                 indicators.add("Hardware Attestation failed: ${e.message}")
+                SecurityLogger.trace("RootDetector", "Hardware Attestation key generation error", e)
                 hardwareAttestationFailed = true
             }
         }
@@ -215,7 +285,10 @@ object RootDetector {
             isRooted = isRooted,
             isEmulator = isEmulator,
             hasTestKeys = hasTestKeys,
-            detectedIndicators = indicators
+            detectedIndicators = indicators,
+            attestationSecurityLevel = attestationSecLevel,
+            verifiedBootState = verifiedBootState,
+            isDeviceLocked = isDeviceLocked
         )
     }
 }

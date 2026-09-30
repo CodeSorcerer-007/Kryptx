@@ -12,12 +12,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MultiVaultRepositoryTest {
 
+    private val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher()
     private lateinit var repository: FakeVaultRepository
 
     @Before
-    fun setUp() = runTest {
+    fun setUp() = runTest(testDispatcher) {
         repository = FakeVaultRepository()
         repository.setupNewVault("MasterPassword123!".toCharArray())
     }
@@ -29,7 +31,7 @@ class MultiVaultRepositoryTest {
     }
 
     @Test
-    fun testSwitchVaultWorkspace() = runTest {
+    fun testSwitchVaultWorkspace() = runTest(testDispatcher) {
         val switchResult = repository.switchVault("work")
         assertTrue(switchResult.isSuccess)
         assertEquals("work", repository.getActiveVaultId())
@@ -40,7 +42,7 @@ class MultiVaultRepositoryTest {
     }
 
     @Test
-    fun testHardwareKeyEnrollmentLifecycle() = runTest {
+    fun testHardwareKeyEnrollmentLifecycle() = runTest(testDispatcher) {
         assertFalse(repository.isHardwareKeyEnrolled())
 
         val challenge = byteArrayOf(0x01, 0x02, 0x03, 0x04)
@@ -83,7 +85,7 @@ class MultiVaultRepositoryTest {
     }
 
     @Test
-    fun testCustomWorkspaceIdentifiers() = runTest {
+    fun testCustomWorkspaceIdentifiers() = runTest(testDispatcher) {
         val customWorkspaces = listOf("finance", "crypto_ledger", "secure_notes")
         for (ws in customWorkspaces) {
             val result = repository.switchVault(ws)
@@ -93,13 +95,13 @@ class MultiVaultRepositoryTest {
     }
 
     @Test
-    fun testVacuumDatabaseSuccess() = runTest {
+    fun testVacuumDatabaseSuccess() = runTest(testDispatcher) {
         val vacuumResult = repository.vacuumDatabase()
         assertTrue(vacuumResult.isSuccess)
     }
 
     @Test
-    fun testResetVaultClearsState() = runTest {
+    fun testResetVaultClearsState() = runTest(testDispatcher) {
         repository.saveItem(VaultItem(title = "ResetTestItem", username = "user", password = "pass"))
         assertEquals(1, repository.getItems().first().size)
 
@@ -109,13 +111,13 @@ class MultiVaultRepositoryTest {
     }
 
     @Test
-    fun testUnlockWithWrongPasswordFails() = runTest {
+    fun testUnlockWithWrongPasswordFails() = runTest(testDispatcher) {
         val result = repository.unlockWithPassword("WrongPassword!".toCharArray())
         assertTrue(result.isError)
     }
 
     @Test
-    fun testUnlockWithCorrectPasswordSucceeds() = runTest {
+    fun testUnlockWithCorrectPasswordSucceeds() = runTest(testDispatcher) {
         val result = repository.unlockWithPassword("MasterPassword123!".toCharArray())
         assertTrue(result.isSuccess)
     }

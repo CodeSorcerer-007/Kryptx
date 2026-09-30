@@ -149,6 +149,7 @@ class MainActivity : FragmentActivity() {
                     searchViewModel = searchViewModel,
                     settingsViewModel = settingsViewModel,
                     preferencesRepository = app.preferencesRepository,
+                    vaultRepository = app.vaultRepository,
                     pendingShortcutTarget = pendingShortcutTarget,
                     onClearPendingShortcut = { pendingShortcutTarget = null },
                     onTriggerBiometrics = {
@@ -219,14 +220,20 @@ class MainActivity : FragmentActivity() {
         contextualLockManager?.stopListening()
     }
 
+    private var isPromptingBiometrics = false
+
     private fun triggerBiometricUnlock() {
+        if (isPromptingBiometrics) return
         if (!app.biometricManager.canAuthenticate()) return
+        if (app.sessionManager.isUnlocked.value) return
+        if (unlockViewModel.lockoutSecondsRemaining.value > 0) return
 
         val decryptCipher = app.vaultRepository.getBiometricDecryptCipher()
-
         val cryptoObject = if (decryptCipher != null) {
             androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
         } else null
+
+        isPromptingBiometrics = true
 
         app.biometricManager.promptBiometric(
             activity = this,
@@ -234,12 +241,17 @@ class MainActivity : FragmentActivity() {
             subtitle = "Touch sensor to decrypt your vault",
             cryptoObject = cryptoObject,
             onSuccess = { result ->
+                isPromptingBiometrics = false
                 val authenticatedCipher = result.cryptoObject?.cipher
                 if (authenticatedCipher != null) {
                     lifecycleScope.launch {
                         val unlockResult = app.vaultRepository.unlockWithBiometricCipher(authenticatedCipher)
-                        if (unlockResult.isError) {
-                            // Cipher-based unlock failed — fall back to the software biometric path
+                        if (unlockResult.isSuccess) {
+                            com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
+                            com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
+                            app.activityLogManager.logEvent("Unlock", "Vault unlocked via Biometrics")
+                            app.activityLogManager.loadEvents()
+                        } else {
                             unlockViewModel.unlockWithBiometrics(onSuccess = {})
                         }
                     }
@@ -247,8 +259,12 @@ class MainActivity : FragmentActivity() {
                     unlockViewModel.unlockWithBiometrics(onSuccess = {})
                 }
             },
-            onError = { _, _ -> },
-            onFailed = {}
+            onError = { _, _ ->
+                isPromptingBiometrics = false
+            },
+            onFailed = {
+                isPromptingBiometrics = false
+            }
         )
     }
 

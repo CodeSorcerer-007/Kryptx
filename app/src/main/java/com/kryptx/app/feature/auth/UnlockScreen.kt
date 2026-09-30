@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
@@ -126,7 +127,11 @@ fun UnlockScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("unlock_screen")
+    ) {
         Scaffold(
             modifier = modifier
                 .fillMaxSize()
@@ -237,6 +242,7 @@ fun UnlockScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(9.dp))
                             .background(if (!usePinPad) KryptxBlue else Color.Transparent)
+                            .testTag("toggle_password_mode")
                             .clickable {
                                 if (usePinPad) {
                                     usePinPad = false
@@ -258,6 +264,7 @@ fun UnlockScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(9.dp))
                             .background(if (usePinPad) KryptxBlue else Color.Transparent)
+                            .testTag("toggle_pin_mode")
                             .clickable {
                                 if (!usePinPad) {
                                     usePinPad = true
@@ -302,6 +309,7 @@ fun UnlockScreen(
                                 label = "Master Password",
                                 placeholder = "Enter master password to decrypt",
                                 isPassword = true,
+                                modifier = Modifier.testTag("master_password_field"),
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Lock,
@@ -354,7 +362,8 @@ fun UnlockScreen(
                                 text = uiState.errorMessage ?: "",
                                 color = KryptxRed,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.testTag("unlock_error_message")
                             )
                         }
 
@@ -364,7 +373,8 @@ fun UnlockScreen(
                                 text = "Security backoff active: retry in ${lockoutSeconds}s",
                                 color = KryptxRed,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.testTag("lockout_timer")
                             )
                         }
                     }
@@ -424,6 +434,7 @@ fun UnlockScreen(
                     KryptxPrimaryButton(
                         text = "Unlock Vault",
                         useBrandGradient = true,
+                        modifier = Modifier.testTag("unlock_button"),
                         enabled = uiState.password.isNotBlank() && lockoutSeconds == 0,
                         onClick = { submitUnlock() }
                     )
@@ -462,6 +473,7 @@ fun UnlockScreen(
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.30f), CircleShape)
+                            .testTag("secondary_biometric_button")
                             .bounceClick(scaleDown = 0.90f) {
                                 onTriggerBiometrics()
                             },

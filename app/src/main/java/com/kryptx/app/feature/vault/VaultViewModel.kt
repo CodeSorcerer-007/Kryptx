@@ -215,6 +215,7 @@ class VaultViewModel(
             val item = vaultRepository.getItemById(itemId)
             lastDeletedItem = item
             if (vaultRepository.moveToTrash(itemId).isSuccess) {
+                _selectedItemIds.value = _selectedItemIds.value - itemId
                 activityLogManager?.logEvent("Security", "Item '${item?.title}' moved to trash")
                 refreshSecurityReport()
                 onDeleted()
@@ -227,6 +228,7 @@ class VaultViewModel(
             val item = vaultRepository.getItemById(itemId)
             lastDeletedItem = item
             if (vaultRepository.moveToTrash(itemId).isSuccess) {
+                _selectedItemIds.value = _selectedItemIds.value - itemId
                 refreshSecurityReport()
                 onDeleted(item)
             }
@@ -256,6 +258,7 @@ class VaultViewModel(
     fun permanentlyDeleteItem(itemId: String, onDeleted: (() -> Unit)? = null) {
         viewModelScope.launch {
             if (vaultRepository.deleteItem(itemId).isSuccess) {
+                _selectedItemIds.value = _selectedItemIds.value - itemId
                 activityLogManager?.logEvent("Security", "Item permanently deleted")
                 refreshSecurityReport()
                 onDeleted?.invoke()

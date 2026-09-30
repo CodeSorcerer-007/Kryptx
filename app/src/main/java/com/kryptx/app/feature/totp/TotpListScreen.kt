@@ -76,6 +76,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush
@@ -126,6 +131,7 @@ fun TotpListScreen(
 
     Scaffold(
         modifier = modifier
+            .testTag("totp_list_screen")
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -651,7 +657,11 @@ fun TotpAccountCard(
                             text = "${code.secondsRemaining}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
-                            color = ringColor
+                            color = ringColor,
+                            modifier = Modifier.semantics {
+                                liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite
+                                contentDescription = "${code.secondsRemaining} seconds remaining"
+                            }
                         )
                     }
                 }

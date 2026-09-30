@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class SearchViewModel(
     private val vaultRepository: VaultRepository,
@@ -66,5 +67,11 @@ class SearchViewModel(
 
     fun copySecret(label: String, secret: String) {
         clipboardSecurityManager.copySensitiveText(label, secret, timeoutSeconds = 30)
+    }
+
+    fun toggleFavorite(itemId: String) {
+        viewModelScope.launch {
+            vaultRepository.toggleFavorite(itemId)
+        }
     }
 }

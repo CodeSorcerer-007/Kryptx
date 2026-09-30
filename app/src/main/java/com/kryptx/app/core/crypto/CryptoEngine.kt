@@ -65,6 +65,26 @@ object CryptoEngine {
         }
     }
 
+    private val sessionNonceCounter = java.util.concurrent.atomic.AtomicLong(0)
+
+    /**
+     * Generates a 96-bit nonce following NIST SP 800-38D §8.2.1:
+     * 64 bits of CSPRNG entropy + 32-bit monotonic invocation counter.
+     * Prevents nonce reuse across up to 2^32 encryptions even under low-entropy OEM conditions.
+     */
+    internal fun generateDeterministicIv(): ByteArray {
+        val iv = ByteArray(IV_LENGTH_BYTES)
+        val prefix = ByteArray(8)
+        secureRandom.nextBytes(prefix)
+        System.arraycopy(prefix, 0, iv, 0, 8)
+        val counterVal = sessionNonceCounter.getAndIncrement().toInt()
+        iv[8] = (counterVal ushr 24).toByte()
+        iv[9] = (counterVal ushr 16).toByte()
+        iv[10] = (counterVal ushr 8).toByte()
+        iv[11] = counterVal.toByte()
+        return iv
+    }
+
     /**
      * Standard JVM AES-256-GCM encryption.
      *
@@ -81,8 +101,7 @@ object CryptoEngine {
     ): ByteArray {
         require(key.size == 32) { "AES-256 requires a 32-byte key" }
 
-        val iv = ByteArray(IV_LENGTH_BYTES)
-        secureRandom.nextBytes(iv)
+        val iv = generateDeterministicIv()
 
         val cipher = Cipher.getInstance(ALGORITHM)
         val keySpec = SecretKeySpec(key, KEY_ALGORITHM)

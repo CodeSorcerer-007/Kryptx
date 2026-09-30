@@ -47,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,52 +102,52 @@ fun AddEditItemScreen(
         items.firstOrNull { it.id == itemId }
     }
 
-    var selectedType by remember { mutableStateOf(existingItem?.type ?: ItemType.LOGIN) }
-    var title by remember { mutableStateOf(existingItem?.title ?: "") }
-    var isFavorite by remember { mutableStateOf(existingItem?.isFavorite ?: false) }
-    var notes by remember { mutableStateOf(existingItem?.notes ?: "") }
-    var showQrScanner by remember { mutableStateOf(false) }
+    var selectedType by remember(itemId) { mutableStateOf(existingItem?.type ?: ItemType.LOGIN) }
+    var title by remember(itemId) { mutableStateOf(existingItem?.title ?: "") }
+    var isFavorite by remember(itemId) { mutableStateOf(existingItem?.isFavorite ?: false) }
+    var notes by remember(itemId) { mutableStateOf(existingItem?.notes ?: "") }
+    var showQrScanner by remember(itemId) { mutableStateOf(false) }
 
-    var hasPopulated by remember { mutableStateOf(existingItem != null) }
+    var hasPopulated by remember(itemId) { mutableStateOf(existingItem != null) }
 
     // Login fields
-    var username by remember { mutableStateOf(existingItem?.username ?: "") }
-    var password by remember { mutableStateOf(existingItem?.password ?: "") }
-    var website by remember { mutableStateOf(existingItem?.website ?: "") }
-    var totpSecret by remember { mutableStateOf(existingItem?.totpSecret ?: "") }
+    var username by remember(itemId) { mutableStateOf(existingItem?.username ?: "") }
+    var password by remember(itemId) { mutableStateOf(existingItem?.password ?: "") }
+    var website by remember(itemId) { mutableStateOf(existingItem?.website ?: "") }
+    var totpSecret by remember(itemId) { mutableStateOf(existingItem?.totpSecret ?: "") }
 
     // Passkey fields
-    var passkeyRpId by remember { mutableStateOf(existingItem?.passkeyRpId ?: "") }
-    var passkeyUserHandle by remember { mutableStateOf(existingItem?.passkeyUserHandle ?: "") }
-    var passkeyCredentialId by remember { mutableStateOf(existingItem?.passkeyCredentialId ?: "") }
-    var passkeyAlgorithm by remember { mutableStateOf(existingItem?.passkeyAlgorithm ?: "ES256 (ECDSA P-256)") }
+    var passkeyRpId by remember(itemId) { mutableStateOf(existingItem?.passkeyRpId ?: "") }
+    var passkeyUserHandle by remember(itemId) { mutableStateOf(existingItem?.passkeyUserHandle ?: "") }
+    var passkeyCredentialId by remember(itemId) { mutableStateOf(existingItem?.passkeyCredentialId ?: "") }
+    var passkeyAlgorithm by remember(itemId) { mutableStateOf(existingItem?.passkeyAlgorithm ?: "ES256 (ECDSA P-256)") }
 
     // Credit card fields
-    var cardholderName by remember { mutableStateOf(existingItem?.cardholderName ?: "") }
-    var cardNumber by remember { mutableStateOf(existingItem?.cardNumber ?: "") }
-    var cardExpiry by remember { mutableStateOf(existingItem?.cardExpiry ?: "") }
-    var cardCvv by remember { mutableStateOf(existingItem?.cardCvv ?: "") }
-    var cardPin by remember { mutableStateOf(existingItem?.cardPin ?: "") }
+    var cardholderName by remember(itemId) { mutableStateOf(existingItem?.cardholderName ?: "") }
+    var cardNumber by remember(itemId) { mutableStateOf(existingItem?.cardNumber ?: "") }
+    var cardExpiry by remember(itemId) { mutableStateOf(existingItem?.cardExpiry ?: "") }
+    var cardCvv by remember(itemId) { mutableStateOf(existingItem?.cardCvv ?: "") }
+    var cardPin by remember(itemId) { mutableStateOf(existingItem?.cardPin ?: "") }
 
     // Identity fields
-    var identityName by remember { mutableStateOf(existingItem?.identityFullName ?: "") }
-    var identityEmail by remember { mutableStateOf(existingItem?.identityEmail ?: "") }
-    var identityPhone by remember { mutableStateOf(existingItem?.identityPhone ?: "") }
-    var identityAddress by remember { mutableStateOf(existingItem?.identityAddress ?: "") }
-    var identityDob by remember { mutableStateOf(existingItem?.identityDob ?: "") }
-    var identityIdNum by remember { mutableStateOf(existingItem?.identityIdNumber ?: "") }
+    var identityName by remember(itemId) { mutableStateOf(existingItem?.identityFullName ?: "") }
+    var identityEmail by remember(itemId) { mutableStateOf(existingItem?.identityEmail ?: "") }
+    var identityPhone by remember(itemId) { mutableStateOf(existingItem?.identityPhone ?: "") }
+    var identityAddress by remember(itemId) { mutableStateOf(existingItem?.identityAddress ?: "") }
+    var identityDob by remember(itemId) { mutableStateOf(existingItem?.identityDob ?: "") }
+    var identityIdNum by remember(itemId) { mutableStateOf(existingItem?.identityIdNumber ?: "") }
 
     // Wi-Fi fields
-    var wifiSsid by remember { mutableStateOf(existingItem?.wifiSsid ?: "") }
-    var wifiPassword by remember { mutableStateOf(existingItem?.wifiPassword ?: "") }
+    var wifiSsid by remember(itemId) { mutableStateOf(existingItem?.wifiSsid ?: "") }
+    var wifiPassword by remember(itemId) { mutableStateOf(existingItem?.wifiPassword ?: "") }
 
     // API Key fields
-    var apiKey by remember { mutableStateOf(existingItem?.apiKey ?: "") }
-    var apiSecret by remember { mutableStateOf(existingItem?.apiSecret ?: "") }
-    var apiEndpoint by remember { mutableStateOf(existingItem?.apiEndpoint ?: "") }
+    var apiKey by remember(itemId) { mutableStateOf(existingItem?.apiKey ?: "") }
+    var apiSecret by remember(itemId) { mutableStateOf(existingItem?.apiSecret ?: "") }
+    var apiEndpoint by remember(itemId) { mutableStateOf(existingItem?.apiEndpoint ?: "") }
 
     // Custom fields list
-    val customFields = remember {
+    val customFields = remember(itemId) {
         mutableStateListOf<CustomField>().apply {
             if (existingItem != null) {
                 addAll(existingItem.customFields)
@@ -153,8 +155,8 @@ fun AddEditItemScreen(
         }
     }
 
-    var rotationIntervalDays by remember { mutableStateOf(existingItem?.rotationIntervalDays) }
-    val attachments = remember {
+    var rotationIntervalDays by remember(itemId) { mutableStateOf(existingItem?.rotationIntervalDays) }
+    val attachments = remember(itemId) {
         mutableStateListOf<VaultAttachment>().apply {
             if (existingItem != null) {
                 addAll(existingItem.attachments)
@@ -260,7 +262,7 @@ fun AddEditItemScreen(
 
 
 
-    LaunchedEffect(existingItem) {
+    LaunchedEffect(itemId, existingItem) {
         val item = existingItem ?: return@LaunchedEffect
         if (hasPopulated) return@LaunchedEffect
         hasPopulated = true
@@ -291,6 +293,7 @@ fun AddEditItemScreen(
         wifiPassword = item.wifiPassword
         apiKey = item.apiKey
         apiSecret = item.apiSecret
+        apiEndpoint = item.apiEndpoint
         rotationIntervalDays = item.rotationIntervalDays
         customFields.clear()
         customFields.addAll(item.customFields)
@@ -298,8 +301,21 @@ fun AddEditItemScreen(
         attachments.addAll(item.attachments)
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            password = ""
+            cardPin = ""
+            cardCvv = ""
+            totpSecret = ""
+            apiSecret = ""
+            apiKey = ""
+            wifiPassword = ""
+        }
+    }
+
     Scaffold(
         modifier = modifier
+            .testTag("add_edit_item_screen")
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -337,6 +353,7 @@ fun AddEditItemScreen(
                         val isSelected = selectedType == type
                         Box(
                             modifier = Modifier
+                                .testTag("item_type_pill_${type.name.lowercase()}")
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(
                                     if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -366,7 +383,8 @@ fun AddEditItemScreen(
                 value = title,
                 onValueChange = { title = it },
                 label = "Title (e.g. Google, Chase Bank, Home Wi-Fi)",
-                placeholder = "Required"
+                placeholder = "Required",
+                modifier = Modifier.testTag("item_title_field")
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -520,7 +538,9 @@ fun AddEditItemScreen(
                     text = errorMessage ?: "",
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier
+                        .testTag("add_edit_error_message")
+                        .padding(top = 12.dp)
                 )
             }
 
@@ -530,6 +550,7 @@ fun AddEditItemScreen(
                 text = if (existingItem != null) "Save Changes" else "Save to Vault",
                 containerColor = KryptxBlue,
                 contentColor = Color.White,
+                modifier = Modifier.testTag("save_vault_item_button"),
                 onClick = {
                     if (title.isBlank()) {
                         errorMessage = "Title cannot be empty"
@@ -580,6 +601,7 @@ fun AddEditItemScreen(
                         wifiPassword = wifiPassword,
                         apiKey = apiKey,
                         apiSecret = apiSecret,
+                        apiEndpoint = apiEndpoint,
                         customFields = customFields.toList(),
                         attachments = attachments.toList(),
                         expiresAt = computedExpiry,

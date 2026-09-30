@@ -32,10 +32,12 @@ class BiometricFlowInstrumentedTest {
 
     @Test
     fun testCryptoObjectInitialization() {
-        val cipher = keystoreManager.initBiometricCipher(forEncryption = true)
+        val cipher = keystoreManager.getEncryptCipher()
         assertNotNull("Keystore cipher should initialize", cipher)
 
-        val cryptoObject = BiometricPrompt.CryptoObject(cipher)
-        assertNotNull("BiometricPrompt.CryptoObject should wrap cipher successfully", cryptoObject.cipher)
+        if (cipher != null) {
+            val cryptoObject = BiometricPrompt.CryptoObject(cipher)
+            assertNotNull("BiometricPrompt.CryptoObject should wrap cipher successfully", cryptoObject.cipher)
+        }
     }
 }

@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -86,6 +88,7 @@ import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,6 +96,7 @@ import kotlinx.coroutines.launch
 fun VaultDashboardScreen(
     viewModel: VaultViewModel,
     onNavigateToItemDetail: (String) -> Unit,
+    onNavigateToEditItem: (String) -> Unit,
     onNavigateToAddItem: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
     onNavigateToSearch: () -> Unit,
@@ -129,6 +133,7 @@ fun VaultDashboardScreen(
 
     Scaffold(
         modifier = modifier
+            .testTag("vault_dashboard_screen")
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -158,6 +163,7 @@ fun VaultDashboardScreen(
             if (!isSelectionMode) {
                 Box(
                     modifier = Modifier
+                        .testTag("vault_add_item_fab")
                         .size(58.dp)
                         .clip(CircleShape)
                         .background(KryptxElectricBlueGradient)
@@ -197,9 +203,20 @@ fun VaultDashboardScreen(
                 }
             }
 
+            val focusManager = LocalFocusManager.current
+            val listState = rememberLazyListState()
+
+            androidx.compose.runtime.LaunchedEffect(listState.isScrollInProgress) {
+                if (listState.isScrollInProgress) {
+                    focusManager.clearFocus()
+                }
+            }
+
             Row(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
+                        .testTag("vault_items_list")
                         .then(if (isWideScreen) Modifier.width(380.dp) else Modifier.fillMaxWidth())
                         .fillMaxHeight(),
                     contentPadding = PaddingValues(bottom = 100.dp)
@@ -459,6 +476,8 @@ fun VaultDashboardScreen(
 
                         SwipeToDismissBox(
                             state = dismissState,
+                            enableDismissFromStartToEnd = !isSelectionMode,
+                            enableDismissFromEndToStart = !isSelectionMode,
                             modifier = Modifier
                                 .animateItem()
                                 .staggeredEntrance(index = index),
@@ -575,7 +594,7 @@ fun VaultDashboardScreen(
             securityReport = securityReport,
             viewModel = viewModel,
             snackbarHostState = snackbarHostState,
-            onNavigateToEdit = onNavigateToItemDetail,
+            onNavigateToEdit = onNavigateToEditItem,
             onNavigateToAddItem = onNavigateToAddItem,
             onNavigateToSecurityCenter = onNavigateToSecurityCenter,
             onDeselectItem = { selectedInspectorItemId = null },
@@ -607,7 +626,7 @@ fun VaultDashboardScreen(
                 }
             },
             onToggleFavorite = { viewModel.toggleFavorite(it) },
-            onEditItem = { onNavigateToItemDetail(it) },
+            onEditItem = { onNavigateToEditItem(it) },
             onDeleteItem = { deletedItem ->
                 val itemTitle = deletedItem.title
                 viewModel.deleteItemWithUndo(deletedItem.id) {

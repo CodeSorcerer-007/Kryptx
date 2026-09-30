@@ -75,6 +75,7 @@ class VaultSessionManager(
         _lockoutSecondsRemaining.value = 0
         lockoutJob?.cancel()
         lockoutJob = null
+        lockoutSaver?.invoke(0, 0L)
 
         recordActivity()
     }
@@ -207,6 +208,41 @@ class VaultSessionManager(
         recordActivity()
     }
 
+    private var lockoutSaver: ((attempts: Int, lockoutUntilMs: Long) -> Unit)? = null
+
+    /**
+     * Connects persistent storage for failed attempts and lockout timers across process restarts.
+     */
+    fun setLockoutPersistence(
+        save: (attempts: Int, lockoutUntilMs: Long) -> Unit,
+        load: () -> Pair<Int, Long>
+    ) {
+        this.lockoutSaver = save
+        try {
+            val (savedAttempts, savedUntilMs) = load()
+            _failedAttempts.value = savedAttempts
+            val remainingMs = savedUntilMs - System.currentTimeMillis()
+            if (remainingMs > 0) {
+                val remainingSec = (remainingMs / 1000).toInt().coerceAtLeast(1)
+                startLockoutCountdown(remainingSec, savedUntilMs)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun startLockoutCountdown(durationSeconds: Int, lockoutUntilMs: Long) {
+        _lockoutSecondsRemaining.value = durationSeconds
+        lockoutJob?.cancel()
+        lockoutJob = scope.launch {
+            while (_lockoutSecondsRemaining.value > 0) {
+                delay(1000L)
+                _lockoutSecondsRemaining.value -= 1
+                if (_lockoutSecondsRemaining.value == 0) {
+                    lockoutSaver?.invoke(_failedAttempts.value, 0L)
+                }
+            }
+        }
+    }
+
     /**
      * Records a failed unlock attempt and triggers exponential backoff throttling if threshold is reached.
      */
@@ -221,14 +257,11 @@ class VaultSessionManager(
         }
 
         if (lockoutDuration > 0) {
-            _lockoutSecondsRemaining.value = lockoutDuration
-            lockoutJob?.cancel()
-            lockoutJob = scope.launch {
-                while (_lockoutSecondsRemaining.value > 0) {
-                    delay(1000L)
-                    _lockoutSecondsRemaining.value -= 1
-                }
-            }
+            val lockoutUntilMs = System.currentTimeMillis() + (lockoutDuration * 1000L)
+            lockoutSaver?.invoke(attempts, lockoutUntilMs)
+            startLockoutCountdown(lockoutDuration, lockoutUntilMs)
+        } else {
+            lockoutSaver?.invoke(attempts, 0L)
         }
     }
 

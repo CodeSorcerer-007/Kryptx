@@ -129,4 +129,30 @@ class ArchitectureRuleTest {
         index.clear()
         assertEquals(0, index.size)
     }
+
+    @Test
+    fun testZeroNetworkManifestHardAssertion() {
+        val candidates = listOf(
+            java.io.File("src/main/AndroidManifest.xml"),
+            java.io.File("app/src/main/AndroidManifest.xml"),
+            java.io.File("../app/src/main/AndroidManifest.xml")
+        )
+        val manifestFile = candidates.firstOrNull { it.exists() }
+        assertNotNull("AndroidManifest.xml must exist", manifestFile)
+
+        val manifestContent = manifestFile!!.readText()
+
+        assertFalse(
+            "Hard Security Violation: AndroidManifest.xml must NEVER declare android.permission.INTERNET",
+            manifestContent.contains("android.permission.INTERNET")
+        )
+        assertFalse(
+            "Hard Security Violation: AndroidManifest.xml must NEVER declare ACCESS_NETWORK_STATE",
+            manifestContent.contains("android.permission.ACCESS_NETWORK_STATE")
+        )
+        assertFalse(
+            "Hard Security Violation: AndroidManifest.xml must NEVER declare ACCESS_WIFI_STATE",
+            manifestContent.contains("android.permission.ACCESS_WIFI_STATE")
+        )
+    }
 }

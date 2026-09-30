@@ -28,6 +28,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,9 +54,18 @@ fun VaultSearchBar(
     onNavigateToSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) {
+            focusRequester.requestFocus()
+        }
+    }
+
     Column(modifier = modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
         Box(
             modifier = Modifier
+                .testTag("vault_search_capsule")
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
@@ -88,7 +102,9 @@ fun VaultSearchBar(
                     if (searchQuery.isNotBlank()) {
                         IconButton(
                             onClick = { onSearchQueryChange("") },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("vault_search_clear_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
@@ -101,6 +117,7 @@ fun VaultSearchBar(
                     Box(
                         modifier = Modifier
                             .size(32.dp)
+                            .testTag("vault_search_tune_button")
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), CircleShape)
@@ -133,6 +150,9 @@ fun VaultSearchBar(
                     value = searchQuery,
                     onValueChange = onSearchQueryChange,
                     placeholder = "Filter by title, domain, or tag (e.g. is:weak, has:2fa)...",
+                    modifier = Modifier
+                        .testTag("vault_search_text_field")
+                        .focusRequester(focusRequester),
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
@@ -210,4 +230,16 @@ fun VaultSearchBar(
             }
         }
     }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+fun VaultSearchBarPreview() {
+    VaultSearchBar(
+        searchQuery = "",
+        onSearchQueryChange = {},
+        isSearchExpanded = true,
+        onToggleSearchExpanded = {},
+        onNavigateToSearch = {}
+    )
 }

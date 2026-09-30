@@ -107,6 +107,9 @@ fun KryptxTheme(
     MaterialTheme(
         colorScheme = animatedColors,
         typography = KryptxTypography,
-        content = content
+        shapes = MaterialKryptxShapes,
+        content = {
+            ProvideKryptxSensory(content = content)
+        }
     )
 }

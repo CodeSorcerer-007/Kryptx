@@ -196,7 +196,7 @@ class KryptxDatabaseHelper(
     }
 
     fun setMetadata(key: String, value: String) {
-        securePrefs.edit().putString(key, value).apply()
+        securePrefs.edit().putString(key, value).commit()
     }
 
     fun hasVaultSetup(): Boolean {
@@ -782,21 +782,38 @@ class KryptxDatabaseHelper(
     }
 
     /**
-     * Atomically clears all user data across all tables and wipes the in-memory DB key.
+     * Deletes the underlying encrypted database file and its WAL logs directly.
+     */
+    fun deleteDatabaseFile(): Boolean {
+        close()
+        try {
+            securePrefs.edit().clear().commit()
+        } catch (_: Exception) {}
+        _itemsFlow.value = emptyList()
+        _trashFlow.value = emptyList()
+        return context.deleteDatabase(databaseName)
+    }
+
+    /**
+     * Atomically clears all user data across all tables, purges secure preferences metadata,
+     * clears in-memory state flows, and deletes the database file.
      */
     fun clearAllData() {
-        val db = writableDatabase
-        db.beginTransaction()
         try {
-            db.execSQL("DELETE FROM $TABLE_VAULT_ITEMS")
-            db.execSQL("DELETE FROM $TABLE_VAULT_METADATA")
-            db.execSQL("DELETE FROM $TABLE_SECURITY_HISTORY")
-            db.execSQL("DELETE FROM $TABLE_ACTIVITY_LOG")
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
-        }
-        _itemsFlow.value = emptyList()
-        clearDatabaseKey()
+            if (internalHelper != null) {
+                val db = internalHelper?.writableDatabase
+                db?.beginTransaction()
+                try {
+                    db?.execSQL("DELETE FROM $TABLE_VAULT_ITEMS")
+                    db?.execSQL("DELETE FROM $TABLE_VAULT_METADATA")
+                    db?.execSQL("DELETE FROM $TABLE_SECURITY_HISTORY")
+                    db?.execSQL("DELETE FROM $TABLE_ACTIVITY_LOG")
+                    db?.setTransactionSuccessful()
+                } finally {
+                    db?.endTransaction()
+                }
+            }
+        } catch (_: Exception) {}
+        deleteDatabaseFile()
     }
 }

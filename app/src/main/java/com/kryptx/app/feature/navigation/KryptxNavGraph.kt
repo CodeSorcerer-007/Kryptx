@@ -58,9 +58,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import com.kryptx.app.core.database.IPreferencesRepository
+import com.kryptx.app.core.database.VaultRepository
+import com.kryptx.app.core.designsystem.components.BottomNavTab
 import com.kryptx.app.core.designsystem.components.FeatureGuide
 import com.kryptx.app.core.designsystem.components.FeatureIntroSheet
+import com.kryptx.app.core.designsystem.components.KryptxBottomNavBar
 import com.kryptx.app.core.designsystem.theme.KryptxMotion
 import com.kryptx.app.feature.auth.SetupMasterPasswordScreen
 import com.kryptx.app.feature.auth.UnlockScreen
@@ -84,17 +91,40 @@ import com.kryptx.app.feature.vault.VaultDashboardScreen
 import com.kryptx.app.feature.vault.VaultItemDetailScreen
 import com.kryptx.app.feature.vault.VaultViewModel
 
-enum class BottomNavTab(
-    val label: String,
-    val icon: ImageVector,
-    val screen: Screen,
-    val featureGuide: FeatureGuide
-) {
-    VAULT("Vault", Icons.Default.Lock, Screen.VaultDashboard, FeatureGuide.VAULT),
-    TOTP("2FA", Icons.Default.Key, Screen.TotpList, FeatureGuide.TOTP),
-    GENERATOR("Generator", Icons.Default.AutoAwesome, Screen.Generator, FeatureGuide.GENERATOR),
-    SETTINGS("Settings", Icons.Default.Settings, Screen.Settings, FeatureGuide.SETTINGS)
+fun BottomNavTab.toScreen(): Screen = when (this) {
+    BottomNavTab.VAULT -> Screen.VaultDashboard
+    BottomNavTab.TOTP -> Screen.TotpList
+    BottomNavTab.GENERATOR -> Screen.Generator
+    BottomNavTab.SETTINGS -> Screen.Settings
 }
+
+fun parseScreenRoute(route: String): Screen = when {
+    route == Screen.Onboarding.route -> Screen.Onboarding
+    route == Screen.SetupMasterPassword.route -> Screen.SetupMasterPassword
+    route == Screen.Unlock.route -> Screen.Unlock
+    route == Screen.VaultDashboard.route -> Screen.VaultDashboard
+    route == Screen.TotpList.route -> Screen.TotpList
+    route == Screen.Generator.route -> Screen.Generator
+    route == Screen.SecurityCenter.route -> Screen.SecurityCenter
+    route == Screen.Settings.route -> Screen.Settings
+    route == Screen.Search.route -> Screen.Search
+    route == Screen.SecuritySettings.route -> Screen.SecuritySettings
+    route == Screen.AppearanceSettings.route -> Screen.AppearanceSettings
+    route == Screen.BackupExport.route -> Screen.BackupExport
+    route.startsWith("item_detail/") -> Screen.ItemDetail(route.removePrefix("item_detail/"))
+    route.startsWith("add_edit_item?itemId=") -> {
+        val id = route.substringAfter("add_edit_item?itemId=")
+        Screen.AddEditItem(id.ifBlank { null })
+    }
+    else -> Screen.VaultDashboard
+}
+
+private val ScreenBackStackSaver = Saver<SnapshotStateList<Screen>, List<String>>(
+    save = { list -> list.map { it.route } },
+    restore = { routeList ->
+        routeList.map { parseScreenRoute(it) }.toMutableStateList()
+    }
+)
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -107,7 +137,7 @@ fun KryptxNavGraph(
     searchViewModel: SearchViewModel,
     settingsViewModel: SettingsViewModel,
     preferencesRepository: IPreferencesRepository,
-    vaultRepository: com.kryptx.app.core.database.VaultRepository = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.kryptx.app.KryptxApplication).vaultRepository,
+    vaultRepository: VaultRepository,
     pendingShortcutTarget: String? = null,
     onClearPendingShortcut: () -> Unit = {},
     onTriggerBiometrics: () -> Unit,
@@ -119,17 +149,17 @@ fun KryptxNavGraph(
     var selectedBottomTab by remember { mutableStateOf(BottomNavTab.VAULT) }
     var activeIntroFeature by remember { mutableStateOf<FeatureGuide?>(null) }
 
-    // Navigation back stack
-    val backStack = remember {
-        mutableStateListOf<Screen>().apply {
-            if (!unlockUiState.hasVault) {
-                add(Screen.Onboarding)
-            } else if (!isUnlocked) {
-                add(Screen.Unlock)
-            } else {
-                add(Screen.VaultDashboard)
-            }
+    // Navigation back stack with process-death survival
+    val backStack = rememberSaveable(saver = ScreenBackStackSaver) {
+        val initialList = mutableStateListOf<Screen>()
+        if (!unlockUiState.hasVault) {
+            initialList.add(Screen.Onboarding)
+        } else if (!isUnlocked) {
+            initialList.add(Screen.Unlock)
+        } else {
+            initialList.add(Screen.VaultDashboard)
         }
+        initialList
     }
 
     // Synchronize navigation whenever unlock or vault state changes
@@ -232,7 +262,7 @@ fun KryptxNavGraph(
                         if (selectedBottomTab != tab) {
                             selectedBottomTab = tab
                             backStack.clear()
-                            backStack.add(tab.screen)
+                            backStack.add(tab.toScreen())
                         }
                     }
                 )
@@ -295,6 +325,7 @@ fun KryptxNavGraph(
                         VaultDashboardScreen(
                             viewModel = vaultViewModel,
                             onNavigateToItemDetail = { id -> navigateTo(Screen.ItemDetail(id)) },
+                            onNavigateToEditItem = { id -> navigateTo(Screen.AddEditItem(id)) },
                             onNavigateToAddItem = { navigateTo(Screen.AddEditItem(null)) },
                             onNavigateToSecurityCenter = { navigateTo(Screen.SecurityCenter) },
                             onNavigateToSearch = { navigateTo(Screen.Search) }
@@ -388,141 +419,6 @@ fun KryptxNavGraph(
                 activeIntroFeature = null
             }
         )
-    }
-}
-
-@Composable
-fun KryptxBottomNavBar(
-    selectedTab: BottomNavTab,
-    onTabSelected: (BottomNavTab) -> Unit
-) {
-    val view = androidx.compose.ui.platform.LocalView.current
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val navBg = if (isDark) Color(0xFF070B14).copy(alpha = 0.92f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-    val navBorder = if (isDark) com.kryptx.app.core.designsystem.components.GlassmorphismSpecularBrush else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
-    
-    val pillBgBrush = if (isDark) {
-        androidx.compose.ui.graphics.Brush.linearGradient(
-            listOf(
-                Color.White,
-                Color(0xFFE2E8F0)
-            )
-        )
-    } else {
-        com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
-    }
-    
-    val selectedIconTint = if (isDark) Color(0xFF04060A) else Color.White
-    val unselectedIconTint = if (isDark) Color(0xFF7E8B9E) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-
-    val tabs = remember { BottomNavTab.entries }
-    val selectedIndex = remember(selectedTab) { tabs.indexOf(selectedTab).coerceAtLeast(0) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        androidx.compose.foundation.layout.BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(navBg)
-                .border(1.dp, navBorder, RoundedCornerShape(32.dp))
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            val totalWidth = maxWidth
-            val tabCount = tabs.size
-            val slotWidth = totalWidth / tabCount
-            val pillWidth = (slotWidth - 8.dp).coerceAtLeast(44.dp)
-            val pillHeight = 52.dp
-
-            val animatedIndex by animateFloatAsState(
-                targetValue = selectedIndex.toFloat(),
-                animationSpec = spring(
-                    dampingRatio = 0.74f,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
-                label = "magnetic_pill_offset"
-            )
-
-            // 1. Fluid Magnetic Gliding Pill Indicator
-            Box(
-                modifier = Modifier
-                    .offset(
-                        x = (slotWidth * animatedIndex) + ((slotWidth - pillWidth) / 2)
-                    )
-                    .size(width = pillWidth, height = pillHeight)
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(pillBgBrush)
-                    .border(
-                        1.dp,
-                        if (isDark) Color.White.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.25f),
-                        RoundedCornerShape(26.dp)
-                    )
-            )
-
-            // 2. Interactive Tab Targets
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    val isSelected = selectedIndex == index
-
-                    val iconScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.14f else 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = 0.65f,
-                            stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "tab_icon_scale"
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(pillHeight)
-                            .clip(RoundedCornerShape(26.dp))
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                if (!isSelected) {
-                                    com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
-                                    com.kryptx.app.core.designsystem.components.KryptxAudio.tick(view.context)
-                                    onTabSelected(tab)
-                                }
-                            }
-                            .semantics {
-                                role = androidx.compose.ui.semantics.Role.Tab
-                                contentDescription = "${tab.label} tab"
-                                selected = isSelected
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.label,
-                                tint = if (isSelected) selectedIconTint else unselectedIconTint,
-                                modifier = Modifier
-                                    .size(22.dp)
-                                    .scale(iconScale)
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

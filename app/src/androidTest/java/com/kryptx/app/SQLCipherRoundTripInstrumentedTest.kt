@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,21 +37,21 @@ class SQLCipherRoundTripInstrumentedTest {
             id = UUID.randomUUID().toString(),
             title = "Test SQLCipher Item",
             username = "admin_user",
-            encryptedPassword = "encrypted_secret_12345",
+            password = "encrypted_secret_12345",
             type = ItemType.LOGIN,
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
         )
 
-        val inserted = dbHelper.insertItem(testItem)
-        assertNotNull("Inserted item should return valid record", inserted)
+        val inserted = dbHelper.saveItem(testItem, dbKey)
+        assertTrue("Inserted item should return true", inserted)
 
-        val retrieved = dbHelper.getItemById(testItem.id)
+        val retrieved = dbHelper.loadItemById(testItem.id, dbKey)
         assertNotNull("Retrieved item should not be null", retrieved)
         assertEquals("Title must match inserted item", testItem.title, retrieved!!.title)
         assertEquals("Username must match inserted item", testItem.username, retrieved.username)
 
-        val allItems = dbHelper.getAllItems().first()
+        val allItems = dbHelper.loadAllItems(dbKey)
         assertEquals(1, allItems.size)
 
         dbHelper.close()
