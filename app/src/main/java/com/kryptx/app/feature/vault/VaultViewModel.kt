@@ -324,6 +324,12 @@ class VaultViewModel(
         return manager.deleteAttachment(attachment)
     }
 
+    fun cleanupAttachments(context: android.content.Context, attachments: List<com.kryptx.app.core.model.VaultAttachment>) {
+        viewModelScope.launch {
+            attachments.forEach { deleteAttachment(context, it) }
+        }
+    }
+
     fun lockVault() {
         activityLogManager?.logEvent("Lock", "Vault locked")
         sessionManager.lock()

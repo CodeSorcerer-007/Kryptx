@@ -59,6 +59,7 @@ fun SearchScreen(
     val query by viewModel.query.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val results by viewModel.searchResults.collectAsState()
+    val isSearching by viewModel.isSearching.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -148,7 +149,14 @@ fun SearchScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Search Results List
-            if (results.isEmpty()) {
+            if (isSearching) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                }
+            } else if (results.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .testTag("search_empty_state")
@@ -176,7 +184,7 @@ fun SearchScreen(
                             onCopySecret = {
                                 viewModel.copySecret(item.title, item.primarySecret)
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Password copied!")
+                                    snackbarHostState.showSnackbar("Secret copied! Clears automatically in 30s.")
                                 }
                             }
                         )

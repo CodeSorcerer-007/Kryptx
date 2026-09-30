@@ -32,8 +32,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -48,12 +49,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,6 +65,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,49 +109,56 @@ fun AddEditItemScreen(
         items.firstOrNull { it.id == itemId }
     }
 
-    var selectedType by remember(itemId) { mutableStateOf(existingItem?.type ?: ItemType.LOGIN) }
-    var title by remember(itemId) { mutableStateOf(existingItem?.title ?: "") }
-    var isFavorite by remember(itemId) { mutableStateOf(existingItem?.isFavorite ?: false) }
-    var notes by remember(itemId) { mutableStateOf(existingItem?.notes ?: "") }
-    var showQrScanner by remember(itemId) { mutableStateOf(false) }
+    if (itemId != null && existingItem == null) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.CircularProgressIndicator()
+        }
+        return
+    }
 
-    var hasPopulated by remember(itemId) { mutableStateOf(existingItem != null) }
+    var selectedType by rememberSaveable(itemId) { mutableStateOf(existingItem?.type ?: ItemType.LOGIN) }
+    var title by rememberSaveable(itemId) { mutableStateOf(existingItem?.title ?: "") }
+    var isFavorite by rememberSaveable(itemId) { mutableStateOf(existingItem?.isFavorite ?: false) }
+    var notes by rememberSaveable(itemId) { mutableStateOf(existingItem?.notes ?: "") }
+    var showQrScanner by rememberSaveable(itemId) { mutableStateOf(false) }
+
+
 
     // Login fields
-    var username by remember(itemId) { mutableStateOf(existingItem?.username ?: "") }
-    var password by remember(itemId) { mutableStateOf(existingItem?.password ?: "") }
-    var website by remember(itemId) { mutableStateOf(existingItem?.website ?: "") }
-    var totpSecret by remember(itemId) { mutableStateOf(existingItem?.totpSecret ?: "") }
+    var username by rememberSaveable(itemId) { mutableStateOf(existingItem?.username ?: "") }
+    var password by rememberSaveable(itemId) { mutableStateOf(existingItem?.password ?: "") }
+    var website by rememberSaveable(itemId) { mutableStateOf(existingItem?.website ?: "") }
+    var totpSecret by rememberSaveable(itemId) { mutableStateOf(existingItem?.totpSecret ?: "") }
 
     // Passkey fields
-    var passkeyRpId by remember(itemId) { mutableStateOf(existingItem?.passkeyRpId ?: "") }
-    var passkeyUserHandle by remember(itemId) { mutableStateOf(existingItem?.passkeyUserHandle ?: "") }
-    var passkeyCredentialId by remember(itemId) { mutableStateOf(existingItem?.passkeyCredentialId ?: "") }
-    var passkeyAlgorithm by remember(itemId) { mutableStateOf(existingItem?.passkeyAlgorithm ?: "ES256 (ECDSA P-256)") }
+    var passkeyRpId by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyRpId ?: "") }
+    var passkeyUserHandle by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyUserHandle ?: "") }
+    var passkeyCredentialId by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyCredentialId ?: "") }
+    var passkeyAlgorithm by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyAlgorithm ?: "ES256 (ECDSA P-256)") }
 
     // Credit card fields
-    var cardholderName by remember(itemId) { mutableStateOf(existingItem?.cardholderName ?: "") }
-    var cardNumber by remember(itemId) { mutableStateOf(existingItem?.cardNumber ?: "") }
-    var cardExpiry by remember(itemId) { mutableStateOf(existingItem?.cardExpiry ?: "") }
-    var cardCvv by remember(itemId) { mutableStateOf(existingItem?.cardCvv ?: "") }
-    var cardPin by remember(itemId) { mutableStateOf(existingItem?.cardPin ?: "") }
+    var cardholderName by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardholderName ?: "") }
+    var cardNumber by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardNumber ?: "") }
+    var cardExpiry by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardExpiry ?: "") }
+    var cardCvv by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardCvv ?: "") }
+    var cardPin by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardPin ?: "") }
 
     // Identity fields
-    var identityName by remember(itemId) { mutableStateOf(existingItem?.identityFullName ?: "") }
-    var identityEmail by remember(itemId) { mutableStateOf(existingItem?.identityEmail ?: "") }
-    var identityPhone by remember(itemId) { mutableStateOf(existingItem?.identityPhone ?: "") }
-    var identityAddress by remember(itemId) { mutableStateOf(existingItem?.identityAddress ?: "") }
-    var identityDob by remember(itemId) { mutableStateOf(existingItem?.identityDob ?: "") }
-    var identityIdNum by remember(itemId) { mutableStateOf(existingItem?.identityIdNumber ?: "") }
+    var identityName by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityFullName ?: "") }
+    var identityEmail by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityEmail ?: "") }
+    var identityPhone by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityPhone ?: "") }
+    var identityAddress by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityAddress ?: "") }
+    var identityDob by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityDob ?: "") }
+    var identityIdNum by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityIdNumber ?: "") }
 
     // Wi-Fi fields
-    var wifiSsid by remember(itemId) { mutableStateOf(existingItem?.wifiSsid ?: "") }
-    var wifiPassword by remember(itemId) { mutableStateOf(existingItem?.wifiPassword ?: "") }
+    var wifiSsid by rememberSaveable(itemId) { mutableStateOf(existingItem?.wifiSsid ?: "") }
+    var wifiPassword by rememberSaveable(itemId) { mutableStateOf(existingItem?.wifiPassword ?: "") }
 
     // API Key fields
-    var apiKey by remember(itemId) { mutableStateOf(existingItem?.apiKey ?: "") }
-    var apiSecret by remember(itemId) { mutableStateOf(existingItem?.apiSecret ?: "") }
-    var apiEndpoint by remember(itemId) { mutableStateOf(existingItem?.apiEndpoint ?: "") }
+    var apiKey by rememberSaveable(itemId) { mutableStateOf(existingItem?.apiKey ?: "") }
+    var apiSecret by rememberSaveable(itemId) { mutableStateOf(existingItem?.apiSecret ?: "") }
+    var apiEndpoint by rememberSaveable(itemId) { mutableStateOf(existingItem?.apiEndpoint ?: "") }
 
     // Custom fields list
     val customFields = remember(itemId) {
@@ -155,12 +169,29 @@ fun AddEditItemScreen(
         }
     }
 
-    var rotationIntervalDays by remember(itemId) { mutableStateOf(existingItem?.rotationIntervalDays) }
+    var rotationIntervalDays by rememberSaveable(itemId) { mutableStateOf(existingItem?.rotationIntervalDays) }
     val attachments = remember(itemId) {
         mutableStateListOf<VaultAttachment>().apply {
             if (existingItem != null) {
                 addAll(existingItem.attachments)
             }
+        }
+    }
+
+    val newAttachments = remember(itemId) { mutableStateListOf<VaultAttachment>() }
+    val deletedAttachments = remember(itemId) { mutableStateListOf<VaultAttachment>() }
+    var isSaved by remember { mutableStateOf(false) }
+
+    val isDirty by derivedStateOf {
+        val original = existingItem
+        if (original == null) {
+            title.isNotEmpty() || username.isNotEmpty() || password.isNotEmpty() || notes.isNotEmpty() || attachments.isNotEmpty()
+        } else {
+            title != original.title || username != original.username || password != original.password ||
+            notes != original.notes || totpSecret != original.totpSecret || selectedType != original.type ||
+            attachments.size != original.attachments.size || customFields.size != original.customFields.size ||
+            passkeyRpId != original.passkeyRpId || cardNumber != original.cardNumber || wifiSsid != original.wifiSsid ||
+            cardExpiry != original.cardExpiry
         }
     }
 
@@ -191,6 +222,7 @@ fun AddEditItemScreen(
                     val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
                     if (saved != null) {
                         attachments.add(saved)
+                        newAttachments.add(saved)
                     } else {
                         errorMessage = "Unable to encrypt photo into vault."
                     }
@@ -213,6 +245,7 @@ fun AddEditItemScreen(
                     val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
                     if (saved != null) {
                         attachments.add(saved)
+                        newAttachments.add(saved)
                     } else {
                         errorMessage = "Unable to encrypt file into vault."
                     }
@@ -228,16 +261,8 @@ fun AddEditItemScreen(
         try {
             photoPickerLauncher.launch("image/*")
         } catch (e: Throwable) {
-            try {
-                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                    type = "image/*"
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                }
-                context.startActivity(Intent.createChooser(intent, "Select Photo"))
-            } catch (e2: Throwable) {
-                app?.sessionManager?.setPickerActive(false)
-                errorMessage = "Unable to open photo gallery: ${e2.message}"
-            }
+            app?.sessionManager?.setPickerActive(false)
+            errorMessage = "Unable to open photo gallery: ${e.message}"
         }
     }
 
@@ -246,59 +271,31 @@ fun AddEditItemScreen(
         try {
             filePickerLauncher.launch("*/*")
         } catch (e: Throwable) {
-            try {
-                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                    type = "*/*"
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                }
-                context.startActivity(Intent.createChooser(intent, "Select Document or File"))
-            } catch (e2: Throwable) {
-                app?.sessionManager?.setPickerActive(false)
-                errorMessage = "Unable to open file selector: ${e2.message}"
-            }
+            app?.sessionManager?.setPickerActive(false)
+            errorMessage = "Unable to open file selector: ${e.message}"
         }
     }
 
 
 
 
-    LaunchedEffect(itemId, existingItem) {
-        val item = existingItem ?: return@LaunchedEffect
-        if (hasPopulated) return@LaunchedEffect
-        hasPopulated = true
-        selectedType = item.type
-        title = item.title
-        isFavorite = item.isFavorite
-        notes = item.notes
-        username = item.username
-        password = item.password
-        website = item.website
-        totpSecret = item.totpSecret
-        passkeyRpId = item.passkeyRpId
-        passkeyUserHandle = item.passkeyUserHandle
-        passkeyCredentialId = item.passkeyCredentialId
-        passkeyAlgorithm = item.passkeyAlgorithm
-        cardholderName = item.cardholderName
-        cardNumber = item.cardNumber
-        cardExpiry = item.cardExpiry
-        cardCvv = item.cardCvv
-        cardPin = item.cardPin
-        identityName = item.identityFullName
-        identityEmail = item.identityEmail
-        identityPhone = item.identityPhone
-        identityAddress = item.identityAddress
-        identityDob = item.identityDob
-        identityIdNum = item.identityIdNumber
-        wifiSsid = item.wifiSsid
-        wifiPassword = item.wifiPassword
-        apiKey = item.apiKey
-        apiSecret = item.apiSecret
-        apiEndpoint = item.apiEndpoint
-        rotationIntervalDays = item.rotationIntervalDays
-        customFields.clear()
-        customFields.addAll(item.customFields)
-        attachments.clear()
-        attachments.addAll(item.attachments)
+
+
+    var showDiscardDialog by remember { mutableStateOf(false) }
+    val handleDiscardAndBack: () -> Unit = {
+        viewModel.cleanupAttachments(context, newAttachments)
+        onNavigateBack()
+    }
+    val safeNavigateBack: () -> Unit = {
+        if (isDirty) {
+            showDiscardDialog = true
+        } else {
+            handleDiscardAndBack()
+        }
+    }
+    
+    BackHandler(enabled = true) {
+        safeNavigateBack()
     }
 
     DisposableEffect(Unit) {
@@ -317,13 +314,14 @@ fun AddEditItemScreen(
         modifier = modifier
             .testTag("add_edit_item_screen")
             .fillMaxSize()
+            .imePadding()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             KryptxTopBar(
                 title = if (existingItem != null) "Edit Item" else "New Vault Item",
                 showBackButton = true,
-                onBackClick = onNavigateBack
+                onBackClick = safeNavigateBack
             )
         }
     ) { paddingValues ->
@@ -364,6 +362,10 @@ fun AddEditItemScreen(
                                     RoundedCornerShape(14.dp)
                                 )
                                 .bounceClick(scaleDown = 0.94f) { selectedType = type }
+                                .semantics {
+                                    role = Role.Button
+                                    contentDescription = "Select type: ${type.displayName}"
+                                }
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                         ) {
                             Text(
@@ -436,6 +438,8 @@ fun AddEditItemScreen(
                     onPhoneChange = { identityPhone = it },
                     address = identityAddress,
                     onAddressChange = { identityAddress = it },
+                    dob = identityDob,
+                    onDobChange = { identityDob = it },
                     idNum = identityIdNum,
                     onIdNumChange = { identityIdNum = it }
                 )
@@ -454,42 +458,52 @@ fun AddEditItemScreen(
                     onApiEndpointChange = { apiEndpoint = it }
                 )
                 ItemType.SECURE_NOTE -> {
-                    if (existingItem == null && notes.isBlank()) {
-                        Text(
-                            text = "Templates",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val templates = listOf(
-                                "Checklist" to "- [ ] Item 1\n- [ ] Item 2\n- [ ] Item 3",
-                                "Server Config" to "Host:\nIP:\nPort:\nRoot Password:\n\n- [ ] Firewall configured\n- [ ] Backups enabled",
-                                "Meeting" to "Date:\nAttendees:\n\nAgenda:\n- \n\nAction Items:\n- [ ] "
+                    Column {
+                        if (existingItem == null && notes.isBlank()) {
+                            Text(
+                                text = "Templates",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 8.dp)
                             )
-                            templates.forEach { (name, templateText) ->
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                                        .clickable { notes = templateText }
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = name,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val templates = listOf(
+                                    "Checklist" to "- [ ] Item 1\n- [ ] Item 2\n- [ ] Item 3",
+                                    "Server Config" to "Host:\nIP:\nPort:\nRoot Password:\n\n- [ ] Firewall configured\n- [ ] Backups enabled",
+                                    "Meeting" to "Date:\nAttendees:\n\nAgenda:\n- \n\nAction Items:\n- [ ] "
+                                )
+                                templates.forEach { (name, templateText) ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                            .clickable { notes = templateText }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = name,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
                             }
+                            Spacer(modifier = Modifier.height(14.dp))
                         }
+                        KryptxTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = "Secure Note Content",
+                            singleLine = false,
+                            maxLines = 10
+                        )
                     }
                 }
                 ItemType.CUSTOM -> {}
@@ -515,23 +529,27 @@ fun AddEditItemScreen(
                 attachments = attachments,
                 onAddClicked = { showAttachmentTypeDialog = true },
                 onDeleteClicked = { index, att ->
-                    scope.launch {
-                        viewModel.deleteAttachment(context, att)
-                        attachments.removeAt(index)
+                    if (newAttachments.contains(att)) {
+                        scope.launch { viewModel.deleteAttachment(context, att) }
+                        newAttachments.remove(att)
+                    } else {
+                        deletedAttachments.add(att)
                     }
+                    attachments.removeAt(index)
                 }
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Notes field
-            KryptxTextField(
-                value = notes,
-                onValueChange = { notes = it },
-                label = "Secure Notes",
-                singleLine = false,
-                maxLines = 5
-            )
+            // Notes field (for non-SECURE_NOTE items)
+            if (selectedType != ItemType.SECURE_NOTE) {
+                Spacer(modifier = Modifier.height(14.dp))
+                KryptxTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = "Secure Notes",
+                    singleLine = false,
+                    maxLines = 5
+                )
+            }
 
             AnimatedVisibility(visible = errorMessage != null) {
                 Text(
@@ -555,6 +573,34 @@ fun AddEditItemScreen(
                     if (title.isBlank()) {
                         errorMessage = "Title cannot be empty"
                         return@KryptxPrimaryButton
+                    }
+
+                    if (selectedType == ItemType.CREDIT_CARD) {
+                        val cleanCard = cardNumber.filter { it.isDigit() }
+                        if (cleanCard.isNotEmpty()) {
+                            if (cleanCard.length !in 12..19 || !isValidLuhn(cleanCard)) {
+                                errorMessage = "Invalid card number (checksum failed)"
+                                return@KryptxPrimaryButton
+                            }
+                        }
+                        if (cardExpiry.isNotBlank()) {
+                            val expiryRegex = Regex("""^(0[1-9]|1[0-2])\s*/\s*([0-9]{2}|[0-9]{4})$""")
+                            val match = expiryRegex.matchEntire(cardExpiry.trim())
+                            if (match == null) {
+                                errorMessage = "Card expiry must be in MM/YY format (e.g. 12/28)"
+                                return@KryptxPrimaryButton
+                            }
+                            val month = match.groupValues[1].toInt()
+                            val yearStr = match.groupValues[2]
+                            val year = if (yearStr.length == 2) 2000 + yearStr.toInt() else yearStr.toInt()
+                            val cal = java.util.Calendar.getInstance()
+                            val currentYear = cal.get(java.util.Calendar.YEAR)
+                            val currentMonth = cal.get(java.util.Calendar.MONTH) + 1
+                            if (year < currentYear || (year == currentYear && month < currentMonth)) {
+                                errorMessage = "Card is already expired"
+                                return@KryptxPrimaryButton
+                            }
+                        }
                     }
 
                     val computedExpiry = if (rotationIntervalDays != null && rotationIntervalDays!! > 0) {
@@ -608,7 +654,8 @@ fun AddEditItemScreen(
                         rotationIntervalDays = rotationIntervalDays,
                         updatedAt = System.currentTimeMillis()
                     )
-
+                    viewModel.cleanupAttachments(context, deletedAttachments.toList())
+                    isSaved = true
                     viewModel.saveItem(updatedItem, onSaved = onNavigateBack)
                 }
             )
@@ -784,6 +831,37 @@ fun AddEditItemScreen(
             }
         )
     }
+
+    if (showDiscardDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = {
+                Text(
+                    text = "Discard Changes?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "You have unsaved changes. Are you sure you want to discard them?",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    handleDiscardAndBack()
+                }) {
+                    Text("Discard", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 private enum class AttachmentType {
@@ -821,4 +899,23 @@ private fun resolveMimeType(context: Context, uri: Uri, fileName: String): Strin
     }
     return fromResolver ?: "application/octet-stream"
 }
+
+private fun isValidLuhn(number: String): Boolean {
+    val digits = number.filter { it.isDigit() }
+    if (digits.length !in 12..19) return false
+    var sum = 0
+    var alternate = false
+    for (i in digits.length - 1 downTo 0) {
+        var d = digits[i] - '0'
+        if (alternate) {
+            d *= 2
+            if (d > 9) d -= 9
+        }
+        sum += d
+        alternate = !alternate
+    }
+    return sum % 10 == 0
+}
+
+
 

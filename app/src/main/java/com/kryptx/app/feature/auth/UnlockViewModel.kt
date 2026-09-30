@@ -132,6 +132,12 @@ class UnlockViewModel(
 
             when (result) {
                 is KryptxResult.Success -> {
+                    // Self-heal: If the hardware biometric key was permanently invalidated (e.g., new fingerprint added),
+                    // automatically regenerate it and re-wrap the VEK now that we have unlocked the vault.
+                    if (vaultRepository.isBiometricsConfigured()) {
+                        vaultRepository.setupBiometrics()
+                    }
+
                     activityLogManager?.logEvent("Unlock", "Vault unlocked via Master Password")
                     activityLogManager?.loadEvents()
                     onSuccess()

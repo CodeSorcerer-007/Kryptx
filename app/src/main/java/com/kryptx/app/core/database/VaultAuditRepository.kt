@@ -33,6 +33,10 @@ class VaultAuditRepositoryImpl(
     }
 
     override suspend fun computeSecurityAudit(): SecurityAuditReport = withContext(Dispatchers.Default) {
+        if (!isAuditDirty && cachedAuditReport != null) {
+            return@withContext cachedAuditReport!!
+        }
+
         val activeVek = sessionManager.getVaultKey() ?: return@withContext SecurityAuditReport(
             overallScore = 100,
             healthGrade = "A+",
@@ -45,10 +49,6 @@ class VaultAuditRepositoryImpl(
         )
 
         try {
-            if (!isAuditDirty && cachedAuditReport != null) {
-                return@withContext cachedAuditReport!!
-            }
-
             val items = dbHelper.loadAllItems(activeVek)
             val loginItems = items.filter { it.type == ItemType.LOGIN && it.password.isNotBlank() }
             val issues = mutableListOf<SecurityIssue>()
@@ -280,9 +280,20 @@ class VaultAuditRepositoryImpl(
             isAuditDirty = false
             dbHelper.recordSecurityScore(score)
             report
-        } finally {
-            com.kryptx.app.core.crypto.SecureMemory.wipe(activeVek)
+        } catch (_: Exception) {
+            cachedAuditReport ?: SecurityAuditReport(
+                overallScore = 100,
+                healthGrade = "A+",
+                compromisedCount = 0,
+                weakCount = 0,
+                reusedCount = 0,
+                oldPasswordCount = 0,
+                missing2faCount = 0,
+                issues = emptyList()
+            )
         }
+        // Note: Do NOT wipe activeVek here — it is the live session key reference.
+        // Wiping is handled by sessionManager.lock() when the vault locks.
     }
 
     private fun calculateSimilarity(s1: String, s2: String): Double {

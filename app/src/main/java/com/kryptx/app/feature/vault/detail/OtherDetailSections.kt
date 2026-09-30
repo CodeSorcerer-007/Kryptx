@@ -14,6 +14,9 @@ fun IdentityDetailSection(item: VaultItem, viewModel: VaultViewModel) {
         DetailFieldCard(label = "Email", value = item.identityEmail, onCopy = { viewModel.copySecret("Email", item.identityEmail) })
         DetailFieldCard(label = "Phone", value = item.identityPhone, onCopy = { viewModel.copySecret("Phone", item.identityPhone) })
         DetailFieldCard(label = "Address", value = item.identityAddress, onCopy = { viewModel.copySecret("Address", item.identityAddress) })
+        if (item.identityDob.isNotBlank()) {
+            DetailFieldCard(label = "Date of Birth", value = item.identityDob, onCopy = { viewModel.copySecret("Date of Birth", item.identityDob) })
+        }
         DetailFieldCard(label = "ID / Passport", value = item.identityIdNumber, isSecret = true, onCopy = { viewModel.copySecret("ID", item.identityIdNumber) })
     }
 }

@@ -153,14 +153,24 @@ fun VaultItemDetailScreen(
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 KryptxPrimaryButton(
-                    text = if (item.primarySecret.isNotBlank()) "Copy Password" else "Edit Item",
+                    text = if (item.primarySecret.isNotBlank()) {
+                        when (item.type) {
+                            ItemType.CREDIT_CARD -> "Copy Card Number"
+                            ItemType.WIFI -> "Copy Wi-Fi Password"
+                            ItemType.API_KEY -> "Copy API Key"
+                            ItemType.SECURE_NOTE -> "Copy Note"
+                            ItemType.IDENTITY -> "Copy ID Number"
+                            ItemType.PASSKEY -> "Copy Credential ID"
+                            else -> "Copy Password"
+                        }
+                    } else "Edit Item",
                     containerColor = KryptxBlue,
                     contentColor = Color.White,
                     onClick = {
                         if (item.primarySecret.isNotBlank()) {
                             viewModel.copySecret(item.title, item.primarySecret)
                             scope.launch {
-                                snackbarHostState.showSnackbar("Secret copied! Clears automatically.")
+                                snackbarHostState.showSnackbar("Secret copied! Clears automatically in 30s.")
                             }
                         } else {
                             onNavigateToEdit(item.id)
@@ -411,8 +421,8 @@ fun VaultItemDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Credential?") },
-            text = { Text("Are you sure you want to delete '${item.title}'? This action cannot be undone.") },
+            title = { Text("Move to Trash?") },
+            text = { Text("Are you sure you want to move '${item.title}' to Trash? It will be automatically purged after 30 days.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -421,7 +431,7 @@ fun VaultItemDetailScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = KryptxRed)
                 ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
+                    Text("Move to Trash", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

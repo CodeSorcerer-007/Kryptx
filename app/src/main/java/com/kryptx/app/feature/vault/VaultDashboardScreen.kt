@@ -563,7 +563,7 @@ fun VaultDashboardScreen(
                                     onCopySecret = {
                                         viewModel.copySecret(item.title, item.primarySecret)
                                         scope.launch {
-                                            snackbarHostState.showSnackbar("Password copied! Clears automatically in 30s.")
+                                            snackbarHostState.showSnackbar("Secret copied! Clears automatically in 30s.")
                                         }
                                     },
                                     isSelected = selectedItemIds.contains(item.id),

@@ -798,6 +798,7 @@ class KryptxDatabaseHelper(
      * Atomically clears all user data across all tables, purges secure preferences metadata,
      * clears in-memory state flows, and deletes the database file.
      */
+    @Synchronized
     fun clearAllData() {
         try {
             if (internalHelper != null) {

@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -26,9 +29,13 @@ class SearchViewModel(
     private val _selectedFilter = MutableStateFlow<String?>(null)
     val selectedFilter: StateFlow<String?> = _selectedFilter.asStateFlow()
 
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
     val searchResults: StateFlow<List<VaultItem>> = combine(
         vaultRepository.getItems(),
-        _query,
+        _query.debounce(300),
         _selectedFilter
     ) { items, queryText, filter ->
         var list = items
@@ -40,8 +47,9 @@ class SearchViewModel(
             list = list.filter {
                 it.type == ItemType.LOGIN &&
                         it.password.isNotBlank() &&
-                        (EntropyCalculator.analyze(it.password).strength == EntropyCalculator.StrengthScore.VERY_WEAK ||
-                                EntropyCalculator.analyze(it.password).strength == EntropyCalculator.StrengthScore.WEAK)
+                        EntropyCalculator.analyze(it.password).strength.let { s ->
+                            s == EntropyCalculator.StrengthScore.VERY_WEAK || s == EntropyCalculator.StrengthScore.WEAK
+                        }
             }
         } else if (filter != null) {
             val type = ItemType.entries.firstOrNull { it.name == filter }
@@ -55,9 +63,15 @@ class SearchViewModel(
         }
 
         list
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }
+    .onEach { _isSearching.value = false }
+    .flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun onQueryChanged(newQuery: String) {
+        if (_query.value != newQuery) {
+            _isSearching.value = true
+        }
         _query.value = newQuery
     }
 

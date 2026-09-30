@@ -18,6 +18,8 @@ fun IdentityFormFields(
     onPhoneChange: (String) -> Unit,
     address: String,
     onAddressChange: (String) -> Unit,
+    dob: String = "",
+    onDobChange: (String) -> Unit = {},
     idNum: String,
     onIdNumChange: (String) -> Unit
 ) {
@@ -29,6 +31,8 @@ fun IdentityFormFields(
         KryptxTextField(value = phone, onValueChange = onPhoneChange, label = "Phone")
         Spacer(modifier = Modifier.height(14.dp))
         KryptxTextField(value = address, onValueChange = onAddressChange, label = "Physical Address")
+        Spacer(modifier = Modifier.height(14.dp))
+        KryptxTextField(value = dob, onValueChange = onDobChange, label = "Date of Birth (YYYY-MM-DD)")
         Spacer(modifier = Modifier.height(14.dp))
         KryptxTextField(value = idNum, onValueChange = onIdNumChange, label = "ID / Passport Number")
     }
