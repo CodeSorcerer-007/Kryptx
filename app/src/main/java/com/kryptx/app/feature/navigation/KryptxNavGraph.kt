@@ -163,22 +163,31 @@ fun KryptxNavGraph(
     }
 
     // Synchronize navigation whenever unlock or vault state changes
+    // Note: we use androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot to
+    // ensure clear() + add() execute as a single atomic Compose snapshot transaction,
+    // preventing a transient empty-backstack recomposition between the two operations.
     androidx.compose.runtime.LaunchedEffect(isUnlocked, unlockUiState.hasVault) {
         if (!unlockUiState.hasVault) {
             if (backStack.isEmpty() || (backStack.last() != Screen.Onboarding && backStack.last() != Screen.SetupMasterPassword)) {
-                backStack.clear()
-                backStack.add(Screen.Onboarding)
+                androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                    backStack.clear()
+                    backStack.add(Screen.Onboarding)
+                }
             }
         } else if (isUnlocked) {
             if (backStack.isEmpty() || backStack.last() == Screen.Unlock || backStack.last() == Screen.SetupMasterPassword || backStack.last() == Screen.Onboarding) {
-                backStack.clear()
-                backStack.add(Screen.VaultDashboard)
-                selectedBottomTab = BottomNavTab.VAULT
+                androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                    backStack.clear()
+                    backStack.add(Screen.VaultDashboard)
+                    selectedBottomTab = BottomNavTab.VAULT
+                }
             }
         } else {
             if (backStack.isEmpty() || backStack.last() != Screen.Unlock) {
-                backStack.clear()
-                backStack.add(Screen.Unlock)
+                androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                    backStack.clear()
+                    backStack.add(Screen.Unlock)
+                }
             }
         }
     }

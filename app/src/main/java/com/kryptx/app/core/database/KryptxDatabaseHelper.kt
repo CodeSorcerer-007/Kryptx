@@ -56,14 +56,27 @@ class KryptxDatabaseHelper(
     ) {
         override fun onConfigure(db: SQLiteDatabase) {
             super.onConfigure(db)
-            try {
-                db.enableWriteAheadLogging()
-                db.execSQL("PRAGMA auto_vacuum = FULL")
-                db.execSQL("PRAGMA mmap_size = 268435456") // 256MB memory mapping for zero-copy queries
-                db.execSQL("PRAGMA temp_store = MEMORY")   // RAM-only temp tables & indices
-                db.execSQL("PRAGMA synchronous = NORMAL")  // Maximum write throughput with WAL safety
-                db.execSQL("PRAGMA secure_delete = FAST")  // Cryptographic block overwrite on delete
-            } catch (_: Exception) {}
+            val pragmas = mapOf(
+                "enableWriteAheadLogging" to { db.enableWriteAheadLogging() },
+                "PRAGMA auto_vacuum = FULL" to { db.execSQL("PRAGMA auto_vacuum = FULL") },
+                "PRAGMA mmap_size = 268435456" to { db.execSQL("PRAGMA mmap_size = 268435456") },
+                "PRAGMA temp_store = MEMORY" to { db.execSQL("PRAGMA temp_store = MEMORY") },
+                "PRAGMA synchronous = NORMAL" to { db.execSQL("PRAGMA synchronous = NORMAL") },
+                "PRAGMA secure_delete = FAST" to { db.execSQL("PRAGMA secure_delete = FAST") }
+            )
+            pragmas.forEach { (name, action) ->
+                try {
+                    action()
+                } catch (e: Exception) {
+                    // Log but continue — partial configuration is better than no database access.
+                    // cipher_memory_security is enforced in postKey hook so this is secondary hardening.
+                    com.kryptx.app.core.security.SecurityLogger.warn(
+                        "KryptxDatabaseHelper",
+                        "Database PRAGMA failed to apply: $name",
+                        e
+                    )
+                }
+            }
         }
 
         override fun onCreate(db: SQLiteDatabase) {

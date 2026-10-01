@@ -28,6 +28,17 @@ class VaultViewModel(
     private val activityLogManager: ActivityLogManager? = null
 ) : ViewModel() {
 
+    // Lazy-cached fallback for when attachmentManager is not injected (e.g. in tests).
+    // Using a lazy instance prevents creating a new AttachmentManager on every single call,
+    // which would break the single-instance guarantee and waste resources.
+    @Volatile private var _fallbackAttachmentManager: com.kryptx.app.core.security.IAttachmentManager? = null
+    private fun resolveAttachmentManager(context: android.content.Context): com.kryptx.app.core.security.IAttachmentManager {
+        return attachmentManager ?: (_fallbackAttachmentManager ?: synchronized(this) {
+            _fallbackAttachmentManager ?: com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
+                .also { _fallbackAttachmentManager = it }
+        })
+    }
+
     enum class SortOption(val label: String) {
         RECENTLY_USED("Recent"),
         NAME_ASC("A–Z"),
@@ -328,24 +339,21 @@ class VaultViewModel(
         fileName: String,
         mimeType: String
     ): com.kryptx.app.core.model.VaultAttachment? {
-        val manager = attachmentManager ?: com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
-        return manager.saveAttachmentFromUri(uri, fileName, mimeType)
+        return resolveAttachmentManager(context).saveAttachmentFromUri(uri, fileName, mimeType)
     }
 
     suspend fun loadDecryptedAttachment(
         context: android.content.Context,
         attachment: com.kryptx.app.core.model.VaultAttachment
     ): ByteArray? {
-        val manager = attachmentManager ?: com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
-        return manager.loadDecryptedAttachment(attachment)
+        return resolveAttachmentManager(context).loadDecryptedAttachment(attachment)
     }
 
     suspend fun deleteAttachment(
         context: android.content.Context,
         attachment: com.kryptx.app.core.model.VaultAttachment
     ): Boolean {
-        val manager = attachmentManager ?: com.kryptx.app.core.security.AttachmentManager(context, sessionManager)
-        return manager.deleteAttachment(attachment)
+        return resolveAttachmentManager(context).deleteAttachment(attachment)
     }
 
     fun cleanupAttachments(context: android.content.Context, attachments: List<com.kryptx.app.core.model.VaultAttachment>) {

@@ -131,10 +131,21 @@ class VaultSessionManager(
         _isLockedDueToTimeout.value = isTimeout
         isPickerActive = false
 
+        val listenerErrors = mutableListOf<Throwable>()
         lockListeners.forEach { listener ->
             try {
                 listener()
-            } catch (_: Throwable) {}
+            } catch (t: Throwable) {
+                // Log but do NOT rethrow — all listeners must run to ensure key zeroization
+                SecurityLogger.error("VaultSessionManager", "Lock listener threw an exception", t)
+                listenerErrors.add(t)
+            }
+        }
+        if (listenerErrors.isNotEmpty()) {
+            SecurityLogger.warn(
+                "VaultSessionManager",
+                "${listenerErrors.size} lock listener(s) failed during vault lock sequence"
+            )
         }
     }
 
@@ -234,7 +245,11 @@ class VaultSessionManager(
                 val remainingSec = (remainingMs / 1000).toInt().coerceAtLeast(1)
                 startLockoutCountdown(remainingSec, savedUntilMs)
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            // Non-fatal: defaults to 0 failed attempts and no lockout.
+            // This can happen if DB is not yet open during first app launch.
+            SecurityLogger.warn("VaultSessionManager", "Failed to load persisted lockout state — defaulting to 0 failed attempts", e)
+        }
     }
 
     private fun startLockoutCountdown(durationSeconds: Int, lockoutUntilMs: Long) {

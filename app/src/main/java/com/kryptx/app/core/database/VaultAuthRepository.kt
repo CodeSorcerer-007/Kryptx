@@ -121,14 +121,20 @@ class VaultAuthRepositoryImpl(
         if (hasPanicPassword()) {
             val panicSaltBase64 = dbHelper.getMetadata("panic_salt")
             val panicHashBase64 = dbHelper.getMetadata("panic_hash")
+            val panicKdfAlgorithm = dbHelper.getMetadata("panic_kdf_algorithm")
             if (panicSaltBase64 != null && panicHashBase64 != null) {
                 val panicSalt = Base64.decode(panicSaltBase64, Base64.NO_WRAP)
                 val expectedHash = Base64.decode(panicHashBase64, Base64.NO_WRAP)
-                val derivedPanicKey = KeyDerivation.deriveKey(masterPassword, panicSalt)
+                // Use Argon2id for new entries; fall back to PBKDF2 for legacy entries
+                val derivedPanicKey = if (panicKdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
+                    KeyDerivation.deriveKeyArgon2(masterPassword, panicSalt)
+                } else {
+                    KeyDerivation.deriveKey(masterPassword, panicSalt)
+                }
                 val md = java.security.MessageDigest.getInstance("SHA-256")
                 val actualHash = md.digest(derivedPanicKey)
 
-                if (actualHash.contentEquals(expectedHash)) {
+                if (SecureMemory.safeEquals(actualHash, expectedHash)) {
                     SecureMemory.wipe(derivedPanicKey)
                     SecureMemory.wipe(panicSalt)
                     triggerPanicSelfDestruct()
@@ -169,8 +175,10 @@ class VaultAuthRepositoryImpl(
                 }
                 success = true
                 onAuditInvalidated?.invoke()
-            } catch (_: Exception) {
-                // Decryption failure falls through
+            } catch (e: Exception) {
+                // Decryption failure is expected when the password is wrong — this is a normal fallthrough.
+                // Trace-log to aid diagnostics without exposing details at higher severity.
+                SecurityLogger.trace("VaultAuthRepository", "Master vault decrypt attempt failed (wrong password or corrupted token)", e)
             } finally {
                 SecureMemory.wipe(vek)
                 SecureMemory.wipe(derivedMasterKey)
@@ -204,8 +212,9 @@ class VaultAuthRepositoryImpl(
                     decoyDbHelper.loadAllItems(decoyVek)
                     duressSuccess = true
                     onAuditInvalidated?.invoke()
-                } catch (_: Exception) {
-                    // Decryption failure falls through
+                } catch (e: Exception) {
+                    // Decryption failure is expected when password doesn't match duress vault.
+                    SecurityLogger.trace("VaultAuthRepository", "Duress vault decrypt attempt failed (expected on non-duress unlock)", e)
                 } finally {
                     SecureMemory.wipe(decoyVek)
                     SecureMemory.wipe(derivedDuressKey)
@@ -367,7 +376,9 @@ class VaultAuthRepositoryImpl(
                 SecureMemory.wipe(newVek)
                 SecureMemory.wipe(currentDerivedKey)
                 SecureMemory.wipe(salt)
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to rotate encryption key: ${e.message}", e)
+                // Log internally but do NOT expose raw exception details to user-facing messages
+                SecurityLogger.error("VaultAuthRepository", "Encryption key rotation failed", e)
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to rotate encryption key. Please try again.", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
@@ -410,13 +421,16 @@ class VaultAuthRepositoryImpl(
     override suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         try {
             val salt = KeyDerivation.generateSalt()
-            val derivedKey = KeyDerivation.deriveKey(panicPassword, salt)
+            // Use Argon2id consistently with the master password KDF for uniform security
+            val derivedKey = KeyDerivation.deriveKeyArgon2(panicPassword, salt)
             val md = java.security.MessageDigest.getInstance("SHA-256")
             val hash = md.digest(derivedKey)
 
             dbHelper.setMetadata("panic_salt", Base64.encodeToString(salt, Base64.NO_WRAP))
             dbHelper.setMetadata("panic_hash", Base64.encodeToString(hash, Base64.NO_WRAP))
             dbHelper.setMetadata("has_panic_setup", "true")
+            // Store KDF algorithm used so future versions can maintain backward compatibility
+            dbHelper.setMetadata("panic_kdf_algorithm", KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
 
             SecureMemory.wipe(derivedKey)
             SecureMemory.wipe(salt)
@@ -432,7 +446,9 @@ class VaultAuthRepositoryImpl(
         dbHelper.setMetadata("has_panic_setup", "false")
     }
 
-    override suspend fun triggerPanicSelfDestruct() = withContext(Dispatchers.IO) {
+    override suspend fun triggerPanicSelfDestruct() = withContext(Dispatchers.Default) {
+        // Deliberately uses Dispatchers.Default (not IO) to be consistent with all other crypto-touching
+        // operations. The file deletions here are fast destructive writes, not large-file IO.
         dbHelper.clearAllData()
         decoyDbHelper.clearAllData()
         keystoreManager.removeBiometricKey()
@@ -472,7 +488,11 @@ class VaultAuthRepositoryImpl(
                 md.update(hardwareSecret)
                 val combinedSalt = md.digest()
 
-                val derivedKey = KeyDerivation.deriveKey(masterPassword, combinedSalt)
+                // Extend combinedSalt to 32 bytes for Argon2id minimum salt requirement
+                val argon2Salt = combinedSalt.copyOf(32)
+                // Use Argon2id consistently with master password KDF — hardware key should
+                // have equal or greater brute-force resistance than the primary unlock path
+                val derivedKey = KeyDerivation.deriveKeyArgon2(masterPassword, argon2Salt)
                 val encryptedVekPayload = CryptoEngine.encrypt(activeVek, derivedKey)
 
                 val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
@@ -481,6 +501,7 @@ class VaultAuthRepositoryImpl(
 
                 dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, saltBase64)
                 dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, tokenBase64)
+                dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
                 dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED, "true")
                 dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_LABEL, label)
                 dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH, uidHash)
@@ -489,6 +510,7 @@ class VaultAuthRepositoryImpl(
                 SecureMemory.wipe(derivedKey)
                 SecureMemory.wipe(baseSalt)
                 SecureMemory.wipe(combinedSalt)
+                SecureMemory.wipe(argon2Salt)
 
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
@@ -501,7 +523,9 @@ class VaultAuthRepositoryImpl(
         sessionManager.withVaultKey { activeVek ->
             try {
                 val newSalt = KeyDerivation.generateSalt()
-                val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, newSalt)
+                // Restore to Argon2id after removing hardware key so the vault returns
+                // to a uniform KDF state regardless of what was set during enrollment
+                val derivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, newSalt)
                 val encryptedVekPayload = CryptoEngine.encrypt(activeVek, derivedMasterKey)
 
                 val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
@@ -509,6 +533,7 @@ class VaultAuthRepositoryImpl(
 
                 dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, saltBase64)
                 dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, tokenBase64)
+                dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
                 dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED, "false")
                 dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_LABEL, "")
                 dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH, "")
@@ -527,6 +552,7 @@ class VaultAuthRepositoryImpl(
     override suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         val saltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_SALT)
         val tokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN)
+        val kdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM)
 
         if (saltBase64 != null && tokenBase64 != null) {
             val baseSalt = Base64.decode(saltBase64, Base64.NO_WRAP)
@@ -537,7 +563,14 @@ class VaultAuthRepositoryImpl(
             md.update(hardwareSecret)
             val combinedSalt = md.digest()
 
-            val derivedMasterKey = KeyDerivation.deriveKey(masterPassword, combinedSalt)
+            // Extend combinedSalt to 32 bytes for Argon2id minimum salt requirement
+            val argon2Salt = combinedSalt.copyOf(32)
+            // Use the stored KDF algorithm; new enrollments use Argon2id, legacy may use PBKDF2
+            val derivedMasterKey = if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
+                KeyDerivation.deriveKeyArgon2(masterPassword, argon2Salt)
+            } else {
+                KeyDerivation.deriveKey(masterPassword, combinedSalt)
+            }
 
             try {
                 val vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
@@ -555,12 +588,14 @@ class VaultAuthRepositoryImpl(
                 SecureMemory.wipe(derivedMasterKey)
                 SecureMemory.wipe(baseSalt)
                 SecureMemory.wipe(combinedSalt)
+                SecureMemory.wipe(argon2Salt)
                 onAuditInvalidated?.invoke()
                 return@withContext KryptxResult.Success(Unit)
             } catch (_: Exception) {
                 SecureMemory.wipe(derivedMasterKey)
                 SecureMemory.wipe(baseSalt)
                 SecureMemory.wipe(combinedSalt)
+                SecureMemory.wipe(argon2Salt)
             }
         }
 
@@ -627,7 +662,10 @@ class VaultAuthRepositoryImpl(
             org.bouncycastle.crypto.digests.SHA256Digest()
         )
         val info = "Kryptx-SQLCipher-PageKey-v1".toByteArray(Charsets.UTF_8)
-        hkdf.init(org.bouncycastle.crypto.params.HKDFParameters(vek, null, info))
+        // RFC 5869 §2.2: A non-null salt provides domain separation and additional defense-in-depth.
+        // Using a static application-level salt since the VEK itself already carries sufficient entropy.
+        val salt = "Kryptx-SQLCipher-Salt-v1".toByteArray(Charsets.UTF_8)
+        hkdf.init(org.bouncycastle.crypto.params.HKDFParameters(vek, salt, info))
         val out = ByteArray(32)
         hkdf.generateBytes(out, 0, 32)
         return out

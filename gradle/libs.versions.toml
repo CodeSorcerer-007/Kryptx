@@ -22,6 +22,11 @@ cameraX = "1.4.1"
 bouncycastle = "1.80"
 mockito = "5.11.0"
 mockitoKotlin = "5.2.1"
+yubikit = "2.4.0"
+sqlcipher = "4.14.0"
+androidxSqlite = "2.4.0"
+profileinstaller = "1.4.1"
+jna = "5.19.1"
 
 [libraries]
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
@@ -58,6 +63,13 @@ androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", vers
 androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleViewmodelNav3" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
+yubikit-android = { module = "com.yubico.yubikit:android", version.ref = "yubikit" }
+yubikit-core = { module = "com.yubico.yubikit:core", version.ref = "yubikit" }
+yubikit-yubiotp = { module = "com.yubico.yubikit:yubiotp", version.ref = "yubikit" }
+sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
+androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidxSqlite" }
+androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

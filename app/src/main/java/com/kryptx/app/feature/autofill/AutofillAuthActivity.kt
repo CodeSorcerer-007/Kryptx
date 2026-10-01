@@ -78,6 +78,7 @@ import com.kryptx.app.core.designsystem.theme.KryptxTheme
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.model.VaultItem
+import com.kryptx.app.core.security.SecurityLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -113,6 +114,22 @@ class AutofillAuthActivity : FragmentActivity() {
             android.view.WindowManager.LayoutParams.FLAG_SECURE
         )
         enableEdgeToEdge()
+
+        // Security: Validate that this activity was launched by KryptxAutofillService.
+        // Without the expected extras, this is a cold launch by an unauthorized caller — terminate.
+        // An autofill service always provides at least EXTRA_WEB_DOMAIN or EXTRA_PACKAGE_NAME.
+        val hasValidIntent = intent.hasExtra(EXTRA_WEB_DOMAIN) ||
+            intent.hasExtra(EXTRA_PACKAGE_NAME) ||
+            intent.hasExtra(EXTRA_USERNAME_ID) ||
+            intent.hasExtra(EXTRA_PASSWORD_ID)
+        if (!hasValidIntent) {
+            SecurityLogger.warn(
+                "AutofillAuthActivity",
+                "Launched without autofill extras \u2014 possible unauthorized caller. Finishing."
+            )
+            finish()
+            return
+        }
 
         val app = application as KryptxApplication
         app.sessionManager.setPickerActive(true)

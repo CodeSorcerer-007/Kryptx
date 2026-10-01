@@ -22,6 +22,7 @@ import com.kryptx.app.feature.settings.SettingsViewModel
 import com.kryptx.app.feature.totp.TotpViewModel
 import com.kryptx.app.feature.vault.VaultViewModel
 import com.kryptx.app.core.security.ContextualLockManager
+import com.kryptx.app.core.security.SecurityLogger
 import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
@@ -194,7 +195,9 @@ class MainActivity : FragmentActivity() {
                     nfcAdapter?.enableForegroundDispatch(this, pending, null, null)
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            SecurityLogger.warn("MainActivity", "Failed to enable NFC foreground dispatch", e)
+        }
 
         unlockViewModel.checkVaultStatus()
         val isUnlocked = app.sessionManager.isUnlocked.value
@@ -237,8 +240,8 @@ class MainActivity : FragmentActivity() {
 
         app.biometricManager.promptBiometric(
             activity = this,
-            title = "Unlock Kryptx",
-            subtitle = "Touch sensor to decrypt your vault",
+            title = getString(R.string.biometric_prompt_title),
+            subtitle = getString(R.string.biometric_prompt_subtitle),
             cryptoObject = cryptoObject,
             onSuccess = { result ->
                 isPromptingBiometrics = false

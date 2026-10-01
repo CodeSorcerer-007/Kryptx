@@ -76,7 +76,11 @@ object BreachChecker {
     fun loadBloomFilterFromStream(inputStream: java.io.InputStream) {
         try {
             this.bloomFilter = BloomBreachFilter.fromStream(inputStream)
-        } catch (_: Throwable) {}
+            SecurityLogger.info("BreachChecker", "Bloom filter loaded from stream successfully")
+        } catch (e: Throwable) {
+            // Non-fatal: offline dictionary remains active. Log to surface corruption issues.
+            SecurityLogger.warn("BreachChecker", "Failed to load Bloom breach filter from stream", e)
+        }
     }
 
     data class BreachStatus(

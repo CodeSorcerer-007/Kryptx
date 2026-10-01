@@ -173,7 +173,8 @@ object CryptoEngine {
         return if (NativeCryptoEngineWrapper.isNativeAvailable && associatedData == null && encryptedData.size >= 24) {
             try {
                 NativeCryptoEngineWrapper.decryptNative(encryptedData, key)
-            } catch (_: uniffi.kryptx_crypto.NativeCryptoException) {
+            } catch (_: Exception) {
+                // Catches NativeCryptoException, InternalException, and any other UniFFI-generated exception
                 decryptJvm(encryptedData, key, associatedData)
             }
         } else {
@@ -222,11 +223,20 @@ object CryptoEngine {
     /**
      * Helper to encrypt a String into a Base64-encoded encrypted payload string.
      *
+     * **Security Warning:** `plainText` is an immutable JVM `String`. The intermediate byte array
+     * is wiped via [SecureMemory.wipe], but the original `String` object remains in the JVM heap
+     * until garbage collection — it cannot be explicitly zeroed. For security-sensitive data
+     * (passwords, PINs, secrets), use [encryptCharArray] instead, which minimizes String retention.
+     *
      * @param plainText Plaintext string to encrypt.
      * @param key 256-bit symmetric key.
      * @param associatedData Optional authenticated associated data (AAD).
      * @return Base64-encoded ciphertext payload.
      */
+    @Deprecated(
+        message = "Prefer encryptCharArray() for security-sensitive data. String is immutable in JVM and cannot be zeroed from heap.",
+        replaceWith = ReplaceWith("encryptCharArray(chars, key, associatedData)")
+    )
     fun encryptString(
         plainText: String,
         key: ByteArray,

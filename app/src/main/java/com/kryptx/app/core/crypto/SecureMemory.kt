@@ -1,5 +1,6 @@
 package com.kryptx.app.core.crypto
 
+import com.kryptx.app.core.security.SecurityLogger
 import java.security.MessageDigest
 import java.util.Arrays
 
@@ -60,26 +61,36 @@ object SecureMemory {
 
     /**
      * Constant-time comparison between two CharArrays to prevent timing attacks.
+     *
+     * Does NOT short-circuit on length mismatch — iterates over max(a.size, b.size)
+     * so the comparison time is not a function of the correct password length.
      */
     fun safeEquals(a: CharArray?, b: CharArray?): Boolean {
         if (a == null || b == null) return a === b
-        if (a.size != b.size) return false
-        var result = 0
-        for (i in a.indices) {
-            result = result or (a[i].code xor b[i].code)
+        val maxLen = maxOf(a.size, b.size)
+        var result = a.size xor b.size // non-zero if lengths differ
+        for (i in 0 until maxLen) {
+            val aChar = if (i < a.size) a[i].code else 0
+            val bChar = if (i < b.size) b[i].code else 0
+            result = result or (aChar xor bChar)
         }
         return result == 0
     }
 
     /**
      * Constant-time comparison between two Strings to prevent timing attacks on tokens/PINs.
+     *
+     * Does NOT short-circuit on length mismatch — iterates over max(a.length, b.length)
+     * so the comparison time is not a function of the correct token length.
      */
     fun safeEquals(a: String?, b: String?): Boolean {
         if (a == null || b == null) return a === b
-        if (a.length != b.length) return false
-        var result = 0
-        for (i in 0 until a.length) {
-            result = result or (a[i].code xor b[i].code)
+        val maxLen = maxOf(a.length, b.length)
+        var result = a.length xor b.length // non-zero if lengths differ
+        for (i in 0 until maxLen) {
+            val aChar = if (i < a.length) a[i].code else 0
+            val bChar = if (i < b.length) b[i].code else 0
+            result = result or (aChar xor bChar)
         }
         return result == 0
     }
@@ -116,7 +127,16 @@ object SecureMemory {
     init {
         try {
             System.loadLibrary("kryptx_crypto")
-        } catch (_: Throwable) {}
+        } catch (e: Throwable) {
+            // Non-fatal: JVM crypto fallbacks (AES-256-GCM, PBKDF2) remain active.
+            // Native-only features (mlock, XChaCha20, ML-KEM) will be unavailable.
+            // This is logged at WARN but should be treated as a security degradation in production.
+            SecurityLogger.warn(
+                "SecureMemory",
+                "Native crypto library (kryptx_crypto) failed to load — JVM fallbacks active. Some PQC features will be unavailable.",
+                e
+            )
+        }
     }
 
     @JvmStatic

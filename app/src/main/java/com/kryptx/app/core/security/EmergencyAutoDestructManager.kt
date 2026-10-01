@@ -5,7 +5,6 @@ import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.crypto.SecureMemory
 import java.io.File
 import java.security.SecureRandom
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * High-Security Emergency Auto-Destruct & Self-Wipe Engine.
@@ -13,6 +12,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * Provides protection against physical extraction and forced brute-force attacks by
  * securely overwriting and purging the database, attachments sandbox, and Keystore keys
  * after a configurable threshold of consecutive failed authentication attempts.
+ *
+ * IMPORTANT: This class does NOT maintain its own failed attempt counter.
+ * It registers a listener on [sessionManager]'s [VaultSessionManager.recordFailedAttempt]
+ * via the [onFailedAttempt] callback to guarantee a single authoritative counter.
  */
 class EmergencyAutoDestructManager(
     private val context: Context,
@@ -20,7 +23,6 @@ class EmergencyAutoDestructManager(
     private val maxFailedAttempts: Int = 10,
     private val isEnabled: Boolean = false
 ) {
-    private val failedAttempts = AtomicInteger(0)
     private val secureRandom = SecureRandom()
 
     data class AutoDestructState(
@@ -31,7 +33,8 @@ class EmergencyAutoDestructManager(
     )
 
     fun getState(): AutoDestructState {
-        val current = failedAttempts.get()
+        // Delegate to VaultSessionManager's authoritative counter to avoid counter drift
+        val current = sessionManager?.failedAttempts?.value ?: 0
         return AutoDestructState(
             isEnabled = isEnabled,
             maxFailedAttempts = maxFailedAttempts,
@@ -41,12 +44,16 @@ class EmergencyAutoDestructManager(
     }
 
     /**
-     * Records a failed authentication attempt. If the limit is reached and auto-destruct is enabled,
-     * triggers the nuclear wipe sequence. Returns true if auto-destruct was triggered.
+     * Called by [VaultSessionManager.recordFailedAttempt] observers after each failed attempt.
+     * Checks whether auto-destruct threshold has been reached using the session manager's
+     * authoritative counter as the single source of truth.
+     * Returns true if auto-destruct was triggered.
      */
-    fun recordFailedAttempt(): Boolean {
-        val current = failedAttempts.incrementAndGet()
-        if (isEnabled && current >= maxFailedAttempts) {
+    fun onFailedAttempt(): Boolean {
+        if (!isEnabled) return false
+        // Use VaultSessionManager's authoritative counter — never maintain a separate one
+        val current = sessionManager?.failedAttempts?.value ?: return false
+        if (current >= maxFailedAttempts) {
             triggerEmergencyWipe()
             return true
         }
@@ -54,10 +61,25 @@ class EmergencyAutoDestructManager(
     }
 
     /**
-     * Resets failed attempt counter on successful master password authentication.
+     * @deprecated Use [onFailedAttempt] which reads from the authoritative VaultSessionManager counter.
+     * This facade exists only for backward API compatibility.
      */
+    @Deprecated(
+        "Use onFailedAttempt() which reads from VaultSessionManager.failedAttempts StateFlow",
+        ReplaceWith("onFailedAttempt()")
+    )
+    fun recordFailedAttempt(): Boolean = onFailedAttempt()
+
+    /**
+     * @deprecated Successful auth is already tracked by VaultSessionManager.unlock().
+     * No action needed here — counter is reset at the source.
+     */
+    @Deprecated(
+        "Auth success is tracked by VaultSessionManager.unlock() which resets failedAttempts",
+        ReplaceWith("sessionManager.unlock(vaultKey)")
+    )
     fun recordSuccessfulAuth() {
-        failedAttempts.set(0)
+        // No-op: VaultSessionManager.unlock() resets _failedAttempts.value = 0
     }
 
     /**

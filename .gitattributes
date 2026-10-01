@@ -1,0 +1,40 @@
+# Kryptx .gitattributes — Enforce consistent line endings across platforms
+# This prevents CRLF/LF mixed diffs when developers work on Windows and Linux/macOS.
+
+# All text files default to LF
+* text=auto eol=lf
+
+# Kotlin source files — always LF
+*.kt text eol=lf
+*.kts text eol=lf
+
+# Android resource files — always LF
+*.xml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.properties text eol=lf
+*.pro text eol=lf
+
+# Shell scripts — always LF
+*.sh text eol=lf
+
+# Rust source files — always LF
+*.rs text eol=lf
+
+# Binary files — no line ending conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.apk binary
+*.aar binary
+*.aab binary
+*.so binary
+*.db binary
+*.jks binary
+*.keystore binary

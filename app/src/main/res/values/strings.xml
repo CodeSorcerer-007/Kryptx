@@ -10,4 +10,27 @@
     <string name="shortcut_generator_long">Generate Secure Password</string>
     <string name="shortcut_totp">2FA Codes</string>
     <string name="shortcut_totp_long">View 2FA Authenticator Codes</string>
+
+    <!-- Biometric Prompt -->
+    <string name="biometric_prompt_title">Unlock Kryptx</string>
+    <string name="biometric_prompt_subtitle">Touch sensor to decrypt your vault</string>
+    <string name="biometric_prompt_cancel">Use master password</string>
+
+    <!-- Accessibility Content Descriptions -->
+    <string name="cd_lock_vault">Lock vault</string>
+    <string name="cd_unlock_vault">Unlock vault with biometrics</string>
+    <string name="cd_copy_password">Copy password to clipboard</string>
+    <string name="cd_copy_username">Copy username to clipboard</string>
+    <string name="cd_copy_totp">Copy 2FA code to clipboard</string>
+    <string name="cd_show_password">Show password</string>
+    <string name="cd_hide_password">Hide password</string>
+    <string name="cd_add_item">Add new vault item</string>
+    <string name="cd_search_vault">Search vault</string>
+    <string name="cd_navigate_back">Go back</string>
+    <string name="cd_security_center">Security Center</string>
+    <string name="cd_generate_password">Generate new password</string>
+    <string name="cd_refresh_totp">Refresh 2FA code</string>
+    <string name="cd_scan_qr">Scan QR code</string>
+    <string name="cd_delete_item">Delete item</string>
+    <string name="cd_favorite_item">Toggle favorite</string>
 </resources>

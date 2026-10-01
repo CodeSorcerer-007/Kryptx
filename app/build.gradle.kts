@@ -154,13 +154,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // Hardware Security Keys (YubiKey)
-    implementation("com.yubico.yubikit:android:2.4.0")
-    implementation("com.yubico.yubikit:core:2.4.0")
-    implementation("com.yubico.yubikit:yubiotp:2.4.0")
+    implementation(libs.yubikit.android)
+    implementation(libs.yubikit.core)
+    implementation(libs.yubikit.yubiotp)
 
     // SQLCipher Database Encryption (16 KB page-size compatible)
-    implementation("net.zetetic:sqlcipher-android:4.14.0@aar")
-    implementation("androidx.sqlite:sqlite:2.4.0")
+    implementation(libs.sqlcipher.android)
+    implementation(libs.androidx.sqlite)
 
     // Barcode / QR Code Generation & Scanning (TOTP QR & Wi-Fi QR)
     implementation(libs.zxing.core)
@@ -179,7 +179,7 @@ dependencies {
     // Tooling
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    implementation(libs.androidx.profileinstaller)
 
     // Unit Testing
     testImplementation(libs.junit)
@@ -188,7 +188,7 @@ dependencies {
     testImplementation(libs.mockito.kotlin)
 
     // JNA for UniFFI
-    implementation("net.java.dev.jna:jna:5.19.1@aar")
+    implementation(libs.jna)
 
     // Instrumentation Testing
     androidTestImplementation(libs.androidx.test.core)
