@@ -76,6 +76,7 @@ class SearchViewModel(
     }
 
     fun selectFilter(filter: String?) {
+        _isSearching.value = true
         _selectedFilter.value = if (_selectedFilter.value == filter) null else filter
     }
 

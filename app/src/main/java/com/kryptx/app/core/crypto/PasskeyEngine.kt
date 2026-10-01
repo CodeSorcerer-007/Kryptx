@@ -74,7 +74,7 @@ object PasskeyEngine {
 
         return PasskeyRegistrationResult(
             credentialId = credentialId,
-            credentialIdBase64 = coseBase64,
+            credentialIdBase64 = credentialId,
             publicKeyCoseBase64 = coseBase64,
             rawPublicKeyBytes = rawPub,
             rawPrivateKeyBytes = rawPriv,

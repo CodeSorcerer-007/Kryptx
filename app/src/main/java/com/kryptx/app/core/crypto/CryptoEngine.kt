@@ -142,14 +142,22 @@ object CryptoEngine {
             CIPHER_TAG_XCHACHA -> {
                 val payload = encryptedData.copyOfRange(1, encryptedData.size)
                 if (NativeCryptoEngineWrapper.isNativeAvailable) {
-                    NativeCryptoEngineWrapper.decryptNative(payload, key)
+                    try {
+                        NativeCryptoEngineWrapper.decryptNative(payload, key)
+                    } catch (_: Exception) {
+                        decryptLegacy(encryptedData, key, associatedData)
+                    }
                 } else {
-                    throw IllegalStateException("Native crypto engine required for XChaCha20-Poly1305 is not available")
+                    decryptLegacy(encryptedData, key, associatedData)
                 }
             }
             CIPHER_TAG_AES_GCM -> {
                 val payload = encryptedData.copyOfRange(1, encryptedData.size)
-                decryptJvm(payload, key, associatedData)
+                try {
+                    decryptJvm(payload, key, associatedData)
+                } catch (_: Exception) {
+                    decryptLegacy(encryptedData, key, associatedData)
+                }
             }
             else -> {
                 decryptLegacy(encryptedData, key, associatedData)

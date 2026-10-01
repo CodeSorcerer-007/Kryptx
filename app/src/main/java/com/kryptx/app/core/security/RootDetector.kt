@@ -170,10 +170,10 @@ object RootDetector {
         var isDeviceLocked: Boolean? = null
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val alias = "kryptx_attestation_key"
+            var keyStore: java.security.KeyStore? = null
             try {
-                val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
-                keyStore.load(null)
-                val alias = "kryptx_attestation_key"
+                keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
                 if (keyStore.containsAlias(alias)) {
                     keyStore.deleteEntry(alias)
                 }
@@ -252,7 +252,7 @@ object RootDetector {
                                                         indicators.add("Hardware Attestation: Bootloader unlocked (deviceLocked=false)")
                                                         hardwareAttestationFailed = true
                                                     }
-                                                    if (verifiedBootState != null && verifiedBootState != "Verified") {
+                                                    if (verifiedBootState != "Verified") {
                                                         indicators.add("Hardware Attestation: Verified Boot State is $verifiedBootState")
                                                         if (verifiedBootState != "SelfSigned" || !isEmulator) {
                                                             hardwareAttestationFailed = true
@@ -276,6 +276,10 @@ object RootDetector {
                 indicators.add("Hardware Attestation failed: ${e.message}")
                 SecurityLogger.trace("RootDetector", "Hardware Attestation key generation error", e)
                 hardwareAttestationFailed = true
+            } finally {
+                try {
+                    keyStore?.deleteEntry(alias)
+                } catch (_: Throwable) {}
             }
         }
 

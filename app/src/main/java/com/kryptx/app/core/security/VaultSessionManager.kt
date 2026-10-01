@@ -53,6 +53,7 @@ class VaultSessionManager(
     private var lockoutJob: Job? = null
 
     private var lastUserActivityTimestamp = System.currentTimeMillis()
+    private var lastScheduledTimerTimestamp = 0L
     private var backgroundTimestamp = 0L
 
     /**
@@ -128,6 +129,7 @@ class VaultSessionManager(
         _isUnlocked.value = false
         _isDecoy.value = false
         _isLockedDueToTimeout.value = isTimeout
+        isPickerActive = false
 
         lockListeners.forEach { listener ->
             try {
@@ -152,11 +154,16 @@ class VaultSessionManager(
      * Records user touch/navigation activity to reset the auto-lock countdown timer.
      */
     @Synchronized
-    fun recordActivity() {
-        lastUserActivityTimestamp = System.currentTimeMillis()
+    fun recordActivity(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        lastUserActivityTimestamp = now
         if (!_isUnlocked.value) return
 
         if (autoLockTimeout.seconds > 0) {
+            if (!force && autoLockJob?.isActive == true && (now - lastScheduledTimerTimestamp < 1500L)) {
+                return
+            }
+            lastScheduledTimerTimestamp = now
             autoLockJob?.cancel()
             autoLockJob = scope.launch {
                 delay(autoLockTimeout.seconds * 1000L)
@@ -179,12 +186,13 @@ class VaultSessionManager(
      */
     @Synchronized
     fun onAppBackgrounded() {
+        backgroundTimestamp = System.currentTimeMillis()
         if (isPickerActive) {
             // User launched a system picker (e.g. Photo Picker, SAF document picker, Camera).
-            // Retain active key in volatile memory so operation succeeds on return.
+            // Retain active key in volatile memory so operation succeeds on return, but
+            // ensure backgroundTimestamp is recorded so prolonged backgrounding times out.
             return
         }
-        backgroundTimestamp = System.currentTimeMillis()
         if (lockOnBackground || autoLockTimeout == AutoLockTimeout.IMMEDIATELY) {
             lock(isTimeout = false)
         }

@@ -90,6 +90,21 @@ class KryptxDatabaseHelper(
     }
 
     /**
+     * Rekeys the underlying SQLCipher database file with a new encryption key.
+     * This is required when rotating the Vault Encryption Key (VEK) so that page-level
+     * encryption matches the new key derived from the rotated VEK.
+     */
+    @Synchronized
+    fun rekeyDatabase(newKey: ByteArray) {
+        val helper = internalHelper
+            ?: throw IllegalStateException("SQLCipher database key is not set — vault must be unlocked before rekeying.")
+        val db = helper.writableDatabase
+        db.changePassword(newKey)
+        helper.close()
+        internalHelper = InternalOpenHelper(context, databaseName, newKey, DATABASE_VERSION)
+    }
+
+    /**
      * Clears the in-memory SQLCipher key and closes database connections. Call when vault is locked.
      */
     @Synchronized
@@ -290,14 +305,20 @@ class KryptxDatabaseHelper(
             }
         }
 
-        // Auto-purge items in trash older than 30 days
+        // Auto-purge items in trash older than 30 days atomically
         if (expiredTrashIds.isNotEmpty()) {
             val writeDb = writableDatabase
-            for (id in expiredTrashIds) {
-                try {
-                    writeDb.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(id))
-                } catch (_: Exception) {
+            writeDb.beginTransaction()
+            try {
+                for (id in expiredTrashIds) {
+                    try {
+                        writeDb.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(id))
+                    } catch (_: Exception) {
+                    }
                 }
+                writeDb.setTransactionSuccessful()
+            } finally {
+                writeDb.endTransaction()
             }
         }
 
@@ -813,6 +834,12 @@ class KryptxDatabaseHelper(
                 } finally {
                     db?.endTransaction()
                 }
+            }
+        } catch (_: Exception) {}
+        try {
+            val attachmentsDir = java.io.File(context.filesDir, "vault_attachments")
+            if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
+                attachmentsDir.deleteRecursively()
             }
         } catch (_: Exception) {}
         deleteDatabaseFile()

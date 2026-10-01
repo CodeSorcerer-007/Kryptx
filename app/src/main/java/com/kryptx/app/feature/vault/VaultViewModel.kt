@@ -71,7 +71,7 @@ class VaultViewModel(
         preferencesRepository?.setAutofillNudgeDismissed(true)
     }
 
-    val categoryCounts: StateFlow<Map<ItemType, Int>> = rawItems.combine(_selectedCategory) { items, _ ->
+    val categoryCounts: StateFlow<Map<ItemType, Int>> = rawItems.map { items ->
         items.groupBy { it.type }.mapValues { it.value.size }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
@@ -113,8 +113,8 @@ class VaultViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val favoriteItems: StateFlow<List<VaultItem>> = rawItems.combine(_selectedCategory) { items, _ ->
-        items.filter { it.isFavorite }
+    val favoriteItems: StateFlow<List<VaultItem>> = rawItems.combine(_selectedCategory) { items, category ->
+        items.filter { it.isFavorite && (category == null || it.type == category) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
@@ -151,7 +151,13 @@ class VaultViewModel(
         viewModelScope.launch {
             var count = 0
             for (id in idsToDelete) {
+                val item = vaultRepository.getItemById(id)
                 if (vaultRepository.moveToTrash(id).isSuccess) {
+                    if (item != null) {
+                        synchronized(_deletedItemStack) {
+                            _deletedItemStack.addFirst(item)
+                        }
+                    }
                     count++
                 }
             }
@@ -208,13 +214,17 @@ class VaultViewModel(
         }
     }
 
-    private var lastDeletedItem: VaultItem? = null
+    private val _deletedItemStack = ArrayDeque<VaultItem>()
 
     fun deleteItem(itemId: String, onDeleted: () -> Unit) {
         viewModelScope.launch {
             val item = vaultRepository.getItemById(itemId)
-            lastDeletedItem = item
             if (vaultRepository.moveToTrash(itemId).isSuccess) {
+                if (item != null) {
+                    synchronized(_deletedItemStack) {
+                        _deletedItemStack.addFirst(item)
+                    }
+                }
                 _selectedItemIds.value = _selectedItemIds.value - itemId
                 activityLogManager?.logEvent("Security", "Item '${item?.title}' moved to trash")
                 refreshSecurityReport()
@@ -226,8 +236,12 @@ class VaultViewModel(
     fun deleteItemWithUndo(itemId: String, onDeleted: (VaultItem?) -> Unit) {
         viewModelScope.launch {
             val item = vaultRepository.getItemById(itemId)
-            lastDeletedItem = item
             if (vaultRepository.moveToTrash(itemId).isSuccess) {
+                if (item != null) {
+                    synchronized(_deletedItemStack) {
+                        _deletedItemStack.addFirst(item)
+                    }
+                }
                 _selectedItemIds.value = _selectedItemIds.value - itemId
                 refreshSecurityReport()
                 onDeleted(item)
@@ -236,10 +250,11 @@ class VaultViewModel(
     }
 
     fun undoLastDelete(onRestored: ((VaultItem) -> Unit)? = null) {
-        val itemToRestore = lastDeletedItem ?: return
+        val itemToRestore = synchronized(_deletedItemStack) {
+            _deletedItemStack.removeFirstOrNull()
+        } ?: return
         viewModelScope.launch {
             if (vaultRepository.restoreFromTrash(itemToRestore.id).isSuccess) {
-                lastDeletedItem = null
                 refreshSecurityReport()
                 onRestored?.invoke(itemToRestore)
             }
@@ -276,12 +291,21 @@ class VaultViewModel(
         }
     }
 
-    fun saveItem(item: VaultItem, onSaved: () -> Unit) {
+    fun saveItem(
+        item: VaultItem,
+        onError: ((String) -> Unit)? = null,
+        onSaved: () -> Unit = {}
+    ) {
         viewModelScope.launch {
-            if (vaultRepository.saveItem(item).isSuccess) {
+            val result = vaultRepository.saveItem(item)
+            if (result.isSuccess) {
                 activityLogManager?.logEvent("Security", "Saved item '${item.title}'")
                 refreshSecurityReport()
                 onSaved()
+            } else {
+                val errorMsg = (result as? com.kryptx.app.core.model.KryptxResult.Error)?.message
+                    ?: "Failed to save item to database"
+                onError?.invoke(errorMsg)
             }
         }
     }

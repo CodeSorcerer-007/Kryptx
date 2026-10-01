@@ -86,4 +86,10 @@ class SearchViewModelTest {
         assertEquals("Email", fakeClipboard.lastCopiedLabel)
         assertEquals("test@kryptx.app", fakeClipboard.lastCopiedText)
     }
+
+    @Test
+    fun testSelectFilterSetsIsSearching() {
+        viewModel.selectFilter("FAVORITES")
+        assertEquals(true, viewModel.isSearching.value)
+    }
 }

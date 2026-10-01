@@ -94,9 +94,15 @@ object DomainMatcher {
         if (itemHost.isNotEmpty()) {
             val hostParts = itemHost.split('.')
             if (hostParts.size >= 2) {
-                // e.g. "twitter.com" -> "com.twitter"
+                // e.g. "twitter.com" -> "com.twitter", "auth.github.com" -> "com.github.auth"
                 val reverseDomain = hostParts.reversed().joinToString(".")
                 if (pkgClean == reverseDomain || pkgClean.startsWith("$reverseDomain.")) {
+                    return true
+                }
+                // Base domain fallback for subdomains: e.g. "auth.github.com" -> base "github.com" -> "com.github"
+                val baseParts = hostParts.takeLast(2)
+                val reverseBase = baseParts.reversed().joinToString(".")
+                if (pkgClean == reverseBase || pkgClean.startsWith("$reverseBase.")) {
                     return true
                 }
             }

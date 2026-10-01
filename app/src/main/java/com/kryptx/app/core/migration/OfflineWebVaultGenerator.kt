@@ -360,27 +360,38 @@ object OfflineWebVaultGenerator {
                 card.className = 'vault-card';
 
                 const subtext = item.username || item.cardNumber || item.website || (item.notes ? item.notes.slice(0, 30) + '...' : '');
-                
-                let actionsHtml = '';
-                if (item.username) {
-                    actionsHtml += `<button class="btn-icon" onclick="copyToClipboard('${'$'}{item.username.replace(/'/g, "\\'")}', 'Username')">User</button>`;
-                }
-                if (item.password) {
-                    actionsHtml += `<button class="btn-icon" onclick="copyToClipboard('${'$'}{item.password.replace(/'/g, "\\'")}', 'Password')">Password</button>`;
-                }
-                if (item.wifiPassword) {
-                    actionsHtml += `<button class="btn-icon" onclick="copyToClipboard('${'$'}{item.wifiPassword.replace(/'/g, "\\'")}', 'Wi-Fi Password')">Wi-Fi Key</button>`;
-                }
 
                 card.innerHTML = `
                     <div class="item-info">
                         <h4>${'$'}{escapeHtml(item.title)}</h4>
                         <span>${'$'}{escapeHtml(subtext)}</span>
                     </div>
-                    <div class="item-actions">
-                        ${'$'}{actionsHtml}
-                    </div>
+                    <div class="item-actions"></div>
                 `;
+
+                const actionsDiv = card.querySelector('.item-actions');
+                if (item.username) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = 'User';
+                    btn.onclick = () => copyToClipboard(item.username, 'Username');
+                    actionsDiv.appendChild(btn);
+                }
+                if (item.password) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = 'Password';
+                    btn.onclick = () => copyToClipboard(item.password, 'Password');
+                    actionsDiv.appendChild(btn);
+                }
+                if (item.wifiPassword) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = 'Wi-Fi Key';
+                    btn.onclick = () => copyToClipboard(item.wifiPassword, 'Wi-Fi Password');
+                    actionsDiv.appendChild(btn);
+                }
+
                 container.appendChild(card);
             });
         }

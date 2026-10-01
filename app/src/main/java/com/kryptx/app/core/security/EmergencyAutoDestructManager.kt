@@ -133,7 +133,24 @@ class EmergencyAutoDestructManager(
                 // Keystore might not be initialized
             }
 
-            // 5. Reset counter
+            // 5. Purge and shred SharedPreferences metadata and app settings
+            try {
+                context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+                context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+            } catch (_: Throwable) {}
+
+            try {
+                val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+                if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
+                    sharedPrefsDir.listFiles()?.forEach { file ->
+                        secureOverwriteFile(file)
+                        file.delete()
+                    }
+                    sharedPrefsDir.delete()
+                }
+            } catch (_: Throwable) {}
+
+            // 6. Reset counter
             failedAttempts.set(0)
         } catch (_: Throwable) {
             // Guarantee fail-closed

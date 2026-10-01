@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -59,6 +60,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -137,6 +139,7 @@ fun VaultDashboardScreen(
             .fillMaxSize()
             .atmosphericTopGlow(),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 com.kryptx.app.core.designsystem.components.KryptxSnackbar(data)
@@ -422,6 +425,7 @@ fun VaultDashboardScreen(
                     items = items,
                     key = { _, item -> item.id }
                 ) { index, item ->
+                    val currentItem by rememberUpdatedState(item)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -433,13 +437,13 @@ fun VaultDashboardScreen(
                                 when (dismissValue) {
                                     SwipeToDismissBoxValue.StartToEnd -> {
                                         // Swipe Right: 1-Touch Quick Copy
-                                        if (item.primarySecret.isNotBlank()) {
+                                        if (currentItem.primarySecret.isNotBlank()) {
                                             KryptxHaptics.confirm(view)
                                             com.kryptx.app.core.designsystem.components.KryptxAudio.snap(context)
-                                            viewModel.copySecret(item.title, item.primarySecret)
+                                            viewModel.copySecret(currentItem.title, currentItem.primarySecret)
                                             scope.launch {
                                                 snackbarHostState.showSnackbar(
-                                                    message = "Copied '${item.title}' secret (auto-clears in 30s)",
+                                                    message = "Copied '${currentItem.title}' secret (auto-clears in 30s)",
                                                     duration = SnackbarDuration.Short
                                                 )
                                             }
@@ -452,8 +456,8 @@ fun VaultDashboardScreen(
                                     SwipeToDismissBoxValue.EndToStart -> {
                                         // Swipe Left: Move to Trash / Delete
                                         KryptxHaptics.warning(view)
-                                        val itemTitle = item.title
-                                        viewModel.deleteItemWithUndo(item.id) { _ ->
+                                        val itemTitle = currentItem.title
+                                        viewModel.deleteItemWithUndo(currentItem.id) { _ ->
                                             scope.launch {
                                                 val result = snackbarHostState.showSnackbar(
                                                     message = "'$itemTitle' deleted",
@@ -578,70 +582,70 @@ fun VaultDashboardScreen(
         }
     }
 
-    if (isWideScreen) {
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-        )
+        if (isWideScreen) {
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            )
 
-        VaultInspectorPane(
-            selectedItem = selectedInspectorItem,
-            totalItemsCount = allItems.size,
-            favoritesCount = favorites.size,
-            totpCount = totpCount,
-            securityReport = securityReport,
-            viewModel = viewModel,
-            snackbarHostState = snackbarHostState,
-            onNavigateToEdit = onNavigateToEditItem,
-            onNavigateToAddItem = onNavigateToAddItem,
-            onNavigateToSecurityCenter = onNavigateToSecurityCenter,
-            onDeselectItem = { selectedInspectorItemId = null },
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        )
+            VaultInspectorPane(
+                selectedItem = selectedInspectorItem,
+                totalItemsCount = allItems.size,
+                favoritesCount = favorites.size,
+                totpCount = totpCount,
+                securityReport = securityReport,
+                viewModel = viewModel,
+                snackbarHostState = snackbarHostState,
+                onNavigateToEdit = onNavigateToEditItem,
+                onNavigateToAddItem = onNavigateToAddItem,
+                onNavigateToSecurityCenter = onNavigateToSecurityCenter,
+                onDeselectItem = { selectedInspectorItemId = null },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+        }
     }
 }
-}
-}
 
-    // Quick Actions Context Menu Bottom Sheet on Card Long-Press
-    selectedItemForActions?.let { actionItem ->
-        VaultQuickActionsSheet(
-            item = actionItem,
-            sheetState = actionSheetState,
-            onDismiss = { selectedItemForActions = null },
-            onCopySecret = {
-                viewModel.copySecret(it.title, it.primarySecret)
-                scope.launch {
-                    snackbarHostState.showSnackbar("Secret copied to secure clipboard!")
-                }
-            },
-            onCopyUsername = {
-                viewModel.copySecret("Username", it.username, timeoutSeconds = 60)
-                scope.launch {
-                    snackbarHostState.showSnackbar("Username copied!")
-                }
-            },
-            onToggleFavorite = { viewModel.toggleFavorite(it) },
-            onEditItem = { onNavigateToEditItem(it) },
-            onDeleteItem = { deletedItem ->
-                val itemTitle = deletedItem.title
-                viewModel.deleteItemWithUndo(deletedItem.id) {
+        // Quick Actions Context Menu Bottom Sheet on Card Long-Press
+        selectedItemForActions?.let { actionItem ->
+            VaultQuickActionsSheet(
+                item = actionItem,
+                sheetState = actionSheetState,
+                onDismiss = { selectedItemForActions = null },
+                onCopySecret = {
+                    viewModel.copySecret(it.title, it.primarySecret)
                     scope.launch {
-                        val result = snackbarHostState.showSnackbar(
-                            message = "'$itemTitle' deleted",
-                            actionLabel = "Undo",
-                            duration = SnackbarDuration.Short
-                        )
-                        if (result == SnackbarResult.ActionPerformed) {
-                            viewModel.undoLastDelete()
+                        snackbarHostState.showSnackbar("Secret copied to secure clipboard!")
+                    }
+                },
+                onCopyUsername = {
+                    viewModel.copySecret("Username", it.username, timeoutSeconds = 60)
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Username copied!")
+                    }
+                },
+                onToggleFavorite = { viewModel.toggleFavorite(it) },
+                onEditItem = { onNavigateToEditItem(it) },
+                onDeleteItem = { deletedItem ->
+                    val itemTitle = deletedItem.title
+                    viewModel.deleteItemWithUndo(deletedItem.id) {
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "'$itemTitle' deleted",
+                                actionLabel = "Undo",
+                                duration = SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                viewModel.undoLastDelete()
+                            }
                         }
                     }
                 }
-            }
-        )
+            )
+        }
     }
 }

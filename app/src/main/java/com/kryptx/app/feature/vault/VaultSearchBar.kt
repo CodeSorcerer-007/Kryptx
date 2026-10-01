@@ -70,7 +70,7 @@ fun VaultSearchBar(
                 .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
-                .clickable { onToggleSearchExpanded() }
+                .clickable { onNavigateToSearch() }
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Row(

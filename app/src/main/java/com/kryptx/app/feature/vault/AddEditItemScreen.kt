@@ -199,6 +199,12 @@ fun AddEditItemScreen(
     val scope = rememberCoroutineScope()
     val app = remember(context) { context.applicationContext as? KryptxApplication }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            app?.sessionManager?.setPickerActive(false)
+        }
+    }
+
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAttachmentTypeDialog by remember { mutableStateOf(false) }
     var showMediaRationaleDialog by remember { mutableStateOf(false) }
@@ -287,7 +293,7 @@ fun AddEditItemScreen(
         onNavigateBack()
     }
     val safeNavigateBack: () -> Unit = {
-        if (isDirty) {
+        if (isDirty && !isSaved) {
             showDiscardDialog = true
         } else {
             handleDiscardAndBack()
@@ -603,9 +609,14 @@ fun AddEditItemScreen(
                         }
                     }
 
-                    val computedExpiry = if (rotationIntervalDays != null && rotationIntervalDays!! > 0) {
-                        System.currentTimeMillis() + rotationIntervalDays!! * 24L * 60 * 60 * 1000L
-                    } else null
+                    val computedExpiry = when {
+                        rotationIntervalDays != existingItem?.rotationIntervalDays -> {
+                            if (rotationIntervalDays != null && rotationIntervalDays!! > 0) {
+                                System.currentTimeMillis() + rotationIntervalDays!! * 24L * 60 * 60 * 1000L
+                            } else null
+                        }
+                        else -> existingItem?.expiresAt
+                    }
 
                     val updatedHistory = if (existingItem != null && existingItem.password.isNotBlank() && password != existingItem.password) {
                         listOf(PasswordHistoryEntry(existingItem.password, System.currentTimeMillis())) + existingItem.passwordHistory
@@ -655,8 +666,17 @@ fun AddEditItemScreen(
                         updatedAt = System.currentTimeMillis()
                     )
                     viewModel.cleanupAttachments(context, deletedAttachments.toList())
-                    isSaved = true
-                    viewModel.saveItem(updatedItem, onSaved = onNavigateBack)
+                    viewModel.saveItem(
+                        item = updatedItem,
+                        onSaved = {
+                            isSaved = true
+                            onNavigateBack()
+                        },
+                        onError = { error ->
+                            isSaved = false
+                            errorMessage = error
+                        }
+                    )
                 }
             )
 

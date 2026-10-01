@@ -344,6 +344,11 @@ class VaultAuthRepositoryImpl(
             try {
                 dbHelper.reEncryptVaultWithNewKey(activeVek, newVek)
 
+                // Rekey SQLCipher database file encryption to match new VEK
+                val newDbKey = deriveSqlCipherKey(newVek)
+                dbHelper.rekeyDatabase(newDbKey)
+                SecureMemory.wipe(newDbKey)
+
                 val newEncryptedVek = CryptoEngine.encrypt(newVek, currentDerivedKey)
                 dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP))
 

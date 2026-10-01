@@ -163,10 +163,17 @@ fun SearchScreen(
                         .fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    KryptxEmptyState(
-                        title = "No Matching Credentials",
-                        subtitle = "Try searching for a different domain, username, or tag."
-                    )
+                    if (query.isBlank() && selectedFilter == null) {
+                        KryptxEmptyState(
+                            title = "Search Your Vault",
+                            subtitle = "Type above or pick a filter to find credentials."
+                        )
+                    } else {
+                        KryptxEmptyState(
+                            title = "No Matching Credentials",
+                            subtitle = "Try searching for a different domain, username, or tag."
+                        )
+                    }
                 }
             } else {
                 LazyColumn(

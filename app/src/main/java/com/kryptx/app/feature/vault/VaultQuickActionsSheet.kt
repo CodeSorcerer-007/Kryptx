@@ -50,6 +50,7 @@ import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.designsystem.theme.KryptxViolet
+import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
 
 private const val TAG = "VaultQuickActions"
@@ -130,7 +131,15 @@ fun VaultQuickActionsSheet(
                 QuickActionMenuRow(
                     icon = Icons.Default.ContentCopy,
                     iconTint = KryptxCyan,
-                    title = "Copy Password / Secret",
+                    title = when (item.type) {
+                        ItemType.CREDIT_CARD -> "Copy Card Number"
+                        ItemType.WIFI -> "Copy Wi-Fi Password"
+                        ItemType.API_KEY -> "Copy API Key"
+                        ItemType.SECURE_NOTE -> "Copy Note"
+                        ItemType.IDENTITY -> "Copy ID Number"
+                        ItemType.PASSKEY -> "Copy Credential ID"
+                        else -> "Copy Password"
+                    },
                     subtitle = "Clipboard cleared automatically in 30s",
                     onClick = {
                         onDismiss()

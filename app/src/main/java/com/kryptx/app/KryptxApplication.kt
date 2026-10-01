@@ -105,9 +105,17 @@ class KryptxApplication : Application(), KryptxDependencies {
         sessionManager.setAutoLockTimeout(timeoutEnum)
         sessionManager.setLockOnBackground(preferencesRepository.lockOnBackground.value)
 
-        // Activity lifecycle callbacks for background/foreground auto-lock enforcement
+        // Activity lifecycle callbacks for background/foreground auto-lock enforcement with configuration change debouncing
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val backgroundRunnable = Runnable {
+            if (activeActivityCount.get() <= 0) {
+                sessionManager.onAppBackgrounded()
+            }
+        }
+
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
+                mainHandler.removeCallbacks(backgroundRunnable)
                 val count = activeActivityCount.incrementAndGet()
                 if (count == 1) {
                     sessionManager.onAppForegrounded()
@@ -117,7 +125,10 @@ class KryptxApplication : Application(), KryptxDependencies {
             override fun onActivityStopped(activity: Activity) {
                 val count = activeActivityCount.decrementAndGet()
                 if (count <= 0) {
-                    sessionManager.onAppBackgrounded()
+                    activeActivityCount.set(0)
+                    // Debounce by 700ms to gracefully absorb configuration changes (rotations, fold/unfold transitions)
+                    mainHandler.removeCallbacks(backgroundRunnable)
+                    mainHandler.postDelayed(backgroundRunnable, 700L)
                 }
             }
 

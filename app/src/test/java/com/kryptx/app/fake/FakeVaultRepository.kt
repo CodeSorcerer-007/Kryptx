@@ -163,7 +163,12 @@ class FakeVaultRepository : VaultRepository {
         return _itemsFlow.value.firstOrNull { it.id == id } ?: _trashFlow.value.firstOrNull { it.id == id }
     }
 
+    var shouldFailSave: Boolean = false
+
     override suspend fun saveItem(item: VaultItem): KryptxResult<Unit> {
+        if (shouldFailSave) {
+            return KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Simulated database write failure")
+        }
         if (item.isDeleted) {
             val currentTrash = _trashFlow.value.toMutableList()
             val idx = currentTrash.indexOfFirst { it.id == item.id }

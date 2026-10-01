@@ -22,10 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import com.kryptx.app.core.model.IssueSeverity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -124,6 +126,13 @@ fun VaultItemDetailScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     KryptxCircleIconButton(
+                        icon = Icons.Default.CenterFocusStrong,
+                        contentDescription = if (isFocusMode) "Exit Focus Mode" else "Enter Focus Mode",
+                        iconTint = if (isFocusMode) KryptxBlue else MaterialTheme.colorScheme.onSurface,
+                        onClick = { isFocusMode = !isFocusMode }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    KryptxCircleIconButton(
                         icon = if (item.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
                         contentDescription = "Favorite",
                         iconTint = if (item.isFavorite) KryptxAmber else MaterialTheme.colorScheme.onSurface,
@@ -219,25 +228,43 @@ fun VaultItemDetailScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Status dots
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Meaningful security & feature status indicators
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Dot 1: Password / Credential Strength
+                    val strengthColor = when {
+                        itemIssues.any { it.severity == IssueSeverity.CRITICAL } -> KryptxRed
+                        itemIssues.any { it.severity == IssueSeverity.WARNING } -> KryptxAmber
+                        item.password.isNotBlank() -> KryptxEmerald
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                    }
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
+                            .size(7.dp)
                             .clip(CircleShape)
-                            .background(KryptxBlue)
+                            .background(strengthColor)
                     )
+
+                    // Dot 2: 2FA / TOTP / Passkey Protection
+                    val hasSecondFactor = item.totpSecret.isNotBlank() || item.type == ItemType.PASSKEY
+                    val twoFactorColor = if (hasSecondFactor) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
+                            .size(7.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
+                            .background(twoFactorColor)
                     )
+
+                    // Dot 3: Encrypted Attachments
+                    val hasAttachments = item.attachments.isNotEmpty()
+                    val attachmentColor = if (hasAttachments) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
+                            .size(7.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
+                            .background(attachmentColor)
                     )
                 }
             }
@@ -352,7 +379,42 @@ fun VaultItemDetailScreen(
                     ItemType.IDENTITY -> IdentityDetailSection(item = item, viewModel = viewModel)
                     ItemType.WIFI -> WifiDetailSection(item = item, viewModel = viewModel)
                     ItemType.API_KEY -> ApiKeyDetailSection(item = item, viewModel = viewModel)
-                    ItemType.SECURE_NOTE, ItemType.CUSTOM -> {}
+                    ItemType.SECURE_NOTE -> {
+                        if (item.notes.isBlank()) {
+                            Text(
+                                text = "No note content yet. Tap Edit to add.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "Secure Note Content (Encrypted)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                    ItemType.CUSTOM -> {
+                        if (item.customFields.isEmpty()) {
+                            Text(
+                                text = "No custom fields. Tap Edit to add.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "${item.customFields.size} custom field${if (item.customFields.size == 1) "" else "s"}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
                 }
             }
 

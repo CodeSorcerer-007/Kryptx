@@ -1,6 +1,7 @@
 package com.kryptx.app.core.designsystem.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -87,25 +89,32 @@ fun KryptxTextField(
                 VisualTransformation.None
             },
             leadingIcon = leadingIcon,
-            trailingIcon = {
-                if (isPassword) {
-                    IconButton(
-                        onClick = { passwordVisible = !passwordVisible },
-                        modifier = Modifier.semantics {
-                            role = Role.Button
-                            contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                        }
+            trailingIcon = if (isPassword || trailingIcon != null) {
+                {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (trailingIcon != null) {
+                            trailingIcon()
+                        }
+                        if (isPassword) {
+                            IconButton(
+                                onClick = { passwordVisible = !passwordVisible },
+                                modifier = Modifier.semantics {
+                                    role = Role.Button
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
-                } else if (trailingIcon != null) {
-                    trailingIcon()
                 }
-            },
+            } else null,
             keyboardOptions = effectiveKeyboardOptions,
             keyboardActions = keyboardActions,
             colors = OutlinedTextFieldDefaults.colors(

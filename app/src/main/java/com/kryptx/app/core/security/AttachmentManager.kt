@@ -77,51 +77,54 @@ class AttachmentManager(
         inputStream: InputStream
     ): VaultAttachment? = withContext(Dispatchers.IO) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext null
-
-        val id = UUID.randomUUID().toString()
-        val encryptedFileName = "$id.enc"
-        val targetFile = File(attachmentsDir, encryptedFileName)
-
-        var totalPlainBytes = 0L
-        val buffer = ByteArray(CHUNK_SIZE)
-
         try {
-            FileOutputStream(targetFile).use { fos ->
-                // Write Magic Header & Chunk Size
-                val headerBuf = ByteBuffer.allocate(8)
-                headerBuf.putInt(MAGIC_HEADER)
-                headerBuf.putInt(CHUNK_SIZE)
-                fos.write(headerBuf.array())
+            val id = UUID.randomUUID().toString()
+            val encryptedFileName = "$id.enc"
+            val targetFile = File(attachmentsDir, encryptedFileName)
 
-                var bytesRead: Int
-                var chunkIndex = 0
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    totalPlainBytes += bytesRead
-                    val chunkPlaintext = if (bytesRead == CHUNK_SIZE) buffer else buffer.copyOf(bytesRead)
-                    val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
-                    val encryptedChunk = CryptoEngine.encrypt(chunkPlaintext, activeVek, aad)
+            var totalPlainBytes = 0L
+            val buffer = ByteArray(CHUNK_SIZE)
 
-                    // Write 4-byte chunk length + chunk bytes
-                    val lenBuf = ByteBuffer.allocate(4).putInt(encryptedChunk.size).array()
-                    fos.write(lenBuf)
-                    fos.write(encryptedChunk)
-                    chunkIndex++
+            try {
+                FileOutputStream(targetFile).use { fos ->
+                    // Write Magic Header & Chunk Size
+                    val headerBuf = ByteBuffer.allocate(8)
+                    headerBuf.putInt(MAGIC_HEADER)
+                    headerBuf.putInt(CHUNK_SIZE)
+                    fos.write(headerBuf.array())
+
+                    var bytesRead: Int
+                    var chunkIndex = 0
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        totalPlainBytes += bytesRead
+                        val chunkPlaintext = if (bytesRead == CHUNK_SIZE) buffer else buffer.copyOf(bytesRead)
+                        val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
+                        val encryptedChunk = CryptoEngine.encrypt(chunkPlaintext, activeVek, aad)
+
+                        // Write 4-byte chunk length + chunk bytes
+                        val lenBuf = ByteBuffer.allocate(4).putInt(encryptedChunk.size).array()
+                        fos.write(lenBuf)
+                        fos.write(encryptedChunk)
+                        chunkIndex++
+                    }
                 }
-            }
 
-            VaultAttachment(
-                id = id,
-                fileName = fileName,
-                mimeType = mimeType,
-                sizeBytes = totalPlainBytes,
-                encryptedFileName = encryptedFileName,
-                createdAt = System.currentTimeMillis()
-            )
-        } catch (e: Exception) {
-            if (targetFile.exists()) targetFile.delete()
-            null
+                VaultAttachment(
+                    id = id,
+                    fileName = fileName,
+                    mimeType = mimeType,
+                    sizeBytes = totalPlainBytes,
+                    encryptedFileName = encryptedFileName,
+                    createdAt = System.currentTimeMillis()
+                )
+            } catch (e: Exception) {
+                if (targetFile.exists()) targetFile.delete()
+                null
+            } finally {
+                SecureMemory.wipe(buffer)
+            }
         } finally {
-            SecureMemory.wipe(buffer)
+            SecureMemory.wipe(activeVek)
         }
     }
 
@@ -146,53 +149,58 @@ class AttachmentManager(
         outputStream: OutputStream
     ): Boolean = withContext(Dispatchers.IO) {
         val activeVek = sessionManager.getVaultKey() ?: return@withContext false
-        val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
-        if (!encryptedFile.exists()) return@withContext false
-
         try {
-            FileInputStream(encryptedFile).use { fis ->
-                val headerBuf = ByteArray(8)
-                val headerRead = fis.read(headerBuf)
-                if (headerRead != 8) return@withContext false
+            val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
+            if (!encryptedFile.exists()) return@withContext false
 
-                val magic = ByteBuffer.wrap(headerBuf, 0, 4).int
-                if (magic != MAGIC_HEADER) {
-                    // Fallback to legacy non-chunked single-payload decrypt
-                    val fullEncrypted = encryptedFile.readBytes()
-                    val decrypted = CryptoEngine.decrypt(fullEncrypted, activeVek)
-                    outputStream.write(decrypted)
-                    return@withContext true
-                }
+            try {
+                FileInputStream(encryptedFile).use { fis ->
+                    val headerBuf = ByteArray(8)
+                    val headerRead = fis.read(headerBuf)
+                    if (headerRead != 8) return@withContext false
 
-                var chunkIndex = 0
-                val lenBuf = ByteArray(4)
-                while (fis.read(lenBuf) == 4) {
-                    val chunkLen = ByteBuffer.wrap(lenBuf).int
-                    // Defensive guard: reject negative or abnormally huge chunks (> 10 MB) from corrupted files
-                    if (chunkLen <= 0 || chunkLen > 10 * 1024 * 1024) return@withContext false
-                    val encryptedChunk = ByteArray(chunkLen)
-                    var readSoFar = 0
-                    while (readSoFar < chunkLen) {
-                        val r = fis.read(encryptedChunk, readSoFar, chunkLen - readSoFar)
-                        if (r == -1) break
-                        readSoFar += r
+                    val magic = ByteBuffer.wrap(headerBuf, 0, 4).int
+                    if (magic != MAGIC_HEADER) {
+                        // Fallback to legacy non-chunked single-payload decrypt
+                        val fullEncrypted = encryptedFile.readBytes()
+                        val decrypted = CryptoEngine.decrypt(fullEncrypted, activeVek)
+                        outputStream.write(decrypted)
+                        SecureMemory.wipe(decrypted)
+                        return@withContext true
                     }
-                    if (readSoFar != chunkLen) return@withContext false
 
-                    val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
-                    val decryptedChunk = try {
-                        CryptoEngine.decrypt(encryptedChunk, activeVek, aad)
-                    } catch (_: Throwable) {
-                        CryptoEngine.decrypt(encryptedChunk, activeVek, null)
+                    var chunkIndex = 0
+                    val lenBuf = ByteArray(4)
+                    while (fis.read(lenBuf) == 4) {
+                        val chunkLen = ByteBuffer.wrap(lenBuf).int
+                        // Defensive guard: reject negative or abnormally huge chunks (> 10 MB) from corrupted files
+                        if (chunkLen <= 0 || chunkLen > 10 * 1024 * 1024) return@withContext false
+                        val encryptedChunk = ByteArray(chunkLen)
+                        var readSoFar = 0
+                        while (readSoFar < chunkLen) {
+                            val r = fis.read(encryptedChunk, readSoFar, chunkLen - readSoFar)
+                            if (r == -1) break
+                            readSoFar += r
+                        }
+                        if (readSoFar != chunkLen) return@withContext false
+
+                        val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
+                        val decryptedChunk = try {
+                            CryptoEngine.decrypt(encryptedChunk, activeVek, aad)
+                        } catch (_: Throwable) {
+                            CryptoEngine.decrypt(encryptedChunk, activeVek, null)
+                        }
+                        outputStream.write(decryptedChunk)
+                        SecureMemory.wipe(decryptedChunk)
+                        chunkIndex++
                     }
-                    outputStream.write(decryptedChunk)
-                    SecureMemory.wipe(decryptedChunk)
-                    chunkIndex++
                 }
+                true
+            } catch (_: Throwable) {
+                false
             }
-            true
-        } catch (_: Throwable) {
-            false
+        } finally {
+            SecureMemory.wipe(activeVek)
         }
     }
 

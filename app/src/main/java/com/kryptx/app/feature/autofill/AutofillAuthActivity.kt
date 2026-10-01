@@ -157,6 +157,7 @@ class AutofillAuthActivity : FragmentActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun fillAndFinish(item: VaultItem) {
         val app = application as KryptxApplication
         val datasetBuilder = Dataset.Builder()

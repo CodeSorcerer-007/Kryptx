@@ -352,5 +352,134 @@ class VaultViewModelTest {
         testScheduler.runCurrent()
         assertEquals("Zendesk", viewModel.filteredItems.value.first().title)
     }
+
+    @Test
+    fun testDefaultLastUsedAtIsZero() {
+        val item = VaultItem(title = "Test")
+        assertEquals(0L, item.lastUsedAt)
+        val created = VaultItem.fromPayload(
+            title = "Test Login",
+            payload = com.kryptx.app.core.model.VaultPayload.Login("user", "pass")
+        )
+        assertEquals(0L, created.lastUsedAt)
+    }
+
+    @Test
+    fun testRapidDeleteWithUndoStack() = runTest(testDispatcher) {
+        val item1 = VaultItem(id = "del_1", title = "First")
+        val item2 = VaultItem(id = "del_2", title = "Second")
+        viewModel.saveItem(item1) {}
+        viewModel.saveItem(item2) {}
+        testScheduler.runCurrent()
+
+        // Rapid delete item 1 then item 2
+        viewModel.deleteItemWithUndo("del_1") {}
+        viewModel.deleteItemWithUndo("del_2") {}
+        testScheduler.runCurrent()
+
+        assertTrue(fakeVaultRepository.getItemById("del_1")?.isDeleted == true)
+        assertTrue(fakeVaultRepository.getItemById("del_2")?.isDeleted == true)
+
+        // First undo should restore item 2 (LIFO stack)
+        var restoredItem: VaultItem? = null
+        viewModel.undoLastDelete { restoredItem = it }
+        testScheduler.runCurrent()
+        assertEquals("del_2", restoredItem?.id)
+        assertFalse(fakeVaultRepository.getItemById("del_2")?.isDeleted == true)
+
+        // Second undo should restore item 1
+        restoredItem = null
+        viewModel.undoLastDelete { restoredItem = it }
+        testScheduler.runCurrent()
+        assertEquals("del_1", restoredItem?.id)
+        assertFalse(fakeVaultRepository.getItemById("del_1")?.isDeleted == true)
+    }
+
+    @Test
+    fun testFavoritesFilterRespectsCategory() = runTest(testDispatcher) {
+        val favLogin = VaultItem(id = "fav_log", title = "Login Fav", type = ItemType.LOGIN, isFavorite = true)
+        val favCard = VaultItem(id = "fav_card", title = "Card Fav", type = ItemType.CREDIT_CARD, isFavorite = true)
+        viewModel.saveItem(favLogin) {}
+        viewModel.saveItem(favCard) {}
+        testScheduler.runCurrent()
+
+        // When no category selected, all favorites shown
+        viewModel.selectCategory(null)
+        testScheduler.runCurrent()
+        assertEquals(2, viewModel.favoriteItems.value.size)
+
+        // When LOGIN selected, only login favorite shown
+        viewModel.selectCategory(ItemType.LOGIN)
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.favoriteItems.value.size)
+        assertEquals("Login Fav", viewModel.favoriteItems.value.first().title)
+
+        // When CREDIT_CARD selected, only card favorite shown
+        viewModel.selectCategory(ItemType.CREDIT_CARD)
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.favoriteItems.value.size)
+        assertEquals("Card Fav", viewModel.favoriteItems.value.first().title)
+    }
+
+    @Test
+    fun testCategoryCountsMapping() = runTest(testDispatcher) {
+        val item1 = VaultItem(id = "c1", title = "L1", type = ItemType.LOGIN)
+        val item2 = VaultItem(id = "c2", title = "L2", type = ItemType.LOGIN)
+        val item3 = VaultItem(id = "c3", title = "N1", type = ItemType.SECURE_NOTE)
+        viewModel.saveItem(item1) {}
+        viewModel.saveItem(item2) {}
+        viewModel.saveItem(item3) {}
+        testScheduler.runCurrent()
+
+        assertEquals(2, viewModel.categoryCounts.value[ItemType.LOGIN])
+        assertEquals(1, viewModel.categoryCounts.value[ItemType.SECURE_NOTE])
+    }
+
+    @Test
+    fun testSaveItemSuccessAndErrorCallbacks() = runTest(testDispatcher) {
+        val item = VaultItem(id = "save_test", title = "Test Save")
+        var savedCalled = false
+        var errorMsg: String? = null
+
+        // Success case
+        fakeVaultRepository.shouldFailSave = false
+        viewModel.saveItem(
+            item = item,
+            onError = { errorMsg = it },
+            onSaved = { savedCalled = true }
+        )
+        testScheduler.runCurrent()
+
+        assertTrue(savedCalled)
+        assertEquals(null, errorMsg)
+
+        // Failure case
+        savedCalled = false
+        errorMsg = null
+        fakeVaultRepository.shouldFailSave = true
+        viewModel.saveItem(
+            item = item,
+            onError = { errorMsg = it },
+            onSaved = { savedCalled = true }
+        )
+        testScheduler.runCurrent()
+
+        assertFalse(savedCalled)
+        assertEquals("Simulated database write failure", errorMsg)
+    }
+
+    @Test
+    fun testRecordActivityThrottling() {
+        val sessionMgr = VaultSessionManager()
+        val key = ByteArray(32) { 1 }
+        sessionMgr.unlock(key)
+        assertTrue(sessionMgr.isUnlocked.value)
+
+        // Rapidly call recordActivity 10 times in tight loop - should not throw or corrupt state
+        for (i in 0 until 10) {
+            sessionMgr.recordActivity()
+        }
+        assertTrue(sessionMgr.isUnlocked.value)
+    }
 }
 

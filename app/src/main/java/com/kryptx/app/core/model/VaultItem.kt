@@ -69,7 +69,7 @@ data class VaultItem(
     // Timestamps
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val lastUsedAt: Long = System.currentTimeMillis()
+    val lastUsedAt: Long = 0L
 ) {
     /**
      * Checks if this credential is in the encrypted soft-delete trash bin.
@@ -237,7 +237,7 @@ data class VaultItem(
             deletedAt: Long? = null,
             createdAt: Long = System.currentTimeMillis(),
             updatedAt: Long = System.currentTimeMillis(),
-            lastUsedAt: Long = System.currentTimeMillis()
+            lastUsedAt: Long = 0L
         ): VaultItem = when (payload) {
             is VaultPayload.Login -> VaultItem(
                 id = id,

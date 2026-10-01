@@ -135,7 +135,23 @@ class ClipboardSecurityManager(
     override fun clearIfMatching(text: String) {
         if (clipboardManager == null) return
         try {
-            val currentClip = clipboardManager.primaryClip
+            val currentClip = try {
+                clipboardManager.primaryClip
+            } catch (_: SecurityException) {
+                // Android 10+ background restriction: apps in background cannot read primaryClip.
+                // Since this clear was triggered for sensitive text Kryptx copied, clear proactively.
+                if (lastCopiedHash != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        clipboardManager.clearPrimaryClip()
+                    } else {
+                        val emptyClip = ClipData.newPlainText("", "")
+                        clipboardManager.setPrimaryClip(emptyClip)
+                    }
+                    lastCopiedHash?.fill(0)
+                    lastCopiedHash = null
+                }
+                return
+            }
             if (currentClip != null && currentClip.itemCount > 0) {
                 val currentText = currentClip.getItemAt(0).text?.toString() ?: ""
                 val currentHash = sha256(currentText)
@@ -162,7 +178,18 @@ class ClipboardSecurityManager(
     override fun clearNow() {
         if (clipboardManager == null) return
         try {
-            val currentClip = clipboardManager.primaryClip
+            val currentClip = try {
+                clipboardManager.primaryClip
+            } catch (_: SecurityException) {
+                // If backgrounded, clear directly without inspecting
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    clipboardManager.clearPrimaryClip()
+                } else {
+                    val emptyClip = ClipData.newPlainText("", "")
+                    clipboardManager.setPrimaryClip(emptyClip)
+                }
+                return
+            }
             if (currentClip != null && currentClip.itemCount > 0) {
                 val currentText = currentClip.getItemAt(0).text?.toString() ?: ""
                 val currentHash = sha256(currentText)

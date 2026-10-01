@@ -111,9 +111,11 @@ fun QrCodeScannerDialog(
                 ) == PackageManager.PERMISSION_GRANTED
             }
         }
+        val app = context.applicationContext as? com.kryptx.app.KryptxApplication
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            app?.sessionManager?.setPickerActive(false)
         }
     }
 
