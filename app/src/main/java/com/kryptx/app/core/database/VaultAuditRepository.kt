@@ -1,6 +1,7 @@
 package com.kryptx.app.core.database
 
 import com.kryptx.app.core.crypto.EntropyCalculator
+import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.model.IssueSeverity
 import com.kryptx.app.core.model.IssueType
 import com.kryptx.app.core.model.ItemType
@@ -291,9 +292,9 @@ class VaultAuditRepositoryImpl(
                 missing2faCount = 0,
                 issues = emptyList()
             )
+        } finally {
+            SecureMemory.wipe(activeVek)
         }
-        // Note: Do NOT wipe activeVek here — it is the live session key reference.
-        // Wiping is handled by sessionManager.lock() when the vault locks.
     }
 
     private fun calculateSimilarity(s1: String, s2: String): Double {

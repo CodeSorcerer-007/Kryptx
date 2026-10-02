@@ -182,16 +182,18 @@ fun AddEditItemScreen(
     val deletedAttachments = remember(itemId) { mutableStateListOf<VaultAttachment>() }
     var isSaved by remember { mutableStateOf(false) }
 
-    val isDirty by derivedStateOf {
-        val original = existingItem
-        if (original == null) {
-            title.isNotEmpty() || username.isNotEmpty() || password.isNotEmpty() || notes.isNotEmpty() || attachments.isNotEmpty()
-        } else {
-            title != original.title || username != original.username || password != original.password ||
-            notes != original.notes || totpSecret != original.totpSecret || selectedType != original.type ||
-            attachments.size != original.attachments.size || customFields.size != original.customFields.size ||
-            passkeyRpId != original.passkeyRpId || cardNumber != original.cardNumber || wifiSsid != original.wifiSsid ||
-            cardExpiry != original.cardExpiry
+    val isDirty by remember(existingItem) {
+        derivedStateOf {
+            val original = existingItem
+            if (original == null) {
+                title.isNotEmpty() || username.isNotEmpty() || password.isNotEmpty() || notes.isNotEmpty() || attachments.isNotEmpty()
+            } else {
+                title != original.title || username != original.username || password != original.password ||
+                notes != original.notes || totpSecret != original.totpSecret || selectedType != original.type ||
+                attachments.size != original.attachments.size || customFields.size != original.customFields.size ||
+                passkeyRpId != original.passkeyRpId || cardNumber != original.cardNumber || wifiSsid != original.wifiSsid ||
+                cardExpiry != original.cardExpiry
+            }
         }
     }
 

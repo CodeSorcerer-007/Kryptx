@@ -93,7 +93,7 @@ class KeystoreManager {
         fun configureBuilder(isStrongBox: Boolean): KeyGenParameterSpec.Builder {
             val builder = KeyGenParameterSpec.Builder(
                 BIOMETRIC_KEY_ALIAS,
-                KeyProperties.PURPOSE_DECRYPT
+                KeyProperties.PURPOSE_DECRYPT or KeyProperties.PURPOSE_ENCRYPT
             )
                 .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)

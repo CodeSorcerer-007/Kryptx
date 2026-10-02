@@ -51,7 +51,11 @@ object TotpGenerator {
         val secondsRemaining = (periodSeconds - (currentTimeSeconds % periodSeconds)).toInt()
         val progress = secondsRemaining.toFloat() / periodSeconds.toFloat()
 
-        val rawCode = generateHotp(keyBytes, counter, digits, algorithm) ?: return null
+        val rawCode = try {
+            generateHotp(keyBytes, counter, digits, algorithm) ?: return null
+        } finally {
+            com.kryptx.app.core.crypto.SecureMemory.wipe(keyBytes)
+        }
         val paddedCode = rawCode.padStart(digits, '0')
 
         val formatted = if (digits == 6 && paddedCode.length == 6) {

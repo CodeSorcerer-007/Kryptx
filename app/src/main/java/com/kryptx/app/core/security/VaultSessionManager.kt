@@ -82,7 +82,10 @@ class VaultSessionManager(
     }
 
     /**
-     * Retrieves the active vault key if currently unlocked.
+     * Retrieves a detached copy of the active vault key if currently unlocked.
+     * WARNING: The caller owns the returned ByteArray and MUST guarantee zeroization
+     * with [SecureMemory.wipe] immediately upon completion.
+     * Prefer using [withVaultKey] for scoped, guaranteed zeroization.
      */
     @Synchronized
     fun getVaultKey(): ByteArray? {

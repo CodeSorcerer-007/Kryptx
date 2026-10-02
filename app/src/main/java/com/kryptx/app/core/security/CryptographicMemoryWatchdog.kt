@@ -53,6 +53,7 @@ class CryptographicMemoryWatchdog(
     /**
      * Scans and zeroes out any registered buffers still residing in heap memory.
      */
+    @Synchronized
     fun forceScrubRegisteredBuffers() {
         val iterator = trackedBuffers.iterator()
         while (iterator.hasNext()) {

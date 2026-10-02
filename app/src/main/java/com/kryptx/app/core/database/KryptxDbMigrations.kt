@@ -12,6 +12,7 @@ import com.kryptx.app.core.database.KryptxDbSchema.COL_UPDATED_AT
 import com.kryptx.app.core.database.KryptxDbSchema.TABLE_ACTIVITY_LOG
 import com.kryptx.app.core.database.KryptxDbSchema.TABLE_SECURITY_HISTORY
 import com.kryptx.app.core.database.KryptxDbSchema.TABLE_VAULT_ITEMS
+import com.kryptx.app.core.security.SecurityLogger
 
 /**
  * Handles database schema version upgrades and data migrations.
@@ -27,7 +28,8 @@ object KryptxDbMigrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_fav_updated ON $TABLE_VAULT_ITEMS($COL_IS_FAVORITE, $COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vault_items_type_updated ON $TABLE_VAULT_ITEMS($COL_TYPE, $COL_UPDATED_AT DESC)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 2", e)
             }
         }
 
@@ -45,7 +47,8 @@ object KryptxDbMigrations {
                     """.trimIndent()
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_log_ts ON $TABLE_ACTIVITY_LOG($COL_ACT_TIMESTAMP DESC)")
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 3", e)
             }
         }
 
@@ -53,7 +56,8 @@ object KryptxDbMigrations {
         if (oldVersion < 4) {
             try {
                 db.execSQL("UPDATE $TABLE_VAULT_ITEMS SET $COL_TYPE = 'CUSTOM' WHERE $COL_TYPE IN ('SSH_KEY', 'CRYPTO_WALLET', 'BANK_ACCOUNT')")
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 4", e)
             }
         }
     }

@@ -211,15 +211,19 @@ fun KryptxNavGraph(
                     onClearPendingShortcut()
                 }
                 "generator" -> {
-                    selectedBottomTab = BottomNavTab.GENERATOR
-                    backStack.clear()
-                    backStack.add(Screen.Generator)
+                    androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                        selectedBottomTab = BottomNavTab.GENERATOR
+                        backStack.clear()
+                        backStack.add(Screen.Generator)
+                    }
                     onClearPendingShortcut()
                 }
                 "totp" -> {
-                    selectedBottomTab = BottomNavTab.TOTP
-                    backStack.clear()
-                    backStack.add(Screen.TotpList)
+                    androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                        selectedBottomTab = BottomNavTab.TOTP
+                        backStack.clear()
+                        backStack.add(Screen.TotpList)
+                    }
                     onClearPendingShortcut()
                 }
             }
@@ -247,9 +251,11 @@ fun KryptxNavGraph(
         if (backStack.size > 1) {
             backStack.removeAt(backStack.size - 1)
         } else if (isUnlocked && selectedBottomTab != BottomNavTab.VAULT) {
-            selectedBottomTab = BottomNavTab.VAULT
-            backStack.clear()
-            backStack.add(Screen.VaultDashboard)
+            androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                selectedBottomTab = BottomNavTab.VAULT
+                backStack.clear()
+                backStack.add(Screen.VaultDashboard)
+            }
         }
     }
 
@@ -269,9 +275,11 @@ fun KryptxNavGraph(
                     selectedTab = selectedBottomTab,
                     onTabSelected = { tab ->
                         if (selectedBottomTab != tab) {
-                            selectedBottomTab = tab
-                            backStack.clear()
-                            backStack.add(tab.toScreen())
+                            androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                                selectedBottomTab = tab
+                                backStack.clear()
+                                backStack.add(tab.toScreen())
+                            }
                         }
                     }
                 )

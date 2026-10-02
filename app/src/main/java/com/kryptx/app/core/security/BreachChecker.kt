@@ -43,6 +43,12 @@ object BreachChecker {
         "freedom", "whatever", "superstar", "champion", "winner", "matrix", "hacker", "galaxy"
     )
 
+    /**
+     * Optional pre-compiled offline Bloom filter for extended breach corpus matching.
+     * Loaded asynchronously from assets/breach_filter.bin at startup if available.
+     * If absent, the engine seamlessly falls back to the embedded COMMON_PASSWORDS dictionary.
+     */
+    @Volatile
     private var bloomFilter: BloomBreachFilter? = null
 
     // Horizontal, vertical, and diagonal keyboard walks
@@ -174,9 +180,7 @@ object BreachChecker {
         // 6. Keyboard walk detection (horizontal, vertical, diagonal)
         if (cleanLower.length >= 4) {
             for (walk in KEYBOARD_WALKS) {
-                if (walk.contains(cleanLower) || walk.contains(cleanLower.take(4)) ||
-                    walk.contains(leetClean) || walk.contains(leetClean.take(4))
-                ) {
+                if (walk.contains(cleanLower) || walk.contains(leetClean)) {
                     return BreachStatus(
                         isBreached = true,
                         breachCount = 75_000,
@@ -206,9 +210,11 @@ object BreachChecker {
     fun sha1Hex(input: String): String {
         val digest = MessageDigest.getInstance("SHA-1")
         val bytes = digest.digest(input.toByteArray(Charsets.UTF_8))
-        val sb = StringBuilder()
+        val sb = java.lang.StringBuilder(bytes.size * 2)
         for (b in bytes) {
-            sb.append(String.format(Locale.US, "%02X", b))
+            val i = b.toInt()
+            sb.append("0123456789ABCDEF"[(i shr 4) and 0x0F])
+            sb.append("0123456789ABCDEF"[i and 0x0F])
         }
         return sb.toString()
     }

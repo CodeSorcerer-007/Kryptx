@@ -1,5 +1,6 @@
 package com.kryptx.app.core.di
 
+import android.app.Application
 import android.content.Context
 import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.database.KryptxDatabaseHelper
@@ -79,7 +80,10 @@ class AppContainer(context: Context) {
     val attachmentManager: IAttachmentManager = AttachmentManager(context, sessionManager)
 
     // ── Memory protection ───────────────────────────────────────────────────
-    val memoryWatchdog: CryptographicMemoryWatchdog = CryptographicMemoryWatchdog(context, sessionManager).apply { register() }
+    val memoryWatchdog: CryptographicMemoryWatchdog = CryptographicMemoryWatchdog(
+        context.applicationContext as Application,
+        sessionManager
+    ).apply { register() }
 
     // ── Activity audit log ──────────────────────────────────────────────────
     val activityLogManager: ActivityLogManager = ActivityLogManager(context)

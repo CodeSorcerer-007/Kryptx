@@ -185,11 +185,7 @@ class AttachmentManager(
                         if (readSoFar != chunkLen) return@withContext false
 
                         val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
-                        val decryptedChunk = try {
-                            CryptoEngine.decrypt(encryptedChunk, activeVek, aad)
-                        } catch (_: Throwable) {
-                            CryptoEngine.decrypt(encryptedChunk, activeVek, null)
-                        }
+                        val decryptedChunk = CryptoEngine.decrypt(encryptedChunk, activeVek, aad)
                         outputStream.write(decryptedChunk)
                         SecureMemory.wipe(decryptedChunk)
                         chunkIndex++

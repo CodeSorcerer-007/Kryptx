@@ -1,5 +1,6 @@
 package com.kryptx.app.core.database
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import net.zetetic.database.sqlcipher.SQLiteDatabase
@@ -59,9 +60,9 @@ class KryptxDatabaseHelper(
             val pragmas = mapOf(
                 "enableWriteAheadLogging" to { db.enableWriteAheadLogging() },
                 "PRAGMA auto_vacuum = FULL" to { db.execSQL("PRAGMA auto_vacuum = FULL") },
-                "PRAGMA mmap_size = 268435456" to { db.execSQL("PRAGMA mmap_size = 268435456") },
+                "PRAGMA mmap_size = 67108864" to { db.execSQL("PRAGMA mmap_size = 67108864") },
                 "PRAGMA temp_store = MEMORY" to { db.execSQL("PRAGMA temp_store = MEMORY") },
-                "PRAGMA synchronous = NORMAL" to { db.execSQL("PRAGMA synchronous = NORMAL") },
+                "PRAGMA synchronous = FULL" to { db.execSQL("PRAGMA synchronous = FULL") },
                 "PRAGMA secure_delete = FAST" to { db.execSQL("PRAGMA secure_delete = FAST") }
             )
             pragmas.forEach { (name, action) ->
@@ -220,11 +221,21 @@ class KryptxDatabaseHelper(
     }
 
     fun getMetadata(key: String): String? {
-        return securePrefs.getString(key, null)
+        return try {
+            securePrefs.getString(key, null)
+        } catch (e: Exception) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to read secure metadata for $key", e)
+            null
+        }
     }
 
+    @SuppressLint("ApplySharedPref")
     fun setMetadata(key: String, value: String) {
-        securePrefs.edit().putString(key, value).commit()
+        try {
+            securePrefs.edit().putString(key, value).commit()
+        } catch (e: Exception) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to write secure metadata for $key", e)
+        }
     }
 
     fun hasVaultSetup(): Boolean {
@@ -340,6 +351,7 @@ class KryptxDatabaseHelper(
         activeItems
     }
 
+    @Suppress("DEPRECATION")
     suspend fun saveItem(item: VaultItem, vaultKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
         val serializedJson = json.encodeToString(item)
         val aad = item.id.toByteArray(Charsets.UTF_8)
@@ -397,6 +409,7 @@ class KryptxDatabaseHelper(
     /**
      * Batch-inserts multiple vault items within a single atomic SQLite transaction.
      */
+    @Suppress("DEPRECATION")
     suspend fun saveItemsBatch(items: List<VaultItem>, vaultKey: ByteArray): Int = withContext(Dispatchers.IO) {
         if (items.isEmpty()) return@withContext 0
 
@@ -447,6 +460,7 @@ class KryptxDatabaseHelper(
      * SQLite transaction. If any decryption or re-encryption operation fails, the transaction is
      * immediately rolled back to maintain complete data integrity.
      */
+    @Suppress("DEPRECATION")
     suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int = withContext(Dispatchers.IO) {
         val db = writableDatabase
         val itemsToUpdate = mutableListOf<Pair<String, String>>()
@@ -818,6 +832,7 @@ class KryptxDatabaseHelper(
     /**
      * Deletes the underlying encrypted database file and its WAL logs directly.
      */
+    @SuppressLint("ApplySharedPref")
     fun deleteDatabaseFile(): Boolean {
         close()
         try {

@@ -1,5 +1,6 @@
 package com.kryptx.app.core.security
 
+import android.annotation.SuppressLint
 import android.os.Build
 import org.bouncycastle.asn1.ASN1Boolean
 import org.bouncycastle.asn1.ASN1Enumerated
@@ -13,6 +14,7 @@ import java.io.File
  * Advanced system integrity scanner for detecting root, custom ROMs, Magisk,
  * hooking frameworks (Frida/Xposed), and emulator environments.
  */
+@SuppressLint("SdCardPath")
 object RootDetector {
 
     data class SecurityStatus(

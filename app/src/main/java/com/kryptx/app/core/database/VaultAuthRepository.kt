@@ -9,6 +9,7 @@ import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.model.KryptxErrorType
 import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.security.VaultSessionManager
+import com.kryptx.app.core.security.SecurityLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.crypto.Cipher

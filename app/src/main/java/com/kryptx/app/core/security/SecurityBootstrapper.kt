@@ -102,7 +102,7 @@ object SecurityBootstrapper {
                     packageName,
                     android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
                 )
-                val signingInfo = packageInfo.signingInfo ?: return true
+                val signingInfo = packageInfo.signingInfo ?: return false
                 if (signingInfo.hasMultipleSigners()) {
                     signingInfo.apkContentsSigners
                 } else {
@@ -118,7 +118,7 @@ object SecurityBootstrapper {
                 packageInfo.signatures
             }
 
-            if (signatures == null || signatures.isEmpty()) return true
+            if (signatures == null || signatures.isEmpty()) return false
 
             val cert = signatures[0].toByteArray()
             val md = java.security.MessageDigest.getInstance("SHA-256")
@@ -133,8 +133,13 @@ object SecurityBootstrapper {
                 hex.isNotEmpty()
             }
         } catch (_: Throwable) {
-            // Fail open on non-Android mock JVM testing environments if context lacks PM
-            true
+            // Fail open ONLY in non-Android mock JVM testing environments if context lacks PM
+            val isPlainJvmTest = try {
+                Build.FINGERPRINT == null || Build.FINGERPRINT == "unknown" || Build.FINGERPRINT.contains("robolectric", ignoreCase = true)
+            } catch (_: Throwable) {
+                true
+            }
+            isPlainJvmTest
         }
     }
 }

@@ -5,16 +5,19 @@ import androidx.lifecycle.viewModelScope
 import com.kryptx.app.core.crypto.EntropyCalculator
 import com.kryptx.app.core.database.VaultRepository
 import com.kryptx.app.core.model.ItemType
+import com.kryptx.app.core.model.SearchQueryParser
 import com.kryptx.app.core.model.SecurityAuditReport
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.security.ActivityLogManager
 import com.kryptx.app.core.security.IClipboardSecurityManager
 import com.kryptx.app.core.security.VaultSessionManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -113,7 +116,7 @@ class VaultViewModel(
             list = list.filter { it.type == category }
         }
         if (query.isNotBlank()) {
-            list = com.kryptx.app.core.model.SearchQueryParser.filter(list, query)
+            list = SearchQueryParser.filter(list, query)
         }
         when (sort) {
             SortOption.RECENTLY_USED -> list.sortedByDescending { it.lastUsedAt.takeIf { t -> t > 0 } ?: it.updatedAt }
@@ -137,13 +140,9 @@ class VaultViewModel(
     }
 
     fun toggleSelectItem(itemId: String) {
-        val current = _selectedItemIds.value.toMutableSet()
-        if (current.contains(itemId)) {
-            current.remove(itemId)
-        } else {
-            current.add(itemId)
+        _selectedItemIds.value = _selectedItemIds.value.toMutableSet().apply {
+            if (contains(itemId)) remove(itemId) else add(itemId)
         }
-        _selectedItemIds.value = current
     }
 
     fun selectAllFiltered() {
@@ -225,7 +224,21 @@ class VaultViewModel(
         }
     }
 
+    companion object {
+        private const val MAX_UNDO_STACK_SIZE = 30
+    }
+
     private val _deletedItemStack = ArrayDeque<VaultItem>()
+
+    private val lockListener = {
+        synchronized(_deletedItemStack) {
+            _deletedItemStack.clear()
+        }
+    }
+
+    init {
+        sessionManager.addLockListener(lockListener)
+    }
 
     fun deleteItem(itemId: String, onDeleted: () -> Unit) {
         viewModelScope.launch {
@@ -233,6 +246,9 @@ class VaultViewModel(
             if (vaultRepository.moveToTrash(itemId).isSuccess) {
                 if (item != null) {
                     synchronized(_deletedItemStack) {
+                        if (_deletedItemStack.size >= MAX_UNDO_STACK_SIZE) {
+                            _deletedItemStack.removeLast()
+                        }
                         _deletedItemStack.addFirst(item)
                     }
                 }
@@ -250,6 +266,9 @@ class VaultViewModel(
             if (vaultRepository.moveToTrash(itemId).isSuccess) {
                 if (item != null) {
                     synchronized(_deletedItemStack) {
+                        if (_deletedItemStack.size >= MAX_UNDO_STACK_SIZE) {
+                            _deletedItemStack.removeLast()
+                        }
                         _deletedItemStack.addFirst(item)
                     }
                 }
@@ -366,5 +385,13 @@ class VaultViewModel(
         activityLogManager?.logEvent("Lock", "Vault locked")
         sessionManager.lock()
         clipboardSecurityManager.clearNow()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        sessionManager.removeLockListener(lockListener)
+        synchronized(_deletedItemStack) {
+            _deletedItemStack.clear()
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.kryptx.app.core.security
 
+import android.annotation.SuppressLint
 import android.content.Context
 import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.crypto.SecureMemory
@@ -24,6 +25,7 @@ class EmergencyAutoDestructManager(
     private val isEnabled: Boolean = false
 ) {
     private val secureRandom = SecureRandom()
+    private val localFailedAttempts = java.util.concurrent.atomic.AtomicInteger(0)
 
     data class AutoDestructState(
         val isEnabled: Boolean,
@@ -33,8 +35,9 @@ class EmergencyAutoDestructManager(
     )
 
     fun getState(): AutoDestructState {
-        // Delegate to VaultSessionManager's authoritative counter to avoid counter drift
-        val current = sessionManager?.failedAttempts?.value ?: 0
+        // Delegate to VaultSessionManager's authoritative counter to avoid counter drift if provided,
+        // otherwise fall back to local counter (e.g. standalone/test mode)
+        val current = sessionManager?.failedAttempts?.value ?: localFailedAttempts.get()
         return AutoDestructState(
             isEnabled = isEnabled,
             maxFailedAttempts = maxFailedAttempts,
@@ -46,13 +49,12 @@ class EmergencyAutoDestructManager(
     /**
      * Called by [VaultSessionManager.recordFailedAttempt] observers after each failed attempt.
      * Checks whether auto-destruct threshold has been reached using the session manager's
-     * authoritative counter as the single source of truth.
+     * authoritative counter as the single source of truth (or local counter if standalone).
      * Returns true if auto-destruct was triggered.
      */
     fun onFailedAttempt(): Boolean {
         if (!isEnabled) return false
-        // Use VaultSessionManager's authoritative counter — never maintain a separate one
-        val current = sessionManager?.failedAttempts?.value ?: return false
+        val current = sessionManager?.failedAttempts?.value ?: localFailedAttempts.get()
         if (current >= maxFailedAttempts) {
             triggerEmergencyWipe()
             return true
@@ -61,25 +63,30 @@ class EmergencyAutoDestructManager(
     }
 
     /**
-     * @deprecated Use [onFailedAttempt] which reads from the authoritative VaultSessionManager counter.
-     * This facade exists only for backward API compatibility.
+     * Records a failed attempt. If sessionManager is present, delegates to sessionManager.recordFailedAttempt().
+     * Otherwise increments the local counter.
+     * Returns true if auto-destruct was triggered.
      */
-    @Deprecated(
-        "Use onFailedAttempt() which reads from VaultSessionManager.failedAttempts StateFlow",
-        ReplaceWith("onFailedAttempt()")
-    )
-    fun recordFailedAttempt(): Boolean = onFailedAttempt()
+    fun recordFailedAttempt(): Boolean {
+        if (!isEnabled) return false
+        val current = if (sessionManager != null) {
+            sessionManager.recordFailedAttempt()
+            sessionManager.failedAttempts.value
+        } else {
+            localFailedAttempts.incrementAndGet()
+        }
+        if (current >= maxFailedAttempts) {
+            triggerEmergencyWipe()
+            return true
+        }
+        return false
+    }
 
     /**
-     * @deprecated Successful auth is already tracked by VaultSessionManager.unlock().
-     * No action needed here — counter is reset at the source.
+     * Resets failed attempts counter on successful auth.
      */
-    @Deprecated(
-        "Auth success is tracked by VaultSessionManager.unlock() which resets failedAttempts",
-        ReplaceWith("sessionManager.unlock(vaultKey)")
-    )
     fun recordSuccessfulAuth() {
-        // No-op: VaultSessionManager.unlock() resets _failedAttempts.value = 0
+        localFailedAttempts.set(0)
     }
 
     /**
@@ -89,6 +96,7 @@ class EmergencyAutoDestructManager(
      * 3. Overwrite and delete encrypted attachments
      * 4. Clear Android Keystore biometric keys
      */
+    @SuppressLint("ApplySharedPref")
     fun triggerEmergencyWipe() {
         try {
             // 1. Wipe in-memory session
@@ -172,16 +180,18 @@ class EmergencyAutoDestructManager(
                 }
             } catch (_: Throwable) {}
 
-            // 6. Reset counter
-            failedAttempts.set(0)
+            // 6. Reset counter - handled authoritatively by sessionManager.lock()
+            localFailedAttempts.set(0)
         } catch (_: Throwable) {
             // Guarantee fail-closed
         }
     }
 
     /**
-     * Overwrites a file on flash storage with 3 passes (random -> zeros -> random)
-     * and forces physical hardware sync (fsync) before truncation and deletion.
+     * Overwrites a file on storage with random bytes before truncation and deletion.
+     * Note: On modern flash memory with Wear Leveling / Flash Translation Layers (FTL),
+     * physical block overwriting is best-effort. The primary defense against physical
+     * data recovery remains full-database encryption (SQLCipher) and immediate key zeroization.
      */
     private fun secureOverwriteFile(file: File) {
         try {

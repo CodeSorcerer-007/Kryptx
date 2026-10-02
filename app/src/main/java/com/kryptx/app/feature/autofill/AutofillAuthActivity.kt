@@ -125,8 +125,9 @@ class AutofillAuthActivity : FragmentActivity() {
         if (!hasValidIntent) {
             SecurityLogger.warn(
                 "AutofillAuthActivity",
-                "Launched without autofill extras \u2014 possible unauthorized caller. Finishing."
+                "Launched without autofill extras — possible unauthorized caller. Finishing."
             )
+            setResult(Activity.RESULT_CANCELED)
             finish()
             return
         }
@@ -488,6 +489,7 @@ class AutofillAuthActivity : FragmentActivity() {
                                             app.vaultRepository.unlockWithPassword(chars)
                                         } finally {
                                             SecureMemory.wipe(chars)
+                                            masterPasswordInput = ""
                                         }
                                         isLoading = false
                                         if (res.isError) {
@@ -495,7 +497,6 @@ class AutofillAuthActivity : FragmentActivity() {
                                             errorMessage = "Incorrect master password"
                                         } else {
                                             KryptxHaptics.confirm(view)
-                                            masterPasswordInput = ""
                                         }
                                     }
                                 },

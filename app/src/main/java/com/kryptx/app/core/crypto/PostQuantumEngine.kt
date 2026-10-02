@@ -44,6 +44,11 @@ object PostQuantumEngine {
             result = 31 * result + privateKey.contentHashCode()
             return result
         }
+
+        fun wipe() {
+            SecureMemory.wipe(publicKey)
+            SecureMemory.wipe(privateKey)
+        }
     }
 
     data class EncapsulatedPayload(
@@ -63,6 +68,11 @@ object PostQuantumEngine {
             var result = encapsulation.contentHashCode()
             result = 31 * result + sharedSecret.contentHashCode()
             return result
+        }
+
+        fun wipe() {
+            SecureMemory.wipe(encapsulation)
+            SecureMemory.wipe(sharedSecret)
         }
     }
 
@@ -159,6 +169,11 @@ object PostQuantumEngine {
             var result = publicKey.contentHashCode()
             result = 31 * result + privateKey.contentHashCode()
             return result
+        }
+
+        fun wipe() {
+            SecureMemory.wipe(publicKey)
+            SecureMemory.wipe(privateKey)
         }
     }
 

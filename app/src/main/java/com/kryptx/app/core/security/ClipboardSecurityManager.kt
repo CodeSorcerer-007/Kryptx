@@ -1,5 +1,6 @@
 package com.kryptx.app.core.security
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.ClipData
@@ -92,20 +93,16 @@ class ClipboardSecurityManager(
                     val triggerAtMillis = System.currentTimeMillis() + effectiveTimeout * 1000L
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         if (alarmManager.canScheduleExactAlarms()) {
+                            @SuppressLint("MissingPermission")
                             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
                         } else {
                             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
                         }
-                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    } else {
+                        @SuppressLint("MissingPermission")
                         alarmManager.setExactAndAllowWhileIdle(
                             AlarmManager.RTC_WAKEUP, 
                             triggerAtMillis, 
-                            pendingIntent
-                        )
-                    } else {
-                        alarmManager.setExact(
-                            AlarmManager.RTC_WAKEUP,
-                            triggerAtMillis,
                             pendingIntent
                         )
                     }
