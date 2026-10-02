@@ -46,13 +46,22 @@ class AppContainer(context: Context) {
         }
         setLockoutPersistence(
             save = { attempts, untilMs ->
-                dbHelper.setMetadata("vault_failed_attempts", attempts.toString())
-                dbHelper.setMetadata("vault_lockout_until_ms", untilMs.toString())
+                try {
+                    dbHelper.setMetadata("vault_failed_attempts", attempts.toString())
+                    dbHelper.setMetadata("vault_lockout_until_ms", untilMs.toString())
+                } catch (t: Throwable) {
+                    com.kryptx.app.core.security.SecurityLogger.warn("AppContainer", "Failed to persist lockout", t)
+                }
             },
             load = {
-                val attempts = dbHelper.getMetadata("vault_failed_attempts")?.toIntOrNull() ?: 0
-                val untilMs = dbHelper.getMetadata("vault_lockout_until_ms")?.toLongOrNull() ?: 0L
-                Pair(attempts, untilMs)
+                try {
+                    val attempts = dbHelper.getMetadata("vault_failed_attempts")?.toIntOrNull() ?: 0
+                    val untilMs = dbHelper.getMetadata("vault_lockout_until_ms")?.toLongOrNull() ?: 0L
+                    Pair(attempts, untilMs)
+                } catch (t: Throwable) {
+                    com.kryptx.app.core.security.SecurityLogger.warn("AppContainer", "Failed to load persisted lockout", t)
+                    Pair(0, 0L)
+                }
             }
         )
     }
@@ -86,5 +95,5 @@ class AppContainer(context: Context) {
     ).apply { register() }
 
     // ── Activity audit log ──────────────────────────────────────────────────
-    val activityLogManager: ActivityLogManager = ActivityLogManager(context)
+    val activityLogManager: ActivityLogManager = ActivityLogManager(dbHelper)
 }

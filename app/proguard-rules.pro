@@ -27,8 +27,18 @@
 -dontwarn java.awt.**
 
 # SQLCipher
+-keep class net.zetetic.** { *; }
 -keep class net.zetetic.database.** { *; }
 -keep class net.zetetic.database.sqlcipher.** { *; }
+-dontwarn net.zetetic.**
+
+# Jetpack Security Crypto & Google Tink
+-keep class androidx.security.crypto.** { *; }
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+
+# CrashDefense Shield
+-keep class com.kryptx.app.core.security.CrashDefense** { *; }
 
 # Autofill Service
 -keep class * extends android.service.autofill.AutofillService { *; }

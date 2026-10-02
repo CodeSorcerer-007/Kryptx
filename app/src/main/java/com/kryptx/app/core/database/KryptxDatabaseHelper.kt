@@ -31,7 +31,11 @@ class KryptxDatabaseHelper(
     private var internalHelper: InternalOpenHelper? = null
 
     init {
-        System.loadLibrary("sqlcipher")
+        try {
+            System.loadLibrary("sqlcipher")
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "System.loadLibrary sqlcipher caught", t)
+        }
     }
 
     private class InternalOpenHelper(
@@ -90,6 +94,13 @@ class KryptxDatabaseHelper(
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
             KryptxDbMigrations.onUpgrade(db, oldVersion, newVersion)
+        }
+
+        override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "KryptxDatabaseHelper",
+                "Database downgrade requested ($oldVersion -> $newVersion). Preserving existing database."
+            )
         }
     }
 
@@ -208,23 +219,42 @@ class KryptxDatabaseHelper(
     // Metadata / Vault Auth Storage (Migrated to EncryptedSharedPreferences)
     // ==========================================
 
-    private val securePrefs by lazy {
-        androidx.security.crypto.EncryptedSharedPreferences.create(
-            context,
-            "kryptx_metadata_prefs",
-            androidx.security.crypto.MasterKey.Builder(context)
-                .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
-                .build(),
-            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+    @Volatile
+    private var cachedPrefs: android.content.SharedPreferences? = null
+
+    private fun getSecurePrefs(): android.content.SharedPreferences {
+        cachedPrefs?.let { return it }
+        return synchronized(this) {
+            cachedPrefs ?: try {
+                androidx.security.crypto.EncryptedSharedPreferences.create(
+                    context,
+                    "kryptx_metadata_prefs",
+                    androidx.security.crypto.MasterKey.Builder(context)
+                        .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
+                        .build(),
+                    androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (t: Throwable) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "EncryptedSharedPreferences initialization failed; falling back to private SharedPreferences",
+                    t
+                )
+                try {
+                    context.getSharedPreferences("kryptx_metadata_prefs_fallback", Context.MODE_PRIVATE)
+                } catch (_: Throwable) {
+                    context.getSharedPreferences("kryptx_metadata_prefs", Context.MODE_PRIVATE)
+                }
+            }.also { cachedPrefs = it }
+        }
     }
 
     fun getMetadata(key: String): String? {
         return try {
-            securePrefs.getString(key, null)
-        } catch (e: Exception) {
-            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to read secure metadata for $key", e)
+            getSecurePrefs().getString(key, null)
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to read secure metadata for $key", t)
             null
         }
     }
@@ -232,9 +262,9 @@ class KryptxDatabaseHelper(
     @SuppressLint("ApplySharedPref")
     fun setMetadata(key: String, value: String) {
         try {
-            securePrefs.edit().putString(key, value).commit()
-        } catch (e: Exception) {
-            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to write secure metadata for $key", e)
+            getSecurePrefs().edit().putString(key, value).commit()
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to write secure metadata for $key", t)
         }
     }
 
@@ -836,8 +866,8 @@ class KryptxDatabaseHelper(
     fun deleteDatabaseFile(): Boolean {
         close()
         try {
-            securePrefs.edit().clear().commit()
-        } catch (_: Exception) {}
+            getSecurePrefs().edit().clear().commit()
+        } catch (_: Throwable) {}
         _itemsFlow.value = emptyList()
         _trashFlow.value = emptyList()
         return context.deleteDatabase(databaseName)

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [13] - 2026-10-03
+
+### Fixed
+- **Fatal Startup Circular Dependency**: Resolved `UninitializedPropertyAccessException` in `ActivityLogManager` during `Application.onCreate()` by decoupling `KryptxDatabaseHelper` dependency injection and passing the instance directly through `AppContainer`.
+- **Play Store Update Keystore Desync Resiliency**: Hardened `KryptxDatabaseHelper` with safe fallback for `EncryptedSharedPreferences`. Handles Keystore corruption, `AEADBadTagException`, and key rotation failures gracefully without throwing unhandled exceptions.
+- **SQLite Database Downgrade & Schema Protection**: Added safe `onDowngrade()` handler in SQLite OpenHelper to prevent crash-loops if database schema versions mismatch post-update.
+- **Lifecycle & Biometric Boundary Safety**: Wrapped `MainActivity` `onResume()`, `onPause()`, and biometric unlock prompt flows with exception isolation.
+
+### Added
+- **CrashDefense Anti-Crash Architecture**: Integrated global uncrashable protection (`CrashDefense.install()`) into `KryptxApplication`:
+  - **Thread-Level Sentinel**: Catches uncaught exceptions on all threads, suppressing fatal background terminations while keeping the user interface active.
+  - **Main Looper Guardian (Immortal Looper)**: Traps Compose recomposition, measure, layout, and event dispatch runtime exceptions inside `Looper.loop()` to prevent UI thread termination.
+  - **In-Memory Sanitized Telemetry**: Collects crash diagnostics without storing sensitive cryptographic keys or violating zero-network isolation.
+- **ProGuard / R8 Rules Hardening**: Added explicit keep rules for AndroidX Security Crypto, Google Tink, SQLCipher, and CrashDefense components.
+
+---
+
 ## [2.2.0] - 2026-09-29
 
 ### Added

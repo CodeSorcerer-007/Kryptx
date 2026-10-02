@@ -199,18 +199,22 @@ class MainActivity : FragmentActivity() {
             SecurityLogger.warn("MainActivity", "Failed to enable NFC foreground dispatch", e)
         }
 
-        unlockViewModel.checkVaultStatus()
-        val isUnlocked = app.sessionManager.isUnlocked.value
-        val hasVault = app.vaultRepository.hasVault()
-        val isBiometrics = app.vaultRepository.isBiometricsConfigured()
+        try {
+            unlockViewModel.checkVaultStatus()
+            val isUnlocked = app.sessionManager.isUnlocked.value
+            val hasVault = app.vaultRepository.hasVault()
+            val isBiometrics = app.vaultRepository.isBiometricsConfigured()
 
-        if (hasVault && !isUnlocked && isBiometrics && !hasAutoPromptedBiometrics) {
-            hasAutoPromptedBiometrics = true
-            triggerBiometricUnlock()
-        }
+            if (hasVault && !isUnlocked && isBiometrics && !hasAutoPromptedBiometrics) {
+                hasAutoPromptedBiometrics = true
+                triggerBiometricUnlock()
+            }
 
-        if (app.preferencesRepository.shakeToLockEnabled.value) {
-            contextualLockManager?.startListening()
+            if (app.preferencesRepository.shakeToLockEnabled.value) {
+                contextualLockManager?.startListening()
+            }
+        } catch (t: Throwable) {
+            SecurityLogger.error("MainActivity", "Error in onResume vault status sync", t)
         }
     }
 
@@ -220,55 +224,72 @@ class MainActivity : FragmentActivity() {
             nfcAdapter?.disableForegroundDispatch(this)
         } catch (_: Exception) {}
         
-        contextualLockManager?.stopListening()
+        try {
+            contextualLockManager?.stopListening()
+        } catch (_: Throwable) {}
     }
 
     private var isPromptingBiometrics = false
 
     private fun triggerBiometricUnlock() {
-        if (isPromptingBiometrics) return
-        if (!app.biometricManager.canAuthenticate()) return
-        if (app.sessionManager.isUnlocked.value) return
-        if (unlockViewModel.lockoutSecondsRemaining.value > 0) return
+        try {
+            if (isPromptingBiometrics) return
+            if (!app.biometricManager.canAuthenticate()) return
+            if (app.sessionManager.isUnlocked.value) return
+            if (unlockViewModel.lockoutSecondsRemaining.value > 0) return
 
-        val decryptCipher = app.vaultRepository.getBiometricDecryptCipher()
-        val cryptoObject = if (decryptCipher != null) {
-            androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
-        } else null
-
-        isPromptingBiometrics = true
-
-        app.biometricManager.promptBiometric(
-            activity = this,
-            title = getString(R.string.biometric_prompt_title),
-            subtitle = getString(R.string.biometric_prompt_subtitle),
-            cryptoObject = cryptoObject,
-            onSuccess = { result ->
-                isPromptingBiometrics = false
-                val authenticatedCipher = result.cryptoObject?.cipher
-                if (authenticatedCipher != null) {
-                    lifecycleScope.launch {
-                        val unlockResult = app.vaultRepository.unlockWithBiometricCipher(authenticatedCipher)
-                        if (unlockResult.isSuccess) {
-                            com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
-                            com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
-                            app.activityLogManager.logEvent("Unlock", "Vault unlocked via Biometrics")
-                            app.activityLogManager.loadEvents()
-                        } else {
-                            unlockViewModel.unlockWithBiometrics(onSuccess = {})
-                        }
-                    }
-                } else {
-                    unlockViewModel.unlockWithBiometrics(onSuccess = {})
-                }
-            },
-            onError = { _, _ ->
-                isPromptingBiometrics = false
-            },
-            onFailed = {
-                isPromptingBiometrics = false
+            val decryptCipher = try {
+                app.vaultRepository.getBiometricDecryptCipher()
+            } catch (t: Throwable) {
+                SecurityLogger.warn("MainActivity", "Failed to obtain biometric decrypt cipher", t)
+                null
             }
-        )
+            val cryptoObject = if (decryptCipher != null) {
+                androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
+            } else null
+
+            isPromptingBiometrics = true
+
+            app.biometricManager.promptBiometric(
+                activity = this,
+                title = getString(R.string.biometric_prompt_title),
+                subtitle = getString(R.string.biometric_prompt_subtitle),
+                cryptoObject = cryptoObject,
+                onSuccess = { result ->
+                    isPromptingBiometrics = false
+                    val authenticatedCipher = result.cryptoObject?.cipher
+                    if (authenticatedCipher != null) {
+                        lifecycleScope.launch {
+                            try {
+                                val unlockResult = app.vaultRepository.unlockWithBiometricCipher(authenticatedCipher)
+                                if (unlockResult.isSuccess) {
+                                    com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
+                                    com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
+                                    app.activityLogManager.logEvent("Unlock", "Vault unlocked via Biometrics")
+                                    app.activityLogManager.loadEvents()
+                                } else {
+                                    unlockViewModel.unlockWithBiometrics(onSuccess = {})
+                                }
+                            } catch (t: Throwable) {
+                                SecurityLogger.error("MainActivity", "Error processing biometric cipher unlock", t)
+                                unlockViewModel.unlockWithBiometrics(onSuccess = {})
+                            }
+                        }
+                    } else {
+                        unlockViewModel.unlockWithBiometrics(onSuccess = {})
+                    }
+                },
+                onError = { _, _ ->
+                    isPromptingBiometrics = false
+                },
+                onFailed = {
+                    isPromptingBiometrics = false
+                }
+            )
+        } catch (t: Throwable) {
+            isPromptingBiometrics = false
+            SecurityLogger.error("MainActivity", "Unhandled exception in triggerBiometricUnlock", t)
+        }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {

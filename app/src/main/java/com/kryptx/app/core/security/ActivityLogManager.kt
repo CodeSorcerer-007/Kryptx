@@ -17,8 +17,18 @@ data class ActivityEvent(
     val description: String
 )
 
-class ActivityLogManager(context: Context) {
-    private val dbHelper = (context.applicationContext as com.kryptx.app.KryptxApplication).dbHelper
+class ActivityLogManager(
+    private val dbHelper: KryptxDatabaseHelper
+) {
+    constructor(context: Context) : this(
+        (context.applicationContext as? com.kryptx.app.KryptxApplication)?.let { app ->
+            try {
+                app.dbHelper
+            } catch (_: Throwable) {
+                KryptxDatabaseHelper(context.applicationContext)
+            }
+        } ?: KryptxDatabaseHelper(context.applicationContext)
+    )
 
     private val _events = MutableStateFlow<List<ActivityEvent>>(emptyList())
     val events: StateFlow<List<ActivityEvent>> = _events.asStateFlow()

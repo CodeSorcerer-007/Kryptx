@@ -42,11 +42,25 @@ class KryptxApplication : Application(), KryptxDependencies {
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Run basic offline integrity checks before constructing any dependencies
-        SecurityBootstrapper.checkDeviceIntegrity(this)
+        // 0. Install enterprise CrashDefense shield FIRST before any code runs
+        com.kryptx.app.core.security.CrashDefense.install(this)
 
-        // 2. Construct the application object graph via AppContainer (Fix 2.1)
-        container = AppContainer(this)
+        // 1. Run basic offline integrity checks safely
+        try {
+            SecurityBootstrapper.checkDeviceIntegrity(this)
+        } catch (t: Throwable) {
+            SecurityLogger.warn("KryptxApplication", "Device integrity check encountered non-fatal error", t)
+        }
+
+        // 2. Construct the application object graph via AppContainer
+        try {
+            container = AppContainer(this)
+        } catch (t: Throwable) {
+            SecurityLogger.error("KryptxApplication", "Fatal error constructing AppContainer", t)
+            com.kryptx.app.core.security.CrashDefense.recordCrash(t, "AppContainerInit")
+            // Re-attempt with safe context
+            container = AppContainer(applicationContext)
+        }
 
         // 3. Load optional offline Bloom filter for breach detection
         try {
@@ -61,12 +75,16 @@ class KryptxApplication : Application(), KryptxDependencies {
             SecurityLogger.warn("KryptxApplication", "Failed to load breach Bloom filter from assets", e)
         }
 
-        // 4. Set initial auto-lock configuration from saved preferences
-        val autoLockSecs = preferencesRepository.autoLockSeconds.value
-        val timeoutEnum = VaultSessionManager.AutoLockTimeout.entries.firstOrNull { it.seconds == autoLockSecs }
-            ?: VaultSessionManager.AutoLockTimeout.FIVE_MINUTES
-        sessionManager.setAutoLockTimeout(timeoutEnum)
-        sessionManager.setLockOnBackground(preferencesRepository.lockOnBackground.value)
+        // 4. Set initial auto-lock configuration from saved preferences safely
+        try {
+            val autoLockSecs = preferencesRepository.autoLockSeconds.value
+            val timeoutEnum = VaultSessionManager.AutoLockTimeout.entries.firstOrNull { it.seconds == autoLockSecs }
+                ?: VaultSessionManager.AutoLockTimeout.FIVE_MINUTES
+            sessionManager.setAutoLockTimeout(timeoutEnum)
+            sessionManager.setLockOnBackground(preferencesRepository.lockOnBackground.value)
+        } catch (t: Throwable) {
+            SecurityLogger.warn("KryptxApplication", "Failed to initialize auto-lock timeout settings", t)
+        }
 
         // 5. Activity lifecycle callbacks for background/foreground auto-lock enforcement
         //    with 700ms debounce to absorb configuration changes (rotations, fold/unfold transitions)
