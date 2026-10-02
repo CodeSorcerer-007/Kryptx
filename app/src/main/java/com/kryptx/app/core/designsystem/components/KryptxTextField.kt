@@ -41,8 +41,8 @@ import com.kryptx.app.core.designsystem.theme.MonospaceFont
 fun KryptxTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String = "",
     modifier: Modifier = Modifier,
+    label: String = "",
     placeholder: String = "",
     isPassword: Boolean = false,
     isMonospace: Boolean = false,

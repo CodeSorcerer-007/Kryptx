@@ -78,48 +78,28 @@ object KryptxHaptics {
     fun successVibration(context: Context) {
         try {
             val vibrator = getVibrator(context) ?: return
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 30, 40, 45), intArrayOf(0, 100, 0, 180), -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(50)
-            }
+            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 30, 40, 45), intArrayOf(0, 100, 0, 180), -1))
         } catch (_: Exception) {}
     }
 
     fun secretCopied(context: Context) {
         try {
             val vibrator = getVibrator(context) ?: return
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 15, 25, 25), intArrayOf(0, 70, 0, 140), -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(30)
-            }
+            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 15, 25, 25), intArrayOf(0, 70, 0, 140), -1))
         } catch (_: Exception) {}
     }
 
     fun entropyLevelUp(context: Context) {
         try {
             val vibrator = getVibrator(context) ?: return
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 12, 18, 16, 18, 22), intArrayOf(0, 50, 0, 110, 0, 190), -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(40)
-            }
+            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 12, 18, 16, 18, 22), intArrayOf(0, 50, 0, 110, 0, 190), -1))
         } catch (_: Exception) {}
     }
 
     fun panicAlert(context: Context) {
         try {
             val vibrator = getVibrator(context) ?: return
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 80, 50, 80, 50, 120), intArrayOf(0, 255, 0, 255, 0, 255), -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(200)
-            }
+            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 80, 50, 80, 50, 120), intArrayOf(0, 255, 0, 255, 0, 255), -1))
         } catch (_: Exception) {}
     }
 }

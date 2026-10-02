@@ -19,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -41,10 +40,9 @@ fun Modifier.frostedGlass(
     backgroundColor: Color = Color(0xFF0C1220).copy(alpha = 0.70f),
     borderColor: Color = Color.White.copy(alpha = 0.12f),
     specularHighlight: Boolean = true
-): Modifier = composed {
-    this
-        .clip(shape)
-        .background(backgroundColor)
+): Modifier = this
+    .clip(shape)
+    .background(backgroundColor)
         .border(
             width = 1.dp,
             brush = if (specularHighlight) {
@@ -77,7 +75,6 @@ fun Modifier.frostedGlass(
                 )
             }
         }
-}
 
 /**
  * Signature Kryptx Vault Card with tactile bounce physics and specular glassmorphism.

@@ -35,15 +35,19 @@ object VaultExporter {
         return sb.toString()
     }
 
+    private const val HEX_CHARS = "0123456789abcdef"
+
     /**
      * Computes a SHA-256 cryptographic checksum of a string payload for backup integrity verification.
      */
     fun computeSha256Checksum(payload: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val bytes = digest.digest(payload.toByteArray(Charsets.UTF_8))
-        val sb = StringBuilder()
+        val sb = StringBuilder(bytes.size * 2)
         for (b in bytes) {
-            sb.append(String.format(Locale.US, "%02x", b))
+            val i = b.toInt() and 0xFF
+            sb.append(HEX_CHARS[i ushr 4])
+            sb.append(HEX_CHARS[i and 0x0F])
         }
         return sb.toString()
     }

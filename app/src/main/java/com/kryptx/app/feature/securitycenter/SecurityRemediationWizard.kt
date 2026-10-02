@@ -36,6 +36,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -85,8 +86,8 @@ fun SecurityRemediationWizard(
 
     var weakItems by remember { mutableStateOf<List<VaultItem>>(emptyList()) }
     var isLoadingItems by remember { mutableStateOf(true) }
-    var currentIndex by remember { mutableStateOf(0) }
-    var updatedCount by remember { mutableStateOf(0) }
+    var currentIndex by remember { mutableIntStateOf(0) }
+    var updatedCount by remember { mutableIntStateOf(0) }
     var isFinished by remember { mutableStateOf(false) }
 
     var candidatePassword by remember { mutableStateOf(PasswordRotationHelper.generateStrongPassword(20)) }

@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 import com.kryptx.app.core.designsystem.theme.KryptxShapes
 import com.kryptx.app.core.designsystem.theme.LocalKryptxAudio
@@ -134,9 +135,12 @@ fun KryptxBottomNavBar(
             // 1. Fluid Magnetic Gliding Pill Indicator
             Box(
                 modifier = Modifier
-                    .offset(
-                        x = (slotWidth * animatedIndex) + ((slotWidth - pillWidth) / 2)
-                    )
+                    .offset {
+                        val slotPx = slotWidth.toPx()
+                        val pillPx = pillWidth.toPx()
+                        val x = (slotPx * animatedIndex) + ((slotPx - pillPx) / 2f)
+                        IntOffset(x.toInt(), 0)
+                    }
                     .size(width = pillWidth, height = pillHeight)
                     .clip(KryptxShapes.Floating)
                     .background(pillBgBrush)

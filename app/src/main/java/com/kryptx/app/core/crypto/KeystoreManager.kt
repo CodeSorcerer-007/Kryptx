@@ -107,9 +107,7 @@ class KeystoreManager {
                 builder.setUserAuthenticationValidityDurationSeconds(-1)
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                builder.setInvalidatedByBiometricEnrollment(true)
-            }
+            builder.setInvalidatedByBiometricEnrollment(true)
 
             if (isStrongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 builder.setIsStrongBoxBacked(true)
@@ -148,11 +146,7 @@ class KeystoreManager {
             cipher.init(Cipher.DECRYPT_MODE, keyPair.private, OAEP_SPEC)
             false
         } catch (e: Exception) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && e is android.security.keystore.KeyPermanentlyInvalidatedException) {
-                true
-            } else {
-                false
-            }
+            e is android.security.keystore.KeyPermanentlyInvalidatedException
         }
     }
 

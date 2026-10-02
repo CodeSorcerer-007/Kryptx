@@ -79,10 +79,10 @@ import kotlinx.coroutines.launch
 fun VaultItemRow(
     item: VaultItem,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
     onToggleFavorite: () -> Unit,
     onCopySecret: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
     onSelectToggle: (() -> Unit)? = null

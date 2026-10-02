@@ -153,7 +153,7 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     }
 
     override fun setVisibleCategories(categories: Set<String>) {
-        prefs.edit().putStringSet(KEY_VISIBLE_CATEGORIES, categories).apply()
+        prefs.edit().putStringSet(KEY_VISIBLE_CATEGORIES, HashSet(categories)).apply()
         _visibleCategories.value = categories
     }
 

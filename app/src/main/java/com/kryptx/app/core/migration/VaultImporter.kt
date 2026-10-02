@@ -137,13 +137,62 @@ object VaultImporter {
         return items
     }
 
+    fun parseCsvRecords(csvContent: String): List<List<String>> {
+        val records = mutableListOf<List<String>>()
+        val currentRecord = mutableListOf<String>()
+        val sb = StringBuilder()
+        var inQuotes = false
+        var i = 0
+        val len = csvContent.length
+
+        while (i < len) {
+            val c = csvContent[i]
+            when {
+                c == '\"' -> {
+                    if (inQuotes && i + 1 < len && csvContent[i + 1] == '\"') {
+                        // RFC 4180 standard escaped double-quote: "" -> "
+                        sb.append('\"')
+                        i++ // Skip second double-quote
+                    } else {
+                        inQuotes = !inQuotes
+                    }
+                }
+                c == ',' && !inQuotes -> {
+                    currentRecord.add(sb.toString().trim())
+                    sb.setLength(0)
+                }
+                (c == '\r' || c == '\n') && !inQuotes -> {
+                    if (c == '\r' && i + 1 < len && csvContent[i + 1] == '\n') {
+                        i++
+                    }
+                    currentRecord.add(sb.toString().trim())
+                    sb.setLength(0)
+                    if (currentRecord.any { it.isNotBlank() }) {
+                        records.add(ArrayList(currentRecord))
+                    }
+                    currentRecord.clear()
+                }
+                else -> {
+                    sb.append(c)
+                }
+            }
+            i++
+        }
+        if (sb.isNotEmpty() || currentRecord.isNotEmpty()) {
+            currentRecord.add(sb.toString().trim())
+            if (currentRecord.any { it.isNotBlank() }) {
+                records.add(currentRecord)
+            }
+        }
+        return records
+    }
+
     fun importCsv(csvContent: String): List<VaultItem> {
         val items = mutableListOf<VaultItem>()
-        val lines = csvContent.lines().filter { it.isNotBlank() }
-        if (lines.isEmpty()) return emptyList()
+        val records = parseCsvRecords(csvContent)
+        if (records.isEmpty()) return emptyList()
 
-        val header = lines.first().lowercase()
-        val headerCols = parseCsvLine(header)
+        val headerCols = records.first().map { it.lowercase() }
 
         // Find column indices with precise matching priority
         val typeIdx = headerCols.indexOfFirst { it == "type" }
@@ -156,8 +205,8 @@ object VaultImporter {
         val passkeyRpIdIdx = headerCols.indexOfFirst { it.contains("passkey_rpid") || it.contains("rpid") }
         val passkeyCredIdx = headerCols.indexOfFirst { it.contains("passkey_cred") || it.contains("credential_id") }
 
-        for (i in 1 until lines.size) {
-            val cols = parseCsvLine(lines[i])
+        for (i in 1 until records.size) {
+            val cols = records[i]
             if (cols.isEmpty()) continue
 
             val typeStr = if (typeIdx >= 0 && typeIdx < cols.size) cols[typeIdx].lowercase() else ""

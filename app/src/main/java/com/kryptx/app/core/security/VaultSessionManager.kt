@@ -123,6 +123,7 @@ class VaultSessionManager(
     fun lock(isTimeout: Boolean = false) {
         autoLockJob?.cancel()
         autoLockJob = null
+        backgroundTimestamp = 0L
 
         activeVaultKey?.let {
             SecureMemory.wipe(it)
@@ -220,9 +221,17 @@ class VaultSessionManager(
     fun onAppForegrounded() {
         if (!_isUnlocked.value) return
 
-        if (backgroundTimestamp > 0L && autoLockTimeout.seconds > 0L) {
-            val elapsedMs = System.currentTimeMillis() - backgroundTimestamp
-            if (elapsedMs >= autoLockTimeout.seconds * 1000L) {
+        val bgTime = backgroundTimestamp
+        backgroundTimestamp = 0L
+
+        if (bgTime > 0L) {
+            val elapsedMs = System.currentTimeMillis() - bgTime
+            val shouldLock = when {
+                autoLockTimeout == AutoLockTimeout.IMMEDIATELY -> !isPickerActive
+                autoLockTimeout.seconds > 0L -> elapsedMs >= autoLockTimeout.seconds * 1000L
+                else -> false
+            }
+            if (shouldLock) {
                 lock(isTimeout = true)
                 return
             }

@@ -109,9 +109,27 @@ fun AddEditItemScreen(
         items.firstOrNull { it.id == itemId }
     }
 
+    BackHandler(onBack = onNavigateBack)
+
     if (itemId != null && existingItem == null) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.CircularProgressIndicator()
+        if (items.isNotEmpty()) {
+            Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.Text(
+                        text = "Item not found",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    androidx.compose.material3.OutlinedButton(onClick = onNavigateBack) {
+                        Text("Go Back")
+                    }
+                }
+            }
+        } else {
+            Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator()
+            }
         }
         return
     }

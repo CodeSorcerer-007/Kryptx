@@ -26,6 +26,21 @@ object EmergencyKitGenerator {
     private const val PAGE_WIDTH = 595 // A4 standard width (pt)
     private const val PAGE_HEIGHT = 842 // A4 standard height (pt)
 
+    private const val COLOR_OBSIDIAN = 0xFF080B10.toInt()
+    private const val COLOR_CYAN = 0xFF00E5FF.toInt()
+    private const val COLOR_TEXT_DARK = 0xFF1A202C.toInt()
+    private const val COLOR_TEXT_MUTED = 0xFF718096.toInt()
+    private const val COLOR_BOX_BG = 0xFFF7FAFC.toInt()
+    private const val COLOR_BOX_STROKE = 0xFFE2E8F0.toInt()
+    private const val COLOR_SECTION_TITLE = 0xFF2D3748.toInt()
+    private const val COLOR_PASS_BORDER = 0xFFCBD5E0.toInt()
+    private const val COLOR_HINT = 0xFFA0AEC0.toInt()
+    private const val COLOR_BODY = 0xFF4A5568.toInt()
+    private const val COLOR_WARN_BG = 0xFFFFF5F5.toInt()
+    private const val COLOR_WARN_STROKE = 0xFFFEB2B2.toInt()
+    private const val COLOR_WARN_TITLE = 0xFFC53030.toInt()
+    private const val COLOR_WARN_BODY = 0xFF742A2A.toInt()
+
     suspend fun generateEmergencyKitPdf(
         context: Context,
         accountIdentifier: String = "Personal Primary Vault",
@@ -44,11 +59,11 @@ object EmergencyKitGenerator {
         val dateString = dateFormat.format(Date())
 
         // Top Accent Bar (Obsidian/Cyan gradient mock)
-        paint.color = Color.parseColor("#080B10")
+        paint.color = COLOR_OBSIDIAN
         canvas.drawRect(0f, 0f, PAGE_WIDTH.toFloat(), 90f, paint)
 
         // Accent line
-        paint.color = Color.parseColor("#00E5FF")
+        paint.color = COLOR_CYAN
         paint.strokeWidth = 3f
         canvas.drawLine(0f, 90f, PAGE_WIDTH.toFloat(), 90f, paint)
 
@@ -58,88 +73,88 @@ object EmergencyKitGenerator {
         paint.isFakeBoldText = true
         canvas.drawText("KRYPTX EMERGENCY RECOVERY KIT", 40f, 45f, paint)
 
-        paint.color = Color.parseColor("#00E5FF")
+        paint.color = COLOR_CYAN
         paint.textSize = 10f
         paint.isFakeBoldText = false
         canvas.drawText("OFFLINE-FIRST ZERO-KNOWLEDGE MASTER DOCUMENT", 40f, 65f, paint)
 
         // Intro paragraph
-        paint.color = Color.parseColor("#1A202C")
+        paint.color = COLOR_TEXT_DARK
         paint.textSize = 11f
         paint.isFakeBoldText = false
         val introText = "This confidential document contains recovery parameters for your Kryptx password vault."
         canvas.drawText(introText, 40f, 125f, paint)
 
         val introSub = "Store this document in a physically secure location (e.g. fireproof home safe or bank safety deposit box)."
-        paint.color = Color.parseColor("#718096")
+        paint.color = COLOR_TEXT_MUTED
         canvas.drawText(introSub, 40f, 142f, paint)
 
         // Account Details Box
-        paint.color = Color.parseColor("#F7FAFC")
+        paint.color = COLOR_BOX_BG
         paint.style = Paint.Style.FILL
         val detailsRect = RectF(40f, 165f, (PAGE_WIDTH - 40).toFloat(), 345f)
         canvas.drawRoundRect(detailsRect, 8f, 8f, paint)
 
-        paint.color = Color.parseColor("#E2E8F0")
+        paint.color = COLOR_BOX_STROKE
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1f
         canvas.drawRoundRect(detailsRect, 8f, 8f, paint)
         paint.style = Paint.Style.FILL
 
         // Section Title
-        paint.color = Color.parseColor("#2D3748")
+        paint.color = COLOR_SECTION_TITLE
         paint.textSize = 12f
         paint.isFakeBoldText = true
         canvas.drawText("VAULT ACCOUNT DETAILS", 60f, 195f, paint)
 
         paint.isFakeBoldText = false
-        paint.color = Color.parseColor("#718096")
+        paint.color = COLOR_TEXT_MUTED
         paint.textSize = 10f
         canvas.drawText("ACCOUNT NAME:", 60f, 220f, paint)
-        paint.color = Color.parseColor("#1A202C")
+        paint.color = COLOR_TEXT_DARK
         paint.textSize = 11f
         paint.isFakeBoldText = true
         canvas.drawText(accountIdentifier, 180f, 220f, paint)
 
         paint.isFakeBoldText = false
-        paint.color = Color.parseColor("#718096")
+        paint.color = COLOR_TEXT_MUTED
         paint.textSize = 10f
         canvas.drawText("GENERATED ON:", 60f, 245f, paint)
-        paint.color = Color.parseColor("#1A202C")
+        paint.color = COLOR_TEXT_DARK
         paint.textSize = 11f
         canvas.drawText(dateString, 180f, 245f, paint)
 
-        paint.color = Color.parseColor("#718096")
+        paint.color = COLOR_TEXT_MUTED
         paint.textSize = 10f
         canvas.drawText("ENCRYPTION SPEC:", 60f, 270f, paint)
-        paint.color = Color.parseColor("#1A202C")
+        paint.color = COLOR_TEXT_DARK
         paint.textSize = 11f
         canvas.drawText("AES-256-GCM + PBKDF2 (600,000 Iterations)", 180f, 270f, paint)
 
         // Master Password Field (with fill box)
-        paint.color = Color.parseColor("#718096")
+        paint.color = COLOR_TEXT_MUTED
         paint.textSize = 10f
         canvas.drawText("MASTER PASSWORD:", 60f, 305f, paint)
 
         paint.color = Color.WHITE
         val passBox = RectF(180f, 290f, (PAGE_WIDTH - 60).toFloat(), 328f)
         canvas.drawRoundRect(passBox, 4f, 4f, paint)
-        paint.color = Color.parseColor("#CBD5E0")
+        paint.color = COLOR_PASS_BORDER
         paint.style = Paint.Style.STROKE
         canvas.drawRoundRect(passBox, 4f, 4f, paint)
         paint.style = Paint.Style.FILL
 
-        paint.color = Color.parseColor("#A0AEC0")
+        paint.color = COLOR_HINT
         paint.textSize = 9f
         canvas.drawText("[ Optional: Write master password here in pen or leave blank if memorized ]", 190f, 312f, paint)
 
         // Recovery QR Code Section
-        paint.color = Color.parseColor("#2D3748")
+        paint.color = COLOR_SECTION_TITLE
         paint.textSize = 12f
         paint.isFakeBoldText = true
         canvas.drawText("OFFLINE VAULT RECOVERY KEY", 40f, 385f, paint)
 
-        paint.color = Color.parseColor("#718096")
+        paint.color = COLOR_TEXT_MUTED
         paint.textSize = 10f
         paint.isFakeBoldText = false
         canvas.drawText("Scan with Kryptx CameraX Scanner to initiate emergency vault transfer on another device:", 40f, 402f, paint)
@@ -153,7 +168,7 @@ object EmergencyKitGenerator {
         } catch (_: Exception) {}
 
         // QR side instructions
-        paint.color = Color.parseColor("#4A5568")
+        paint.color = COLOR_BODY
         paint.textSize = 10f
         val startX = 220f
         canvas.drawText("• Keep this QR code strictly confidential.", startX, 450f, paint)
@@ -163,20 +178,20 @@ object EmergencyKitGenerator {
 
         // Security Notice Box
         val warningBox = RectF(40f, 620f, (PAGE_WIDTH - 40).toFloat(), 760f)
-        paint.color = Color.parseColor("#FFF5F5")
+        paint.color = COLOR_WARN_BG
         paint.style = Paint.Style.FILL
         canvas.drawRoundRect(warningBox, 8f, 8f, paint)
-        paint.color = Color.parseColor("#FEB2B2")
+        paint.color = COLOR_WARN_STROKE
         paint.style = Paint.Style.STROKE
         canvas.drawRoundRect(warningBox, 8f, 8f, paint)
         paint.style = Paint.Style.FILL
 
-        paint.color = Color.parseColor("#C53030")
+        paint.color = COLOR_WARN_TITLE
         paint.textSize = 11f
         paint.isFakeBoldText = true
         canvas.drawText("CRITICAL SECURITY NOTICE & PHYSICAL CUSTODY", 60f, 645f, paint)
 
-        paint.color = Color.parseColor("#742A2A")
+        paint.color = COLOR_WARN_BODY
         paint.textSize = 9.5f
         paint.isFakeBoldText = false
         canvas.drawText("1. Kryptx operates with ZERO-KNOWLEDGE: developers cannot reset or recover your master password.", 60f, 670f, paint)
@@ -185,7 +200,7 @@ object EmergencyKitGenerator {
         canvas.drawText("4. Keep in a fireproof safe, bank lockbox, or with an appointed legal digital executor.", 60f, 730f, paint)
 
         // Footer
-        paint.color = Color.parseColor("#A0AEC0")
+        paint.color = COLOR_HINT
         paint.textSize = 9f
         paint.textAlign = Paint.Align.CENTER
         canvas.drawText("Kryptx Security Engine • Hardware-Bound Cryptography • https://github.com/CodeSorcerer-007/Kryptx", (PAGE_WIDTH / 2).toFloat(), 805f, paint)

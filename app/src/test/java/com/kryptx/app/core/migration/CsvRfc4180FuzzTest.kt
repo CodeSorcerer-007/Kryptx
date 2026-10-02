@@ -75,4 +75,23 @@ class CsvRfc4180FuzzTest {
         assertEquals("https://bank.com", item.website)
         assertEquals("Note with \"quotes\" and, commas", item.notes)
     }
+
+    @Test
+    fun testImportCsvWithMultilineNotesInQuotes() {
+        val csv = """
+            type,title,username,password,url,notes
+            login,"Database Server",admin,Secret123!,https://db.internal,"Host: 10.0.0.1
+            Port: 5432
+            Cluster: Primary-US-East"
+        """.trimIndent()
+
+        val items = VaultImporter.importCsv(csv)
+        assertEquals(1, items.size)
+        val item = items[0]
+        assertEquals("Database Server", item.title)
+        assertEquals("admin", item.username)
+        assertEquals("Secret123!", item.password)
+        assertTrue(item.notes.contains("Port: 5432"))
+        assertTrue(item.notes.contains("Cluster: Primary-US-East"))
+    }
 }

@@ -138,10 +138,10 @@ fun KryptxNavGraph(
     settingsViewModel: SettingsViewModel,
     preferencesRepository: IPreferencesRepository,
     vaultRepository: VaultRepository,
-    pendingShortcutTarget: String? = null,
-    onClearPendingShortcut: () -> Unit = {},
     onTriggerBiometrics: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pendingShortcutTarget: String? = null,
+    onClearPendingShortcut: () -> Unit = {}
 ) {
     val isUnlocked by unlockViewModel.isUnlocked.collectAsState()
     val unlockUiState by unlockViewModel.uiState.collectAsState()

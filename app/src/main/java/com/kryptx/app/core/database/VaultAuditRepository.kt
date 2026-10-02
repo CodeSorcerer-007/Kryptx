@@ -311,7 +311,7 @@ class VaultAuditRepositoryImpl(
         val rhsLength = rhs.length
 
         var cost = IntArray(lhsLength + 1) { it }
-        var newCost = IntArray(lhsLength + 1) { 0 }
+        var newCost = IntArray(lhsLength + 1)
 
         for (i in 1..rhsLength) {
             newCost[0] = i

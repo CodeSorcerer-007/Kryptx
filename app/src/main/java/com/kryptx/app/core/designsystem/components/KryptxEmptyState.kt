@@ -53,10 +53,10 @@ import kotlin.math.sin
 fun KryptxEmptyState(
     title: String,
     subtitle: String,
+    modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Default.Shield,
     actionButtonText: String? = null,
-    onActionClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onActionClick: (() -> Unit)? = null
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "emptyStateDial")
     val rotation by infiniteTransition.animateFloat(

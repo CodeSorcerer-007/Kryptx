@@ -59,9 +59,9 @@ fun VaultCategoryBadges(
     selectedCategory: ItemType?,
     onSelectCategory: (ItemType?) -> Unit,
     onNavigateTo2Fa: () -> Unit,
+    modifier: Modifier = Modifier,
     visibleCategories: Set<ItemType> = ItemType.entries.toSet(),
-    categoryCounts: Map<ItemType, Int> = emptyMap(),
-    modifier: Modifier = Modifier
+    categoryCounts: Map<ItemType, Int> = emptyMap()
 ) {
     val view = LocalView.current
 

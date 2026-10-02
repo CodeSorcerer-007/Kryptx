@@ -171,94 +171,92 @@ object RootDetector {
         var verifiedBootState: String? = null
         var isDeviceLocked: Boolean? = null
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val alias = "kryptx_attestation_key"
-            var keyStore: java.security.KeyStore? = null
+        val alias = "kryptx_attestation_key"
+        var keyStore: java.security.KeyStore? = null
+        try {
+            keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (keyStore.containsAlias(alias)) {
+                keyStore.deleteEntry(alias)
+            }
+
+            val keyPairGenerator = java.security.KeyPairGenerator.getInstance(
+                android.security.keystore.KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore"
+            )
+            val builder = android.security.keystore.KeyGenParameterSpec.Builder(
+                alias,
+                android.security.keystore.KeyProperties.PURPOSE_SIGN
+            )
+            builder.setDigests(android.security.keystore.KeyProperties.DIGEST_SHA256)
+            builder.setAttestationChallenge("kryptx_secure_challenge".toByteArray())
+
+            // Attempt to require StrongBox if available
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                builder.setIsStrongBoxBacked(true)
+            }
+
             try {
-                keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-                if (keyStore.containsAlias(alias)) {
-                    keyStore.deleteEntry(alias)
-                }
-
-                val keyPairGenerator = java.security.KeyPairGenerator.getInstance(
-                    android.security.keystore.KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore"
-                )
-                val builder = android.security.keystore.KeyGenParameterSpec.Builder(
-                    alias,
-                    android.security.keystore.KeyProperties.PURPOSE_SIGN
-                )
-                builder.setDigests(android.security.keystore.KeyProperties.DIGEST_SHA256)
-                builder.setAttestationChallenge("kryptx_secure_challenge".toByteArray())
-
-                // Attempt to require StrongBox if available
+                keyPairGenerator.initialize(builder.build())
+                keyPairGenerator.generateKeyPair()
+            } catch (e: Exception) {
+                // Fallback to TEE if StrongBox is unavailable
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    builder.setIsStrongBoxBacked(true)
-                }
-
-                try {
+                    builder.setIsStrongBoxBacked(false)
                     keyPairGenerator.initialize(builder.build())
                     keyPairGenerator.generateKeyPair()
-                } catch (e: Exception) {
-                    // Fallback to TEE if StrongBox is unavailable
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        builder.setIsStrongBoxBacked(false)
-                        keyPairGenerator.initialize(builder.build())
-                        keyPairGenerator.generateKeyPair()
-                    }
                 }
+            }
 
-                val certs = keyStore.getCertificateChain(alias)
-                if (certs != null && certs.isNotEmpty()) {
-                    val leafCert = certs[0] as java.security.cert.X509Certificate
-                    val attestationExtensionBytes = leafCert.getExtensionValue("1.3.6.1.4.1.11129.2.1.17")
+            val certs = keyStore.getCertificateChain(alias)
+            if (certs != null && certs.isNotEmpty()) {
+                val leafCert = certs[0] as java.security.cert.X509Certificate
+                val attestationExtensionBytes = leafCert.getExtensionValue("1.3.6.1.4.1.11129.2.1.17")
 
-                    if (attestationExtensionBytes == null) {
-                        indicators.add("Hardware Attestation Extension missing from TEE certificate")
-                        hardwareAttestationFailed = true
-                    } else {
-                        // Decode ASN.1 KeyDescription sequence
-                        try {
-                            val octetString = ASN1InputStream(attestationExtensionBytes).use { it.readObject() as? ASN1OctetString }
-                            if (octetString != null) {
-                                val recordSeq = ASN1InputStream(octetString.octets).use { it.readObject() as? ASN1Sequence }
-                                if (recordSeq != null && recordSeq.size() >= 8) {
-                                    val secLevelObj = recordSeq.getObjectAt(1) as? ASN1Enumerated
-                                    attestationSecLevel = when (secLevelObj?.value?.toInt()) {
-                                        0 -> "Software"
-                                        1 -> "TrustedEnvironment"
-                                        2 -> "StrongBox"
-                                        else -> "Unknown"
-                                    }
+                if (attestationExtensionBytes == null) {
+                    indicators.add("Hardware Attestation Extension missing from TEE certificate")
+                    hardwareAttestationFailed = true
+                } else {
+                    // Decode ASN.1 KeyDescription sequence
+                    try {
+                        val octetString = ASN1InputStream(attestationExtensionBytes).use { it.readObject() as? ASN1OctetString }
+                        if (octetString != null) {
+                            val recordSeq = ASN1InputStream(octetString.octets).use { it.readObject() as? ASN1Sequence }
+                            if (recordSeq != null && recordSeq.size() >= 8) {
+                                val secLevelObj = recordSeq.getObjectAt(1) as? ASN1Enumerated
+                                attestationSecLevel = when (secLevelObj?.value?.toInt()) {
+                                    0 -> "Software"
+                                    1 -> "TrustedEnvironment"
+                                    2 -> "StrongBox"
+                                    else -> "Unknown"
+                                }
 
-                                    // teeEnforced is at index 7
-                                    val teeEnforced = recordSeq.getObjectAt(7) as? ASN1Sequence
-                                    if (teeEnforced != null) {
-                                        for (i in 0 until teeEnforced.size()) {
-                                            val taggedObj = teeEnforced.getObjectAt(i) as? ASN1TaggedObject ?: continue
-                                            if (taggedObj.tagNo == 704) { // rootOfTrust
-                                                val rootOfTrustSeq = (taggedObj.baseObject) as? ASN1Sequence
-                                                if (rootOfTrustSeq != null && rootOfTrustSeq.size() >= 3) {
-                                                    val deviceLockedObj = rootOfTrustSeq.getObjectAt(1) as? ASN1Boolean
-                                                    val verifiedBootStateObj = rootOfTrustSeq.getObjectAt(2) as? ASN1Enumerated
+                                // teeEnforced is at index 7
+                                val teeEnforced = recordSeq.getObjectAt(7) as? ASN1Sequence
+                                if (teeEnforced != null) {
+                                    for (i in 0 until teeEnforced.size()) {
+                                        val taggedObj = teeEnforced.getObjectAt(i) as? ASN1TaggedObject ?: continue
+                                        if (taggedObj.tagNo == 704) { // rootOfTrust
+                                            val rootOfTrustSeq = (taggedObj.baseObject) as? ASN1Sequence
+                                            if (rootOfTrustSeq != null && rootOfTrustSeq.size() >= 3) {
+                                                val deviceLockedObj = rootOfTrustSeq.getObjectAt(1) as? ASN1Boolean
+                                                val verifiedBootStateObj = rootOfTrustSeq.getObjectAt(2) as? ASN1Enumerated
 
-                                                    isDeviceLocked = deviceLockedObj?.isTrue
-                                                    verifiedBootState = when (verifiedBootStateObj?.value?.toInt()) {
-                                                        0 -> "Verified"
-                                                        1 -> "SelfSigned"
-                                                        2 -> "Unverified"
-                                                        3 -> "Failed"
-                                                        else -> "Unknown"
-                                                    }
+                                                isDeviceLocked = deviceLockedObj?.isTrue
+                                                verifiedBootState = when (verifiedBootStateObj?.value?.toInt()) {
+                                                    0 -> "Verified"
+                                                    1 -> "SelfSigned"
+                                                    2 -> "Unverified"
+                                                    3 -> "Failed"
+                                                    else -> "Unknown"
+                                                }
 
-                                                    if (isDeviceLocked == false) {
-                                                        indicators.add("Hardware Attestation: Bootloader unlocked (deviceLocked=false)")
+                                                if (isDeviceLocked == false) {
+                                                    indicators.add("Hardware Attestation: Bootloader unlocked (deviceLocked=false)")
+                                                    hardwareAttestationFailed = true
+                                                }
+                                                if (verifiedBootState != "Verified") {
+                                                    indicators.add("Hardware Attestation: Verified Boot State is $verifiedBootState")
+                                                    if (verifiedBootState != "SelfSigned" || !isEmulator) {
                                                         hardwareAttestationFailed = true
-                                                    }
-                                                    if (verifiedBootState != "Verified") {
-                                                        indicators.add("Hardware Attestation: Verified Boot State is $verifiedBootState")
-                                                        if (verifiedBootState != "SelfSigned" || !isEmulator) {
-                                                            hardwareAttestationFailed = true
-                                                        }
                                                     }
                                                 }
                                             }
@@ -266,23 +264,23 @@ object RootDetector {
                                     }
                                 }
                             }
-                        } catch (asnE: Throwable) {
-                            SecurityLogger.trace("RootDetector", "Error decoding Hardware Attestation ASN.1", asnE)
                         }
+                    } catch (asnE: Throwable) {
+                        SecurityLogger.trace("RootDetector", "Error decoding Hardware Attestation ASN.1", asnE)
                     }
-                } else {
-                    indicators.add("Could not retrieve Hardware Attestation certificate chain")
-                    hardwareAttestationFailed = true
                 }
-            } catch (e: Exception) {
-                indicators.add("Hardware Attestation failed: ${e.message}")
-                SecurityLogger.trace("RootDetector", "Hardware Attestation key generation error", e)
+            } else {
+                indicators.add("Could not retrieve Hardware Attestation certificate chain")
                 hardwareAttestationFailed = true
-            } finally {
-                try {
-                    keyStore?.deleteEntry(alias)
-                } catch (_: Throwable) {}
             }
+        } catch (e: Exception) {
+            indicators.add("Hardware Attestation failed: ${e.message}")
+            SecurityLogger.trace("RootDetector", "Hardware Attestation key generation error", e)
+            hardwareAttestationFailed = true
+        } finally {
+            try {
+                keyStore?.deleteEntry(alias)
+            } catch (_: Throwable) {}
         }
 
         val isRooted = hasRootBinary || hasRootManager || (hasTestKeys && !isEmulator) || hardwareAttestationFailed

@@ -56,9 +56,9 @@ fun SettingsScreen(
     onNavigateToAppearance: () -> Unit,
     onNavigateToBackup: () -> Unit,
     onReplayGuides: () -> Unit,
+    modifier: Modifier = Modifier,
     vaultRepository: com.kryptx.app.core.database.VaultRepository? = null,
-    settingsViewModel: SettingsViewModel? = null,
-    modifier: Modifier = Modifier
+    settingsViewModel: SettingsViewModel? = null
 ) {
     var showTrashSheet by remember { mutableStateOf(false) }
     var showCategorySheet by remember { mutableStateOf(false) }

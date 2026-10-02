@@ -2,7 +2,6 @@ package com.kryptx.app.feature.vault
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -234,7 +233,7 @@ fun VaultDashboardScreen(
                 }
 
                 // 1.5 Dismissible Autofill Setup Nudge
-                if (!isAutofillNudgeDismissed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!isAutofillNudgeDismissed) {
                     item {
                         Spacer(modifier = Modifier.height(10.dp))
                         AutofillNudgeCard(

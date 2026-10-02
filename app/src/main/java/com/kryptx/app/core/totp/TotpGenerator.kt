@@ -150,6 +150,12 @@ object Base32 {
             }
         }
 
-        return if (outIdx == maxLen) out else out.copyOf(outIdx)
+        return if (outIdx == maxLen) {
+            out
+        } else {
+            val result = out.copyOf(outIdx)
+            out.fill(0)
+            result
+        }
     }
 }

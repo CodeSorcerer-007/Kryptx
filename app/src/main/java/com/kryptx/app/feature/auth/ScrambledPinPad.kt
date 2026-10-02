@@ -53,11 +53,11 @@ import java.security.SecureRandom
  */
 @Composable
 fun ScrambledPinPad(
+    onPinComplete: (String) -> Unit,
+    modifier: Modifier = Modifier,
     pinLength: Int = 6,
     isScrambleDisabled: Boolean = false,
-    resetKey: Any? = null,
-    onPinComplete: (String) -> Unit,
-    modifier: Modifier = Modifier
+    resetKey: Any? = null
 ) {
     var enteredPin by remember(resetKey) { mutableStateOf("") }
     var digits by remember(isScrambleDisabled) {
