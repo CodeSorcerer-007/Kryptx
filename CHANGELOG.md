@@ -5,6 +5,16 @@ All notable changes to the Kryptx Android Password Manager project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] (versionCode 15) - 2026-10-05
+
+### Security & Architecture Hardening
+- **ADR-001 Manual DI Enforcement**: Removed reflection-based DI dependencies and restored pure manual constructor injection across all ViewModels with `KryptxViewModelFactory`.
+- **64-bit Nonce Counter**: Enforced full 64-bit atomic counter in deterministic IV construction per NIST SP 800-38D.
+- **Rust KDF Alignment**: Aligned bare-metal Argon2id defaults to 16 MB memory-hard parameter matching security specifications.
+- **Strict Anti-Phishing Domain Matching**: Hardened package segment equality checks in `DomainMatcher` to prevent cross-app autofill spoofing.
+- **Integration Test Suite**: Added `VaultBackupRoundtripTest` and comprehensive `RootDetectorTest` heuristic suite.
+- **Reproducible Builds**: Configured deterministic builds with `SOURCE_DATE_EPOCH` and automated SHA-256 checksum generation in CI.
+
 ---
 
 ## [13] - 2026-10-03
