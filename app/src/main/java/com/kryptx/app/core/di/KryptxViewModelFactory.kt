@@ -10,10 +10,14 @@ import com.kryptx.app.feature.securitycenter.SecurityCenterViewModel
 import com.kryptx.app.feature.settings.SettingsViewModel
 import com.kryptx.app.feature.totp.TotpViewModel
 import com.kryptx.app.feature.vault.VaultViewModel
+import com.kryptx.app.feature.vault.editor.AddEditViewModel
 
 /**
- * Lifecycle-safe, configuration-change resilient ViewModel factory
- * providing proper dependency injection across all Kryptx screens.
+ * Deterministic, reflection-free ViewModel factory implementing manual dependency injection
+ * in accordance with ADR-001.
+ *
+ * Ensures deterministic lifecycles, zero reflection overhead, and strict auditable wiring
+ * for all cryptographic security components.
  */
 class KryptxViewModelFactory(
     private val app: KryptxApplication
@@ -37,6 +41,14 @@ class KryptxViewModelFactory(
                     clipboardSecurityManager = app.clipboardManager,
                     attachmentManager = app.attachmentManager,
                     preferencesRepository = app.preferencesRepository,
+                    activityLogManager = app.activityLogManager
+                ) as T
+            }
+            modelClass.isAssignableFrom(AddEditViewModel::class.java) -> {
+                AddEditViewModel(
+                    vaultRepository = app.vaultRepository,
+                    sessionManager = app.sessionManager,
+                    attachmentManager = app.attachmentManager,
                     activityLogManager = app.activityLogManager
                 ) as T
             }

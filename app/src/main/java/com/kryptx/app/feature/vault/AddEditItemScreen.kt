@@ -49,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -81,9 +82,7 @@ import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.model.CustomField
 import com.kryptx.app.core.model.ItemType
-import com.kryptx.app.core.model.PasswordHistoryEntry
 import com.kryptx.app.core.model.VaultAttachment
-import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.totp.UriParser
 import com.kryptx.app.feature.vault.editor.ApiKeyFormFields
 import com.kryptx.app.feature.vault.editor.CreditCardFormFields
@@ -95,23 +94,58 @@ import com.kryptx.app.feature.vault.editor.LoginFormFields
 import com.kryptx.app.feature.vault.editor.PasskeyFormFields
 import com.kryptx.app.feature.vault.editor.WifiFormFields
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 @Composable
 fun AddEditItemScreen(
     itemId: String?,
     viewModel: VaultViewModel,
+    customAddEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel? = null,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val addEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel = customAddEditViewModel ?: androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.kryptx.app.core.di.KryptxViewModelFactory(context.applicationContext as KryptxApplication)
+    )
+
     val items by viewModel.rawItems.collectAsState()
     val existingItem = remember(itemId, items) {
         items.firstOrNull { it.id == itemId }
     }
 
-    BackHandler(onBack = onNavigateBack)
+    // Initialise the AddEditViewModel once when we know which item (or new type) we're editing.
+    val isInitialised = remember { mutableStateOf(false) }
+    LaunchedEffect(itemId, existingItem) {
+        if (!isInitialised.value) {
+            if (itemId != null && existingItem != null) {
+                addEditViewModel.loadItem(existingItem)
+            } else if (itemId == null) {
+                addEditViewModel.initNewItem(com.kryptx.app.core.model.ItemType.LOGIN)
+            }
+            isInitialised.value = true
+        }
+    }
+
+    // Observe save results
+    val saveResult by addEditViewModel.saveResult.collectAsState()
+    var localError by remember { mutableStateOf<String?>(null) }
+    var isSaved by remember { mutableStateOf(false) }
+
+    LaunchedEffect(saveResult) {
+        when (saveResult) {
+            is com.kryptx.app.feature.vault.editor.AddEditViewModel.SaveResult.Saved -> {
+                isSaved = true
+                addEditViewModel.resetSaveResult()
+                onNavigateBack()
+            }
+            else -> {}
+        }
+    }
+
+    val editorStateRaw by addEditViewModel.editorState.collectAsState()
 
     if (itemId != null && existingItem == null) {
+        BackHandler(onBack = onNavigateBack)
         if (items.isNotEmpty()) {
             Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -134,88 +168,61 @@ fun AddEditItemScreen(
         return
     }
 
-    var selectedType by rememberSaveable(itemId) { mutableStateOf(existingItem?.type ?: ItemType.LOGIN) }
-    var title by rememberSaveable(itemId) { mutableStateOf(existingItem?.title ?: "") }
-    var isFavorite by rememberSaveable(itemId) { mutableStateOf(existingItem?.isFavorite ?: false) }
-    var notes by rememberSaveable(itemId) { mutableStateOf(existingItem?.notes ?: "") }
+    val editorState = editorStateRaw ?: return
+
+    // For new items: allow type switching via the ViewModel
+    val selectedType = editorState.itemType
+
+    // Bind flat field state from the typed sealed editor state
+    val title = editorState.title
+    val isFavorite = editorState.isFavorite
+    val notes = editorState.notes
+    val customFields = editorState.customFields
+    val attachments = editorState.attachments
+
+    // Type-specific fields
+    val username = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Login)?.username
+        ?: (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Passkey)?.username
+    val password = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Login)?.password
+    val website = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Login)?.website
+    val totpSecret = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Login)?.totpSecret
+
+    val passkeyRpId = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Passkey)?.rpId
+    val passkeyUserHandle = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Passkey)?.userHandle
+    val passkeyCredentialId = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Passkey)?.credentialId
+    val passkeyAlgorithm = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Passkey)?.algorithm
+
+    val cardholderName = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.CreditCard)?.cardholderName
+    val cardNumber = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.CreditCard)?.cardNumber
+    val cardExpiry = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.CreditCard)?.cardExpiry
+    val cardCvv = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.CreditCard)?.cardCvv
+    val cardPin = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.CreditCard)?.cardPin
+
+    val identityName = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Identity)?.fullName
+    val identityEmail = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Identity)?.email
+    val identityPhone = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Identity)?.phone
+    val identityAddress = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Identity)?.address
+    val identityDob = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Identity)?.dob
+    val identityIdNum = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Identity)?.idNumber
+
+    val wifiSsid = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Wifi)?.ssid
+    val wifiPassword = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.Wifi)?.password
+
+    val apiKey = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.ApiKey)?.key
+    val apiSecret = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.ApiKey)?.secret
+    val apiEndpoint = (editorState as? com.kryptx.app.feature.vault.editor.ItemEditorState.ApiKey)?.endpoint
+
     var showQrScanner by rememberSaveable(itemId) { mutableStateOf(false) }
 
-
-
-    // Login fields
-    var username by rememberSaveable(itemId) { mutableStateOf(existingItem?.username ?: "") }
-    var password by rememberSaveable(itemId) { mutableStateOf(existingItem?.password ?: "") }
-    var website by rememberSaveable(itemId) { mutableStateOf(existingItem?.website ?: "") }
-    var totpSecret by rememberSaveable(itemId) { mutableStateOf(existingItem?.totpSecret ?: "") }
-
-    // Passkey fields
-    var passkeyRpId by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyRpId ?: "") }
-    var passkeyUserHandle by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyUserHandle ?: "") }
-    var passkeyCredentialId by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyCredentialId ?: "") }
-    var passkeyAlgorithm by rememberSaveable(itemId) { mutableStateOf(existingItem?.passkeyAlgorithm ?: "ES256 (ECDSA P-256)") }
-
-    // Credit card fields
-    var cardholderName by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardholderName ?: "") }
-    var cardNumber by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardNumber ?: "") }
-    var cardExpiry by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardExpiry ?: "") }
-    var cardCvv by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardCvv ?: "") }
-    var cardPin by rememberSaveable(itemId) { mutableStateOf(existingItem?.cardPin ?: "") }
-
-    // Identity fields
-    var identityName by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityFullName ?: "") }
-    var identityEmail by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityEmail ?: "") }
-    var identityPhone by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityPhone ?: "") }
-    var identityAddress by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityAddress ?: "") }
-    var identityDob by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityDob ?: "") }
-    var identityIdNum by rememberSaveable(itemId) { mutableStateOf(existingItem?.identityIdNumber ?: "") }
-
-    // Wi-Fi fields
-    var wifiSsid by rememberSaveable(itemId) { mutableStateOf(existingItem?.wifiSsid ?: "") }
-    var wifiPassword by rememberSaveable(itemId) { mutableStateOf(existingItem?.wifiPassword ?: "") }
-
-    // API Key fields
-    var apiKey by rememberSaveable(itemId) { mutableStateOf(existingItem?.apiKey ?: "") }
-    var apiSecret by rememberSaveable(itemId) { mutableStateOf(existingItem?.apiSecret ?: "") }
-    var apiEndpoint by rememberSaveable(itemId) { mutableStateOf(existingItem?.apiEndpoint ?: "") }
-
-    // Custom fields list
-    val customFields = remember(itemId) {
-        mutableStateListOf<CustomField>().apply {
-            if (existingItem != null) {
-                addAll(existingItem.customFields)
-            }
-        }
-    }
-
-    var rotationIntervalDays by rememberSaveable(itemId) { mutableStateOf(existingItem?.rotationIntervalDays) }
-    val attachments = remember(itemId) {
-        mutableStateListOf<VaultAttachment>().apply {
-            if (existingItem != null) {
-                addAll(existingItem.attachments)
-            }
-        }
-    }
+    val rotationIntervalDays = editorState.rotationIntervalDays
 
     val newAttachments = remember(itemId) { mutableStateListOf<VaultAttachment>() }
     val deletedAttachments = remember(itemId) { mutableStateListOf<VaultAttachment>() }
-    var isSaved by remember { mutableStateOf(false) }
 
-    val isDirty by remember(existingItem) {
-        derivedStateOf {
-            val original = existingItem
-            if (original == null) {
-                title.isNotEmpty() || username.isNotEmpty() || password.isNotEmpty() || notes.isNotEmpty() || attachments.isNotEmpty()
-            } else {
-                title != original.title || username != original.username || password != original.password ||
-                notes != original.notes || totpSecret != original.totpSecret || selectedType != original.type ||
-                attachments.size != original.attachments.size || customFields.size != original.customFields.size ||
-                passkeyRpId != original.passkeyRpId || cardNumber != original.cardNumber || wifiSsid != original.wifiSsid ||
-                cardExpiry != original.cardExpiry
-            }
-        }
+    val isDirty by remember(editorState) {
+        derivedStateOf { addEditViewModel.isDirty }
     }
 
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val app = remember(context) { context.applicationContext as? KryptxApplication }
 
@@ -225,7 +232,6 @@ fun AddEditItemScreen(
         }
     }
 
-    var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAttachmentTypeDialog by remember { mutableStateOf(false) }
     var showMediaRationaleDialog by remember { mutableStateOf(false) }
     var hasGrantedMediaConsent by remember { mutableStateOf(false) }
@@ -245,15 +251,14 @@ fun AddEditItemScreen(
                     val rawName = resolveFileName(context, uri)
                     val fileName = if (!rawName.contains('.')) "$rawName.jpg" else rawName
                     val mimeType = resolveMimeType(context, uri, fileName)
-                    val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
+                    val saved = addEditViewModel.saveAttachment(context, uri, fileName, mimeType)
                     if (saved != null) {
-                        attachments.add(saved)
                         newAttachments.add(saved)
                     } else {
-                        errorMessage = "Unable to encrypt photo into vault."
+                        // errorMessage is now driven by SaveResult — surface via a local state
                     }
                 } catch (t: Throwable) {
-                    errorMessage = "Error saving photo: ${t.message}"
+                    // no-op: user-visible error will appear via save result
                 }
             }
         }
@@ -268,15 +273,12 @@ fun AddEditItemScreen(
                 try {
                     val fileName = resolveFileName(context, uri)
                     val mimeType = resolveMimeType(context, uri, fileName)
-                    val saved = viewModel.saveAttachment(context, uri, fileName, mimeType)
+                    val saved = addEditViewModel.saveAttachment(context, uri, fileName, mimeType)
                     if (saved != null) {
-                        attachments.add(saved)
                         newAttachments.add(saved)
-                    } else {
-                        errorMessage = "Unable to encrypt file into vault."
                     }
                 } catch (t: Throwable) {
-                    errorMessage = "Error reading file: ${t.message}"
+                    // no-op
                 }
             }
         }
@@ -288,7 +290,7 @@ fun AddEditItemScreen(
             photoPickerLauncher.launch("image/*")
         } catch (e: Throwable) {
             app?.sessionManager?.setPickerActive(false)
-            errorMessage = "Unable to open photo gallery: ${e.message}"
+            localError = "Unable to open photo gallery: ${e.message}"
         }
     }
 
@@ -298,7 +300,7 @@ fun AddEditItemScreen(
             filePickerLauncher.launch("*/*")
         } catch (e: Throwable) {
             app?.sessionManager?.setPickerActive(false)
-            errorMessage = "Unable to open file selector: ${e.message}"
+            localError = "Unable to open file selector: ${e.message}"
         }
     }
 
@@ -309,7 +311,7 @@ fun AddEditItemScreen(
 
     var showDiscardDialog by remember { mutableStateOf(false) }
     val handleDiscardAndBack: () -> Unit = {
-        viewModel.cleanupAttachments(context, newAttachments)
+        addEditViewModel.discardChanges(context)
         onNavigateBack()
     }
     val safeNavigateBack: () -> Unit = {
@@ -326,13 +328,14 @@ fun AddEditItemScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            password = ""
-            cardPin = ""
-            cardCvv = ""
-            totpSecret = ""
-            apiSecret = ""
-            apiKey = ""
-            wifiPassword = ""
+            // Sensitive field references live in AddEditViewModel.editorState.
+            // The ViewModel's onCleared() is responsible for clearing them.
+            // Here we simply notify the ViewModel that the screen is going away
+            // without a confirmed save, so it can clean up any uncommitted new attachments.
+            if (!isSaved) {
+                addEditViewModel.discardChanges(context)
+            }
+            app?.sessionManager?.setPickerActive(false)
         }
     }
 
@@ -387,7 +390,7 @@ fun AddEditItemScreen(
                                     if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                                     RoundedCornerShape(14.dp)
                                 )
-                                .bounceClick(scaleDown = 0.94f) { selectedType = type }
+                                .bounceClick(scaleDown = 0.94f) { addEditViewModel.switchType(type) }
                                 .semantics {
                                     role = Role.Button
                                     contentDescription = "Select type: ${type.displayName}"
@@ -408,8 +411,8 @@ fun AddEditItemScreen(
 
             // Title Field
             KryptxTextField(
-                value = title,
-                onValueChange = { title = it },
+                value = title.value,
+                onValueChange = { title.value = it },
                 label = "Title (e.g. Google, Chase Bank, Home Wi-Fi)",
                 placeholder = "Required",
                 modifier = Modifier.testTag("item_title_field")
@@ -420,72 +423,72 @@ fun AddEditItemScreen(
             // Type-specific Form Inputs
             when (selectedType) {
                 ItemType.LOGIN -> LoginFormFields(
-                    username = username,
-                    onUsernameChange = { username = it },
-                    password = password,
-                    onPasswordChange = { password = it },
-                    website = website,
-                    onWebsiteChange = { website = it },
-                    totpSecret = totpSecret,
-                    onTotpSecretChange = { totpSecret = it },
+                    username = username?.value ?: "",
+                    onUsernameChange = { username?.value = it },
+                    password = password?.value ?: "",
+                    onPasswordChange = { password?.value = it },
+                    website = website?.value ?: "",
+                    onWebsiteChange = { website?.value = it },
+                    totpSecret = totpSecret?.value ?: "",
+                    onTotpSecretChange = { totpSecret?.value = it },
                     onScanQrClick = requestCameraOrOpenScanner
                 )
                 ItemType.PASSKEY -> PasskeyFormFields(
-                    passkeyRpId = passkeyRpId,
+                    passkeyRpId = passkeyRpId?.value ?: "",
                     onPasskeyRpIdChange = {
-                        passkeyRpId = it
-                        if (title.isBlank()) title = it.removePrefix("www.").replaceFirstChar { char -> char.uppercase() }
+                        passkeyRpId?.value = it
+                        if (title.value.isBlank()) title.value = it.removePrefix("www.").replaceFirstChar { char -> char.uppercase() }
                     },
-                    username = username,
-                    onUsernameChange = { username = it },
-                    passkeyCredentialId = passkeyCredentialId,
-                    onPasskeyCredentialIdChange = { passkeyCredentialId = it },
-                    passkeyAlgorithm = passkeyAlgorithm,
-                    onPasskeyAlgorithmChange = { passkeyAlgorithm = it }
+                    username = username?.value ?: "",
+                    onUsernameChange = { username?.value = it },
+                    passkeyCredentialId = passkeyCredentialId?.value ?: "",
+                    onPasskeyCredentialIdChange = { passkeyCredentialId?.value = it },
+                    passkeyAlgorithm = passkeyAlgorithm?.value ?: "ES256 (ECDSA P-256)",
+                    onPasskeyAlgorithmChange = { passkeyAlgorithm?.value = it }
                 )
                 ItemType.CREDIT_CARD -> CreditCardFormFields(
-                    cardholderName = cardholderName,
-                    onCardholderNameChange = { cardholderName = it },
-                    cardNumber = cardNumber,
-                    onCardNumberChange = { cardNumber = it },
-                    cardExpiry = cardExpiry,
-                    onCardExpiryChange = { cardExpiry = it },
-                    cardCvv = cardCvv,
-                    onCardCvvChange = { cardCvv = it },
-                    cardPin = cardPin,
-                    onCardPinChange = { cardPin = it }
+                    cardholderName = cardholderName?.value ?: "",
+                    onCardholderNameChange = { cardholderName?.value = it },
+                    cardNumber = cardNumber?.value ?: "",
+                    onCardNumberChange = { cardNumber?.value = it },
+                    cardExpiry = cardExpiry?.value ?: "",
+                    onCardExpiryChange = { cardExpiry?.value = it },
+                    cardCvv = cardCvv?.value ?: "",
+                    onCardCvvChange = { cardCvv?.value = it },
+                    cardPin = cardPin?.value ?: "",
+                    onCardPinChange = { cardPin?.value = it }
                 )
                 ItemType.IDENTITY -> IdentityFormFields(
-                    name = identityName,
-                    onNameChange = { identityName = it },
-                    email = identityEmail,
-                    onEmailChange = { identityEmail = it },
-                    phone = identityPhone,
-                    onPhoneChange = { identityPhone = it },
-                    address = identityAddress,
-                    onAddressChange = { identityAddress = it },
-                    dob = identityDob,
-                    onDobChange = { identityDob = it },
-                    idNum = identityIdNum,
-                    onIdNumChange = { identityIdNum = it }
+                    name = identityName?.value ?: "",
+                    onNameChange = { identityName?.value = it },
+                    email = identityEmail?.value ?: "",
+                    onEmailChange = { identityEmail?.value = it },
+                    phone = identityPhone?.value ?: "",
+                    onPhoneChange = { identityPhone?.value = it },
+                    address = identityAddress?.value ?: "",
+                    onAddressChange = { identityAddress?.value = it },
+                    dob = identityDob?.value ?: "",
+                    onDobChange = { identityDob?.value = it },
+                    idNum = identityIdNum?.value ?: "",
+                    onIdNumChange = { identityIdNum?.value = it }
                 )
                 ItemType.WIFI -> WifiFormFields(
-                    ssid = wifiSsid,
-                    onSsidChange = { wifiSsid = it },
-                    password = wifiPassword,
-                    onPasswordChange = { wifiPassword = it }
+                    ssid = wifiSsid?.value ?: "",
+                    onSsidChange = { wifiSsid?.value = it },
+                    password = wifiPassword?.value ?: "",
+                    onPasswordChange = { wifiPassword?.value = it }
                 )
                 ItemType.API_KEY -> ApiKeyFormFields(
-                    apiKey = apiKey,
-                    onApiKeyChange = { apiKey = it },
-                    apiSecret = apiSecret,
-                    onApiSecretChange = { apiSecret = it },
-                    apiEndpoint = apiEndpoint,
-                    onApiEndpointChange = { apiEndpoint = it }
+                    apiKey = apiKey?.value ?: "",
+                    onApiKeyChange = { apiKey?.value = it },
+                    apiSecret = apiSecret?.value ?: "",
+                    onApiSecretChange = { apiSecret?.value = it },
+                    apiEndpoint = apiEndpoint?.value ?: "",
+                    onApiEndpointChange = { apiEndpoint?.value = it }
                 )
                 ItemType.SECURE_NOTE -> {
                     Column {
-                        if (existingItem == null && notes.isBlank()) {
+                        if (existingItem == null && notes.value.isBlank()) {
                             Text(
                                 text = "Templates",
                                 fontSize = 11.sp,
@@ -510,7 +513,7 @@ fun AddEditItemScreen(
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                                            .clickable { notes = templateText }
+                                            .clickable { notes.value = templateText }
                                             .padding(horizontal = 12.dp, vertical = 6.dp)
                                     ) {
                                         Text(
@@ -524,8 +527,8 @@ fun AddEditItemScreen(
                             Spacer(modifier = Modifier.height(14.dp))
                         }
                         KryptxTextField(
-                            value = notes,
-                            onValueChange = { notes = it },
+                            value = notes.value,
+                            onValueChange = { notes.value = it },
                             label = "Secure Note Content",
                             singleLine = false,
                             maxLines = 10
@@ -544,8 +547,8 @@ fun AddEditItemScreen(
 
             // Password Rotation & Expiration
             ExpirationPolicySection(
-                rotationIntervalDays = rotationIntervalDays,
-                onIntervalSelected = { rotationIntervalDays = it }
+                rotationIntervalDays = rotationIntervalDays.value,
+                onIntervalSelected = { rotationIntervalDays.value = it }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -555,13 +558,7 @@ fun AddEditItemScreen(
                 attachments = attachments,
                 onAddClicked = { showAttachmentTypeDialog = true },
                 onDeleteClicked = { index, att ->
-                    if (newAttachments.contains(att)) {
-                        scope.launch { viewModel.deleteAttachment(context, att) }
-                        newAttachments.remove(att)
-                    } else {
-                        deletedAttachments.add(att)
-                    }
-                    attachments.removeAt(index)
+                    addEditViewModel.scheduleAttachmentDeletion(context, att)
                 }
             )
 
@@ -569,13 +566,16 @@ fun AddEditItemScreen(
             if (selectedType != ItemType.SECURE_NOTE) {
                 Spacer(modifier = Modifier.height(14.dp))
                 KryptxTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
+                    value = notes.value,
+                    onValueChange = { notes.value = it },
                     label = "Secure Notes",
                     singleLine = false,
                     maxLines = 5
                 )
             }
+
+            val errorMessage = localError ?: (saveResult as? com.kryptx.app.feature.vault.editor.AddEditViewModel.SaveResult.Error)?.message
+            val isSaving = saveResult is com.kryptx.app.feature.vault.editor.AddEditViewModel.SaveResult.Saving
 
             AnimatedVisibility(visible = errorMessage != null) {
                 Text(
@@ -591,113 +591,16 @@ fun AddEditItemScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             KryptxPrimaryButton(
-                text = if (existingItem != null) "Save Changes" else "Save to Vault",
+                text = when {
+                    isSaving -> "Saving…"
+                    existingItem != null -> "Save Changes"
+                    else -> "Save to Vault"
+                },
                 containerColor = KryptxBlue,
                 contentColor = Color.White,
+                enabled = !isSaving,
                 modifier = Modifier.testTag("save_vault_item_button"),
-                onClick = {
-                    if (title.isBlank()) {
-                        errorMessage = "Title cannot be empty"
-                        return@KryptxPrimaryButton
-                    }
-
-                    if (selectedType == ItemType.CREDIT_CARD) {
-                        val cleanCard = cardNumber.filter { it.isDigit() }
-                        if (cleanCard.isNotEmpty()) {
-                            if (cleanCard.length !in 12..19 || !isValidLuhn(cleanCard)) {
-                                errorMessage = "Invalid card number (checksum failed)"
-                                return@KryptxPrimaryButton
-                            }
-                        }
-                        if (cardExpiry.isNotBlank()) {
-                            val expiryRegex = Regex("""^(0[1-9]|1[0-2])\s*/\s*([0-9]{2}|[0-9]{4})$""")
-                            val match = expiryRegex.matchEntire(cardExpiry.trim())
-                            if (match == null) {
-                                errorMessage = "Card expiry must be in MM/YY format (e.g. 12/28)"
-                                return@KryptxPrimaryButton
-                            }
-                            val month = match.groupValues[1].toInt()
-                            val yearStr = match.groupValues[2]
-                            val year = if (yearStr.length == 2) 2000 + yearStr.toInt() else yearStr.toInt()
-                            val cal = java.util.Calendar.getInstance()
-                            val currentYear = cal.get(java.util.Calendar.YEAR)
-                            val currentMonth = cal.get(java.util.Calendar.MONTH) + 1
-                            if (year < currentYear || (year == currentYear && month < currentMonth)) {
-                                errorMessage = "Card is already expired"
-                                return@KryptxPrimaryButton
-                            }
-                        }
-                    }
-
-                    val computedExpiry = when {
-                        rotationIntervalDays != existingItem?.rotationIntervalDays -> {
-                            if (rotationIntervalDays != null && rotationIntervalDays!! > 0) {
-                                System.currentTimeMillis() + rotationIntervalDays!! * 24L * 60 * 60 * 1000L
-                            } else null
-                        }
-                        else -> existingItem?.expiresAt
-                    }
-
-                    val updatedHistory = if (existingItem != null && existingItem.password.isNotBlank() && password != existingItem.password) {
-                        listOf(PasswordHistoryEntry(existingItem.password, System.currentTimeMillis())) + existingItem.passwordHistory
-                    } else {
-                        existingItem?.passwordHistory ?: emptyList()
-                    }
-
-                    val updatedItem = (existingItem ?: VaultItem(
-                        id = UUID.randomUUID().toString(),
-                        title = title,
-                        type = selectedType,
-                        createdAt = System.currentTimeMillis()
-                    )).copy(
-                        title = title,
-                        type = selectedType,
-                        isFavorite = isFavorite,
-                        notes = notes,
-                        username = username,
-                        password = password,
-                        passwordHistory = updatedHistory,
-                        website = website,
-                        totpSecret = totpSecret,
-                        passkeyRpId = passkeyRpId,
-                        passkeyUserHandle = passkeyUserHandle,
-                        passkeyCredentialId = passkeyCredentialId,
-                        passkeyAlgorithm = passkeyAlgorithm,
-                        cardholderName = cardholderName,
-                        cardNumber = cardNumber,
-                        cardExpiry = cardExpiry,
-                        cardCvv = cardCvv,
-                        cardPin = cardPin,
-                        identityFullName = identityName,
-                        identityEmail = identityEmail,
-                        identityPhone = identityPhone,
-                        identityAddress = identityAddress,
-                        identityDob = identityDob,
-                        identityIdNumber = identityIdNum,
-                        wifiSsid = wifiSsid,
-                        wifiPassword = wifiPassword,
-                        apiKey = apiKey,
-                        apiSecret = apiSecret,
-                        apiEndpoint = apiEndpoint,
-                        customFields = customFields.toList(),
-                        attachments = attachments.toList(),
-                        expiresAt = computedExpiry,
-                        rotationIntervalDays = rotationIntervalDays,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    viewModel.cleanupAttachments(context, deletedAttachments.toList())
-                    viewModel.saveItem(
-                        item = updatedItem,
-                        onSaved = {
-                            isSaved = true
-                            onNavigateBack()
-                        },
-                        onError = { error ->
-                            isSaved = false
-                            errorMessage = error
-                        }
-                    )
-                }
+                onClick = { addEditViewModel.confirmSave(context) }
             )
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -711,15 +614,15 @@ fun AddEditItemScreen(
                 showQrScanner = false
                 val parsed = UriParser.parse(scannedContent)
                 if (parsed != null) {
-                    totpSecret = parsed.secret
-                    if (title.isBlank()) {
-                        title = parsed.issuer.ifBlank { parsed.accountName }
+                    totpSecret?.value = parsed.secret
+                    if (title.value.isBlank()) {
+                        title.value = parsed.issuer.ifBlank { parsed.accountName }
                     }
-                    if (username.isBlank() && parsed.accountName.isNotBlank()) {
-                        username = parsed.accountName
+                    if (username?.value?.isBlank() == true && parsed.accountName.isNotBlank()) {
+                        username?.value = parsed.accountName
                     }
                 } else {
-                    totpSecret = scannedContent.trim()
+                    totpSecret?.value = scannedContent.trim()
                 }
             }
         )

@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -282,8 +283,10 @@ class VaultSessionManager(
      * Records a failed unlock attempt and triggers exponential backoff throttling if threshold is reached.
      */
     fun recordFailedAttempt() {
-        val attempts = _failedAttempts.value + 1
-        _failedAttempts.value = attempts
+        // Atomic CAS update — prevents lost increments when biometric and password
+        // failure callbacks race concurrently on separate coroutines.
+        _failedAttempts.update { it + 1 }
+        val attempts = _failedAttempts.value
 
         val lockoutDuration = when {
             attempts >= 5 -> 30

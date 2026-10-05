@@ -1,5 +1,6 @@
 package com.kryptx.app.core.crypto
 
+import com.kryptx.app.core.security.SecurityLogger
 import java.nio.ByteBuffer
 import java.security.SecureRandom
 import java.util.Base64
@@ -74,10 +75,14 @@ object CryptoEngine {
      */
     internal fun generateDeterministicIv(): ByteArray {
         val iv = ByteArray(IV_LENGTH_BYTES)
-        val prefix = ByteArray(8)
+        val prefix = ByteArray(4)
         secureRandom.nextBytes(prefix)
-        System.arraycopy(prefix, 0, iv, 0, 8)
-        val counterVal = sessionNonceCounter.getAndIncrement().toInt()
+        System.arraycopy(prefix, 0, iv, 0, 4)
+        val counterVal = sessionNonceCounter.getAndIncrement()
+        iv[4] = (counterVal ushr 56).toByte()
+        iv[5] = (counterVal ushr 48).toByte()
+        iv[6] = (counterVal ushr 40).toByte()
+        iv[7] = (counterVal ushr 32).toByte()
         iv[8] = (counterVal ushr 24).toByte()
         iv[9] = (counterVal ushr 16).toByte()
         iv[10] = (counterVal ushr 8).toByte()
@@ -144,7 +149,8 @@ object CryptoEngine {
                 if (NativeCryptoEngineWrapper.isNativeAvailable) {
                     try {
                         NativeCryptoEngineWrapper.decryptNative(payload, key)
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        SecurityLogger.warn("CryptoEngine", "XChaCha20 tagged decryption failed, falling back to legacy: ${e.javaClass.simpleName}", e)
                         decryptLegacy(encryptedData, key, associatedData)
                     }
                 } else {
@@ -155,7 +161,8 @@ object CryptoEngine {
                 val payload = encryptedData.copyOfRange(1, encryptedData.size)
                 try {
                     decryptJvm(payload, key, associatedData)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    SecurityLogger.warn("CryptoEngine", "AES-GCM tagged decryption failed, falling back to legacy: ${e.javaClass.simpleName}", e)
                     decryptLegacy(encryptedData, key, associatedData)
                 }
             }
@@ -173,8 +180,9 @@ object CryptoEngine {
         return if (NativeCryptoEngineWrapper.isNativeAvailable && associatedData == null && encryptedData.size >= 24) {
             try {
                 NativeCryptoEngineWrapper.decryptNative(encryptedData, key)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Catches NativeCryptoException, InternalException, and any other UniFFI-generated exception
+                SecurityLogger.warn("CryptoEngine", "Legacy native decryption failed, falling back to JVM AES-GCM: ${e.javaClass.simpleName}", e)
                 decryptJvm(encryptedData, key, associatedData)
             }
         } else {
@@ -307,6 +315,10 @@ object CryptoEngine {
         val encryptedBytes = Base64.getDecoder().decode(encryptedBase64)
         val decryptedBytes = decrypt(encryptedBytes, key, associatedData)
         return try {
+            require(decryptedBytes.size % 2 == 0) {
+                "Decrypted payload has odd byte count (${decryptedBytes.size}); " +
+                "cannot decode as CharArray — possible format mismatch or payload corruption"
+            }
             val byteBuffer = ByteBuffer.wrap(decryptedBytes)
             val chars = CharArray(decryptedBytes.size / 2)
             for (i in chars.indices) {

@@ -101,7 +101,8 @@ fun VaultDashboardScreen(
     onNavigateToAddItem: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
     onNavigateToSearch: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null
 ) {
     val items by viewModel.filteredItems.collectAsState()
     val allItems by viewModel.rawItems.collectAsState()
@@ -127,6 +128,8 @@ fun VaultDashboardScreen(
     val view = LocalView.current
     val context = LocalContext.current
     val isAutofillNudgeDismissed by viewModel.autofillNudgeDismissed.collectAsState()
+    val isBiometricsEnabled by viewModel.isBiometricsEnabled.collectAsState()
+    val isBiometricNudgeDismissed by viewModel.biometricNudgeDismissed.collectAsState()
 
     var isSearchExpanded by remember { mutableStateOf(false) }
     var selectedItemForActions by remember { mutableStateOf<VaultItem?>(null) }
@@ -230,6 +233,23 @@ fun VaultDashboardScreen(
                         onNavigateToSecurityCenter = onNavigateToSecurityCenter,
                         onLockVault = { viewModel.lockVault() }
                     )
+                }
+
+                // 1.4 Dismissible Biometric Setup Nudge
+                if (!isBiometricsEnabled && !isBiometricNudgeDismissed && onEnrollBiometrics != null) {
+                    item {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        BiometricNudgeCard(
+                            onScanAndActivate = {
+                                onEnrollBiometrics { success ->
+                                    if (success) {
+                                        viewModel.dismissBiometricNudge()
+                                    }
+                                }
+                            },
+                            onDismiss = { viewModel.dismissBiometricNudge() }
+                        )
+                    }
                 }
 
                 // 1.5 Dismissible Autofill Setup Nudge

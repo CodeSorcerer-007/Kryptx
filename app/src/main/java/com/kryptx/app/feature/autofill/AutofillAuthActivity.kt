@@ -223,12 +223,17 @@ class AutofillAuthActivity : FragmentActivity() {
 
     private fun onTriggerBiometrics() {
         val app = application as KryptxApplication
-        if (!app.biometricManager.canAuthenticate()) return
+        if (!app.biometricManager.canAuthenticate(requireStrong = true)) return
+        val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
+        if (!isConfigured) return
 
-        val decryptCipher = app.vaultRepository.getBiometricDecryptCipher()
-        val cryptoObject = if (decryptCipher != null) {
-            androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
-        } else null
+        val decryptCipher = try {
+            app.vaultRepository.getBiometricDecryptCipher()
+        } catch (_: Throwable) {
+            null
+        } ?: return
+
+        val cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
 
         app.biometricManager.promptBiometric(
             activity = this,
@@ -236,16 +241,9 @@ class AutofillAuthActivity : FragmentActivity() {
             subtitle = "Touch sensor to decrypt and autofill credentials",
             cryptoObject = cryptoObject,
             onSuccess = { result ->
-                val cipher = result.cryptoObject?.cipher
+                val cipher = result.cryptoObject?.cipher ?: return@promptBiometric
                 lifecycleScope.launch {
-                    if (cipher != null) {
-                        val res = app.vaultRepository.unlockWithBiometricCipher(cipher)
-                        if (res.isError) {
-                            app.vaultRepository.unlockWithBiometrics()
-                        }
-                    } else {
-                        app.vaultRepository.unlockWithBiometrics()
-                    }
+                    app.vaultRepository.unlockWithBiometricCipher(cipher)
                 }
             },
             onError = { _, _ -> },
@@ -269,7 +267,7 @@ class AutofillAuthActivity : FragmentActivity() {
     ) {
         val app = applicationContext as KryptxApplication
         val isUnlocked by app.sessionManager.isUnlocked.collectAsState()
-        val isBiometricsConfigured = remember { app.vaultRepository.isBiometricsConfigured() }
+        val isBiometricsConfigured = remember { app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value }
         val view = LocalView.current
         val scope = rememberCoroutineScope()
 

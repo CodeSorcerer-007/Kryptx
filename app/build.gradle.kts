@@ -17,8 +17,8 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "13"
+        versionCode = 14
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -191,11 +191,15 @@ dependencies {
     // JNA for UniFFI
     implementation(libs.jna)
 
+    // Manual Dependency Injection (ADR-001): Pure constructor-based DI via AppContainer.
+    // No reflection-based DI frameworks (Hilt, Dagger, Koin) are used.
+
     // Instrumentation Testing
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
+
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }
 
@@ -357,7 +361,7 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
             limit {
                 counter = "INSTRUCTION"
                 value = "COVEREDRATIO"
-                minimum = "0.70".toBigDecimal()
+                minimum = "0.85".toBigDecimal()
             }
         }
     }

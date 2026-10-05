@@ -109,11 +109,15 @@ object DomainMatcher {
         }
 
         // 2. Check title matching against package tokens (e.g. "Authenticator" vs "com.google.android.apps.authenticator2")
+        // Requires minimum 4-character title to prevent false positives on generic titles ("Mail", "Pay", "App")
         if (!itemTitle.isNullOrBlank()) {
             val titleClean = itemTitle.trim().lowercase().replace(" ", "").replace("-", "").replace("_", "")
-            val lastSegment = pkgClean.substringAfterLast('.')
-            if (titleClean.isNotEmpty() && (lastSegment == titleClean || lastSegment.startsWith(titleClean) || pkgClean.contains(".$titleClean"))) {
-                return true
+            if (titleClean.length >= 4) {
+                val lastSegment = pkgClean.substringAfterLast('.')
+                val segmentBase = lastSegment.trimEnd { it.isDigit() }
+                if (segmentBase == titleClean || pkgClean.contains(".$titleClean.") || pkgClean.endsWith(".$titleClean")) {
+                    return true
+                }
             }
         }
 

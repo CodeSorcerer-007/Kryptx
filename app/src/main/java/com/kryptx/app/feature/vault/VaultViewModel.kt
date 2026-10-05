@@ -72,6 +72,10 @@ class VaultViewModel(
     val rawItems: StateFlow<List<VaultItem>> = vaultRepository.getItems()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // Pre-computed entropy cache keyed by "id:password" — avoids re-running regex-heavy
+    // EntropyCalculator.analyze() for every item on every recomposition when sorting by strength.
+    private val _entropyCache = mutableMapOf<String, Double>()
+
     val trashItems: StateFlow<List<VaultItem>> = vaultRepository.getTrashItems()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -83,6 +87,16 @@ class VaultViewModel(
 
     fun dismissAutofillNudge() {
         preferencesRepository?.setAutofillNudgeDismissed(true)
+    }
+
+    val isBiometricsEnabled: StateFlow<Boolean> = preferencesRepository?.biometricEnabled
+        ?: MutableStateFlow(false).asStateFlow()
+
+    private val _biometricNudgeDismissed = MutableStateFlow(false)
+    val biometricNudgeDismissed: StateFlow<Boolean> = _biometricNudgeDismissed.asStateFlow()
+
+    fun dismissBiometricNudge() {
+        _biometricNudgeDismissed.value = true
     }
 
     val categoryCounts: StateFlow<Map<ItemType, Int>> = rawItems.map { items ->
@@ -111,6 +125,16 @@ class VaultViewModel(
         _searchQuery,
         _sortOption
     ) { items, category, query, sort ->
+        // Refresh entropy cache whenever the item list changes (passwords may have rotated)
+        synchronized(_entropyCache) {
+            _entropyCache.clear()
+            items.forEach { item ->
+                if (item.password.isNotBlank()) {
+                    _entropyCache[item.id] = EntropyCalculator.analyze(item.password).entropyBits
+                }
+            }
+        }
+
         var list = items
         if (category != null) {
             list = list.filter { it.type == category }
@@ -122,7 +146,8 @@ class VaultViewModel(
             SortOption.RECENTLY_USED -> list.sortedByDescending { it.lastUsedAt.takeIf { t -> t > 0 } ?: it.updatedAt }
             SortOption.NAME_ASC -> list.sortedBy { it.title.lowercase() }
             SortOption.NAME_DESC -> list.sortedByDescending { it.title.lowercase() }
-            SortOption.WEAKEST_FIRST -> list.sortedBy { if (it.password.isNotBlank()) EntropyCalculator.analyze(it.password).entropyBits else 999.0 }
+            // Use pre-computed cache — O(1) lookup instead of analyze() per item per recomposition
+            SortOption.WEAKEST_FIRST -> list.sortedBy { synchronized(_entropyCache) { _entropyCache[it.id] ?: 999.0 } }
             SortOption.NEWEST_FIRST -> list.sortedByDescending { it.createdAt }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -234,6 +259,7 @@ class VaultViewModel(
         synchronized(_deletedItemStack) {
             _deletedItemStack.clear()
         }
+        synchronized(_entropyCache) { _entropyCache.clear() }
     }
 
     init {

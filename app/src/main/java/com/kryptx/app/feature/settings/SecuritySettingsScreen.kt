@@ -71,7 +71,8 @@ import kotlinx.coroutines.launch
 fun SecuritySettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null
 ) {
     val biometricEnabled by viewModel.biometricEnabled.collectAsState()
     val autoLockSeconds by viewModel.autoLockSeconds.collectAsState()
@@ -152,12 +153,23 @@ fun SecuritySettingsScreen(
                     Switch(
                         checked = biometricEnabled,
                         onCheckedChange = { enabled ->
-                            viewModel.setBiometricEnabled(enabled) { success ->
-                                if (success) {
+                            if (enabled && onEnrollBiometrics != null) {
+                                onEnrollBiometrics { success ->
                                     scope.launch {
                                         snackbarHostState.showSnackbar(
-                                            if (enabled) "Biometrics enabled" else "Biometrics disabled"
+                                            if (success) "Biometric unlock verified and enabled"
+                                            else "Biometric verification cancelled"
                                         )
+                                    }
+                                }
+                            } else {
+                                viewModel.setBiometricEnabled(enabled) { success ->
+                                    if (success) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (enabled) "Biometrics enabled" else "Biometrics disabled"
+                                            )
+                                        }
                                     }
                                 }
                             }

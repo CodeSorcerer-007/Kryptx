@@ -22,9 +22,12 @@ import com.kryptx.app.KryptxApplication
 import com.kryptx.app.MainActivity
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 /**
  * Intelligent sovereign autofill service.
@@ -34,6 +37,14 @@ import kotlinx.coroutines.runBlocking
  * authenticated prompt to unlock with biometrics and fill.
  */
 class KryptxAutofillService : AutofillService() {
+
+    // Service-scoped coroutine scope; cancelled in onDestroy to avoid leaks.
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+    }
 
     data class ParsedForm(
         var webDomain: String? = null,
@@ -82,49 +93,58 @@ class KryptxAutofillService : AutofillService() {
 
         val responseBuilder = FillResponse.Builder()
 
-        // 1. If vault is unlocked, search for matching credentials
+        // 1. If vault is unlocked, search for matching credentials off the binder thread
         if (isUnlocked) {
-            val matchedItems = findMatchingItems(app, parsedForm)
-            if (matchedItems.isNotEmpty()) {
-                matchedItems.take(5).forEach { item ->
-                    val presentation = createItemPresentation(item)
-                    val datasetBuilder = Dataset.Builder()
+            serviceScope.launch {
+                val matchedItems = findMatchingItems(app, parsedForm)
+                if (matchedItems.isNotEmpty()) {
+                    matchedItems.take(5).forEach { item ->
+                        val presentation = createItemPresentation(item)
+                        val datasetBuilder = Dataset.Builder()
 
-                    parsedForm.usernameFieldId?.let { uId ->
-                        if (item.username.isNotBlank()) {
-                            datasetBuilder.setValue(uId, AutofillValue.forText(item.username), presentation)
+                        parsedForm.usernameFieldId?.let { uId ->
+                            if (item.username.isNotBlank()) {
+                                datasetBuilder.setValue(uId, AutofillValue.forText(item.username), presentation)
+                            }
                         }
-                    }
 
-                    parsedForm.passwordFieldId?.let { pId ->
-                        if (item.password.isNotBlank()) {
-                            datasetBuilder.setValue(pId, AutofillValue.forText(item.password), presentation)
+                        parsedForm.passwordFieldId?.let { pId ->
+                            if (item.password.isNotBlank()) {
+                                datasetBuilder.setValue(pId, AutofillValue.forText(item.password), presentation)
+                            }
                         }
+
+                        try {
+                            responseBuilder.addDataset(datasetBuilder.build())
+                        } catch (e: Exception) {}
                     }
 
-                    try {
-                        responseBuilder.addDataset(datasetBuilder.build())
-                    } catch (e: Exception) {}
-                }
-
-                // Add SaveInfo to prompt user to save new/updated credentials
-                parsedForm.passwordFieldId?.let { passId ->
-                    val saveInfoBuilder = SaveInfo.Builder(
-                        SaveInfo.SAVE_DATA_TYPE_PASSWORD,
-                        arrayOf(passId)
-                    )
-                    parsedForm.usernameFieldId?.let { uId ->
-                        saveInfoBuilder.setOptionalIds(arrayOf(uId))
+                    // Add SaveInfo to prompt user to save new/updated credentials
+                    parsedForm.passwordFieldId?.let { passId ->
+                        val saveInfoBuilder = SaveInfo.Builder(
+                            SaveInfo.SAVE_DATA_TYPE_PASSWORD,
+                            arrayOf(passId)
+                        )
+                        parsedForm.usernameFieldId?.let { uId ->
+                            saveInfoBuilder.setOptionalIds(arrayOf(uId))
+                        }
+                        responseBuilder.setSaveInfo(saveInfoBuilder.build())
                     }
-                    responseBuilder.setSaveInfo(saveInfoBuilder.build())
-                }
 
-                callback.onSuccess(responseBuilder.build())
-                return
+                    callback.onSuccess(responseBuilder.build())
+                    return@launch
+                }
+                // No match found — fall through to auth route
+                callback.onSuccess(buildAuthFillResponse(parsedForm, isUnlocked))
             }
+            return
         }
 
-        // 2. If locked or no direct match, route to dedicated AutofillAuthActivity
+        callback.onSuccess(buildAuthFillResponse(parsedForm, isUnlocked))
+    }
+
+    private fun buildAuthFillResponse(parsedForm: ParsedForm, isUnlocked: Boolean): FillResponse {
+        // Locked or no direct match: route to AutofillAuthActivity
         val intent = Intent(this, AutofillAuthActivity::class.java).apply {
             parsedForm.webDomain?.let { putExtra(AutofillAuthActivity.EXTRA_WEB_DOMAIN, it) }
             parsedForm.packageName?.let { putExtra(AutofillAuthActivity.EXTRA_PACKAGE_NAME, it) }
@@ -138,12 +158,7 @@ class KryptxAutofillService : AutofillService() {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
 
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            1001,
-            intent,
-            flags
-        )
+        val pendingIntent = PendingIntent.getActivity(this, 1001, intent, flags)
 
         val authPresentation = RemoteViews(packageName, android.R.layout.simple_list_item_2).apply {
             setTextViewText(android.R.id.text1, "🔒 Kryptx Sovereign Autofill")
@@ -168,14 +183,12 @@ class KryptxAutofillService : AutofillService() {
             authResponseBuilder.setSaveInfo(saveInfoBuilder.build())
         }
 
-        callback.onSuccess(authResponseBuilder.build())
+        return authResponseBuilder.build()
     }
 
-    private fun findMatchingItems(app: KryptxApplication, parsedForm: ParsedForm): List<VaultItem> {
+    private suspend fun findMatchingItems(app: KryptxApplication, parsedForm: ParsedForm): List<VaultItem> {
         return try {
-            val allItems = runBlocking(Dispatchers.IO) {
-                app.vaultRepository.getItems().first()
-            }
+            val allItems = app.vaultRepository.getItems().first()
 
             val targetDomain = parsedForm.webDomain
             val targetPackage = parsedForm.packageName
@@ -341,14 +354,16 @@ class KryptxAutofillService : AutofillService() {
                 }
                 val websiteUrl = if (domainSafe != null) "https://${domainSafe.removePrefix("www.")}" else ""
 
-                runBlocking(Dispatchers.IO) {
+                serviceScope.launch {
                     try {
                         val existingItems = app.vaultRepository.getItems().first()
-                        val targetDomainClean = extractedDomain?.lowercase()?.removePrefix("www.")
 
+                        // Use the same strict boundary-aware DomainMatcher as onFillRequest to prevent
+                        // substring-spoof attacks (e.g. "evil-paypal.com" matching "paypal.com" via contains()).
                         val match = existingItems.firstOrNull { item ->
                             item.type == ItemType.LOGIN && (
-                                (!targetDomainClean.isNullOrBlank() && item.website.lowercase().contains(targetDomainClean)) ||
+                                com.kryptx.app.core.security.DomainMatcher.isDomainMatch(extractedDomain, item.website) ||
+                                (!extractedDomain.isNullOrBlank() && com.kryptx.app.core.security.DomainMatcher.isPackageMatch(appPackage, item.website, item.title)) ||
                                 item.title.equals(formattedTitle, ignoreCase = true)
                             ) && (extractedUsername.isBlank() || item.username.equals(extractedUsername, ignoreCase = true))
                         }

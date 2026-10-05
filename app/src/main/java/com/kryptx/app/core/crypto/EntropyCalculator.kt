@@ -104,6 +104,29 @@ object EntropyCalculator {
             entropyBits += 10.0
         }
 
+        // Repeating substring pattern penalty (e.g., "Abc!Abc!Abc!" or "abababab")
+        // A password that is purely N repetitions of a short unit has the entropy of
+        // that unit alone — not N times it.
+        if (length >= 6) {
+            var foundRepeat = false
+            for (unitLen in 2..(length / 2)) {
+                val unit = lowerText.substring(0, unitLen)
+                val reps = length / unitLen
+                val remainder = length % unitLen
+                // Check if the whole password is just the unit repeated (with optional partial tail)
+                val isRepeating = (0 until reps).all { r ->
+                    lowerText.substring(r * unitLen, r * unitLen + unitLen) == unit
+                } && (remainder == 0 || lowerText.substring(reps * unitLen) == unit.substring(0, remainder))
+
+                if (isRepeating) {
+                    entropyBits = (entropyBits * 0.25).coerceAtLeast(5.0)
+                    suggestions.add("Avoid repeating the same pattern (e.g. '${unit.take(4)}...' repeated)")
+                    foundRepeat = true
+                    break
+                }
+            }
+        }
+
         val strength = when {
             entropyBits < 35.0 -> StrengthScore.VERY_WEAK
             entropyBits < 60.0 -> StrengthScore.WEAK

@@ -45,12 +45,14 @@ interface IPreferencesRepository {
     val scrambledPinDisabled: StateFlow<Boolean>
     val shakeToLockEnabled: StateFlow<Boolean>
     val acousticFeedbackEnabled: StateFlow<Boolean>
+    val biometricEnrollmentPrompted: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
 
     fun setThemeMode(mode: AppThemeMode)
     fun setDynamicColor(enable: Boolean)
     fun setAutoLockSeconds(seconds: Long)
     fun setLockOnBackground(lock: Boolean)
     fun setBiometricEnabled(enabled: Boolean)
+    fun setBiometricEnrollmentPrompted(prompted: Boolean) {}
     fun setClipboardTimeout(seconds: Int)
     fun setFlagSecureEnabled(enabled: Boolean)
     fun setOnboardingCompleted(completed: Boolean)

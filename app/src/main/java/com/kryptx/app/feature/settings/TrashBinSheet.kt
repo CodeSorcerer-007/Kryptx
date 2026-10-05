@@ -35,6 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +74,7 @@ fun TrashBinSheet(
     val trashItems by vaultRepository.getTrashItems().collectAsState(initial = emptyList())
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val view = LocalView.current
+    val scope = rememberCoroutineScope()
     var showConfirmEmptyDialog by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
@@ -178,7 +180,7 @@ fun TrashBinSheet(
                             KryptxPrimaryButton(
                                 text = "Empty Now",
                                 onClick = {
-                                    CoroutineScope(Dispatchers.IO).launch {
+                                    scope.launch {
                                         vaultRepository.emptyTrash()
                                     }
                                     showConfirmEmptyDialog = false
@@ -205,13 +207,13 @@ fun TrashBinSheet(
                         TrashItemRow(
                             item = item,
                             onRestore = {
-                                CoroutineScope(Dispatchers.IO).launch {
+                                scope.launch {
                                     vaultRepository.restoreFromTrash(item.id)
                                 }
                                 KryptxHaptics.confirm(view)
                             },
                             onPermanentDelete = {
-                                CoroutineScope(Dispatchers.IO).launch {
+                                scope.launch {
                                     vaultRepository.deleteItem(item.id)
                                 }
                                 KryptxHaptics.warning(view)

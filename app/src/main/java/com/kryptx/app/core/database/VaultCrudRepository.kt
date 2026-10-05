@@ -30,6 +30,13 @@ interface VaultCrudRepository {
     suspend fun toggleFavorite(itemId: String): KryptxResult<Unit>
     suspend fun recordItemUsage(itemId: String): KryptxResult<Unit>
 
+    /**
+     * Queries the HMAC blind index for item IDs matching [query]'s free-text tokens.
+     * Returns null when the blind index is unavailable (vault locked or not yet built),
+     * which signals the caller to fall back to in-memory filtering.
+     */
+    fun queryByBlindIndex(query: String): Set<String>?
+
     suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload>
     suspend fun exportPlaintextJson(): KryptxResult<String>
     suspend fun importEncryptedBackup(payload: EncryptedBackupPayload, importPassword: CharArray): KryptxResult<Int>
@@ -141,6 +148,12 @@ class VaultCrudRepositoryImpl(
                 KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, mapDatabaseException(e, "Failed to record usage"), e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+    }
+
+    override fun queryByBlindIndex(query: String): Set<String>? {
+        // Decoy vault uses a separate DB helper — use the correct one based on active session.
+        val targetDb = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+        return targetDb.queryByBlindIndex(query)
     }
 
     override suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload> = withContext(Dispatchers.Default) {

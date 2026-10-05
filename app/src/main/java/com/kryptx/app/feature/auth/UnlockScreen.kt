@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,23 +73,25 @@ fun UnlockScreen(
     viewModel: UnlockViewModel,
     onUnlockSuccess: () -> Unit,
     onTriggerBiometrics: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lockoutSeconds by viewModel.lockoutSecondsRemaining.collectAsState()
     val isQuickUnlock by viewModel.quickUnlockEnabled.collectAsState()
-    val isScrambleDisabled by viewModel.scrambledPinDisabled.collectAsState()
-    var usePinPad by remember { mutableStateOf(false) }
+    val isBiometricPrompted by viewModel.isBiometricEnrollmentPrompted.collectAsState()
     var rememberMe by remember { mutableStateOf(true) }
     var triggerCelebration by remember { mutableStateOf(false) }
 
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val shakeOffset = remember { Animatable(0f) }
+    var hasAutoPrompted by rememberSaveable { mutableStateOf(false) }
 
-    // Auto-prompt biometric authentication when screen appears and biometrics are ready
+    // Auto-prompt biometric authentication once when screen appears and biometrics are ready
     LaunchedEffect(uiState.isBiometricsAvailable) {
-        if (uiState.isBiometricsAvailable && lockoutSeconds == 0) {
+        if (!hasAutoPrompted && uiState.isBiometricsAvailable && lockoutSeconds == 0) {
+            hasAutoPrompted = true
             delay(50)
             onTriggerBiometrics()
         }
@@ -121,7 +124,14 @@ fun UnlockScreen(
                 triggerCelebration = true
                 scope.launch {
                     delay(180)
-                    onUnlockSuccess()
+                    if (!uiState.isBiometricsAvailable && onEnrollBiometrics != null && !isBiometricPrompted) {
+                        viewModel.setBiometricEnrollmentPrompted(true)
+                        onEnrollBiometrics { _ ->
+                            onUnlockSuccess()
+                        }
+                    } else {
+                        onUnlockSuccess()
+                    }
                 }
             })
         }
@@ -229,62 +239,6 @@ fun UnlockScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Input Mode Toggle: Password vs Scrambled PIN Pad
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                        .padding(3.dp),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (!usePinPad) KryptxBlue else Color.Transparent)
-                            .testTag("toggle_password_mode")
-                            .clickable {
-                                if (usePinPad) {
-                                    usePinPad = false
-                                    viewModel.onPasswordChanged("")
-                                }
-                            }
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Password",
-                            fontSize = 12.sp,
-                            fontWeight = if (!usePinPad) FontWeight.Bold else FontWeight.Medium,
-                            color = if (!usePinPad) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (usePinPad) KryptxBlue else Color.Transparent)
-                            .testTag("toggle_pin_mode")
-                            .clickable {
-                                if (!usePinPad) {
-                                    usePinPad = true
-                                    viewModel.onPasswordChanged("")
-                                }
-                            }
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "PIN Pad",
-                            fontSize = 12.sp,
-                            fontWeight = if (usePinPad) FontWeight.Bold else FontWeight.Medium,
-                            color = if (usePinPad) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
                 // Input Section with Shake Physics
                 Box(
                     modifier = Modifier
@@ -292,34 +246,22 @@ fun UnlockScreen(
                         .offset { IntOffset(shakeOffset.value.roundToInt(), 0) }
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (usePinPad) {
-                            ScrambledPinPad(
-                                pinLength = 6,
-                                isScrambleDisabled = isScrambleDisabled,
-                                resetKey = uiState.errorMessage,
-                                onPinComplete = { pin ->
-                                    viewModel.onPasswordChanged(pin)
-                                    submitUnlock()
-                                }
-                            )
-                        } else {
-                            KryptxTextField(
-                                value = uiState.password,
-                                onValueChange = { viewModel.onPasswordChanged(it) },
-                                label = "Master Password",
-                                placeholder = "Enter master password to decrypt",
-                                isPassword = true,
-                                modifier = Modifier.testTag("master_password_field"),
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = null,
-                                        tint = KryptxBlue,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            )
-                        }
+                        KryptxTextField(
+                            value = uiState.password,
+                            onValueChange = { viewModel.onPasswordChanged(it) },
+                            label = "Master Password",
+                            placeholder = "Enter master password to decrypt",
+                            isPassword = true,
+                            modifier = Modifier.testTag("master_password_field"),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = KryptxBlue,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
 
                         if (uiState.isHardwareKeyRequired) {
                             Spacer(modifier = Modifier.height(12.dp))
@@ -430,7 +372,7 @@ fun UnlockScreen(
                 // Sign In Action Button
                 if (uiState.isLoading) {
                     CircularProgressIndicator(color = KryptxBlue)
-                } else if (!usePinPad) {
+                } else {
                     KryptxPrimaryButton(
                         text = "Unlock Vault",
                         useBrandGradient = true,

@@ -47,14 +47,16 @@ class UnlockScreenComposeTest {
         }
 
         composeTestRule.onNodeWithTag("unlock_screen").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("toggle_password_mode").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("toggle_pin_mode").assertIsDisplayed()
         composeTestRule.onNodeWithTag("master_password_field").assertIsDisplayed()
         composeTestRule.onNodeWithTag("unlock_button").assertIsDisplayed()
     }
 
     @Test
-    fun testToggleToPinModeDisplaysPinPad() {
+    fun testBiometricSensorTriggerWhenAvailable() {
+        fakeVaultRepository.setupBiometrics()
+        fakePreferencesRepository.setBiometricEnabled(true)
+        viewModel.checkVaultStatus()
+
         composeTestRule.setContent {
             UnlockScreen(
                 viewModel = viewModel,
@@ -63,9 +65,7 @@ class UnlockScreenComposeTest {
             )
         }
 
-        composeTestRule.onNodeWithTag("toggle_pin_mode").performClick()
-        composeTestRule.onNodeWithTag("scrambled_pin_pad").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("pin_shuffle_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("secondary_biometric_button").assertIsDisplayed()
     }
 
     @Test

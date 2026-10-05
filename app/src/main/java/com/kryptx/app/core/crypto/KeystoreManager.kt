@@ -29,7 +29,7 @@ class KeystoreManager {
         private val OAEP_SPEC = OAEPParameterSpec(
             "SHA-256",
             "MGF1",
-            MGF1ParameterSpec.SHA256,
+            MGF1ParameterSpec.SHA1,
             PSource.PSpecified.DEFAULT
         )
     }
@@ -95,7 +95,11 @@ class KeystoreManager {
                 BIOMETRIC_KEY_ALIAS,
                 KeyProperties.PURPOSE_DECRYPT or KeyProperties.PURPOSE_ENCRYPT
             )
-                .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
+                .setDigests(
+                    KeyProperties.DIGEST_SHA256,
+                    KeyProperties.DIGEST_SHA1,
+                    KeyProperties.DIGEST_SHA512
+                )
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
                 .setKeySize(2048)
                 .setUserAuthenticationRequired(true)
@@ -155,10 +159,18 @@ class KeystoreManager {
      * Can execute in the background with zero user prompts required.
      */
     fun wrapWithPublicKey(vek: ByteArray): ByteArray {
-        val keyPair = getOrCreateBiometricKeyPair()
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, keyPair.public, OAEP_SPEC)
-        return cipher.doFinal(vek)
+        return try {
+            val keyPair = getOrCreateBiometricKeyPair()
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, keyPair.public, OAEP_SPEC)
+            cipher.doFinal(vek)
+        } catch (_: Exception) {
+            removeBiometricKey()
+            val newKeyPair = getOrCreateBiometricKeyPair()
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, newKeyPair.public, OAEP_SPEC)
+            cipher.doFinal(vek)
+        }
     }
 
     /**
@@ -171,7 +183,11 @@ class KeystoreManager {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, keyPair.private, OAEP_SPEC)
             cipher
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is android.security.keystore.KeyPermanentlyInvalidatedException ||
+                e is java.security.InvalidKeyException) {
+                removeBiometricKey()
+            }
             null
         }
     }

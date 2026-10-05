@@ -89,6 +89,7 @@ class KryptxDatabaseHelper(
             db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_VAULT_METADATA)
             db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_SECURITY_HISTORY)
             db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_ACTIVITY_LOG)
+            db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_SEARCH_TOKENS)
             KryptxDbSchema.SQL_CREATE_INDICES.forEach { db.execSQL(it) }
         }
 
@@ -107,11 +108,13 @@ class KryptxDatabaseHelper(
     /**
      * Sets the SQLCipher database encryption key derived from the active VEK.
      * Call this once at setup and once at every successful unlock before any DB access.
+     * Also derives and caches the search HMAC key from the VEK.
      */
     @Synchronized
     fun setDatabaseKey(key: ByteArray) {
         internalHelper?.close()
         internalHelper = InternalOpenHelper(context, databaseName, key, DATABASE_VERSION)
+        searchIndex.initKey(key)
     }
 
     /**
@@ -131,11 +134,13 @@ class KryptxDatabaseHelper(
 
     /**
      * Clears the in-memory SQLCipher key and closes database connections. Call when vault is locked.
+     * Also wipes the search HMAC key from RAM.
      */
     @Synchronized
     fun clearDatabaseKey() {
         internalHelper?.close()
         internalHelper = null
+        searchIndex.clearKey()
     }
 
     fun close() {
@@ -214,6 +219,9 @@ class KryptxDatabaseHelper(
     val itemsFlow: Flow<List<VaultItem>> = _itemsFlow.asStateFlow()
     private val _trashFlow = MutableStateFlow<List<VaultItem>>(emptyList())
     val trashFlow: Flow<List<VaultItem>> = _trashFlow.asStateFlow()
+
+    /** HMAC blind search index — key is derived from VEK on unlock, cleared on lock. */
+    val searchIndex = HmacSearchIndex()
 
     // ==========================================
     // Metadata / Vault Auth Storage (Migrated to EncryptedSharedPreferences)
@@ -378,6 +386,19 @@ class KryptxDatabaseHelper(
 
         _itemsFlow.value = activeItems
         _trashFlow.value = trashItems
+
+        // Lazily rebuild the HMAC blind index if the table is empty.
+        // This handles: first unlock after migration from DB v4, or a fresh install.
+        if (searchIndex.isKeyAvailable && searchIndex.isTableEmpty(writableDatabase)) {
+            try {
+                searchIndex.rebuildAll(writableDatabase, activeItems)
+            } catch (e: Exception) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper", "HMAC index lazy rebuild failed", e
+                )
+            }
+        }
+
         activeItems
     }
 
@@ -401,12 +422,23 @@ class KryptxDatabaseHelper(
             put(COL_LAST_USED_AT, 0L)
         }
 
-        val result = db.insertWithOnConflict(
-            TABLE_VAULT_ITEMS,
-            null,
-            values,
-            SQLiteDatabase.CONFLICT_REPLACE
-        )
+        // Write the encrypted payload and update the HMAC blind index atomically.
+        var result = -1L
+        db.beginTransaction()
+        try {
+            result = db.insertWithOnConflict(
+                TABLE_VAULT_ITEMS, null, values, SQLiteDatabase.CONFLICT_REPLACE
+            )
+            if (result != -1L && !item.isDeleted) {
+                searchIndex.upsertTokens(db, item)
+            } else if (result != -1L && item.isDeleted) {
+                // Soft-deleted items are not searchable — remove from index
+                searchIndex.deleteTokens(db, item.id)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
 
         if (result != -1L) {
             if (item.isDeleted) {
@@ -471,6 +503,8 @@ class KryptxDatabaseHelper(
                 )
                 if (res != -1L) {
                     successCount++
+                    // Update blind index inside the same transaction
+                    if (!item.isDeleted) searchIndex.upsertTokens(db, item)
                 }
             }
             db.setTransactionSuccessful()
@@ -542,6 +576,17 @@ class KryptxDatabaseHelper(
         }
 
         loadAllItems(newKey)
+
+        // Recompute all HMAC search tokens with the new VEK-derived HMAC key.
+        // loadAllItems already set the in-memory item list; reKeyAll uses it.
+        try {
+            searchIndex.reKeyAll(writableDatabase, newKey, _itemsFlow.value)
+        } catch (e: Exception) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "KryptxDatabaseHelper", "HMAC index rekey failed after VEK rotation", e
+            )
+        }
+
         updatedCount
     }
 
@@ -623,11 +668,32 @@ class KryptxDatabaseHelper(
 
         val rows = db.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(itemId))
         if (rows > 0) {
+            searchIndex.deleteTokens(db, itemId)
             _itemsFlow.value = _itemsFlow.value.filter { it.id != itemId }
             _trashFlow.value = _trashFlow.value.filter { it.id != itemId }
             true
         } else {
             false
+        }
+    }
+
+    // ── HMAC Blind Index Query ─────────────────────────────────────────────────
+
+    /**
+     * Returns the set of item IDs matching all free-text tokens in [query] using the
+     * HMAC blind index.  Returns null if the search HMAC key is unavailable (vault locked).
+     *
+     * Only free-text tokens are handled here; structured prefix filters (type:, is:, etc.)
+     * are evaluated in-memory by [SearchQueryParser] after the item IDs are resolved.
+     */
+    fun queryByBlindIndex(query: String): Set<String>? {
+        return try {
+            searchIndex.queryItemIds(readableDatabase, query)
+        } catch (e: Exception) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "KryptxDatabaseHelper", "Blind index query failed, falling back to in-memory", e
+            )
+            null
         }
     }
 

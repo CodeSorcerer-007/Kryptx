@@ -15,6 +15,9 @@
     <string name="biometric_prompt_title">Unlock Kryptx</string>
     <string name="biometric_prompt_subtitle">Touch sensor to decrypt your vault</string>
     <string name="biometric_prompt_cancel">Use master password</string>
+    <string name="biometric_prompt_enroll_title">Activate Biometric Unlock</string>
+    <string name="biometric_prompt_enroll_subtitle">Scan your fingerprint to link biometric unlock to your Kryptx vault</string>
+    <string name="biometric_prompt_enroll_cancel">Cancel</string>
 
     <!-- Accessibility Content Descriptions -->
     <string name="cd_lock_vault">Lock vault</string>

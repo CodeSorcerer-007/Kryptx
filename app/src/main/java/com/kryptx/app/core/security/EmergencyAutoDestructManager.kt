@@ -21,6 +21,7 @@ import java.security.SecureRandom
 class EmergencyAutoDestructManager(
     private val context: Context,
     private val sessionManager: VaultSessionManager? = null,
+    private val keystoreManager: KeystoreManager? = null,
     private val maxFailedAttempts: Int = 10,
     private val isEnabled: Boolean = false
 ) {
@@ -156,9 +157,10 @@ class EmergencyAutoDestructManager(
                 attachmentsDir.delete()
             }
 
-            // 4. Invalidate Keystore keys
+            // 4. Invalidate Keystore keys (use injected instance; fall back to a fresh one
+            //    only when running in standalone/test mode without a container reference).
             try {
-                KeystoreManager().removeBiometricKey()
+                (keystoreManager ?: KeystoreManager()).removeBiometricKey()
             } catch (_: Throwable) {
                 // Keystore might not be initialized
             }

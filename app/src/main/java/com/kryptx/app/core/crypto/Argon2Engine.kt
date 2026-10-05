@@ -33,6 +33,26 @@ object Argon2Engine {
             val DEFAULT = Argon2Params(memoryCostKb = 16_384, iterations = 3, parallelism = 1, outputLength = 32)
             val HIGH_SECURITY = Argon2Params(memoryCostKb = 65_536, iterations = 4, parallelism = 1, outputLength = 32)
             val FAST_TEST = Argon2Params(memoryCostKb = 64, iterations = 1, parallelism = 1, outputLength = 32)
+
+            /**
+             * Low-RAM profile for Android Go / sub-2 GB devices.
+             * 8 MB is still orders of magnitude stronger than any PBKDF2 configuration and
+             * prevents OOM during vault unlock on heavily memory-constrained devices.
+             */
+            val LOW_RAM = Argon2Params(memoryCostKb = 8_192, iterations = 3, parallelism = 1, outputLength = 32)
+
+            /**
+             * Automatically selects the appropriate Argon2 profile based on available JVM heap.
+             * - ≥ 256 MB heap → DEFAULT (16 MB, 3 rounds)
+             * - < 256 MB heap → LOW_RAM (8 MB, 3 rounds) for Android Go / constrained devices
+             *
+             * This check uses Runtime.maxMemory() which reflects the Dalvik heap ceiling
+             * assigned by the OS, not total device RAM, giving a conservative estimate.
+             */
+            fun forDevice(): Argon2Params {
+                val maxHeapMb = Runtime.getRuntime().maxMemory() / (1024 * 1024)
+                return if (maxHeapMb >= 256) DEFAULT else LOW_RAM
+            }
         }
     }
 

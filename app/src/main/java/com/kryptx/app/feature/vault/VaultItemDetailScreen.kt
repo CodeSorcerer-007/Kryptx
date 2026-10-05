@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.StarBorder
 import com.kryptx.app.core.model.IssueSeverity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -98,14 +99,29 @@ fun VaultItemDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isFocusMode by remember { mutableStateOf(false) }
     var showPasswordHistorySheet by remember { mutableStateOf(false) }
-
-    LaunchedEffect(item) {
-        if (item == null) {
+    var isNavigatingBack by remember { mutableStateOf(false) }
+    val safeNavigateBack = {
+        if (!isNavigatingBack) {
+            isNavigatingBack = true
             onNavigateBack()
         }
     }
 
+    LaunchedEffect(item, items.isNotEmpty()) {
+        if (item == null && items.isNotEmpty()) {
+            safeNavigateBack()
+        }
+    }
+
     if (item == null) {
+        if (items.isEmpty()) {
+            Box(
+                modifier = modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = KryptxBlue)
+            }
+        }
         return
     }
 
@@ -123,7 +139,7 @@ fun VaultItemDetailScreen(
             KryptxTopBar(
                 title = if (isFocusMode) "Focus Mode" else "Credential Detail",
                 showBackButton = true,
-                onBackClick = onNavigateBack,
+                onBackClick = safeNavigateBack,
                 actions = {
                     KryptxCircleIconButton(
                         icon = Icons.Default.CenterFocusStrong,
@@ -489,7 +505,7 @@ fun VaultItemDetailScreen(
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
-                        viewModel.deleteItem(item.id, onDeleted = onNavigateBack)
+                        viewModel.deleteItem(item.id, onDeleted = safeNavigateBack)
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = KryptxRed)
                 ) {

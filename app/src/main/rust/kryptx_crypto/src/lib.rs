@@ -134,7 +134,7 @@ impl NativeCryptoEngine {
     }
 
     pub fn derive_key(&self, password: &str, salt: Vec<u8>) -> Result<Vec<u8>, NativeCryptoError> {
-        self.derive_key_custom(password, salt, 65536, 4, 2)
+        self.derive_key_custom(password, salt, 16384, 3, 1)
     }
 
     pub fn derive_key_custom(

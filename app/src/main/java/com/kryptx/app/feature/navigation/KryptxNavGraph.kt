@@ -141,7 +141,8 @@ fun KryptxNavGraph(
     onTriggerBiometrics: () -> Unit,
     modifier: Modifier = Modifier,
     pendingShortcutTarget: String? = null,
-    onClearPendingShortcut: () -> Unit = {}
+    onClearPendingShortcut: () -> Unit = {},
+    onEnrollBiometrics: ((Boolean) -> Unit) -> Unit = {}
 ) {
     val isUnlocked by unlockViewModel.isUnlocked.collectAsState()
     val unlockUiState by unlockViewModel.uiState.collectAsState()
@@ -323,7 +324,8 @@ fun KryptxNavGraph(
                             onVaultCreated = {
                                 backStack.clear()
                                 backStack.add(Screen.VaultDashboard)
-                            }
+                            },
+                            onEnrollBiometrics = onEnrollBiometrics
                         )
                     }
 
@@ -334,7 +336,8 @@ fun KryptxNavGraph(
                                 backStack.clear()
                                 backStack.add(Screen.VaultDashboard)
                             },
-                            onTriggerBiometrics = onTriggerBiometrics
+                            onTriggerBiometrics = onTriggerBiometrics,
+                            onEnrollBiometrics = onEnrollBiometrics
                         )
                     }
 
@@ -345,7 +348,8 @@ fun KryptxNavGraph(
                             onNavigateToEditItem = { id -> navigateTo(Screen.AddEditItem(id)) },
                             onNavigateToAddItem = { navigateTo(Screen.AddEditItem(null)) },
                             onNavigateToSecurityCenter = { navigateTo(Screen.SecurityCenter) },
-                            onNavigateToSearch = { navigateTo(Screen.Search) }
+                            onNavigateToSearch = { navigateTo(Screen.Search) },
+                            onEnrollBiometrics = onEnrollBiometrics
                         )
                     }
 
@@ -406,7 +410,8 @@ fun KryptxNavGraph(
                     Screen.SecuritySettings -> {
                         SecuritySettingsScreen(
                             viewModel = settingsViewModel,
-                            onNavigateBack = { navigateBack() }
+                            onNavigateBack = { navigateBack() },
+                            onEnrollBiometrics = onEnrollBiometrics
                         )
                     }
 

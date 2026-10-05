@@ -23,6 +23,9 @@ class FakePreferencesRepository : IPreferencesRepository {
     private val _biometricEnabled = MutableStateFlow(false)
     override val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
 
+    private val _biometricEnrollmentPrompted = MutableStateFlow(false)
+    override val biometricEnrollmentPrompted: StateFlow<Boolean> = _biometricEnrollmentPrompted.asStateFlow()
+
     private val _clipboardTimeout = MutableStateFlow(30)
     override val clipboardTimeout: StateFlow<Int> = _clipboardTimeout.asStateFlow()
 
@@ -61,6 +64,7 @@ class FakePreferencesRepository : IPreferencesRepository {
     override fun setAutoLockSeconds(seconds: Long) { _autoLockSeconds.value = seconds }
     override fun setLockOnBackground(lock: Boolean) { _lockOnBackground.value = lock }
     override fun setBiometricEnabled(enabled: Boolean) { _biometricEnabled.value = enabled }
+    override fun setBiometricEnrollmentPrompted(prompted: Boolean) { _biometricEnrollmentPrompted.value = prompted }
     override fun setClipboardTimeout(seconds: Int) { _clipboardTimeout.value = seconds }
     override fun setFlagSecureEnabled(enabled: Boolean) { _flagSecureEnabled.value = enabled }
     override fun setOnboardingCompleted(completed: Boolean) { _onboardingCompleted.value = completed }

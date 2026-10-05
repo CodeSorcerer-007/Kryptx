@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kryptx.app.core.crypto.EntropyCalculator
 import com.kryptx.app.core.database.VaultRepository
 import com.kryptx.app.core.model.ItemType
+import com.kryptx.app.core.model.SearchQueryParser
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.security.IClipboardSecurityManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +42,7 @@ class SearchViewModel(
         var list = items
         val q = queryText.trim().lowercase()
 
+        // ── Structural chip filters ──────────────────────────────────────────
         if (filter == "FAVORITES") {
             list = list.filter { it.isFavorite }
         } else if (filter == "WEAK") {
@@ -53,13 +55,34 @@ class SearchViewModel(
             }
         } else if (filter != null) {
             val type = ItemType.entries.firstOrNull { it.name == filter }
-            if (type != null) {
-                list = list.filter { it.type == type }
-            }
+            if (type != null) list = list.filter { it.type == type }
         }
 
         if (q.isNotBlank()) {
-            list = com.kryptx.app.core.model.SearchQueryParser.filter(list, q)
+            val parsed = SearchQueryParser.parse(q)
+
+            // ── HMAC blind index fast-path ───────────────────────────────────
+            // If the query has free-text tokens, use the DB blind index to pre-filter
+            // to matching item IDs, then apply the remaining structured filters in-memory.
+            // Falls back to pure in-memory scan if the index is unavailable (locked vault,
+            // index not yet built, or structured-only query with no text tokens).
+            val candidateIds: Set<String>? = if (parsed.textTokens.isNotEmpty()) {
+                vaultRepository.queryByBlindIndex(q)
+            } else {
+                null  // Structured-only query — no blind index needed
+            }
+
+            list = if (candidateIds != null) {
+                // Intersect in-memory list with DB blind index results, then apply structured filters
+                val idFilteredList = list.filter { it.id in candidateIds }
+                // Re-evaluate structured filters on the smaller candidate set
+                idFilteredList.filter { item ->
+                    SearchQueryParser.matches(item, parsed.copy(textTokens = emptyList()))
+                }
+            } else {
+                // Pure in-memory fallback — handles structured-only queries or locked vault
+                SearchQueryParser.filter(list, q)
+            }
         }
 
         list

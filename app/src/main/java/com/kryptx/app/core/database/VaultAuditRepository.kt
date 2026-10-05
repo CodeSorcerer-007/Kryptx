@@ -158,9 +158,10 @@ class VaultAuditRepositoryImpl(
             // 3. Old passwords (> 6 months without rotation)
             var oldCount = 0
             for (item in loginItems) {
-                if (item.updatedAt < sixMonthsAgo) {
+                val effectiveTime = if (item.updatedAt > 0L) item.updatedAt else item.createdAt
+                if (effectiveTime > 0L && effectiveTime < sixMonthsAgo) {
                     oldCount++
-                    val ageInMonths = ((System.currentTimeMillis() - item.updatedAt) / (30L * 24 * 60 * 60 * 1000L)).toInt()
+                    val ageInMonths = ((System.currentTimeMillis() - effectiveTime) / (30L * 24 * 60 * 60 * 1000L)).toInt()
                     issues.add(
                         SecurityIssue(
                             id = "old_${item.id}",

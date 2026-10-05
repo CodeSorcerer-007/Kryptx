@@ -25,6 +25,7 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_AUTO_LOCK_SECONDS = "auto_lock_seconds"
         private const val KEY_LOCK_ON_BACKGROUND = "lock_on_background"
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+        private const val KEY_BIOMETRIC_ENROLLMENT_PROMPTED = "biometric_enrollment_prompted"
         private const val KEY_CLIPBOARD_TIMEOUT = "clipboard_timeout"
         private const val KEY_FLAG_SECURE = "flag_secure_enabled"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
@@ -54,6 +55,9 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
 
     private val _biometricEnabled = MutableStateFlow(prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false))
     override val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
+
+    private val _biometricEnrollmentPrompted = MutableStateFlow(prefs.getBoolean(KEY_BIOMETRIC_ENROLLMENT_PROMPTED, false))
+    override val biometricEnrollmentPrompted: StateFlow<Boolean> = _biometricEnrollmentPrompted.asStateFlow()
 
     private val _clipboardTimeout = MutableStateFlow(prefs.getInt(KEY_CLIPBOARD_TIMEOUT, 30))
     override val clipboardTimeout: StateFlow<Int> = _clipboardTimeout.asStateFlow()
@@ -135,6 +139,11 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     override fun setBiometricEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).apply()
         _biometricEnabled.value = enabled
+    }
+
+    override fun setBiometricEnrollmentPrompted(prompted: Boolean) {
+        prefs.edit().putBoolean(KEY_BIOMETRIC_ENROLLMENT_PROMPTED, prompted).apply()
+        _biometricEnrollmentPrompted.value = prompted
     }
 
     override fun setClipboardTimeout(seconds: Int) {

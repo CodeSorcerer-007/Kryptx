@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 class SettingsViewModel(
@@ -40,7 +41,8 @@ class SettingsViewModel(
     val shakeToLockEnabled = preferencesRepository.shakeToLockEnabled
     val acousticFeedbackEnabled = preferencesRepository.acousticFeedbackEnabled
 
-    val activityEvents: StateFlow<List<ActivityEvent>> = activityLogManager?.events ?: MutableStateFlow(emptyList())
+    val activityEvents: StateFlow<List<ActivityEvent>> = activityLogManager?.events
+        ?: MutableStateFlow(emptyList<ActivityEvent>()).asStateFlow()
 
     private val _hasDuress = MutableStateFlow(vaultRepository.hasDuressPassword())
     val hasDuress: StateFlow<Boolean> = _hasDuress.asStateFlow()
@@ -162,12 +164,15 @@ class SettingsViewModel(
             } finally {
                 SecureMemory.wipe(chars)
             }
-            if (result.isSuccess) {
-                _hasDuress.value = true
-                activityLogManager?.logEvent("Security", "Configured Duress Vault")
-                onSuccess()
-            } else {
-                onError("Failed to configure Duress Vault")
+            when (result) {
+                is com.kryptx.app.core.model.KryptxResult.Success -> {
+                    _hasDuress.value = true
+                    activityLogManager?.logEvent("Security", "Configured Duress Vault")
+                    onSuccess()
+                }
+                is com.kryptx.app.core.model.KryptxResult.Error -> {
+                    onError(if (result.message.isNotBlank()) result.message else "Failed to configure Duress Vault")
+                }
             }
         }
     }
@@ -193,11 +198,14 @@ class SettingsViewModel(
             } finally {
                 SecureMemory.wipe(chars)
             }
-            if (result.isSuccess) {
-                _hasPanic.value = true
-                onSuccess()
-            } else {
-                onError("Failed to configure Panic Vault")
+            when (result) {
+                is com.kryptx.app.core.model.KryptxResult.Success -> {
+                    _hasPanic.value = true
+                    onSuccess()
+                }
+                is com.kryptx.app.core.model.KryptxResult.Error -> {
+                    onError(if (result.message.isNotBlank()) result.message else "Failed to configure Panic Vault")
+                }
             }
         }
     }
@@ -350,8 +358,13 @@ class SettingsViewModel(
         }
     }
 
-    fun getStorageDiagnostics(): com.kryptx.app.core.database.KryptxDatabaseHelper.DatabaseDiagnostics {
-        return vaultRepository.getDatabaseDiagnostics()
+    fun getStorageDiagnostics(onResult: (com.kryptx.app.core.database.KryptxDatabaseHelper.DatabaseDiagnostics) -> Unit) {
+        viewModelScope.launch {
+            val diagnostics = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                vaultRepository.getDatabaseDiagnostics()
+            }
+            onResult(diagnostics)
+        }
     }
 
     fun vacuumVault(onComplete: (Boolean) -> Unit) {

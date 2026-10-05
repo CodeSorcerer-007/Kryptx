@@ -35,4 +35,4 @@ The `core` package contains the foundational, headless, domain-agnostic and secu
 
 5. **Manual Dependency Injection (ADR-001)**:
    - All services and managers are constructed deterministically inside `AppContainer`.
-   - Never introduce reflection-based DI frameworks (Dagger, Hilt, Koin).
+   - Never introduce reflection-based DI frameworks (Dagger, Hilt, Koin). All such dependencies have been fully removed from the build configuration.

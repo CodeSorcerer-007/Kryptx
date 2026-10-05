@@ -157,6 +157,9 @@ class FakeVaultRepository : VaultRepository {
 
     override fun getItems(): Flow<List<VaultItem>> = _itemsFlow.asStateFlow()
 
+    /** Blind index not available in fakes — return null to trigger in-memory fallback. */
+    override fun queryByBlindIndex(query: String): Set<String>? = null
+
     override fun getTrashItems(): Flow<List<VaultItem>> = _trashFlow.asStateFlow()
 
     override suspend fun getItemById(id: String): VaultItem? {

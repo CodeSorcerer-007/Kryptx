@@ -21,11 +21,12 @@ class BiometricAuthManager(private val context: Context) {
     }
 
     /**
-     * Checks whether Biometrics (Fingerprint / Face) are enrolled and available.
+     * Checks whether Biometrics (Fingerprint / Strong Biometrics) are enrolled and available.
      */
-    fun checkBiometricAvailability(): BiometricStatus {
+    fun checkBiometricAvailability(requireStrong: Boolean = true): BiometricStatus {
         val biometricManager = BiometricManager.from(context)
-        return when (biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)) {
+        val authenticators = if (requireStrong) BIOMETRIC_STRONG else (BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+        return when (biometricManager.canAuthenticate(authenticators)) {
             BiometricManager.BIOMETRIC_SUCCESS -> BiometricStatus.AVAILABLE
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> BiometricStatus.NOT_ENROLLED
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> BiometricStatus.NO_HARDWARE
@@ -33,8 +34,8 @@ class BiometricAuthManager(private val context: Context) {
         }
     }
 
-    fun canAuthenticate(): Boolean {
-        return checkBiometricAvailability() == BiometricStatus.AVAILABLE
+    fun canAuthenticate(requireStrong: Boolean = true): Boolean {
+        return checkBiometricAvailability(requireStrong) == BiometricStatus.AVAILABLE
     }
 
     /**
@@ -44,6 +45,7 @@ class BiometricAuthManager(private val context: Context) {
         activity: FragmentActivity,
         title: String = "Unlock Kryptx",
         subtitle: String = "Touch sensor to decrypt your secure vault",
+        negativeButtonText: String = "Use Master Password",
         cryptoObject: BiometricPrompt.CryptoObject? = null,
         onSuccess: (BiometricPrompt.AuthenticationResult) -> Unit,
         onError: (errorCode: Int, errString: CharSequence) -> Unit,
@@ -72,7 +74,7 @@ class BiometricAuthManager(private val context: Context) {
             .setTitle(title)
             .setSubtitle(subtitle)
             .setConfirmationRequired(false)
-            .setNegativeButtonText("Use Master Password")
+            .setNegativeButtonText(negativeButtonText)
             .setAllowedAuthenticators(if (cryptoObject != null) BIOMETRIC_STRONG else (BIOMETRIC_STRONG or BIOMETRIC_WEAK))
             .build()
 

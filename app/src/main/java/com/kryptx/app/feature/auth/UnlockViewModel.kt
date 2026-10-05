@@ -29,6 +29,11 @@ class UnlockViewModel(
     val lockoutSecondsRemaining = sessionManager.lockoutSecondsRemaining
     val quickUnlockEnabled: StateFlow<Boolean> = preferencesRepository.quickUnlockEnabled
     val scrambledPinDisabled: StateFlow<Boolean> = preferencesRepository.scrambledPinDisabled
+    val isBiometricEnrollmentPrompted: StateFlow<Boolean> = preferencesRepository.biometricEnrollmentPrompted
+
+    fun setBiometricEnrollmentPrompted(prompted: Boolean) {
+        preferencesRepository.setBiometricEnrollmentPrompted(prompted)
+    }
 
     init {
         checkVaultStatus()
@@ -36,7 +41,7 @@ class UnlockViewModel(
 
     fun checkVaultStatus() {
         val hasVault = vaultRepository.hasVault()
-        val isBiometricConfigured = vaultRepository.isBiometricsConfigured()
+        val isBiometricConfigured = vaultRepository.isBiometricsConfigured() && preferencesRepository.biometricEnabled.value
         val isHardwareKey = vaultRepository.isHardwareKeyEnrolled()
         val keyLabel = vaultRepository.getHardwareKeyLabel()
         _uiState.value = _uiState.value.copy(
@@ -45,6 +50,10 @@ class UnlockViewModel(
             isHardwareKeyRequired = isHardwareKey,
             hardwareKeyLabel = keyLabel
         )
+    }
+
+    fun setErrorMessage(message: String?) {
+        _uiState.value = _uiState.value.copy(errorMessage = message, isLoading = false)
     }
 
     fun handleNfcTag(tag: android.nfc.Tag, onSuccess: () -> Unit) {
@@ -134,7 +143,7 @@ class UnlockViewModel(
                 is KryptxResult.Success -> {
                     // Self-heal: If the hardware biometric key was permanently invalidated (e.g., new fingerprint added),
                     // automatically regenerate it and re-wrap the VEK now that we have unlocked the vault.
-                    if (vaultRepository.isBiometricsConfigured()) {
+                    if (preferencesRepository.biometricEnabled.value) {
                         vaultRepository.setupBiometrics()
                     }
 
@@ -181,7 +190,10 @@ class UnlockViewModel(
                         val success = bioResult.isSuccess
                         preferencesRepository.setBiometricEnabled(success)
                         success
-                    } else false
+                    } else {
+                        preferencesRepository.setBiometricEnabled(false)
+                        false
+                    }
 
                     _uiState.value = _uiState.value.copy(
                         hasVault = true,
@@ -198,6 +210,32 @@ class UnlockViewModel(
                         isLoading = false,
                         errorMessage = "Failed to create vault. Please try again."
                     )
+                }
+            }
+        }
+    }
+
+    fun unlockWithBiometricCipher(cipher: javax.crypto.Cipher, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            val result = vaultRepository.unlockWithBiometricCipher(cipher)
+            _uiState.value = _uiState.value.copy(isLoading = false)
+
+            when (result) {
+                is KryptxResult.Success -> {
+                    _uiState.value = _uiState.value.copy(password = "")
+                    activityLogManager?.logEvent("Unlock", "Vault unlocked via Biometrics")
+                    activityLogManager?.loadEvents()
+                    onSuccess()
+                }
+                is KryptxResult.Error -> {
+                    val message = when (result.type) {
+                        KryptxErrorType.KEYSTORE_INVALIDATED -> "Biometric enrollment changed. Please use your master password to re-enroll."
+                        KryptxErrorType.BIOMETRICS_NOT_AVAILABLE -> "Biometric unlock not configured."
+                        KryptxErrorType.BIOMETRICS_FAILED -> if (result.message.isNotBlank()) result.message else "Biometric authentication failed. Please try again."
+                        else -> if (result.message.isNotBlank()) result.message else "Biometric authentication failed. Please enter your master password."
+                    }
+                    _uiState.value = _uiState.value.copy(errorMessage = message)
                 }
             }
         }

@@ -53,7 +53,8 @@ import com.kryptx.app.core.designsystem.theme.KryptxShapes
 fun SetupMasterPasswordScreen(
     viewModel: UnlockViewModel,
     onVaultCreated: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -235,8 +236,16 @@ fun SetupMasterPasswordScreen(
                         viewModel.setupNewVault(
                             password = password,
                             confirm = confirmPassword,
-                            enableBiometrics = enableBiometrics,
-                            onSuccess = onVaultCreated
+                            enableBiometrics = false,
+                            onSuccess = {
+                                if (enableBiometrics && onEnrollBiometrics != null) {
+                                    onEnrollBiometrics { _ ->
+                                        onVaultCreated()
+                                    }
+                                } else {
+                                    onVaultCreated()
+                                }
+                            }
                         )
                     }
                 )

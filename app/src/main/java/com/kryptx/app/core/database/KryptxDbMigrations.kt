@@ -60,5 +60,17 @@ object KryptxDbMigrations {
                 SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 4", e)
             }
         }
+
+        // Version 5: Add HMAC blind search index table.
+        // Token population happens lazily on the next unlock/save — the HmacSearchIndex
+        // rebuilds itself from scratch on vault unlock if the table is empty.
+        if (oldVersion < 5) {
+            try {
+                db.execSQL(KryptxDbSchema.SQL_CREATE_TABLE_SEARCH_TOKENS)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_search_tokens_hmac ON ${KryptxDbSchema.TABLE_SEARCH_TOKENS}(${KryptxDbSchema.COL_SRCH_TOKEN_HMAC})")
+            } catch (e: Exception) {
+                SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 5", e)
+            }
+        }
     }
 }

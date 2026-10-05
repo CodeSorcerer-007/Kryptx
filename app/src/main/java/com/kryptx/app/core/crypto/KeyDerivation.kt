@@ -72,11 +72,13 @@ object KeyDerivation {
 
     /**
      * Derives a 256-bit symmetric encryption key using Argon2id (RFC 9106).
+     * Uses [Argon2Engine.Argon2Params.forDevice] by default to automatically adapt the
+     * memory cost to the available JVM heap, preventing OOM on Android Go / low-RAM devices.
      */
     fun deriveKeyArgon2(
         password: CharArray,
         salt: ByteArray,
-        params: Argon2Engine.Argon2Params = Argon2Engine.Argon2Params.DEFAULT
+        params: Argon2Engine.Argon2Params = Argon2Engine.Argon2Params.forDevice()
     ): ByteArray {
         require(salt.size >= MIN_SALT_LENGTH_BYTES) { "Salt must be at least $MIN_SALT_LENGTH_BYTES bytes for secure key derivation" }
         return Argon2Engine.deriveKey(password, salt, params)
