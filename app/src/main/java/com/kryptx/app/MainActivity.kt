@@ -155,7 +155,7 @@ class MainActivity : FragmentActivity() {
                     pendingShortcutTarget = pendingShortcutTarget,
                     onClearPendingShortcut = { pendingShortcutTarget = null },
                     onTriggerBiometrics = {
-                        triggerBiometricUnlock()
+                        triggerBiometricUnlock(force = true)
                     },
                     onEnrollBiometrics = { onResult ->
                         triggerBiometricEnrollment(onResult)
@@ -193,6 +193,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        isPromptingBiometrics = false
         try {
             if (nfcAdapter?.isEnabled == true) {
                 nfcPendingIntent?.let { pending ->
@@ -231,19 +232,40 @@ class MainActivity : FragmentActivity() {
         try {
             contextualLockManager?.stopListening()
         } catch (_: Throwable) {}
+
+        try {
+            app.biometricManager.cancelAuthentication()
+        } catch (_: Throwable) {}
+        isPromptingBiometrics = false
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try {
+            app.biometricManager.cancelAuthentication()
+        } catch (_: Throwable) {}
+        isPromptingBiometrics = false
+        hasAutoPromptedBiometrics = false
     }
 
     private var isPromptingBiometrics = false
 
-    private fun triggerBiometricUnlock() {
+    private fun triggerBiometricUnlock(force: Boolean = false) {
         try {
-            if (isPromptingBiometrics) return
+            if (isPromptingBiometrics && !force) return
             if (!app.biometricManager.canAuthenticate(requireStrong = true)) return
             if (app.sessionManager.isUnlocked.value) return
             if (unlockViewModel.lockoutSecondsRemaining.value > 0) return
 
             val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
             if (!isConfigured) return
+
+            if (force) {
+                try {
+                    app.biometricManager.cancelAuthentication()
+                } catch (_: Throwable) {}
+                isPromptingBiometrics = false
+            }
 
             val decryptCipher = try {
                 app.vaultRepository.getBiometricDecryptCipher()

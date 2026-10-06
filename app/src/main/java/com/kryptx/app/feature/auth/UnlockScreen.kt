@@ -189,12 +189,13 @@ fun UnlockScreen(
                             .clip(CircleShape)
                             .background(KryptxBlue.copy(alpha = 0.12f))
                             .border(1.5.dp, KryptxBlue.copy(alpha = 0.40f), CircleShape)
-                            .bounceClick(scaleDown = 0.92f) {
+                            .clickable {
                                 if (uiState.isBiometricsAvailable) {
                                     KryptxHaptics.tap(view)
                                     onTriggerBiometrics()
                                 }
-                            },
+                            }
+                            .bounceClick(scaleDown = 0.92f),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -416,9 +417,11 @@ fun UnlockScreen(
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.30f), CircleShape)
                             .testTag("secondary_biometric_button")
-                            .bounceClick(scaleDown = 0.90f) {
+                            .clickable {
+                                KryptxHaptics.tap(view)
                                 onTriggerBiometrics()
-                            },
+                            }
+                            .bounceClick(scaleDown = 0.90f),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

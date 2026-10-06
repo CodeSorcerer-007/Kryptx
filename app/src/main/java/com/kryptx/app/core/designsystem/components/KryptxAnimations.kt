@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -54,6 +55,7 @@ fun Modifier.bounceClick(
 ): Modifier = composed {
     var isPressed by remember { mutableStateOf(false) }
     val view = LocalView.current
+    val currentOnClick by rememberUpdatedState(onClick)
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) scaleDown else 1f,
@@ -71,14 +73,14 @@ fun Modifier.bounceClick(
                 while (true) {
                     awaitFirstDown(requireUnconsumed = false)
                     isPressed = true
-                    if (hapticFeedback) {
+                    if (hapticFeedback && currentOnClick != null) {
                         KryptxHaptics.tap(view)
                     }
 
                     val up = waitForUpOrCancellation()
                     isPressed = false
-                    if (up != null && onClick != null) {
-                        onClick()
+                    if (up != null && currentOnClick != null) {
+                        currentOnClick?.invoke()
                     }
                 }
             }

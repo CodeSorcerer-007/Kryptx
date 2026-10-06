@@ -38,6 +38,18 @@ class BiometricAuthManager(private val context: Context) {
         return checkBiometricAvailability(requireStrong) == BiometricStatus.AVAILABLE
     }
 
+    private var activePrompt: BiometricPrompt? = null
+
+    /**
+     * Safely cancels any active or pending BiometricPrompt dialog.
+     */
+    fun cancelAuthentication() {
+        try {
+            activePrompt?.cancelAuthentication()
+        } catch (_: Throwable) {}
+        activePrompt = null
+    }
+
     /**
      * Triggers the system BiometricPrompt modal.
      */
@@ -51,15 +63,19 @@ class BiometricAuthManager(private val context: Context) {
         onError: (errorCode: Int, errString: CharSequence) -> Unit,
         onFailed: () -> Unit
     ) {
+        cancelAuthentication()
+
         val executor = ContextCompat.getMainExecutor(activity)
 
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                activePrompt = null
                 super.onAuthenticationSucceeded(result)
                 onSuccess(result)
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                activePrompt = null
                 super.onAuthenticationError(errorCode, errString)
                 onError(errorCode, errString)
             }
@@ -80,6 +96,7 @@ class BiometricAuthManager(private val context: Context) {
 
         try {
             val biometricPrompt = BiometricPrompt(activity, executor, callback)
+            activePrompt = biometricPrompt
 
             if (cryptoObject != null) {
                 biometricPrompt.authenticate(promptInfo, cryptoObject)
@@ -87,6 +104,7 @@ class BiometricAuthManager(private val context: Context) {
                 biometricPrompt.authenticate(promptInfo)
             }
         } catch (e: Throwable) {
+            activePrompt = null
             onError(BiometricPrompt.ERROR_UNABLE_TO_PROCESS, e.localizedMessage ?: "Biometric prompt failed to launch")
         }
     }
