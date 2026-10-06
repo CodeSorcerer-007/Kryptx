@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -267,6 +268,9 @@ fun GeneratorScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("regenerate_button"),
+                            height = 52.dp,
+                            contentPadding = PaddingValues(horizontal = 10.dp),
+                            fontSize = 14.sp,
                             borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
                             textColor = MaterialTheme.colorScheme.onSurface,
                             leadingIcon = {
@@ -276,7 +280,6 @@ fun GeneratorScreen(
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
                             },
                             onClick = {
                                 KryptxHaptics.tap(view)
@@ -290,6 +293,9 @@ fun GeneratorScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("copy_credential_button"),
+                            height = 52.dp,
+                            contentPadding = PaddingValues(horizontal = 10.dp),
+                            fontSize = 14.sp,
                             containerColor = if (isCopied) KryptxEmerald else KryptxBlue,
                             contentColor = Color.White,
                             leadingIcon = {
@@ -299,7 +305,6 @@ fun GeneratorScreen(
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
                             },
                             onClick = {
                                 KryptxHaptics.confirm(view)

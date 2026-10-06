@@ -40,6 +40,10 @@ import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
+
 /**
  * Signature full-width capsule action button with tactile bounce physics and dynamic specular sheen.
  */
@@ -53,6 +57,8 @@ fun KryptxPrimaryButton(
     containerColor: Color = KryptxBlue,
     contentColor: Color = Color.White,
     height: Dp = 56.dp,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    fontSize: TextUnit = 16.sp,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(28.dp)
@@ -93,7 +99,8 @@ fun KryptxPrimaryButton(
                             endX = gleamCenter + gleamWidth / 2
                         )
                     )
-                },
+                }
+                .padding(contentPadding),
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -104,8 +111,11 @@ fun KryptxPrimaryButton(
                 Text(
                     text = text,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = Color.White
+                    fontSize = fontSize,
+                    color = Color.White,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -118,6 +128,7 @@ fun KryptxPrimaryButton(
                 .bounceClick(scaleDown = 0.96f, onClick = onClick),
             enabled = enabled,
             shape = shape,
+            contentPadding = contentPadding,
             colors = ButtonDefaults.buttonColors(
                 containerColor = containerColor,
                 contentColor = contentColor,
@@ -132,8 +143,11 @@ fun KryptxPrimaryButton(
             Text(
                 text = text,
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = if (enabled) contentColor else contentColor.copy(alpha = 0.5f)
+                fontSize = fontSize,
+                color = if (enabled) contentColor else contentColor.copy(alpha = 0.5f),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -151,6 +165,8 @@ fun KryptxOutlinedButton(
     borderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
     textColor: Color = MaterialTheme.colorScheme.onSurface,
     height: Dp = 52.dp,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    fontSize: TextUnit = 14.sp,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(26.dp)
@@ -162,6 +178,7 @@ fun KryptxOutlinedButton(
             .bounceClick(scaleDown = 0.96f, onClick = onClick),
         enabled = enabled,
         shape = shape,
+        contentPadding = contentPadding,
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = textColor
         )
@@ -173,7 +190,10 @@ fun KryptxOutlinedButton(
         Text(
             text = text,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp
+            fontSize = fontSize,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
