@@ -183,11 +183,15 @@ jobs:
         run: chmod +x gradlew
 
       - name: Decode Release Keystore
-        if: ${{ secrets.KRYPTX_KEYSTORE_BASE64 != '' }}
         env:
           KRYPTX_KEYSTORE_BASE64: ${{ secrets.KRYPTX_KEYSTORE_BASE64 }}
         run: |
-          echo "$KRYPTX_KEYSTORE_BASE64" | base64 --decode > app/kryptx-release-key.jks
+          if [ -n "$KRYPTX_KEYSTORE_BASE64" ]; then
+            echo "$KRYPTX_KEYSTORE_BASE64" | base64 --decode > app/kryptx-release-key.jks
+            echo "Release keystore decoded successfully."
+          else
+            echo "KRYPTX_KEYSTORE_BASE64 not configured in secrets."
+          fi
 
       - name: Build Reproducible Release APK
         env:
