@@ -1,6 +1,8 @@
 package com.kryptx.app.feature.generator
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -121,14 +123,18 @@ fun GeneratorScreen(
             ) {
                 GeneratorMode.entries.forEach { mode ->
                     val isSelected = config.mode == mode
+                    val tabBg by animateColorAsState(
+                        targetValue = if (isSelected) KryptxBlue else Color.Transparent,
+                        animationSpec = tween(200),
+                        label = "mode_tab_bg_${mode.name}"
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) KryptxBlue else Color.Transparent)
+                            .background(tabBg)
                             .testTag("mode_tab_${mode.name.lowercase()}")
                             .bounceClick(scaleDown = 0.94f) {
-                                KryptxHaptics.tap(view)
                                 viewModel.updateMode(mode)
                             }
                             .padding(vertical = 10.dp),
@@ -439,12 +445,7 @@ fun GeneratorScreen(
                     GeneratorOptionCheckbox(
                         label = "Include Number (e.g. word99)",
                         checked = config.includeNumberInPassphrase,
-                        onCheckedChange = { 
-                            val newConfig = config.copy(includeNumberInPassphrase = it)
-                            viewModel.regenerate(newConfig)
-                            // This is a bit hacky for a checkbox without a dedicated viewmodel function
-                            // Let's rely on the fact that I can use the existing toggle function if I created one
-                        }
+                        onCheckedChange = { viewModel.toggleIncludeNumberInPassphrase(it) }
                     )
                     GeneratorOptionCheckbox(
                         label = "Include Symbol (e.g. word$)",

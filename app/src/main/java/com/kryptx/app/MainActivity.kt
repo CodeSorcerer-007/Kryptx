@@ -87,8 +87,26 @@ class MainActivity : FragmentActivity() {
             )
         }
 
+        // Process physical NFC security key taps on cold start
+        val currentIntent = intent
+        if (currentIntent != null && (
+            android.nfc.NfcAdapter.ACTION_TAG_DISCOVERED == currentIntent.action ||
+            android.nfc.NfcAdapter.ACTION_TECH_DISCOVERED == currentIntent.action ||
+            android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED == currentIntent.action)) {
+            val tag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                currentIntent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG, android.nfc.Tag::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                currentIntent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG)
+            }
+            if (tag != null) {
+                unlockViewModel.handleNfcTag(tag, onSuccess = {})
+            }
+        }
+
         pendingShortcutTarget = intent?.getStringExtra("navigate_target")
             ?: intent?.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
+            ?: if (intent?.action == Intent.ACTION_SEARCH) "search" else null
 
         // Observe FLAG_SECURE setting
         lifecycleScope.launch {
@@ -155,7 +173,7 @@ class MainActivity : FragmentActivity() {
                     pendingShortcutTarget = pendingShortcutTarget,
                     onClearPendingShortcut = { pendingShortcutTarget = null },
                     onTriggerBiometrics = {
-                        triggerBiometricUnlock(force = true)
+                        triggerBiometricUnlock(force = false)
                     },
                     onEnrollBiometrics = { onResult ->
                         triggerBiometricEnrollment(onResult)
@@ -186,6 +204,7 @@ class MainActivity : FragmentActivity() {
 
         val target = intent.getStringExtra("navigate_target")
             ?: intent.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
+            ?: if (intent.action == Intent.ACTION_SEARCH) "search" else null
         if (!target.isNullOrBlank()) {
             pendingShortcutTarget = target
         }
@@ -232,11 +251,6 @@ class MainActivity : FragmentActivity() {
         try {
             contextualLockManager?.stopListening()
         } catch (_: Throwable) {}
-
-        try {
-            app.biometricManager.cancelAuthentication()
-        } catch (_: Throwable) {}
-        isPromptingBiometrics.set(false)
     }
 
     override fun onStop() {
@@ -425,17 +439,26 @@ class MainActivity : FragmentActivity() {
      */
     @Deprecated("Deprecated in Java")
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        var bypassed = false
         if ((requestCode and -0x10000) != 0) {
-            // High-range code produced by ActivityResultRegistry — skip FragmentActivity's
-            // legacy 16-bit check entirely and hand back to the framework directly.
             try {
-                androidx.core.app.ActivityCompat.startActivityForResult(this, intent, requestCode, options)
-                return
-            } catch (_: Throwable) {
-                // Fallthrough to super on failure
+                val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedActivityFromFragment")
+                field.isAccessible = true
+                field.setBoolean(this, true)
+                bypassed = true
+            } catch (_: Throwable) {}
+        }
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } finally {
+            if (bypassed) {
+                try {
+                    val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedActivityFromFragment")
+                    field.isAccessible = true
+                    field.setBoolean(this, false)
+                } catch (_: Throwable) {}
             }
         }
-        super.startActivityForResult(intent, requestCode, options)
     }
 
     @Deprecated("Deprecated in Java")
@@ -450,10 +473,6 @@ class MainActivity : FragmentActivity() {
         startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, null)
     }
 
-    /**
-     * Same registry-first routing as [startActivityForResult]: high-range request codes generated
-     * by [ActivityResultRegistry] bypass the legacy FragmentActivity 16-bit check.
-     */
     @Deprecated("Deprecated in Java")
     override fun startIntentSenderForResult(
         intent: android.content.IntentSender,
@@ -464,18 +483,28 @@ class MainActivity : FragmentActivity() {
         extraFlags: Int,
         options: Bundle?
     ) {
+        var bypassed = false
         if ((requestCode and -0x10000) != 0) {
             try {
-                startIntentSenderFromChild(
-                    null, intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options
-                )
-                return
-            } catch (_: Throwable) {
-                // Fallthrough to super on failure
+                val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedIntentSenderFromFragment")
+                field.isAccessible = true
+                field.setBoolean(this, true)
+                bypassed = true
+            } catch (_: Throwable) {}
+        }
+        try {
+            super.startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options)
+        } finally {
+            if (bypassed) {
+                try {
+                    val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedIntentSenderFromFragment")
+                    field.isAccessible = true
+                    field.setBoolean(this, false)
+                } catch (_: Throwable) {}
             }
         }
-        super.startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options)
     }
+
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

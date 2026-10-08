@@ -10,6 +10,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.core.content.ContextCompat
 import com.kryptx.app.KryptxApplication
 import com.kryptx.app.core.designsystem.components.KryptxPermissionRationaleDialog
@@ -380,16 +382,24 @@ fun AddEditItemScreen(
                 ) {
                     ItemType.entries.forEach { type ->
                         val isSelected = selectedType == type
+                        val pillBg by animateColorAsState(
+                            targetValue = if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            animationSpec = tween(200),
+                            label = "pill_bg_${type.name}"
+                        )
+                        val pillBorder by animateColorAsState(
+                            targetValue = if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                            animationSpec = tween(200),
+                            label = "pill_border_${type.name}"
+                        )
                         Box(
                             modifier = Modifier
                                 .testTag("item_type_pill_${type.name.lowercase()}")
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(
-                                    if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
+                                .background(pillBg)
                                 .border(
                                     1.dp,
-                                    if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                    pillBorder,
                                     RoundedCornerShape(14.dp)
                                 )
                                 .bounceClick(scaleDown = 0.94f) { addEditViewModel.switchType(type) }

@@ -88,13 +88,27 @@ class TotpViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    init {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+    private var tickerJob: kotlinx.coroutines.Job? = null
+
+
+    fun startTicker() {
+        tickerJob?.cancel()
+        tickerJob = viewModelScope.launch {
             while (isActive) {
                 delay(1000L)
                 _tick.value = System.currentTimeMillis()
             }
         }
+    }
+
+    fun stopTicker() {
+        tickerJob?.cancel()
+        tickerJob = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopTicker()
     }
 
     fun updateSearchQuery(query: String) {

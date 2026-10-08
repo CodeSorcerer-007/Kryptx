@@ -48,6 +48,23 @@ class AppContainer(context: Context) {
         addLockListener {
             dbHelper.clearDatabaseKey()
             decoyDbHelper.clearDatabaseKey()
+            try {
+                java.io.File(context.cacheDir, "secure_shared").deleteRecursively()
+            } catch (_: Throwable) {}
+            try {
+                android.service.quicksettings.TileService.requestListeningState(
+                    context,
+                    android.content.ComponentName(context, com.kryptx.app.core.security.KryptxLockTileService::class.java)
+                )
+            } catch (_: Throwable) {}
+        }
+        addUnlockListener {
+            try {
+                android.service.quicksettings.TileService.requestListeningState(
+                    context,
+                    android.content.ComponentName(context, com.kryptx.app.core.security.KryptxLockTileService::class.java)
+                )
+            } catch (_: Throwable) {}
         }
         setLockoutPersistence(
             save = { attempts, untilMs ->

@@ -33,6 +33,7 @@ class TotpViewModelTest {
 
     @After
     fun tearDown() {
+        viewModel.stopTicker()
         Dispatchers.resetMain()
     }
 

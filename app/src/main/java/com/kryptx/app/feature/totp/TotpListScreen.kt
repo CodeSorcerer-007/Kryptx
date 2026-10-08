@@ -120,6 +120,13 @@ fun TotpListScreen(
 
     val context = LocalContext.current
 
+    androidx.compose.runtime.DisposableEffect(viewModel) {
+        viewModel.startTicker()
+        onDispose {
+            viewModel.stopTicker()
+        }
+    }
+
     var showAddDialog by remember { mutableStateOf(false) }
     var showQrScanner by remember { mutableStateOf(false) }
     var selectedAccountForOptions by remember { mutableStateOf<TotpViewModel.TotpAccount?>(null) }

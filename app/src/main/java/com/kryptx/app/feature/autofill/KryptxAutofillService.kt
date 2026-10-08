@@ -51,6 +51,7 @@ class KryptxAutofillService : AutofillService() {
         var packageName: String? = null,
         var usernameFieldId: AutofillId? = null,
         var passwordFieldId: AutofillId? = null,
+        var focusedFieldId: AutofillId? = null,
         val allAutofillIds: MutableList<AutofillId> = mutableListOf()
     )
 
@@ -98,43 +99,52 @@ class KryptxAutofillService : AutofillService() {
             serviceScope.launch {
                 val matchedItems = findMatchingItems(app, parsedForm)
                 if (matchedItems.isNotEmpty()) {
+                    var addedDatasets = 0
                     matchedItems.take(5).forEach { item ->
                         val presentation = createItemPresentation(item)
                         val datasetBuilder = Dataset.Builder()
+                        var fieldAssigned = false
 
                         parsedForm.usernameFieldId?.let { uId ->
                             if (item.username.isNotBlank()) {
                                 datasetBuilder.setValue(uId, AutofillValue.forText(item.username), presentation)
+                                fieldAssigned = true
                             }
                         }
 
                         parsedForm.passwordFieldId?.let { pId ->
                             if (item.password.isNotBlank()) {
                                 datasetBuilder.setValue(pId, AutofillValue.forText(item.password), presentation)
+                                fieldAssigned = true
                             }
                         }
 
-                        try {
-                            responseBuilder.addDataset(datasetBuilder.build())
-                        } catch (e: Exception) {}
-                    }
-
-                    // Add SaveInfo to prompt user to save new/updated credentials
-                    parsedForm.passwordFieldId?.let { passId ->
-                        val saveInfoBuilder = SaveInfo.Builder(
-                            SaveInfo.SAVE_DATA_TYPE_PASSWORD,
-                            arrayOf(passId)
-                        )
-                        parsedForm.usernameFieldId?.let { uId ->
-                            saveInfoBuilder.setOptionalIds(arrayOf(uId))
+                        if (fieldAssigned) {
+                            try {
+                                responseBuilder.addDataset(datasetBuilder.build())
+                                addedDatasets++
+                            } catch (e: Exception) {}
                         }
-                        responseBuilder.setSaveInfo(saveInfoBuilder.build())
                     }
 
-                    callback.onSuccess(responseBuilder.build())
-                    return@launch
+                    if (addedDatasets > 0) {
+                        // Add SaveInfo to prompt user to save new/updated credentials
+                        parsedForm.passwordFieldId?.let { passId ->
+                            val saveInfoBuilder = SaveInfo.Builder(
+                                SaveInfo.SAVE_DATA_TYPE_PASSWORD,
+                                arrayOf(passId)
+                            )
+                            parsedForm.usernameFieldId?.let { uId ->
+                                saveInfoBuilder.setOptionalIds(arrayOf(uId))
+                            }
+                            responseBuilder.setSaveInfo(saveInfoBuilder.build())
+                        }
+
+                        callback.onSuccess(responseBuilder.build())
+                        return@launch
+                    }
                 }
-                // No match found — fall through to auth route
+                // No match found or no fields populated — fall through to auth route
                 callback.onSuccess(buildAuthFillResponse(parsedForm, isUnlocked))
             }
             return
@@ -145,11 +155,15 @@ class KryptxAutofillService : AutofillService() {
 
     private fun buildAuthFillResponse(parsedForm: ParsedForm, isUnlocked: Boolean): FillResponse {
         // Locked or no direct match: route to AutofillAuthActivity
+        // If neither username nor password ID was explicitly found, fallback to focused or first editable field
+        val effectivePasswordId = parsedForm.passwordFieldId
+            ?: (if (parsedForm.usernameFieldId == null) parsedForm.focusedFieldId ?: parsedForm.allAutofillIds.firstOrNull() else null)
+
         val intent = Intent(this, AutofillAuthActivity::class.java).apply {
             parsedForm.webDomain?.let { putExtra(AutofillAuthActivity.EXTRA_WEB_DOMAIN, it) }
             parsedForm.packageName?.let { putExtra(AutofillAuthActivity.EXTRA_PACKAGE_NAME, it) }
             parsedForm.usernameFieldId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
-            parsedForm.passwordFieldId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
+            effectivePasswordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
         }
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -220,6 +234,10 @@ class KryptxAutofillService : AutofillService() {
         if (node == null || depth > 30) return
 
         node.autofillId?.let { id ->
+            if (node.isFocused && parsed.focusedFieldId == null) {
+                parsed.focusedFieldId = id
+            }
+
             // Extract web domain from browser node
             node.webDomain?.let { domain ->
                 if (parsed.webDomain == null && domain.isNotBlank()) {
@@ -233,12 +251,15 @@ class KryptxAutofillService : AutofillService() {
             val hintText = node.hint?.lowercase() ?: ""
             val inputType = node.inputType
 
-            val isPassword = hints.any { it.contains("password") } ||
+            val isPassword = hints.any { it.contains("password") || it.contains("pin") } ||
                     textId.contains("password") ||
                     textId.contains("passwd") ||
+                    textId.contains("pin") ||
                     hintText.contains("password") ||
+                    hintText.contains("pin") ||
                     (inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
-                    (inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+                    (inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+                    (inputType and InputType.TYPE_NUMBER_VARIATION_PASSWORD) == InputType.TYPE_NUMBER_VARIATION_PASSWORD
 
             val isUsername = hints.any { it.contains("username") || it.contains("email") } ||
                     textId.contains("username") ||
@@ -303,12 +324,15 @@ class KryptxAutofillService : AutofillService() {
                 val hintText = node.hint?.lowercase() ?: ""
                 val inputType = node.inputType
 
-                val isPassword = hints.any { it.contains("password") } ||
+                val isPassword = hints.any { it.contains("password") || it.contains("pin") } ||
                         textId.contains("password") ||
                         textId.contains("passwd") ||
+                        textId.contains("pin") ||
                         hintText.contains("password") ||
+                        hintText.contains("pin") ||
                         (inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
-                        (inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+                        (inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+                        (inputType and InputType.TYPE_NUMBER_VARIATION_PASSWORD) == InputType.TYPE_NUMBER_VARIATION_PASSWORD
 
                 val isUsername = hints.any { it.contains("username") || it.contains("email") } ||
                         textId.contains("username") ||

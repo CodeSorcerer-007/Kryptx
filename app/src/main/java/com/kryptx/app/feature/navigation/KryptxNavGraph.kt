@@ -100,6 +100,7 @@ fun BottomNavTab.toScreen(): Screen = when (this) {
 
 fun parseScreenRoute(route: String): Screen = when {
     route == Screen.Onboarding.route           -> Screen.Onboarding
+    route == Screen.SetupPermissions.route     -> Screen.SetupPermissions
     route == Screen.SetupMasterPassword.route  -> Screen.SetupMasterPassword
     route == Screen.Unlock.route               -> Screen.Unlock
     route == Screen.VaultDashboard.route       -> Screen.VaultDashboard
@@ -171,14 +172,14 @@ fun KryptxNavGraph(
     // preventing a transient empty-backstack recomposition between the two operations.
     androidx.compose.runtime.LaunchedEffect(isUnlocked, unlockUiState.hasVault) {
         if (!unlockUiState.hasVault) {
-            if (backStack.isEmpty() || (backStack.last() != Screen.Onboarding && backStack.last() != Screen.SetupMasterPassword)) {
+            if (backStack.isEmpty() || (backStack.last() != Screen.Onboarding && backStack.last() != Screen.SetupPermissions && backStack.last() != Screen.SetupMasterPassword)) {
                 androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
                     backStack.clear()
                     backStack.add(Screen.Onboarding)
                 }
             }
         } else if (isUnlocked) {
-            if (backStack.isEmpty() || backStack.last() == Screen.Unlock || backStack.last() == Screen.SetupMasterPassword || backStack.last() == Screen.Onboarding) {
+            if (backStack.isEmpty() || backStack.last() == Screen.Unlock || backStack.last() == Screen.SetupMasterPassword || backStack.last() == Screen.SetupPermissions || backStack.last() == Screen.Onboarding) {
                 androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
                     backStack.clear()
                     backStack.add(Screen.VaultDashboard)
@@ -235,7 +236,8 @@ fun KryptxNavGraph(
 
     // Keep sync with vault state
     val currentScreen = when {
-        !unlockUiState.hasVault && (backStack.isEmpty() || backStack.last() !is Screen.SetupMasterPassword) -> Screen.Onboarding
+        !unlockUiState.hasVault && (backStack.isEmpty() || (backStack.last() !is Screen.SetupMasterPassword && backStack.last() !is Screen.SetupPermissions)) -> Screen.Onboarding
+        !unlockUiState.hasVault && backStack.last() is Screen.SetupPermissions -> Screen.SetupPermissions
         !unlockUiState.hasVault && backStack.last() is Screen.SetupMasterPassword -> Screen.SetupMasterPassword
         !isUnlocked -> Screen.Unlock
         backStack.isEmpty() -> Screen.VaultDashboard
@@ -297,7 +299,7 @@ fun KryptxNavGraph(
             AnimatedContent(
                 targetState = currentScreen,
                 transitionSpec = {
-                    val isUnlockEntrance = (initialState is Screen.Unlock || initialState is Screen.SetupMasterPassword) &&
+                    val isUnlockEntrance = (initialState is Screen.Unlock || initialState is Screen.SetupMasterPassword || initialState is Screen.SetupPermissions) &&
                             targetState == Screen.VaultDashboard
                     val isTabSwitch = (initialState in listOf(Screen.VaultDashboard, Screen.TotpList, Screen.Generator, Screen.Settings)) &&
                             (targetState in listOf(Screen.VaultDashboard, Screen.TotpList, Screen.Generator, Screen.Settings))
@@ -315,7 +317,18 @@ fun KryptxNavGraph(
                     Screen.Onboarding -> {
                         OnboardingScreen(
                             onFinishOnboarding = {
+                                navigateTo(Screen.SetupPermissions)
+                            }
+                        )
+                    }
+
+                    Screen.SetupPermissions -> {
+                        com.kryptx.app.feature.onboarding.SetupPermissionsScreen(
+                            onContinue = {
                                 navigateTo(Screen.SetupMasterPassword)
+                            },
+                            onBack = {
+                                navigateBack()
                             }
                         )
                     }

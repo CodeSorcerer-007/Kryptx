@@ -135,13 +135,13 @@ fun FloatingCategoryBadge(
     onClick: () -> Unit
 ) {
     val bgColor by animateColorAsState(
-        targetValue = if (isSelected) color.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        targetValue = if (isSelected) color.copy(alpha = 0.32f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
         animationSpec = tween(250),
         label = "categoryBg"
     )
 
     val borderColor by animateColorAsState(
-        targetValue = if (isSelected) color.copy(alpha = 0.9f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
+        targetValue = if (isSelected) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
         animationSpec = tween(250),
         label = "categoryBorder"
     )
@@ -164,7 +164,7 @@ fun FloatingCategoryBadge(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSelected) color else color.copy(alpha = 0.75f))
+                    .background(if (isSelected) color else color.copy(alpha = 0.5f))
                     .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
                 Text(

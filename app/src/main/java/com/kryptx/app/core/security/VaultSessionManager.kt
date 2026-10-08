@@ -95,6 +95,14 @@ class VaultSessionManager(
         lockoutSaver?.invoke(0, 0L)
 
         recordActivity()
+
+        unlockListeners.forEach { listener ->
+            try {
+                listener()
+            } catch (t: Throwable) {
+                SecurityLogger.error("VaultSessionManager", "Unlock listener threw an exception", t)
+            }
+        }
     }
 
     /**
@@ -134,6 +142,7 @@ class VaultSessionManager(
     }
 
     private val lockListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+    private val unlockListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
 
     fun addLockListener(listener: () -> Unit) {
         lockListeners.add(listener)
@@ -141,6 +150,14 @@ class VaultSessionManager(
 
     fun removeLockListener(listener: () -> Unit) {
         lockListeners.remove(listener)
+    }
+
+    fun addUnlockListener(listener: () -> Unit) {
+        unlockListeners.add(listener)
+    }
+
+    fun removeUnlockListener(listener: () -> Unit) {
+        unlockListeners.remove(listener)
     }
 
     /**

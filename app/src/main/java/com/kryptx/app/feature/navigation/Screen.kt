@@ -2,6 +2,7 @@ package com.kryptx.app.feature.navigation
 
 sealed class Screen(val route: String) {
     data object Onboarding : Screen("onboarding")
+    data object SetupPermissions : Screen("setup_permissions")
     data object SetupMasterPassword : Screen("setup_master_password")
     data object Unlock : Screen("unlock")
 

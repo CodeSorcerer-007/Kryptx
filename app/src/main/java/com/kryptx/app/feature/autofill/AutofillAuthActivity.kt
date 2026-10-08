@@ -120,13 +120,13 @@ class AutofillAuthActivity : FragmentActivity() {
         )
         enableEdgeToEdge()
 
-        // Security: Validate that this activity was launched by KryptxAutofillService.
-        // Without the expected extras, this is a cold launch by an unauthorized caller — terminate.
-        // An autofill service always provides at least EXTRA_WEB_DOMAIN or EXTRA_PACKAGE_NAME.
+        // Security: Validate that this activity was launched by KryptxAutofillService or Android Autofill subsystem.
         val hasValidIntent = intent.hasExtra(EXTRA_WEB_DOMAIN) ||
             intent.hasExtra(EXTRA_PACKAGE_NAME) ||
             intent.hasExtra(EXTRA_USERNAME_ID) ||
-            intent.hasExtra(EXTRA_PASSWORD_ID)
+            intent.hasExtra(EXTRA_PASSWORD_ID) ||
+            intent.hasExtra(AutofillManager.EXTRA_ASSIST_STRUCTURE) ||
+            intent.hasExtra(AutofillManager.EXTRA_CLIENT_STATE)
         if (!hasValidIntent) {
             SecurityLogger.warn(
                 "AutofillAuthActivity",
@@ -149,6 +149,16 @@ class AutofillAuthActivity : FragmentActivity() {
 
         targetDomain = intent.getStringExtra(EXTRA_WEB_DOMAIN)
         targetPackage = intent.getStringExtra(EXTRA_PACKAGE_NAME)
+
+        val assistStructure: android.app.assist.AssistStructure? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(AutofillManager.EXTRA_ASSIST_STRUCTURE, android.app.assist.AssistStructure::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(AutofillManager.EXTRA_ASSIST_STRUCTURE)
+        }
+        if (targetPackage.isNullOrBlank()) {
+            targetPackage = assistStructure?.activityComponent?.packageName
+        }
 
         usernameFieldId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_USERNAME_ID, AutofillId::class.java)
@@ -203,6 +213,21 @@ class AutofillAuthActivity : FragmentActivity() {
             }
             datasetBuilder.setValue(pId, AutofillValue.forText(item.password), presentation)
             hasValue = true
+        }
+
+        // Single-field or fallback autofill: fill either password or username into whichever ID is present
+        if (!hasValue) {
+            val fallbackId = pId ?: uId
+            if (fallbackId != null) {
+                val fillText = item.password.ifBlank { item.username }
+                if (fillText.isNotBlank()) {
+                    val presentation = RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
+                        setTextViewText(android.R.id.text1, if (item.password.isNotBlank()) "••••••••" else item.username)
+                    }
+                    datasetBuilder.setValue(fallbackId, AutofillValue.forText(fillText), presentation)
+                    hasValue = true
+                }
+            }
         }
 
         if (hasValue) {
@@ -275,6 +300,10 @@ class AutofillAuthActivity : FragmentActivity() {
         val isBiometricsConfigured = remember { app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value }
         val view = LocalView.current
         val scope = rememberCoroutineScope()
+
+        androidx.activity.compose.BackHandler {
+            cancelAndFinish()
+        }
 
         var searchQuery by remember { mutableStateOf("") }
         var masterPasswordInput by remember { mutableStateOf("") }
@@ -658,6 +687,50 @@ class AutofillAuthActivity : FragmentActivity() {
             if (bypassed) {
                 try {
                     val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedActivityFromFragment")
+                    field.isAccessible = true
+                    field.setBoolean(this, false)
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun startIntentSenderForResult(
+        intent: android.content.IntentSender,
+        requestCode: Int,
+        fillInIntent: Intent?,
+        flagsMask: Int,
+        flagsValues: Int,
+        extraFlags: Int
+    ) {
+        startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, null)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun startIntentSenderForResult(
+        intent: android.content.IntentSender,
+        requestCode: Int,
+        fillInIntent: Intent?,
+        flagsMask: Int,
+        flagsValues: Int,
+        extraFlags: Int,
+        options: Bundle?
+    ) {
+        var bypassed = false
+        if ((requestCode and -0x10000) != 0) {
+            try {
+                val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedIntentSenderFromFragment")
+                field.isAccessible = true
+                field.setBoolean(this, true)
+                bypassed = true
+            } catch (_: Throwable) {}
+        }
+        try {
+            super.startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options)
+        } finally {
+            if (bypassed) {
+                try {
+                    val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedIntentSenderFromFragment")
                     field.isAccessible = true
                     field.setBoolean(this, false)
                 } catch (_: Throwable) {}

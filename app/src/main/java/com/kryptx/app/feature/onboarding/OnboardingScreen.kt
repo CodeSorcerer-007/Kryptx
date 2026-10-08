@@ -220,7 +220,7 @@ fun OnboardingScreen(
                 }
 
                 KryptxPrimaryButton(
-                    text = if (pagerState.currentPage == pages.size - 1) "Create Your Vault" else "Continue",
+                    text = if (pagerState.currentPage == pages.size - 1) "Set Up Device & Vault" else "Continue",
                     containerColor = KryptxBlue,
                     contentColor = Color.White,
                     onClick = {

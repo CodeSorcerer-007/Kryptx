@@ -92,7 +92,7 @@ fun UnlockScreen(
     LaunchedEffect(uiState.isBiometricsAvailable) {
         if (!hasAutoPrompted && uiState.isBiometricsAvailable && lockoutSeconds == 0) {
             hasAutoPrompted = true
-            delay(50)
+            delay(200)
             onTriggerBiometrics()
         }
     }

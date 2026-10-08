@@ -42,20 +42,26 @@ import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxDeepBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import com.kryptx.app.core.designsystem.theme.KryptxViolet
 import kotlinx.coroutines.delay
 
 /**
  * Spring-based press physics providing a tactile "Framer Motion" like bouncy press interaction.
+ * Uses native interaction source tracking and clickable handling to ensure reliable gesture recognition,
+ * touch-slop tolerance within scrollable containers, and full accessibility support across all devices.
  */
 fun Modifier.bounceClick(
     scaleDown: Float = 0.96f,
     hapticFeedback: Boolean = true,
+    interactionSource: MutableInteractionSource? = null,
     onClick: (() -> Unit)? = null
 ): Modifier = composed {
-    var isPressed by remember { mutableStateOf(false) }
+    val actualInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val isPressed by actualInteractionSource.collectIsPressedAsState()
     val view = LocalView.current
-    val currentOnClick by rememberUpdatedState(onClick)
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) scaleDown else 1f,
@@ -66,25 +72,21 @@ fun Modifier.bounceClick(
         label = "bounce_scale"
     )
 
+    val clickModifier = if (onClick != null) {
+        Modifier.clickable(
+            interactionSource = actualInteractionSource,
+            indication = null
+        ) {
+            if (hapticFeedback) {
+                KryptxHaptics.tap(view)
+            }
+            onClick()
+        }
+    } else Modifier
+
     this
         .scale(scale)
-        .pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    awaitFirstDown(requireUnconsumed = false)
-                    isPressed = true
-                    if (hapticFeedback && currentOnClick != null) {
-                        KryptxHaptics.tap(view)
-                    }
-
-                    val up = waitForUpOrCancellation()
-                    isPressed = false
-                    if (up != null && currentOnClick != null) {
-                        currentOnClick?.invoke()
-                    }
-                }
-            }
-        }
+        .then(clickModifier)
 }
 
 /**

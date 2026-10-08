@@ -101,6 +101,12 @@ class GeneratorViewModel(
         regenerate(newConfig)
     }
 
+    fun toggleIncludeNumberInPassphrase(enabled: Boolean) {
+        val newConfig = _config.value.copy(includeNumberInPassphrase = enabled)
+        _config.value = newConfig
+        regenerate(newConfig)
+    }
+
     fun toggleIncludeSymbolInPassphrase(enabled: Boolean) {
         val newConfig = _config.value.copy(includeSymbolInPassphrase = enabled)
         _config.value = newConfig
