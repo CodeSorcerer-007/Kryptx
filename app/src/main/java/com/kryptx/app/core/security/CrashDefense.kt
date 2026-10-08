@@ -116,7 +116,14 @@ object CrashDefense {
     /**
      * Hooks into the Main Looper's message pump.
      * If an uncaught exception is thrown while processing any UI message, it is caught here,
-     * recorded, and the message loop is immediately re-entered, keeping the application alive.
+     * recorded, and classified:
+     * - Security-critical exceptions (key derivation, crypto, vault auth) are re-thrown so the
+     *   system's default handler can surface them cleanly — suppressing these would mask failures.
+     * - UI / rendering exceptions (Compose recomposition, layout, touch) are swallowed and the
+     *   message loop is re-entered, keeping the application alive.
+     *
+     * Security-critical exception types are identified by package prefix and class name to avoid
+     * hard-coding a brittle exhaustive list.
      */
     private fun startMainLooperGuardian() {
         val mainHandler = Handler(Looper.getMainLooper())
@@ -125,15 +132,50 @@ object CrashDefense {
                 try {
                     Looper.loop()
                 } catch (throwable: Throwable) {
+                    if (isSecurityCritical(throwable)) {
+                        SecurityLogger.error(
+                            TAG,
+                            "MainLooper intercepted SECURITY-CRITICAL exception — propagating to system handler: " +
+                            "${throwable::class.java.simpleName}: ${throwable.message}",
+                            throwable
+                        )
+                        recordCrash(throwable, "MainLooper-SecurityCritical")
+                        // Re-throw: let the system UncaughtExceptionHandler deal with it
+                        // (which will trigger recoverApplicationGracefully via handleUncaughtException).
+                        throw throwable
+                    }
                     recordCrash(throwable, "MainLooper")
                     SecurityLogger.error(
                         TAG,
-                        "MainLooper message cycle caught unhandled exception: ${throwable::class.java.simpleName}: ${throwable.message}",
+                        "MainLooper message cycle caught non-critical UI exception — recovering: " +
+                        "${throwable::class.java.simpleName}: ${throwable.message}",
                         throwable
                     )
+                    // Non-critical UI exception: re-enter the loop
                 }
             }
         }
+    }
+
+    /**
+     * Returns true if [throwable] is security-critical and must NOT be swallowed by the
+     * immortal looper. The following categories are treated as security-critical:
+     * - Cryptographic failures: javax.crypto.*, java.security.*
+     * - SQLCipher / database key errors: net.zetetic.*
+     * - Vault session failures from our own security package
+     * - OutOfMemoryError (could indicate a memory exhaustion attack or key allocation failure)
+     * - StackOverflowError (could indicate recursive tampering hook)
+     */
+    private fun isSecurityCritical(throwable: Throwable): Boolean {
+        val name = throwable::class.java.name
+        return name.startsWith("javax.crypto.") ||
+               name.startsWith("java.security.") ||
+               name.startsWith("net.zetetic.") ||
+               name.contains("VaultSession", ignoreCase = true) ||
+               name.contains("KeyDerivation", ignoreCase = true) ||
+               name.contains("CryptoEngine", ignoreCase = true) ||
+               throwable is OutOfMemoryError ||
+               throwable is StackOverflowError
     }
 
     /**

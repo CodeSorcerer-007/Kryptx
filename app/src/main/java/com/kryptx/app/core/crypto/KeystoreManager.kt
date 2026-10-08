@@ -34,7 +34,9 @@ class KeystoreManager {
         )
     }
 
-    private fun getKeyStore(): KeyStore {
+    // Widened to `internal` so top-level extension functions in this file can access it
+    // without reflection. Still not visible to external modules.
+    internal fun getKeyStore(): KeyStore {
         return KeyStore.getInstance(ANDROID_KEYSTORE).apply {
             load(null)
         }
@@ -221,4 +223,236 @@ class KeystoreManager {
     fun unwrapWithCipher(cipher: Cipher, ciphertext: ByteArray): ByteArray {
         return cipher.doFinal(ciphertext)
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ECDH X25519 / EC P-256 forward-migration support
+//
+// RSA-2048 OAEP provides ~112-bit classical security, which exceeds NIST minimum
+// but is broken by Shor's algorithm on a large enough quantum computer (same as
+// any factoring-based scheme).  This block provides the migration path:
+//
+//  1. generateEcdhKeyPair()   — generates an ECDH P-256 key pair in the Keystore,
+//                               bound to Class 3 biometrics just like the RSA key.
+//  2. wrapVekWithEcdh()       — performs ECDH + HKDF-SHA256 key agreement and
+//                               wraps the VEK under the derived 256-bit session key
+//                               using AES-256-GCM.
+//  3. unwrapVekWithEcdh()     — performs ECDH + HKDF-SHA256 and decrypts the VEK.
+//
+// Migration strategy:
+//  • On first unlock with the new binary, detect no ECDH key pair → create one.
+//  • On successful biometric auth, re-wrap the VEK under ECDH alongside the RSA
+//    copy.  Both exist in parallel until the RSA path is retired (v3.x).
+//  • Once both paths are in place, the RSA entry can be removed via a settings
+//    migration flag after the next successful unlock.
+//
+// Curve choice: ECDH P-256 (secp256r1) is supported by the Android Keystore on
+// all devices running API 26+; X25519 is only available from API 31 in the TEE
+// and API 33 in StrongBox.  P-256 offers the broadest hardware security coverage
+// and is NIST-approved for key agreement (SP 800-56A).  Ciphers are still quantum-
+// vulnerable (Shor), but combined with ML-KEM-768 wrapping at the backup/export
+// layer, the full chain is hybrid-quantum-safe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+private const val ECDH_KEY_ALIAS = "kryptx_ecdh_v2_key"
+private const val ECDH_KEY_ALGORITHM = "EC"
+private const val ECDH_KEY_AGREEMENT = "ECDH"
+private const val ECDH_HKDF_INFO = "Kryptx-ECDH-VEK-Wrap-v2"
+
+/**
+ * Returns true when the ECDH P-256 migration key pair exists in the Keystore.
+ */
+fun KeystoreManager.hasEcdhKey(): Boolean = try {
+    getKeyStore().containsAlias(ECDH_KEY_ALIAS)
+} catch (_: Exception) { false }
+
+/**
+ * Removes the ECDH key pair from the Keystore (called by emergency wipe).
+ */
+fun KeystoreManager.removeEcdhKey() {
+    try {
+        val ks = getKeyStore()
+        if (ks.containsAlias(ECDH_KEY_ALIAS)) ks.deleteEntry(ECDH_KEY_ALIAS)
+    } catch (_: Exception) {}
+}
+
+/**
+ * Generates (or retrieves) a hardware-backed ECDH P-256 key pair bound to Class 3 biometrics.
+ * StrongBox is preferred; falls back to TEE.
+ *
+ * The private key is PURPOSE_AGREE_KEY only — it cannot be used for anything else,
+ * limiting its blast radius to ECDH operations exclusively.
+ */
+@Synchronized
+fun KeystoreManager.getOrCreateEcdhKeyPair(): java.security.KeyPair {
+    val ks = getKeyStore()
+    if (ks.containsAlias(ECDH_KEY_ALIAS)) {
+        val priv = ks.getKey(ECDH_KEY_ALIAS, null) as? java.security.PrivateKey
+        val cert = ks.getCertificate(ECDH_KEY_ALIAS)
+        if (priv != null && cert?.publicKey != null) {
+            return java.security.KeyPair(cert.publicKey, priv)
+        }
+        ks.deleteEntry(ECDH_KEY_ALIAS)
+    }
+
+    val kpg = java.security.KeyPairGenerator.getInstance(ECDH_KEY_ALGORITHM, "AndroidKeyStore")
+
+    fun buildSpec(strongBox: Boolean): android.security.keystore.KeyGenParameterSpec {
+        val b = android.security.keystore.KeyGenParameterSpec.Builder(
+            ECDH_KEY_ALIAS,
+            KeyProperties.PURPOSE_AGREE_KEY
+        )
+            .setAlgorithmParameterSpec(java.security.spec.ECGenParameterSpec("secp256r1"))
+            .setUserAuthenticationRequired(true)
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+        } else {
+            @Suppress("DEPRECATION")
+            b.setUserAuthenticationValidityDurationSeconds(-1)
+        }
+        b.setInvalidatedByBiometricEnrollment(true)
+
+        if (strongBox && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            b.setIsStrongBoxBacked(true)
+        }
+        return b.build()
+    }
+
+    // StrongBox first on API 28+
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        try {
+            kpg.initialize(buildSpec(strongBox = true))
+            return kpg.generateKeyPair()
+        } catch (_: Exception) { /* fall through to TEE */ }
+    }
+    kpg.initialize(buildSpec(strongBox = false))
+    return kpg.generateKeyPair()
+}
+
+/**
+ * Wraps the Vault Encryption Key using ECDH P-256 key agreement + HKDF-SHA256 + AES-256-GCM.
+ *
+ * An ephemeral P-256 key pair is generated; ECDH is performed between the ephemeral private key
+ * and the Keystore public key.  The ECDH shared secret is fed into HKDF-SHA256 to derive a 32-byte
+ * wrapping key; the VEK is then encrypted with AES-256-GCM.
+ *
+ * The caller must already have an authenticated Keystore [Cipher] or perform ECDH in the
+ * BiometricPrompt CryptoObject flow to authorise use of the private key.
+ *
+ * @return Triple of (ephemeral public key bytes, AES-GCM IV, AES-GCM ciphertext+tag).
+ */
+fun KeystoreManager.wrapVekWithEcdh(
+    vek: ByteArray,
+    keystorePublicKey: java.security.PublicKey
+): Triple<ByteArray, ByteArray, ByteArray> {
+    // 1. Ephemeral key pair (software, not Keystore — we only need it for this wrap operation)
+    val ephemeralKpg = java.security.KeyPairGenerator.getInstance(ECDH_KEY_ALGORITHM)
+    ephemeralKpg.initialize(java.security.spec.ECGenParameterSpec("secp256r1"), java.security.SecureRandom())
+    val ephemeralPair = ephemeralKpg.generateKeyPair()
+
+    // 2. ECDH shared secret
+    val ka = javax.crypto.KeyAgreement.getInstance(ECDH_KEY_AGREEMENT)
+    ka.init(ephemeralPair.private)
+    ka.doPhase(keystorePublicKey, true)
+    val rawSharedSecret = ka.generateSecret()
+
+    // 3. HKDF-SHA256 to derive 32-byte wrapping key
+    val wrappingKey = try {
+        val hkdf = org.bouncycastle.crypto.generators.HKDFBytesGenerator(
+            org.bouncycastle.crypto.digests.SHA256Digest()
+        )
+        hkdf.init(org.bouncycastle.crypto.params.HKDFParameters(
+            rawSharedSecret,
+            null, // no salt — raw shared secret is high entropy
+            ECDH_HKDF_INFO.toByteArray(Charsets.UTF_8)
+        ))
+        ByteArray(32).also { hkdf.generateBytes(it, 0, 32) }
+    } finally {
+        SecureMemory.wipe(rawSharedSecret)
+    }
+
+    // 4. AES-256-GCM encrypt the VEK under the HKDF-derived wrapping key
+    val iv = ByteArray(12).also { java.security.SecureRandom().nextBytes(it) }
+    val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(
+        javax.crypto.Cipher.ENCRYPT_MODE,
+        javax.crypto.spec.SecretKeySpec(wrappingKey, "AES"),
+        javax.crypto.spec.GCMParameterSpec(128, iv)
+    )
+    val ciphertext = cipher.doFinal(vek)
+    SecureMemory.wipe(wrappingKey)
+
+    return Triple(ephemeralPair.public.encoded, iv, ciphertext)
+}
+
+/**
+ * Unwraps a VEK previously wrapped with [wrapVekWithEcdh].
+ *
+ * Requires the Keystore private key to be authorised (i.e. called within a
+ * BiometricPrompt CryptoObject ECDH flow or immediately after biometric success).
+ *
+ * @param ephemeralPublicKeyBytes   The ephemeral public key encoded bytes from wrap.
+ * @param iv                        The AES-GCM IV from wrap.
+ * @param wrappedVek                The AES-GCM ciphertext+tag from wrap.
+ * @param keystorePrivateKey        The authenticated private key from the BiometricPrompt result.
+ * @return Plaintext VEK (caller must wipe after use).
+ */
+fun KeystoreManager.unwrapVekWithEcdh(
+    ephemeralPublicKeyBytes: ByteArray,
+    iv: ByteArray,
+    wrappedVek: ByteArray,
+    keystorePrivateKey: java.security.PrivateKey
+): ByteArray {
+    // 1. Decode ephemeral public key
+    val ephemeralPub = java.security.KeyFactory.getInstance(ECDH_KEY_ALGORITHM)
+        .generatePublic(java.security.spec.X509EncodedKeySpec(ephemeralPublicKeyBytes))
+
+    // 2. ECDH shared secret using the Keystore private key
+    val ka = javax.crypto.KeyAgreement.getInstance(ECDH_KEY_AGREEMENT)
+    ka.init(keystorePrivateKey)
+    ka.doPhase(ephemeralPub, true)
+    val rawSharedSecret = ka.generateSecret()
+
+    // 3. HKDF-SHA256
+    val wrappingKey = try {
+        val hkdf = org.bouncycastle.crypto.generators.HKDFBytesGenerator(
+            org.bouncycastle.crypto.digests.SHA256Digest()
+        )
+        hkdf.init(org.bouncycastle.crypto.params.HKDFParameters(
+            rawSharedSecret,
+            null,
+            ECDH_HKDF_INFO.toByteArray(Charsets.UTF_8)
+        ))
+        ByteArray(32).also { hkdf.generateBytes(it, 0, 32) }
+    } finally {
+        SecureMemory.wipe(rawSharedSecret)
+    }
+
+    // 4. AES-256-GCM decrypt
+    return try {
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(
+            javax.crypto.Cipher.DECRYPT_MODE,
+            javax.crypto.spec.SecretKeySpec(wrappingKey, "AES"),
+            javax.crypto.spec.GCMParameterSpec(128, iv)
+        )
+        cipher.doFinal(wrappedVek)
+    } finally {
+        SecureMemory.wipe(wrappingKey)
+    }
+}
+
+/**
+ * Returns an initialized ECDH [KeyAgreement] ready for the BiometricPrompt CryptoObject flow.
+ * Returns null if the ECDH key pair doesn't exist or cannot be initialized.
+ */
+fun KeystoreManager.getEcdhKeyAgreementForBiometric(): javax.crypto.KeyAgreement? {
+    if (!hasEcdhKey()) return null
+    return try {
+        val pair = getOrCreateEcdhKeyPair()
+        val ka = javax.crypto.KeyAgreement.getInstance(ECDH_KEY_AGREEMENT, "AndroidKeyStore")
+        ka.init(pair.private)
+        ka
+    } catch (_: Exception) { null }
 }

@@ -219,7 +219,11 @@ fun DeviceIntegrationsSheet(
                                 text = "Grant Permission",
                                 onClick = {
                                     app?.sessionManager?.setPickerActive(true)
-                                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                                    try {
+                                        permissionLauncher.launch(Manifest.permission.CAMERA)
+                                    } catch (_: Throwable) {
+                                        app?.sessionManager?.setPickerActive(false)
+                                    }
                                 },
                                 height = 44.dp,
                                 modifier = Modifier.weight(1f)

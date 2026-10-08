@@ -29,7 +29,12 @@ import com.kryptx.app.core.security.VaultSessionManager
  * ## Design Notes
  * - This is a manual service locator, not a DI framework. Adding Hilt/Dagger is a potential
  *   follow-up but would be a new feature, not a bug fix.
- * - All fields are `val` and constructed in a deterministic order.
+ * - Security-critical dependencies (dbHelper, sessionManager, keystoreManager, vaultRepository,
+ *   clipboardManager, memoryWatchdog) are eagerly initialized so protections are active before
+ *   the first user interaction.
+ * - Non-security-critical, access-gated dependencies (biometricManager, attachmentManager,
+ *   activityLogManager) are lazy to avoid unnecessary work at cold start. All are
+ *   SYNCHRONIZED lazy to be safe across multiple threads.
  * - `KryptxApplication` delegates interface implementation to this container.
  */
 class AppContainer(context: Context) {
@@ -78,22 +83,41 @@ class AppContainer(context: Context) {
     )
 
     // ── Clipboard ───────────────────────────────────────────────────────────
+    // Eager: lock listener must be registered before the first unlock so clipboard
+    // is always cleared when the vault locks — this is security-critical.
     val clipboardManager: ClipboardSecurityManager = ClipboardSecurityManager(context, preferencesRepository).also {
         sessionManager.addLockListener { it.clearNow() }
     }
 
     // ── Biometrics ──────────────────────────────────────────────────────────
-    val biometricManager: BiometricAuthManager = BiometricAuthManager(context)
+    // Lazy: BiometricAuthManager only stores a Context reference in its constructor.
+    // It is only needed when the user reaches the unlock/settings screen, so
+    // deferring construction avoids an unnecessary Keystore probe at cold start.
+    val biometricManager: BiometricAuthManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        BiometricAuthManager(context)
+    }
 
     // ── Attachments ─────────────────────────────────────────────────────────
-    val attachmentManager: IAttachmentManager = AttachmentManager(context, sessionManager)
+    // Lazy: AttachmentManager.mkdirs() only needs to run the first time a user
+    // accesses the attachments feature, not at every app launch.
+    val attachmentManager: IAttachmentManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        AttachmentManager(context, sessionManager)
+    }
 
     // ── Memory protection ───────────────────────────────────────────────────
+    // Eager: CryptographicMemoryWatchdog registers a ComponentCallbacks2 listener
+    // that trims / zeroizes cryptographic material under memory pressure. It must
+    // be active before any vault data is loaded.
     val memoryWatchdog: CryptographicMemoryWatchdog = CryptographicMemoryWatchdog(
         context.applicationContext as Application,
         sessionManager
     ).apply { register() }
 
     // ── Activity audit log ──────────────────────────────────────────────────
-    val activityLogManager: ActivityLogManager = ActivityLogManager(dbHelper)
+    // Lazy: ActivityLogManager spawns a background CoroutineScope and is only
+    // accessed from the settings screen. Deferring construction avoids spinning
+    // up the IO scope until it is actually needed.
+    val activityLogManager: ActivityLogManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        ActivityLogManager(dbHelper)
+    }
 }

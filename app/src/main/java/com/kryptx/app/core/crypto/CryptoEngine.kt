@@ -9,10 +9,20 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * High-performance AES-256-GCM authenticated encryption/decryption engine.
+ * High-performance AES-256-GCM / XChaCha20-Poly1305 authenticated encryption/decryption engine.
  *
- * Encrypted payload layout:
+ * Cipher discriminator tag (first byte of every ciphertext payload):
+ *  0x01 — XChaCha20-Poly1305 (native Rust), no AAD
+ *  0x02 — AES-256-GCM (JVM BouncyCastle), optional AAD
+ *  0x03 — XChaCha20-Poly1305 (native Rust), AAD embedded as length-prefixed frame
+ *
+ * AES-256-GCM payload layout (tag 0x02):
  * [IV: 12 bytes] + [Ciphertext + GCM Auth Tag: variable]
+ *
+ * XChaCha20-Poly1305 payload layout (tag 0x01, 0x03):
+ * Nonce and ciphertext managed by the Rust engine; opaque to the Kotlin layer.
+ * For tag 0x03 the decrypted plaintext is an AAD frame:
+ * [4-byte big-endian AAD length] + [AAD bytes] + [original plaintext bytes]
  */
 object CryptoEngine {
 
@@ -44,9 +54,32 @@ object CryptoEngine {
     const val CIPHER_TAG_AES_GCM = 0x02.toByte()
 
     /**
+     * XChaCha20-Poly1305 with embedded AAD tag.
+     *
+     * When the native Rust engine is available and AAD is provided, the AAD is serialized as a
+     * length-prefixed header into a per-call plaintext frame before encryption, so the AAD is
+     * covered by XChaCha20-Poly1305's authentication tag. Any modification to the AAD — including
+     * row-swap attacks that replace one item's ciphertext with another's — causes the auth tag
+     * check to fail identically to native AAD support.
+     *
+     * Frame layout (passed as plaintext to XChaCha20-Poly1305):
+     * [4-byte big-endian AAD length] + [AAD bytes] + [original plaintext bytes]
+     *
+     * On decryption the frame is unpacked, the embedded AAD is compared in constant time against
+     * the expected AAD supplied by the caller, and the original plaintext is returned.
+     */
+    const val CIPHER_TAG_XCHACHA_AAD = 0x03.toByte()
+
+    /**
      * Encrypts plaintext bytes using Native Rust Engine (XChaCha20-Poly1305) when available,
      * falling back to AES-256-GCM on JVM.
-     * Prefixes payload with a 1-byte cipher discriminator tag (0x01 for XChaCha20, 0x02 for AES-GCM).
+     * Prefixes payload with a 1-byte cipher discriminator tag.
+     *
+     * - 0x01 (CIPHER_TAG_XCHACHA):     XChaCha20-Poly1305, no AAD, native Rust path
+     * - 0x02 (CIPHER_TAG_AES_GCM):     AES-256-GCM JVM fallback (no native engine available)
+     * - 0x03 (CIPHER_TAG_XCHACHA_AAD): XChaCha20-Poly1305 with length-prefixed AAD frame,
+     *                                   native Rust path — guarantees the stronger cipher is
+     *                                   always used regardless of whether AAD is present.
      *
      * @param plaintext Raw unencrypted bytes.
      * @param key 256-bit symmetric encryption key.
@@ -59,11 +92,72 @@ object CryptoEngine {
         key: ByteArray,
         associatedData: ByteArray? = null
     ): ByteArray {
-        return if (associatedData == null && NativeCryptoEngineWrapper.isNativeAvailable) {
-            byteArrayOf(CIPHER_TAG_XCHACHA) + NativeCryptoEngineWrapper.encryptNative(plaintext, key)
+        return if (NativeCryptoEngineWrapper.isNativeAvailable) {
+            if (associatedData == null) {
+                byteArrayOf(CIPHER_TAG_XCHACHA) + NativeCryptoEngineWrapper.encryptNative(plaintext, key)
+            } else {
+                // Embed AAD as a 4-byte big-endian length prefix + AAD bytes prepended to plaintext,
+                // so it is covered by XChaCha20-Poly1305's authentication tag.
+                val frame = buildAadFrame(associatedData, plaintext)
+                try {
+                    byteArrayOf(CIPHER_TAG_XCHACHA_AAD) + NativeCryptoEngineWrapper.encryptNative(frame, key)
+                } finally {
+                    SecureMemory.wipe(frame)
+                }
+            }
         } else {
             byteArrayOf(CIPHER_TAG_AES_GCM) + encryptJvm(plaintext, key, associatedData)
         }
+    }
+
+    /**
+     * Builds a length-prefixed AAD frame: [4-byte big-endian AAD length][AAD bytes][plaintext bytes].
+     * The frame is encrypted as a single XChaCha20-Poly1305 payload so the AAD is covered by
+     * the authentication tag. Callers MUST wipe the returned array with [SecureMemory.wipe].
+     */
+    internal fun buildAadFrame(associatedData: ByteArray, plaintext: ByteArray): ByteArray {
+        val frame = ByteArray(4 + associatedData.size + plaintext.size)
+        frame[0] = (associatedData.size ushr 24).toByte()
+        frame[1] = (associatedData.size ushr 16).toByte()
+        frame[2] = (associatedData.size ushr 8).toByte()
+        frame[3] = associatedData.size.toByte()
+        System.arraycopy(associatedData, 0, frame, 4, associatedData.size)
+        System.arraycopy(plaintext, 0, frame, 4 + associatedData.size, plaintext.size)
+        return frame
+    }
+
+    /**
+     * Unpacks a length-prefixed AAD frame produced by [buildAadFrame] and validates the embedded
+     * AAD against [expectedAssociatedData] using a constant-time comparison.
+     *
+     * @return The original plaintext bytes extracted from the frame.
+     * @throws javax.crypto.AEADBadTagException if the embedded AAD does not match [expectedAssociatedData].
+     * @throws IllegalArgumentException if the frame is malformed or too short.
+     */
+    internal fun unpackAadFrame(decryptedFrame: ByteArray, expectedAssociatedData: ByteArray?): ByteArray {
+        require(decryptedFrame.size >= 4) {
+            "XChaCha20-AAD frame too short (${decryptedFrame.size} bytes); minimum 4 bytes for AAD length header"
+        }
+        val aadLen = ((decryptedFrame[0].toInt() and 0xFF) shl 24) or
+                     ((decryptedFrame[1].toInt() and 0xFF) shl 16) or
+                     ((decryptedFrame[2].toInt() and 0xFF) shl 8) or
+                      (decryptedFrame[3].toInt() and 0xFF)
+        require(aadLen >= 0 && 4 + aadLen <= decryptedFrame.size) {
+            "XChaCha20-AAD frame declares invalid AAD length ($aadLen); frame is ${decryptedFrame.size} bytes"
+        }
+        val embeddedAad = decryptedFrame.copyOfRange(4, 4 + aadLen)
+        val expectedAad = expectedAssociatedData ?: ByteArray(0)
+
+        // Constant-time comparison — prevents timing-side-channel on AAD mismatch.
+        if (!SecureMemory.safeEquals(embeddedAad, expectedAad)) {
+            SecureMemory.wipe(embeddedAad)
+            throw javax.crypto.AEADBadTagException(
+                "XChaCha20-AAD frame: embedded AAD does not match expected associated data — " +
+                "possible ciphertext substitution or row-swap attack"
+            )
+        }
+        SecureMemory.wipe(embeddedAad)
+        return decryptedFrame.copyOfRange(4 + aadLen, decryptedFrame.size)
     }
 
     private val sessionNonceCounter = java.util.concurrent.atomic.AtomicLong(0)
@@ -150,10 +244,47 @@ object CryptoEngine {
                     try {
                         NativeCryptoEngineWrapper.decryptNative(payload, key)
                     } catch (e: Exception) {
-                        SecurityLogger.warn("CryptoEngine", "XChaCha20 tagged decryption failed, falling back to legacy: ${e.javaClass.simpleName}", e)
+                        // AEADBadTagException indicates authentication failure — never fall back,
+                        // as that would allow ciphertext confusion attacks across cipher families.
+                        if (e is javax.crypto.AEADBadTagException ||
+                            e.cause is javax.crypto.AEADBadTagException ||
+                            e.javaClass.name.contains("AEADBadTag")) {
+                            throw e
+                        }
+                        // Only fall back for non-auth failures (e.g. native library unavailable)
+                        SecurityLogger.warn("CryptoEngine", "XChaCha20 tagged decryption failed (non-auth), falling back to legacy: ${e.javaClass.simpleName}", e)
                         decryptLegacy(encryptedData, key, associatedData)
                     }
                 } else {
+                    decryptLegacy(encryptedData, key, associatedData)
+                }
+            }
+            CIPHER_TAG_XCHACHA_AAD -> {
+                // XChaCha20-Poly1305 with length-prefixed embedded AAD frame.
+                // The entire frame (AAD header + plaintext) is authenticated by the XChaCha20
+                // poly tag, so any AAD or plaintext modification causes decryption to throw.
+                val payload = encryptedData.copyOfRange(1, encryptedData.size)
+                if (NativeCryptoEngineWrapper.isNativeAvailable) {
+                    val decryptedFrame = try {
+                        NativeCryptoEngineWrapper.decryptNative(payload, key)
+                    } catch (e: Exception) {
+                        // Auth tag failures must never fall through.
+                        if (e is javax.crypto.AEADBadTagException ||
+                            e.cause is javax.crypto.AEADBadTagException ||
+                            e.javaClass.name.contains("AEADBadTag")) {
+                            throw e
+                        }
+                        SecurityLogger.warn("CryptoEngine", "XChaCha20-AAD tagged decryption failed (non-auth), falling back to AES-GCM: ${e.javaClass.simpleName}", e)
+                        // Non-auth failure — repack and attempt AES-GCM (legacy payload would have 0x02 tag)
+                        return decryptJvm(payload, key, associatedData)
+                    }
+                    try {
+                        unpackAadFrame(decryptedFrame, associatedData)
+                    } finally {
+                        SecureMemory.wipe(decryptedFrame)
+                    }
+                } else {
+                    // Native engine unavailable — fall back to AES-GCM (legacy path)
                     decryptLegacy(encryptedData, key, associatedData)
                 }
             }
@@ -162,7 +293,9 @@ object CryptoEngine {
                 try {
                     decryptJvm(payload, key, associatedData)
                 } catch (e: Exception) {
-                    SecurityLogger.warn("CryptoEngine", "AES-GCM tagged decryption failed, falling back to legacy: ${e.javaClass.simpleName}", e)
+                    // Authentication tag failure must never fall through to legacy paths.
+                    if (e is javax.crypto.AEADBadTagException) throw e
+                    SecurityLogger.warn("CryptoEngine", "AES-GCM tagged decryption failed (non-auth), falling back to legacy: ${e.javaClass.simpleName}", e)
                     decryptLegacy(encryptedData, key, associatedData)
                 }
             }
@@ -181,8 +314,14 @@ object CryptoEngine {
             try {
                 NativeCryptoEngineWrapper.decryptNative(encryptedData, key)
             } catch (e: Exception) {
-                // Catches NativeCryptoException, InternalException, and any other UniFFI-generated exception
-                SecurityLogger.warn("CryptoEngine", "Legacy native decryption failed, falling back to JVM AES-GCM: ${e.javaClass.simpleName}", e)
+                // Authentication tag failure must not fall through — propagate immediately.
+                if (e is javax.crypto.AEADBadTagException ||
+                    e.cause is javax.crypto.AEADBadTagException ||
+                    e.javaClass.name.contains("AEADBadTag")) {
+                    throw e
+                }
+                // Non-auth failure (e.g. native library unavailable at runtime) — try JVM AES-GCM
+                SecurityLogger.warn("CryptoEngine", "Legacy native decryption failed (non-auth), falling back to JVM AES-GCM: ${e.javaClass.simpleName}", e)
                 decryptJvm(encryptedData, key, associatedData)
             }
         } else {
@@ -242,8 +381,9 @@ object CryptoEngine {
      * @return Base64-encoded ciphertext payload.
      */
     @Deprecated(
-        message = "Prefer encryptCharArray() for security-sensitive data. String is immutable in JVM and cannot be zeroed from heap.",
-        replaceWith = ReplaceWith("encryptCharArray(chars, key, associatedData)")
+        message = "SECURITY: String is immutable in JVM — it cannot be zeroed from heap and exposes sensitive plaintext to GC inspection and heap dumps. Use encryptCharArray() instead.",
+        replaceWith = ReplaceWith("encryptCharArray(chars, key, associatedData)"),
+        level = DeprecationLevel.ERROR
     )
     fun encryptString(
         plainText: String,
@@ -260,7 +400,13 @@ object CryptoEngine {
     }
 
     /**
-     * Helper to decrypt a Base64-encoded encrypted payload string into a plaintext String.
+     * Decrypts a Base64-encoded ciphertext payload into a plaintext [String].
+     *
+     * **Security note:** The returned [String] is immutable and lives on the JVM heap until GC.
+     * It **cannot** be explicitly zeroed. This overload is acceptable for non-secret structured
+     * payloads (e.g. JSON envelopes) where the plaintext is not itself a password or key.
+     * For passwords, PINs, secret tokens, or other sensitive secrets, use [decryptToCharArray]
+     * which returns a [CharArray] that you must wipe immediately with [SecureMemory.wipe].
      *
      * @param encryptedBase64 Base64-encoded ciphertext payload.
      * @param key 256-bit symmetric key.

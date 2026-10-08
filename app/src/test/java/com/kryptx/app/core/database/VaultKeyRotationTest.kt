@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION_ERROR") // encryptString used in tests for convenience — not a production security path
 package com.kryptx.app.core.database
 
 import com.kryptx.app.core.crypto.CryptoEngine

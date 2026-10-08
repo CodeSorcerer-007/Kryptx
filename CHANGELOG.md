@@ -5,14 +5,31 @@ All notable changes to the Kryptx Android Password Manager project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] (versionCode 16) - 2026-10-08
+
+### Maintenance & Security Hardening
+- **Version Bump**: Promoted release to versionCode 16 (v2.2.1) with production release artifacts.
+- **Crypto & Biometric Round-Trip Verification**: Verified dual-cipher framing, StrongBox P-256 ECDH wrapping, and hardware security key integration across full test suite.
+- **Dependency & Build Pipeline Hygiene**: Synchronized version catalogs and optimized release packaging with R8/Proguard code shrinking.
+
+---
+
 ## [2.2.0] (versionCode 15) - 2026-10-05
 
 ### Security & Architecture Hardening
+- **Google Play Store Release**: Official production release published live on Google Play at [play.google.com/store/apps/details?id=com.kryptx.app](https://play.google.com/store/apps/details?id=com.kryptx.app).
+- **Hardware-Backed Biometric Wrapping via ECDH**: Added StrongBox-preferred ECDH P-256 key agreement with HKDF-SHA256 and AES-256-GCM for biometric key encapsulation in `KeystoreManager`, providing a parallel migration path to RSA-2048 OAEP.
+- **Authenticated XChaCha20 AAD Framing**: Implemented length-prefixed embedded AAD framing (`packAadFrame` / `unpackAadFrame`) with constant-time verification in `CryptoEngine`, stopping ciphertext substitution and row-transplant attacks.
+- **Physical USB OTG HID Challenge-Response**: Implemented true YubiKey slot-2 HMAC-SHA1 challenge-response (OTP HID protocol instruction `0x38`) over USB HID in `HardwareSecurityKeyManager`, with device-bound HMAC fallback.
+- **Progressive Exponential Backoff Throttling**: Extended failed unlock throttle schedule (10s, 30s, 120s, 300s, 600s, up to 15m / 900s hard cap) in `VaultSessionManager` with persistent storage and session integrity checks.
+- **Biometric Concurrency Protection**: Added atomic compare-and-set guards (`isPromptingBiometrics`) in `MainActivity` to eliminate race conditions between auto-prompting and user-initiated unlock.
+- **ActivityResultRegistry High-Range Routing**: Routed high-range request codes directly through `activityResultRegistry.dispatchResult` in `MainActivity` and `AutofillAuthActivity`, bypassing legacy FragmentActivity 16-bit integer overflow.
+- **Compile-Time API Hardening**: Marked `CryptoEngine.encryptString` with `DeprecationLevel.ERROR` to eliminate immutable heap secret retention, and introduced `@RequiresVaultKey` documentation annotation for session-guarded APIs.
 - **ADR-001 Manual DI Enforcement**: Removed reflection-based DI dependencies and restored pure manual constructor injection across all ViewModels with `KryptxViewModelFactory`.
-- **64-bit Nonce Counter**: Enforced full 64-bit atomic counter in deterministic IV construction per NIST SP 800-38D.
+- **64-bit Nonce Counter**: Enforced full 64-bit atomic counter in deterministic IV construction per NIST SP 800-38D §8.2.1.
 - **Rust KDF Alignment**: Aligned bare-metal Argon2id defaults to 16 MB memory-hard parameter matching security specifications.
 - **Strict Anti-Phishing Domain Matching**: Hardened package segment equality checks in `DomainMatcher` to prevent cross-app autofill spoofing.
-- **Integration Test Suite**: Added `VaultBackupRoundtripTest` and comprehensive `RootDetectorTest` heuristic suite.
+- **Integration Test Suite**: Added `VaultBackupRoundtripTest`, `PropertyBasedCryptoFuzzTest`, and comprehensive `RootDetectorTest` heuristic suite.
 - **Reproducible Builds**: Configured deterministic builds with `SOURCE_DATE_EPOCH` and automated SHA-256 checksum generation in CI.
 
 ---

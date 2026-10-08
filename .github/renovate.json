@@ -1,0 +1,98 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate dependency update configuration for Kryptx. Security patches are auto-merged; other updates require review.",
+
+  "extends": [
+    "config:base",
+    ":semanticCommits",
+    "security:openssf-scorecard"
+  ],
+
+  "timezone": "UTC",
+  "schedule": ["after 9am and before 5pm on weekday"],
+
+  "labels": ["dependencies"],
+
+  "vulnerabilityAlerts": {
+    "labels": ["security", "dependencies"],
+    "automerge": true,
+    "automergeType": "pr",
+    "automergeStrategy": "squash"
+  },
+
+  "osvVulnerabilityAlerts": true,
+
+  "packageRules": [
+    {
+      "description": "Auto-merge patch-level security updates for well-known AndroidX libraries",
+      "matchPackagePrefixes": ["androidx.", "com.google.android"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Require manual review for all crypto-related dependency updates — BouncyCastle, SQLCipher, biometric, YubiKit",
+      "matchPackageNames": [
+        "org.bouncycastle:bcprov-jdk18on",
+        "net.zetetic:android-database-sqlcipher",
+        "androidx.biometric:biometric",
+        "com.yubico.yubikit:android",
+        "com.yubico.yubikit:core",
+        "com.yubico.yubikit:yubiotp"
+      ],
+      "automerge": false,
+      "labels": ["security", "dependencies", "crypto-review-required"],
+      "reviewers": ["team:security"]
+    },
+    {
+      "description": "Pin all GitHub Actions to exact SHA digests for supply-chain security",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    },
+    {
+      "description": "Group all AndroidX updates into a single PR to reduce noise",
+      "matchPackagePrefixes": ["androidx."],
+      "matchUpdateTypes": ["minor", "major"],
+      "groupName": "AndroidX libraries",
+      "automerge": false
+    },
+    {
+      "description": "Kotlin and Compose compiler must be updated together",
+      "matchPackagePrefixes": ["org.jetbrains.kotlin", "androidx.compose"],
+      "groupName": "Kotlin + Compose",
+      "automerge": false
+    },
+    {
+      "description": "Never auto-merge major version bumps",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["breaking-change", "dependencies"]
+    },
+    {
+      "description": "Block Gradle wrapper updates — must be updated manually after SHA256 checksum verification",
+      "matchManagers": ["gradle-wrapper"],
+      "enabled": false
+    }
+  ],
+
+  "gradle": {
+    "fileMatch": [
+      "(^|/)build\\.gradle(\\.kts)?$",
+      "(^|/)settings\\.gradle(\\.kts)?$",
+      "(^|/)gradle/libs\\.versions\\.toml$"
+    ]
+  },
+
+  "prCreation": "immediate",
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+
+  "commitMessagePrefix": "chore(deps):",
+
+  "ignoreTests": false,
+
+  "postUpdateOptions": [
+    "gradlew wrapper"
+  ]
+}

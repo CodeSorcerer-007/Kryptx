@@ -304,8 +304,11 @@ fun BackupExportScreen(
                             app?.sessionManager?.setPickerActive(true)
                             try {
                                 savePdfLauncher.launch("Kryptx_EmergencyKit_$timestamp.pdf")
-                            } catch (_: Throwable) {
+                            } catch (e: Throwable) {
                                 app?.sessionManager?.setPickerActive(false)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Unable to open file saver: ${e.message}")
+                                }
                             }
                         }
                     )
@@ -402,8 +405,11 @@ fun BackupExportScreen(
                                         "*/*"
                                     )
                                 )
-                            } catch (_: Throwable) {
+                            } catch (e: Throwable) {
                                 app?.sessionManager?.setPickerActive(false)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Unable to open file selector: ${e.message}")
+                                }
                             }
                         }
                     )
@@ -494,8 +500,9 @@ fun BackupExportScreen(
                                 app?.sessionManager?.setPickerActive(true)
                                 try {
                                     saveEncryptedLauncher.launch("Kryptx_Backup_$timestamp.kryptx")
-                                } catch (_: Throwable) {
+                                } catch (e: Throwable) {
                                     app?.sessionManager?.setPickerActive(false)
+                                    snackbarHostState.showSnackbar("Unable to open file saver: ${e.message}")
                                 }
                             } else {
                                 snackbarHostState.showSnackbar("Export failed — vault may be locked.")
@@ -550,8 +557,9 @@ fun BackupExportScreen(
                                 app?.sessionManager?.setPickerActive(true)
                                 try {
                                     saveHtmlLauncher.launch("Kryptx_OfflineVault_$timestamp.html")
-                                } catch (_: Throwable) {
+                                } catch (e: Throwable) {
                                     app?.sessionManager?.setPickerActive(false)
+                                    snackbarHostState.showSnackbar("Unable to open file saver: ${e.message}")
                                 }
                             } else {
                                 snackbarHostState.showSnackbar("Export failed — vault may be locked.")
@@ -597,8 +605,9 @@ fun BackupExportScreen(
                                 app?.sessionManager?.setPickerActive(true)
                                 try {
                                     saveCsvLauncher.launch("Kryptx_Export_$timestamp.csv")
-                                } catch (_: Throwable) {
+                                } catch (e: Throwable) {
                                     app?.sessionManager?.setPickerActive(false)
+                                    snackbarHostState.showSnackbar("Unable to open file saver: ${e.message}")
                                 }
                             } else {
                                 snackbarHostState.showSnackbar("Export failed — vault may be locked.")

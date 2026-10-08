@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.crypto.SecureMemory
+import com.kryptx.app.core.crypto.removeEcdhKey
 import java.io.File
 import java.security.SecureRandom
 
@@ -160,7 +161,9 @@ class EmergencyAutoDestructManager(
             // 4. Invalidate Keystore keys (use injected instance; fall back to a fresh one
             //    only when running in standalone/test mode without a container reference).
             try {
-                (keystoreManager ?: KeystoreManager()).removeBiometricKey()
+                val ks = keystoreManager ?: KeystoreManager()
+                ks.removeBiometricKey()
+                ks.removeEcdhKey()  // Also wipe the ECDH P-256 v2 migration key
             } catch (_: Throwable) {
                 // Keystore might not be initialized
             }

@@ -107,6 +107,11 @@ class AutofillAuthActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try {
+            val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mRequestedPermissionsFromFragment")
+            field.isAccessible = true
+            field.setBoolean(this, true)
+        } catch (_: Throwable) {}
 
         // Immediately enforce hardware window screenshot & screen-recording protection
         window.setFlags(
@@ -628,6 +633,42 @@ class AutofillAuthActivity : FragmentActivity() {
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun startActivityForResult(intent: Intent, requestCode: Int) {
+        startActivityForResult(intent, requestCode, null)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        var bypassed = false
+        if ((requestCode and -0x10000) != 0) {
+            try {
+                val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedActivityFromFragment")
+                field.isAccessible = true
+                field.setBoolean(this, true)
+                bypassed = true
+            } catch (_: Throwable) {}
+        }
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } finally {
+            if (bypassed) {
+                try {
+                    val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedActivityFromFragment")
+                    field.isAccessible = true
+                    field.setBoolean(this, false)
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!activityResultRegistry.dispatchResult(requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
         }
     }
 }

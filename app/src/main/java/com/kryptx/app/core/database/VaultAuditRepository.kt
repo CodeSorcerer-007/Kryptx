@@ -1,7 +1,6 @@
 package com.kryptx.app.core.database
 
 import com.kryptx.app.core.crypto.EntropyCalculator
-import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.model.IssueSeverity
 import com.kryptx.app.core.model.IssueType
 import com.kryptx.app.core.model.ItemType
@@ -38,18 +37,7 @@ class VaultAuditRepositoryImpl(
             return@withContext cachedAuditReport!!
         }
 
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext SecurityAuditReport(
-            overallScore = 100,
-            healthGrade = "A+",
-            compromisedCount = 0,
-            weakCount = 0,
-            reusedCount = 0,
-            oldPasswordCount = 0,
-            missing2faCount = 0,
-            issues = emptyList()
-        )
-
-        try {
+        sessionManager.withVaultKey { activeVek ->
             val items = dbHelper.loadAllItems(activeVek)
             val loginItems = items.filter { it.type == ItemType.LOGIN && it.password.isNotBlank() }
             val issues = mutableListOf<SecurityIssue>()
@@ -282,20 +270,17 @@ class VaultAuditRepositoryImpl(
             isAuditDirty = false
             dbHelper.recordSecurityScore(score)
             report
-        } catch (_: Exception) {
-            cachedAuditReport ?: SecurityAuditReport(
-                overallScore = 100,
-                healthGrade = "A+",
-                compromisedCount = 0,
-                weakCount = 0,
-                reusedCount = 0,
-                oldPasswordCount = 0,
-                missing2faCount = 0,
-                issues = emptyList()
-            )
-        } finally {
-            SecureMemory.wipe(activeVek)
-        }
+        } ?: SecurityAuditReport(
+            // Vault is locked — return a neutral report rather than stale data.
+            overallScore = 100,
+            healthGrade = "A+",
+            compromisedCount = 0,
+            weakCount = 0,
+            reusedCount = 0,
+            oldPasswordCount = 0,
+            missing2faCount = 0,
+            issues = emptyList()
+        )
     }
 
     private fun calculateSimilarity(s1: String, s2: String): Double {

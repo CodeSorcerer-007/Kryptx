@@ -17,11 +17,15 @@ sealed class Screen(val route: String) {
     data class ItemDetail(val itemId: String) : Screen("item_detail/$itemId") {
         companion object {
             const val ROUTE = "item_detail/{itemId}"
+            /** Prefix used by [parseScreenRoute] for deserialization — keeps a single source of truth. */
+            const val ROUTE_PREFIX = "item_detail/"
         }
     }
     data class AddEditItem(val itemId: String?) : Screen("add_edit_item?itemId=${itemId ?: ""}") {
         companion object {
             const val ROUTE = "add_edit_item?itemId={itemId}"
+            /** Prefix used by [parseScreenRoute] for deserialization — keeps a single source of truth. */
+            const val ROUTE_PREFIX = "add_edit_item?itemId="
         }
     }
 

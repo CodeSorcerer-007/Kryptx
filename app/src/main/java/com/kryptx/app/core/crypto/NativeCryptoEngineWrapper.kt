@@ -63,8 +63,10 @@ object NativeCryptoEngineWrapper {
 
     fun encrypt(plaintext: ByteArray, key: ByteArray, associatedData: ByteArray? = null): ByteArray {
         val eng = engineInstance
-        return if (eng != null && associatedData == null) {
+        return if (eng != null) {
             try {
+                // AAD is handled at the CryptoEngine layer via buildAadFrame() before reaching here.
+                // This wrapper always invokes the native engine when available.
                 eng.encrypt(plaintext, key)
             } catch (t: Throwable) {
                 CryptoEngine.encryptJvm(plaintext, key, associatedData)
@@ -81,7 +83,16 @@ object NativeCryptoEngineWrapper {
                 // If the ciphertext has a 24-byte nonce and was encrypted with XChaCha20-Poly1305
                 eng.decrypt(ciphertext, key)
             } catch (t: Throwable) {
-                // Fallback to AES-256-GCM if native decrypter fails or payload is AES-GCM
+                // Authentication tag failures indicate ciphertext tampering — never fall through.
+                // Propagate immediately so the caller (CryptoEngine.decrypt) can enforce its own
+                // strict no-fallthrough policy for AEADBadTagException.
+                if (t is javax.crypto.AEADBadTagException ||
+                    t.cause is javax.crypto.AEADBadTagException ||
+                    t.javaClass.name.contains("AEADBadTag")) {
+                    throw t
+                }
+                // Non-auth failure only (e.g. native library unavailable at runtime, format mismatch)
+                // — fall back to JVM AES-256-GCM.
                 CryptoEngine.decryptJvm(ciphertext, key, associatedData)
             }
         } else {

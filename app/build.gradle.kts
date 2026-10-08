@@ -17,8 +17,8 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "2.2.0"
+        versionCode = 16
+        versionName = "2.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -86,6 +86,16 @@ android {
                     "or local.properties before building a release APK."
                 )
             signingConfig = releaseSigningConfig
+
+            // Inject the release APK signing certificate SHA-256 fingerprint into BuildConfig.
+            // This fingerprint is computed from the release keystore at build time and baked into
+            // the APK so SecurityBootstrapper can enforce exact-match certificate pinning at runtime.
+            // Override via KRYPTX_RELEASE_FINGERPRINT env var for custom release pipelines.
+            val releaseFp = System.getenv("KRYPTX_RELEASE_FINGERPRINT")
+                ?: localProperties.getProperty("kryptx.release.fingerprint")
+                ?: ""
+            buildConfigField("String", "RELEASE_CERT_SHA256", "\"$releaseFp\"")
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -95,6 +105,8 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isDebuggable = true
+            // Debug builds have no pinned fingerprint — they use the debug keystore
+            buildConfigField("String", "RELEASE_CERT_SHA256", "\"\"")
         }
     }
 

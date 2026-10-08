@@ -609,12 +609,17 @@ private fun openAttachmentWithExternalApp(
         val mime = attachment.mimeType.ifBlank { "*/*" }
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
+            clipData = android.content.ClipData.newRawUri(attachment.fileName, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
         sessionManager?.setPickerActive(true)
-        context.startActivity(Intent.createChooser(intent, "Open ${attachment.fileName}"))
+        val chooser = Intent.createChooser(intent, "Open ${attachment.fileName}").apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(chooser)
         true
     } catch (e: Throwable) {
         sessionManager?.setPickerActive(false)

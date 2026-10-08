@@ -63,13 +63,15 @@ object AdaptiveKdfCalibrator {
 
         val (argon2MemKb, argon2Iter, argon2Parallelism, hwClass) = when {
             maxMemoryMb >= 512 && recommendedPbkdf2Rounds >= 1_200_000 -> {
-                listOf(256 * 1024, 4, 4, HardwareClass.FLAGSHIP_EXTREME)
+                listOf(262 * 1024, 4, 4, HardwareClass.FLAGSHIP_EXTREME)
             }
             maxMemoryMb >= 256 && recommendedPbkdf2Rounds >= 800_000 -> {
-                listOf(128 * 1024, 3, 4, HardwareClass.HIGH_PERFORMANCE)
+                listOf(128 * 1024, 4, 4, HardwareClass.HIGH_PERFORMANCE)
             }
             else -> {
-                listOf(64 * 1024, 3, 4, HardwareClass.STANDARD)
+                // STANDARD tier now starts at 64 MB / 4 iterations — OWASP minimum for
+                // interactive password hashing. Only LOW_RAM devices (< 256 MB heap) fall here.
+                listOf(64 * 1024, 4, 4, HardwareClass.STANDARD)
             }
         }
 

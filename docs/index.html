@@ -72,8 +72,8 @@
         <a href="https://github.com/CodeSorcerer-007/Kryptx" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" aria-label="View Kryptx on GitHub">
           <span>⭐ Star</span>
         </a>
-        <a href="https://github.com/CodeSorcerer-007/Kryptx/releases" target="_blank" rel="noopener" class="btn btn-primary btn-sm btn-download-desktop">
-          <span>Download APK</span>
+        <a href="https://play.google.com/store/apps/details?id=com.kryptx.app" target="_blank" rel="noopener" class="btn btn-primary btn-sm btn-download-desktop">
+          <span>Google Play</span>
         </a>
         <button class="hamburger" aria-label="Toggle Mobile Menu" aria-expanded="false">
           ☰
@@ -90,7 +90,8 @@
     <a href="contact.html" class="nav-link">Contact &amp; Security Disclosures</a>
     <a href="privacy.html" class="nav-link">Privacy Policy</a>
     <a href="terms.html" class="nav-link">Terms of Service</a>
-    <a href="https://github.com/CodeSorcerer-007/Kryptx/releases" class="btn btn-primary" style="margin-top: 12px;">Download APK v2.2.0</a>
+    <a href="https://play.google.com/store/apps/details?id=com.kryptx.app" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top: 12px;">Get on Google Play</a>
+    <a href="https://github.com/CodeSorcerer-007/Kryptx/releases" target="_blank" rel="noopener" class="btn btn-secondary" style="margin-top: 8px;">Download APK v2.2.0</a>
   </div>
 
   <!-- Main Content -->
@@ -110,16 +111,19 @@
               The Offline <span class="gradient-text">Password Fortress</span> for Android
             </h1>
             <p class="hero-description">
-              Military-grade AES-256-GCM encryption with 600,000 PBKDF2 iterations, hardware Keystore isolation, real-time TOTP MFA authenticator, and zero telemetry. Never surrender your keys to cloud servers.
+              Post-quantum fortified, bare-metal XChaCha20-Poly1305 &amp; AES-256-GCM encryption with Argon2id, hardware Keystore StrongBox isolation, real-time TOTP MFA authenticator, and zero telemetry. Never surrender your keys to cloud backends.
             </p>
             
             <!-- Above The Fold CTAs (Requirement 2) -->
             <div class="hero-cta-group">
-              <a href="https://github.com/CodeSorcerer-007/Kryptx/releases" target="_blank" rel="noopener" class="btn btn-primary btn-lg btn-download" id="hero-cta-download">
+              <a href="https://play.google.com/store/apps/details?id=com.kryptx.app" target="_blank" rel="noopener" class="btn btn-primary btn-lg" id="hero-cta-playstore">
+                <span>▶ Get it on Google Play</span>
+              </a>
+              <a href="https://github.com/CodeSorcerer-007/Kryptx/releases" target="_blank" rel="noopener" class="btn btn-secondary btn-lg btn-download" id="hero-cta-download">
                 <span>⚡ Download APK v2.2.0</span>
               </a>
-              <a href="https://github.com/CodeSorcerer-007/Kryptx" target="_blank" rel="noopener" class="btn btn-secondary btn-lg" id="hero-cta-github">
-                <span>View Source Code</span>
+              <a href="https://github.com/CodeSorcerer-007/Kryptx" target="_blank" rel="noopener" class="btn btn-outline btn-lg" id="hero-cta-github">
+                <span>View Source</span>
               </a>
             </div>
 
@@ -313,9 +317,19 @@
                 <td>🌐 Continuous Internet Sync</td>
               </tr>
               <tr>
+                <td><strong>Primary Cryptographic Ciphers</strong></td>
+                <td class="highlight">🛡️ Native Rust XChaCha20 &amp; AES-256-GCM</td>
+                <td>⚠️ AES-CBC / Single Layer</td>
+              </tr>
+              <tr>
                 <td><strong>Key Derivation Standard</strong></td>
-                <td class="highlight">⚡ 600,000 PBKDF2 Rounds</td>
+                <td class="highlight">⚡ Argon2id (16MB) + 600k PBKDF2</td>
                 <td>100,000 - 300,000 Rounds</td>
+              </tr>
+              <tr>
+                <td><strong>Physical Memory Locking</strong></td>
+                <td class="highlight">🔒 Linux mlock() &amp; zeroize</td>
+                <td>❌ Standard JVM Heap Retention</td>
               </tr>
               <tr>
                 <td><strong>Duress Panic Partition (Decoy Vault)</strong></td>
@@ -411,8 +425,8 @@
         <div class="sticky-title">🛡️ Kryptx Vault</div>
         <div class="sticky-subtitle">100% Offline &bull; Free &amp; Open Source</div>
       </div>
-      <a href="https://github.com/CodeSorcerer-007/Kryptx/releases" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
-        <span>Get APK</span>
+      <a href="https://play.google.com/store/apps/details?id=com.kryptx.app" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+        <span>Get on Google Play</span>
       </a>
     </div>
   </aside>
@@ -451,8 +465,9 @@
         </div>
 
         <div class="footer-col">
-          <h4>Repository</h4>
+          <h4>Repository &amp; App</h4>
           <ul class="footer-links">
+            <li><a href="https://play.google.com/store/apps/details?id=com.kryptx.app" target="_blank" rel="noopener">Google Play Store</a></li>
             <li><a href="https://github.com/CodeSorcerer-007/Kryptx" target="_blank" rel="noopener">GitHub Project</a></li>
             <li><a href="https://github.com/CodeSorcerer-007/Kryptx/releases" target="_blank" rel="noopener">Releases &amp; APKs</a></li>
             <li><a href="https://github.com/CodeSorcerer-007/Kryptx/issues" target="_blank" rel="noopener">Issue Tracker</a></li>

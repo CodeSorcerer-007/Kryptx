@@ -76,8 +76,7 @@ class AttachmentManager(
         mimeType: String,
         inputStream: InputStream
     ): VaultAttachment? = withContext(Dispatchers.IO) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext null
-        try {
+        sessionManager.withVaultKey { activeVek ->
             val id = UUID.randomUUID().toString()
             val encryptedFileName = "$id.enc"
             val targetFile = File(attachmentsDir, encryptedFileName)
@@ -123,8 +122,6 @@ class AttachmentManager(
             } finally {
                 SecureMemory.wipe(buffer)
             }
-        } finally {
-            SecureMemory.wipe(activeVek)
         }
     }
 
@@ -148,16 +145,15 @@ class AttachmentManager(
         attachment: VaultAttachment,
         outputStream: OutputStream
     ): Boolean = withContext(Dispatchers.IO) {
-        val activeVek = sessionManager.getVaultKey() ?: return@withContext false
-        try {
+        sessionManager.withVaultKey { activeVek ->
             val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
-            if (!encryptedFile.exists()) return@withContext false
+            if (!encryptedFile.exists()) return@withVaultKey false
 
             try {
                 FileInputStream(encryptedFile).use { fis ->
                     val headerBuf = ByteArray(8)
                     val headerRead = fis.read(headerBuf)
-                    if (headerRead != 8) return@withContext false
+                    if (headerRead != 8) return@withVaultKey false
 
                     val magic = ByteBuffer.wrap(headerBuf, 0, 4).int
                     if (magic != MAGIC_HEADER) {
@@ -166,7 +162,7 @@ class AttachmentManager(
                         val decrypted = CryptoEngine.decrypt(fullEncrypted, activeVek)
                         outputStream.write(decrypted)
                         SecureMemory.wipe(decrypted)
-                        return@withContext true
+                        return@withVaultKey true
                     }
 
                     var chunkIndex = 0
@@ -174,7 +170,7 @@ class AttachmentManager(
                     while (fis.read(lenBuf) == 4) {
                         val chunkLen = ByteBuffer.wrap(lenBuf).int
                         // Defensive guard: reject negative or abnormally huge chunks (> 10 MB) from corrupted files
-                        if (chunkLen <= 0 || chunkLen > 10 * 1024 * 1024) return@withContext false
+                        if (chunkLen <= 0 || chunkLen > 10 * 1024 * 1024) return@withVaultKey false
                         val encryptedChunk = ByteArray(chunkLen)
                         var readSoFar = 0
                         while (readSoFar < chunkLen) {
@@ -182,7 +178,7 @@ class AttachmentManager(
                             if (r == -1) break
                             readSoFar += r
                         }
-                        if (readSoFar != chunkLen) return@withContext false
+                        if (readSoFar != chunkLen) return@withVaultKey false
 
                         val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
                         val decryptedChunk = CryptoEngine.decrypt(encryptedChunk, activeVek, aad)
@@ -195,9 +191,7 @@ class AttachmentManager(
             } catch (_: Throwable) {
                 false
             }
-        } finally {
-            SecureMemory.wipe(activeVek)
-        }
+        } ?: false
     }
 
     /**

@@ -110,7 +110,7 @@ data class VaultItem(
             ItemType.SECURE_NOTE -> notes.lines().firstOrNull() ?: "Secure Note"
             ItemType.WIFI -> wifiSsid
             ItemType.API_KEY -> apiEndpoint.ifBlank { "API Token" }
-            ItemType.CUSTOM -> customFields.firstOrNull()?.let { "${it.label}: ${it.value}" } ?: "Custom Entry"
+            ItemType.CUSTOM -> customFields.firstOrNull { it.label != SUBTYPE_SENTINEL_LABEL }?.let { "${it.label}: ${it.value}" } ?: "Custom Entry"
         }
 
     /**
@@ -145,11 +145,17 @@ data class VaultItem(
             ItemType.WIFI -> wifiPassword
             ItemType.API_KEY -> apiKey.ifBlank { apiSecret }
             ItemType.IDENTITY -> identityIdNumber
-            ItemType.CUSTOM -> customFields.firstOrNull { it.isSecured }?.value ?: ""
+            ItemType.CUSTOM -> customFields.firstOrNull { it.isSecured && it.label != SUBTYPE_SENTINEL_LABEL }?.value ?: ""
         }
 
     /**
      * Strongly-typed credential payload representing type-specific secret fields.
+     *
+     * For the eight primary types (Login, Passkey, CreditCard, Identity, SecureNote, Wifi,
+     * ApiKey, Custom) the mapping is direct. For the three extended CUSTOM sub-types
+     * (BankAccount, CryptoWallet, SshKey) the data is stored in [customFields] with a
+     * reserved sentinel entry (`__kryptx_subtype__`) that tags the logical sub-type,
+     * written by [fromPayload] and read back here to restore the correct [VaultPayload] variant.
      */
     val payload: VaultPayload
         get() = when (type) {
@@ -197,9 +203,30 @@ data class VaultItem(
             ItemType.SECURE_NOTE -> VaultPayload.SecureNote(
                 content = notes
             )
-            ItemType.CUSTOM -> VaultPayload.Custom(
-                fields = customFields
-            )
+            ItemType.CUSTOM -> {
+                // Read the reserved sub-type sentinel written by fromPayload()
+                val subtype = customFields.firstOrNull { it.label == SUBTYPE_SENTINEL_LABEL }?.value
+                val fields = customFields.filter { it.label != SUBTYPE_SENTINEL_LABEL }
+                when (subtype) {
+                    SUBTYPE_BANK_ACCOUNT -> VaultPayload.BankAccount(
+                        bankName    = fields.firstOrNull { it.label == "Bank Name" }?.value ?: "",
+                        accountNumber = fields.firstOrNull { it.label == "Account Number" }?.value ?: "",
+                        routingNumber = fields.firstOrNull { it.label == "Routing Number" }?.value ?: "",
+                        swiftBic    = fields.firstOrNull { it.label == "SWIFT / BIC" }?.value ?: ""
+                    )
+                    SUBTYPE_CRYPTO_WALLET -> VaultPayload.CryptoWallet(
+                        address     = fields.firstOrNull { it.label == "Address" }?.value ?: "",
+                        seedPhrase  = fields.firstOrNull { it.label == "Seed Phrase" }?.value ?: "",
+                        network     = fields.firstOrNull { it.label == "Network" }?.value ?: ""
+                    )
+                    SUBTYPE_SSH_KEY -> VaultPayload.SshKey(
+                        publicKey   = fields.firstOrNull { it.label == "Public Key" }?.value ?: "",
+                        privateKey  = fields.firstOrNull { it.label == "Private Key" }?.value ?: "",
+                        host        = fields.firstOrNull { it.label == "Host" }?.value ?: ""
+                    )
+                    else -> VaultPayload.Custom(fields = customFields)
+                }
+            }
         }
 
     /**
@@ -220,6 +247,20 @@ data class VaultItem(
     }
 
     companion object {
+        /**
+         * Reserved [CustomField] label used as a sub-type discriminator for CUSTOM items that
+         * map to a strongly-typed [VaultPayload] variant (BankAccount, CryptoWallet, SshKey).
+         * This sentinel is stripped out before the visible [customFields] list is presented to
+         * the UI, and injected by [fromPayload] when constructing those types.
+         *
+         * Using a non-printable zero-width prefix (U+200B) in the label guarantees the sentinel
+         * can never collide with a user-created field label.
+         */
+        internal const val SUBTYPE_SENTINEL_LABEL = "\u200B__kryptx_subtype__"
+        internal const val SUBTYPE_BANK_ACCOUNT   = "BankAccount"
+        internal const val SUBTYPE_CRYPTO_WALLET  = "CryptoWallet"
+        internal const val SUBTYPE_SSH_KEY        = "SshKey"
+
         /**
          * Factory function to instantiate a [VaultItem] directly from a strongly-typed [VaultPayload].
          */
@@ -388,6 +429,7 @@ data class VaultItem(
                 tags = tags,
                 notes = notes,
                 customFields = listOf(
+                    CustomField(id = UUID.randomUUID().toString(), label = SUBTYPE_SENTINEL_LABEL, value = SUBTYPE_BANK_ACCOUNT),
                     CustomField(id = UUID.randomUUID().toString(), label = "Bank Name", value = payload.bankName),
                     CustomField(id = UUID.randomUUID().toString(), label = "Account Number", value = payload.accountNumber, isSecured = true),
                     CustomField(id = UUID.randomUUID().toString(), label = "Routing Number", value = payload.routingNumber),
@@ -409,6 +451,7 @@ data class VaultItem(
                 tags = tags,
                 notes = notes,
                 customFields = listOf(
+                    CustomField(id = UUID.randomUUID().toString(), label = SUBTYPE_SENTINEL_LABEL, value = SUBTYPE_CRYPTO_WALLET),
                     CustomField(id = UUID.randomUUID().toString(), label = "Address", value = payload.address),
                     CustomField(id = UUID.randomUUID().toString(), label = "Seed Phrase", value = payload.seedPhrase, isSecured = true),
                     CustomField(id = UUID.randomUUID().toString(), label = "Network", value = payload.network)
@@ -429,6 +472,7 @@ data class VaultItem(
                 tags = tags,
                 notes = notes,
                 customFields = listOf(
+                    CustomField(id = UUID.randomUUID().toString(), label = SUBTYPE_SENTINEL_LABEL, value = SUBTYPE_SSH_KEY),
                     CustomField(id = UUID.randomUUID().toString(), label = "Public Key", value = payload.publicKey),
                     CustomField(id = UUID.randomUUID().toString(), label = "Private Key", value = payload.privateKey, isSecured = true),
                     CustomField(id = UUID.randomUUID().toString(), label = "Host", value = payload.host)

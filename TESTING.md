@@ -5,13 +5,14 @@ The following features require physical device testing before shipping to the Pl
 
 ---
 
-## 1. Biometric Authentication
+## 1. Biometric Authentication & Hardware Attestation
 
 **What to test**
 - Fingerprint unlock on a device with a registered fingerprint
 - Face unlock on a device with Face ID/unlock configured
 - Re-enroll biometrics, then verify the vault key is invalidated and the app correctly prompts to re-enroll via master password
 - Verify StrongBox Keymaster is used on a Pixel 3+ (visible in Security Diagnostics screen)
+- Verify parallel ECDH P-256 key agreement wrapping initializes and authenticates cleanly
 
 **Devices recommended**
 - Pixel 6 or newer (StrongBox + FIDO2)
@@ -43,11 +44,11 @@ The following features require physical device testing before shipping to the Pl
 
 **Setup**
 1. Go to Android Settings → Passwords → Autofill Service → Select Kryptx
-2. Grant accessibility-style autofill permission
+2. Grant autofill permission
 
 **What to test**
 - Open Chrome → navigate to google.com login → verify Kryptx autofill suggestion appears
-- Tap suggestion while vault is locked → verify unlock prompt appears
+- Tap suggestion while vault is locked → verify unlock prompt appears via `AutofillAuthActivity`
 - Tap suggestion while vault is unlocked → verify credentials fill correctly
 - Test anti-phishing: create a login for `google.com`, then navigate to `attacker-google.com` — the suggestion must NOT appear
 - Test save-new-credentials: enter new credentials in a form and submit → verify Kryptx offers to save
@@ -56,7 +57,7 @@ The following features require physical device testing before shipping to the Pl
 - Chrome
 - Firefox
 - Samsung Internet
-- A native app with username/password fields (e.g. Twitter/X, Instagram)
+- Native apps with username/password fields
 
 **Pass criteria**
 - Correct domain matches fill, spoofed domains do not
@@ -65,7 +66,58 @@ The following features require physical device testing before shipping to the Pl
 
 ---
 
-## 4. P2P Local Sync
+## 4. Hardware Security Keys (USB OTG HID & NFC)
+
+**What to test**
+- **USB-C OTG YubiKey**: Connect a YubiKey via USB-C OTG cable or direct USB-C port
+  - Open Security Settings → Enroll Hardware Security Key
+  - Tap YubiKey button when prompted → verify slot-2 HMAC-SHA1 challenge-response (instruction `0x38`) completes enrollment
+  - Lock vault and unlock with hardware key challenge
+- **NFC Token**: Tap an enrolled NFC smart card or YubiKey NFC to the back of the device
+  - Verify IsoDep APDU challenge-response completes and unlocks the vault
+- **Disconnect / Cancel**: Disconnect USB key or cancel NFC prompt → verify app falls back gracefully to Master Password without crashing
+
+**Pass criteria**
+- Real physical hardware challenge-response unlocks the vault
+- Enrolled device UID hash prevents token spoofing
+
+---
+
+## 5. Progressive Lockout & Brute-Force Throttling
+
+**What to test**
+- Intentionally enter an incorrect Master Password multiple times:
+  - 3 failed attempts → 10-second countdown timer displayed
+  - 5 failed attempts → 30-second countdown timer displayed
+  - 8 failed attempts → 2-minute countdown timer displayed
+  - 10 failed attempts → 5-minute countdown timer displayed
+  - 15 failed attempts → 10-minute countdown timer displayed
+  - 20+ failed attempts → 15-minute hard-cap timer displayed
+- While lockout timer is running, kill the app from Android Recents and relaunch:
+  - Verify remaining lockout time is preserved and still enforced
+
+**Pass criteria**
+- Password entry fields and unlock buttons remain strictly disabled during active countdown
+- Force-quitting the app cannot bypass the throttle timer
+
+---
+
+## 6. Foldable Displays & Orientation Change Debounce
+
+**What to test**
+- Unlock the vault
+- Rotate the device between Portrait and Landscape rapidly
+- On a foldable device (e.g. Pixel Fold, Galaxy Z Fold), fold and unfold the device
+- Verify vault does NOT inadvertently lock (protected by the 700ms lifecycle debounce)
+- Switch away to another app for >2 seconds → verify vault locks if "Lock on Background" is enabled
+
+**Pass criteria**
+- Screen orientation and fold state changes do not lock the active vault session
+- Genuine background transitions still trigger immediate or timeout-based auto-lock
+
+---
+
+## 7. P2P Local Sync & Offline Web Vault
 
 **Requirements**
 - Two physical Android devices on the same Wi-Fi network (or one device hosting a mobile hotspot)
@@ -74,20 +126,16 @@ The following features require physical device testing before shipping to the Pl
 - Device A: Tap "Send Vault" → QR code appears with IP, port, PIN, and AES key
 - Device B: Tap "Receive Vault" → Scan QR code → vault items import successfully
 - Device B: Tap "Receive Vault" → Enter wrong PIN → verify transfer is rejected
-- Test with vault containing all 12 item types
-
-**Edge cases**
-- Both devices on mobile data (should fail gracefully with "not on same network" message)
-- Sender device locks mid-transfer (vault locks, socket closes, receiver gets error message)
+- Test with vault containing all 8 item types and file attachments
+- Test Offline Web Companion: Export `.html` file → transfer to desktop PC via USB/Bluetooth → open in Chrome/Firefox/Safari offline → enter export password → verify all accounts decrypt client-side via W3C WebCrypto
 
 **Pass criteria**
 - All items transfer with zero data loss
-- Wrong PIN is rejected
-- Transfer completes within the 2-minute server socket timeout
+- Offline HTML web vault decrypts flawlessly without internet connectivity
 
 ---
 
-## 5. Offline Breach Detection & Automated Test Suite
+## 8. Offline Breach Detection & Automated Test Suite
 
 Kryptx operates 100% offline with zero network queries. Breach checking uses a local Bloom filter (`breach_filter.bin`) alongside dictionary and structural pattern heuristics.
 
@@ -115,7 +163,7 @@ cd app/src/main/rust/kryptx_crypto && cargo test --verbose
 
 ---
 
-## 6. FLAG_SECURE / Screenshot Protection
+## 9. FLAG_SECURE / Screenshot Protection
 
 **What to test**
 - With FLAG_SECURE enabled in Security Settings, open the recent apps switcher — vault content must be blurred/hidden
@@ -124,17 +172,7 @@ cd app/src/main/rust/kryptx_crypto && cargo test --verbose
 
 ---
 
-## 7. Auto-Lock Timeout
-
-**What to test**
-- Set timeout to 30 seconds, leave the app idle → vault locks after 30s
-- Set "Lock on Background" → switch to another app → return → vault is locked
-- Set "Never" → idle for 10 minutes → vault remains unlocked
-- Lock immediately setting: verify vault locks the moment you navigate away
-
----
-
-## 8. File Export / Import (SAF)
+## 10. File Export / Import (SAF)
 
 **What to test**
 - Export Encrypted Vault → SAF picker opens → save to Downloads → verify file exists and is non-zero bytes
@@ -149,9 +187,9 @@ cd app/src/main/rust/kryptx_crypto && cargo test --verbose
 ## Pre-Submission Checklist
 
 - [ ] Offline Bloom filter asset verified in `app/src/main/assets/breach_filter.bin`
-- [ ] All 6 physical test scenarios above pass on at least two devices
+- [ ] All 10 physical test scenarios above pass on at least two devices
 - [ ] Privacy policy URL added to Play Console listing
 - [ ] Data safety form completed (no data collected, no data shared, all encrypted on device)
 - [ ] Release APK signed with production keystore (CI secrets set)
 - [ ] App reviewed on Android 8.0 (API 26) for minSdk compatibility
-- [ ] App reviewed on latest Android release for targetSdk compatibility
+- [ ] App reviewed on Android 16 (API 36) for targetSdk compatibility

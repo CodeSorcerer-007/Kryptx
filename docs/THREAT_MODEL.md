@@ -1,6 +1,6 @@
 # Kryptx — Formal Threat Model & Security Boundaries
 
-**Document Version:** 2.0.0  
+**Document Version:** 2.2.0  
 **Classification:** Public Security Specification  
 **Target Platform:** Native Android (API 26–36)  
 
@@ -11,7 +11,7 @@
 Kryptx is an offline-first native Android credential fortress, TOTP authenticator, FIDO2/WebAuthn passkey manager, and encrypted document vault.
 
 The architecture adheres to three foundational tenets:
-1. **Cryptographic Autonomy**: Zero cloud accounts, zero telemetry, zero analytics, zero external network dependency by default.
+1. **Cryptographic Autonomy**: Zero cloud accounts, zero telemetry, zero analytics, zero external network dependency by default (`android.permission.INTERNET` omitted).
 2. **Fail-Closed Security**: Decryption failures abort immediately; invalid or tampered records produce no partial output.
 3. **Scientific Honesty**: Explicit documentation of what the Android operating system and cryptographic primitives can and cannot guarantee.
 
@@ -27,6 +27,7 @@ The architecture adheres to three foundational tenets:
 │  Tier 2: Malicious Local-Network Peer (Same Wi-Fi / Hotspot)    │
 │  Tier 1: Malicious Android Application (Unprivileged Sandbox)    │
 │  Tier 0: Normal User (Accidental Misuse / Recovery Posture)     │
+│  Tier -1: Accidental Process Crashes & UI Dispatch Failures     │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,8 +81,8 @@ The architecture adheres to three foundational tenets:
 - **Threat Profile**: Rooted device, custom ROM with test-keys, Magisk/Frida/Xposed hooking framework attempting to intercept cryptographic keys or hook runtime methods.
 - **Kryptx Defenses**:
   - **Root & Tamper Detection**: `RootDetector` scans for known root binaries (`su`, `magisk`), management packages, test-keys, connected debuggers, and runtime hooks (`/proc/self/maps` scanning).
-  - **Hardware-Isolated Biometrics**: Biometric key wrapping utilizes Android Keystore backed by **StrongBox Keymaster** (or TEE), enforcing `setUserAuthenticationRequired(true)` and `setInvalidatedByBiometricEnrollment(true)`.
-  - **Volatile Memory Scoping**: Master passwords (`CharArray`) and derived keys (`ByteArray`) are zeroized immediately after use in `finally` blocks via `SecureMemory.wipe()`.
+  - **Hardware-Isolated Biometrics**: Biometric key wrapping utilizes Android Keystore backed by **StrongBox Keymaster** (or TEE), enforcing `setUserAuthenticationRequired(true)`, `setInvalidatedByBiometricEnrollment(true)`, with parallel ECDH P-256 key agreement + HKDF-SHA256 support.
+  - **Volatile Memory Scoping & Linux `mlock`**: Master passwords (`CharArray`) and derived keys (`ByteArray`) are page-aligned and locked in physical RAM via `mlock()` and `MADV_DONTDUMP`, preventing flash swapping and core dumps; zeroized immediately after use in `finally` blocks via `SecureMemory.wipe()` and Rust `zeroize`.
   - **Memory Watchdog**: `CryptographicMemoryWatchdog` locks the vault upon low-memory trim notifications or screen-off events.
 - **Residual Risk & Platform Reality**: Root detection is heuristic. A kernel-level or hypervisor-level rootkit on a compromised operating system can read process memory or hook system libraries. Cryptographic protection against a fully compromised OS kernel is fundamentally bounded by the hardware TEE/StrongBox boundary.
 
@@ -91,10 +92,10 @@ The architecture adheres to three foundational tenets:
 
 - **Threat Profile**: Attacker possessing the physical device (locked or temporarily unlocked) attempting to bypass authentication or coerce the user.
 - **Kryptx Defenses**:
-  - **Auto-Lock Engine**: Immediate lock on app backgrounding, screen off, or inactivity timeout.
-  - **Failed Attempt Throttling**: Exponential delay (10s after 3 failed attempts, 30s after 5 failed attempts) to prevent manual brute forcing.
+  - **Auto-Lock Engine**: Immediate lock on app backgrounding, screen off, or inactivity timeout, with a 700ms debounce to absorb orientation and foldable device changes safely.
+  - **Progressive Throttling**: Exponential backoff delay (10s after 3, 30s after 5, 2m after 8, 5m after 10, 10m after 15, and 15m hard cap after 20+ attempts) persisted across app restarts to halt manual and automated brute forcing.
   - **Decoy Duress Partition**: Entering the secondary Duress PIN/password unlocks an isolated `decoy_vault_items` table pre-provisioned with realistic decoy records (Netflix, Spotify, Amazon, Home Wi-Fi). The real vault is never referenced in memory.
-  - **Hardware Security Key / NFC**: Optional multi-factor authentication requiring an enrolled physical NFC tag or security key challenge.
+  - **Hardware Security Key / NFC & USB OTG**: Multi-factor authentication requiring an enrolled physical NFC tag (IsoDep) or USB OTG hardware token (YubiKey slot-2 HMAC-SHA1 challenge-response instruction `0x38`).
 - **Residual Risk**: A physical attacker who steals the device while unlocked and maintains foreground activity has access until the auto-lock timer elapses or the app is backgrounded.
 
 ---
@@ -103,9 +104,9 @@ The architecture adheres to three foundational tenets:
 
 - **Threat Profile**: Advanced lab, law enforcement, or forensic extraction tool (Cellebrite, GrayKey) imaging raw flash memory from a powered-off or locked device.
 - **Kryptx Defenses**:
-  - **AES-256-GCM Vault Encryption**: Every record payload on disk is encrypted with AES-256-GCM.
+  - **Dual-Cipher Disk Encryption**: Primary records encrypted with native Rust XChaCha20-Poly1305 (with embedded length-prefixed AAD frames); secondary and envelope encryption via AES-256-GCM (NIST SP 800-38D §8.2.1 deterministic 96-bit nonces).
   - **State-of-the-Art KDF**: Master keys derived using **Argon2id** (RFC 9106, 16 MB memory-hard) or **PBKDF2-HMAC-SHA256** (600,000 passes), maximizing resistance against offline GPU/ASIC clusters.
-  - **Zero Plaintext Metadata**: `item_type`, timestamps, and categories are encrypted inside the GCM payload; SQLite table columns use opaque tokens.
+  - **Zero Plaintext Metadata**: `item_type`, timestamps, and categories are encrypted inside the AEAD payload; SQLite table columns use opaque tokens.
   - **AAD Tamper Binding**: The `itemId` is bound as Associated Authenticated Data, preventing ciphertext row-swapping.
   - **Defensive Row Overwrite**: Trashed items are overwritten with random bytes prior to SQLite `DELETE`.
   - **Encrypted Document Attachments**: Attachments are stored as `$UUID.enc` using chunked AES-256-GCM with opaque names on disk.
@@ -117,11 +118,17 @@ The architecture adheres to three foundational tenets:
 
 | Component | Standard / Algorithm | Key Size / Rounds | Security Purpose |
 |---|---|---|---|
-| **Vault Encryption** | AES-256-GCM (NIST SP 800-38D) | 256-bit key, 96-bit IV, 128-bit tag | Authenticated encryption of vault payloads and attachments |
+| **Primary Vault Encryption** | XChaCha20-Poly1305 (RFC 8439) | 256-bit key, 192-bit nonce, 128-bit tag | Bare-metal Rust authenticated encryption with length-prefixed AAD framing |
+| **Secondary Vault Encryption** | AES-256-GCM (NIST SP 800-38D) | 256-bit key, 96-bit deterministic nonce, 128-bit tag | Envelope encryption of vault payloads, attachments, and offline backups |
 | **Default KDF** | PBKDF2-HMAC-SHA256 (NIST SP 800-132) | 600,000 iterations, 256-bit salt | GPU-resistant master key derivation |
-| **Advanced KDF** | Argon2id (RFC 9106 v1.3) | 16 MB memory, 3 passes, 1 lane | Memory-hard ASIC/FPGA-resistant key derivation |
+| **Advanced KDF** | Argon2id (RFC 9106 v1.3) | 16 MB memory, 3 passes, 1 lane | Memory-hard ASIC/FPGA-resistant key derivation in bare-metal Rust |
+| **Biometric Key Wrapping (ECDH)** | ECDH P-256 + HKDF-SHA256 (RFC 5869) | secp256r1, 256-bit shared secret, AES-GCM | StrongBox-backed hardware key agreement for biometric VEK wrapping |
+| **Biometric Key Wrapping (Asymmetric)** | RSA-2048 OAEP SHA-256 (NIST SP 800-56B) | 2048-bit key, MGF1-SHA256 | Hardware-isolated asymmetric biometric key wrapping |
+| **Hardware Security Token (USB)** | YubiKey OTP HID Protocol (Slot 2) | 64-byte frame, HMAC-SHA1 (cmd 0x38) | Physical USB-C OTG challenge-response hardware authentication |
+| **Hardware Security Token (NFC)** | ISO/IEC 14443-4 (IsoDep) | APDU challenge-response, HMAC-SHA1 | Physical contactless NFC token challenge-response authentication |
+| **RAM Protection** | Linux `mlock()` & `MADV_DONTDUMP` | Native JNI page alignment | Memory-locked buffers preventing flash paging and core dump leaks |
 | **Post-Quantum KEM** | ML-KEM-768 / Kyber (NIST FIPS 203) | 768-bit security level, HKDF-SHA256 | Quantum-resistant hybrid key encapsulation for sync/backups |
 | **Post-Quantum Signature** | ML-DSA-65 / Dilithium (NIST FIPS 204) | Level 3 post-quantum signature | Quantum-resistant digital signatures |
 | **Passkey Signatures** | ECDSA P-256 (secp256r1) ES256 | 256-bit curve, SHA-256 | W3C WebAuthn Level 3 / FIDO2 authentication |
 | **TOTP Authenticator** | RFC 6238 / RFC 4226 HOTP | HMAC-SHA1 / SHA256 / SHA512 | Time-based two-factor authentication codes |
-| **Hardware Key Store** | Android Keystore / StrongBox Keymaster | AES-256-GCM, hardware biometric binding | Hardware-isolated biometric key wrapping |
+| **Hardware Key Store** | Android Keystore / StrongBox Keymaster | Hardware biometric binding | Hardware-isolated biometric key wrapping |

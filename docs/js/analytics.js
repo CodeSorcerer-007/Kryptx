@@ -38,7 +38,9 @@
         const href = target.getAttribute('href') || '';
         const downloadAttr = target.getAttribute('download');
 
-        if (href.endsWith('.apk') || downloadAttr !== null || target.classList.contains('btn-download')) {
+        if (href.includes('play.google.com')) {
+          this.track('play_store_click', { url: href });
+        } else if (href.endsWith('.apk') || downloadAttr !== null || target.classList.contains('btn-download')) {
           this.track('download_apk', { version: 'v2.2.0', href: href });
         } else if (href.includes('github.com')) {
           this.track('github_link_click', { url: href });

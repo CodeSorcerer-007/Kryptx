@@ -27,7 +27,12 @@ object RootDetector {
         val isDeviceLocked: Boolean? = null
     )
 
-    private val ROOT_PATHS = listOf(
+    /**
+     * Single authoritative list of root / tampering binary paths.
+     * Exposed as a public constant so [com.kryptx.app.core.security.SecurityBootstrapper]
+     * can share this list without duplicating it, preventing maintenance drift.
+     */
+    val ROOT_BINARY_PATHS = listOf(
         "/system/app/Superuser.apk",
         "/sbin/su",
         "/system/bin/su",
@@ -43,8 +48,11 @@ object RootDetector {
         "/system/bin/magisk",
         "/sbin/magisk",
         "/data/adb/magisk",
+        "/magisk/.core/bin/su",
         "/data/local/tmp/frida-server"
     )
+
+    private val ROOT_PATHS = ROOT_BINARY_PATHS
 
     private val ROOT_PACKAGES_DIR = listOf(
         "/data/data/eu.chainfire.supersu",

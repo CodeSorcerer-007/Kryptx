@@ -59,9 +59,24 @@ class VaultSessionManager(
 
     /**
      * Initializes the session with an unlocked Vault Encryption Key.
+     *
+     * Enforces session integrity: if an active lockout timer is still running when this is
+     * called, a SECURITY_WARNING event is logged. This detects potential timing bypass attempts
+     * where a caller unlocks the vault while the throttle countdown is still non-zero.
      */
     @Synchronized
     fun unlock(vaultKey: ByteArray, isDecoy: Boolean = false) {
+        // Session integrity guard — log if lockout was active when unlock succeeded.
+        // This indicates either a genuine timing race or an attempted throttle bypass.
+        if (_lockoutSecondsRemaining.value > 0) {
+            SecurityLogger.warn(
+                "VaultSessionManager",
+                "Vault unlocked while lockout timer was still active " +
+                "(${_lockoutSecondsRemaining.value}s remaining). " +
+                "Possible timing bypass attempt — investigate."
+            )
+        }
+
         // Cancel any pending lockouts or timeouts
         autoLockJob?.cancel()
         autoLockJob = null
@@ -95,9 +110,20 @@ class VaultSessionManager(
     }
 
     /**
-     * Scoped execution helper that passes the active vault key to a block
-     * without exposing persistent references and guarantees immediate zeroization.
+     * Scoped execution helper that passes the active vault key to a block without exposing
+     * persistent references, and guarantees immediate zeroization via a `finally` block.
+     *
+     * **Ownership contract:**
+     * - The [ByteArray] passed to [block] is a short-lived defensive copy owned exclusively
+     *   by this call frame. It MUST NOT be stored, returned, or passed outside [block].
+     * - The copy is unconditionally zeroized by [SecureMemory.wipe] in the `finally` clause,
+     *   even if [block] throws.
+     * - Returns `null` if the vault is locked (key unavailable); callers should treat `null`
+     *   as a locked-vault signal and surface an appropriate error rather than silently ignoring.
+     *
+     * Prefer this over [getVaultKey] for all data-access operations.
      */
+    @com.kryptx.app.core.security.RequiresVaultKey
     inline fun <R> withVaultKey(block: (ByteArray) -> R): R? {
         val key = getVaultKey() ?: return null
         return try {
@@ -280,7 +306,18 @@ class VaultSessionManager(
     }
 
     /**
-     * Records a failed unlock attempt and triggers exponential backoff throttling if threshold is reached.
+     * Records a failed unlock attempt and triggers progressive exponential backoff throttling.
+     *
+     * Backoff schedule (cumulative failed attempts → lockout duration):
+     *  - 3  attempts →  10 seconds
+     *  - 5  attempts →  30 seconds
+     *  - 8  attempts → 120 seconds (2 minutes)
+     *  - 10 attempts → 300 seconds (5 minutes)
+     *  - 15 attempts → 600 seconds (10 minutes)
+     *  - 20+         → 900 seconds (15 minutes) — hard cap
+     *
+     * Lockout state is persisted across process restarts via [setLockoutPersistence] so
+     * force-killing the app does not reset the throttle.
      */
     fun recordFailedAttempt() {
         // Atomic CAS update — prevents lost increments when biometric and password
@@ -289,9 +326,13 @@ class VaultSessionManager(
         val attempts = _failedAttempts.value
 
         val lockoutDuration = when {
-            attempts >= 5 -> 30
-            attempts >= 3 -> 10
-            else -> 0
+            attempts >= 20 -> 900   // 15 minutes — hard cap
+            attempts >= 15 -> 600   // 10 minutes
+            attempts >= 10 -> 300   // 5 minutes
+            attempts >= 8  -> 120   // 2 minutes
+            attempts >= 5  ->  30   // 30 seconds
+            attempts >= 3  ->  10   // 10 seconds
+            else           ->   0
         }
 
         if (lockoutDuration > 0) {

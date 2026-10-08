@@ -193,7 +193,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        isPromptingBiometrics = false
+        isPromptingBiometrics.set(false)
         try {
             if (nfcAdapter?.isEnabled == true) {
                 nfcPendingIntent?.let { pending ->
@@ -236,7 +236,7 @@ class MainActivity : FragmentActivity() {
         try {
             app.biometricManager.cancelAuthentication()
         } catch (_: Throwable) {}
-        isPromptingBiometrics = false
+        isPromptingBiometrics.set(false)
     }
 
     override fun onStop() {
@@ -244,27 +244,38 @@ class MainActivity : FragmentActivity() {
         try {
             app.biometricManager.cancelAuthentication()
         } catch (_: Throwable) {}
-        isPromptingBiometrics = false
+        isPromptingBiometrics.set(false)
         hasAutoPromptedBiometrics = false
     }
 
-    private var isPromptingBiometrics = false
+    private var isPromptingBiometrics = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private fun triggerBiometricUnlock(force: Boolean = false) {
         try {
-            if (isPromptingBiometrics && !force) return
-            if (!app.biometricManager.canAuthenticate(requireStrong = true)) return
-            if (app.sessionManager.isUnlocked.value) return
-            if (unlockViewModel.lockoutSecondsRemaining.value > 0) return
+            if (!isPromptingBiometrics.compareAndSet(false, true) && !force) return
+            if (!app.biometricManager.canAuthenticate(requireStrong = true)) {
+                isPromptingBiometrics.set(false)
+                return
+            }
+            if (app.sessionManager.isUnlocked.value) {
+                isPromptingBiometrics.set(false)
+                return
+            }
+            if (unlockViewModel.lockoutSecondsRemaining.value > 0) {
+                isPromptingBiometrics.set(false)
+                return
+            }
 
             val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
-            if (!isConfigured) return
+            if (!isConfigured) {
+                isPromptingBiometrics.set(false)
+                return
+            }
 
             if (force) {
                 try {
                     app.biometricManager.cancelAuthentication()
                 } catch (_: Throwable) {}
-                isPromptingBiometrics = false
             }
 
             val decryptCipher = try {
@@ -276,13 +287,12 @@ class MainActivity : FragmentActivity() {
 
             if (decryptCipher == null) {
                 // Keystore key was invalidated by biometric enrollment change or is unavailable
+                isPromptingBiometrics.set(false)
                 unlockViewModel.setErrorMessage("Biometric key invalidated. Unlock with Master Password to re-enroll.")
                 return
             }
 
             val cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
-
-            isPromptingBiometrics = true
 
             app.biometricManager.promptBiometric(
                 activity = this,
@@ -290,7 +300,7 @@ class MainActivity : FragmentActivity() {
                 subtitle = getString(R.string.biometric_prompt_subtitle),
                 cryptoObject = cryptoObject,
                 onSuccess = { result ->
-                    isPromptingBiometrics = false
+                    isPromptingBiometrics.set(false)
                     val authenticatedCipher = result.cryptoObject?.cipher
                     if (authenticatedCipher != null) {
                         unlockViewModel.unlockWithBiometricCipher(authenticatedCipher, onSuccess = {
@@ -302,7 +312,7 @@ class MainActivity : FragmentActivity() {
                     }
                 },
                 onError = { errorCode, errString ->
-                    isPromptingBiometrics = false
+                    isPromptingBiometrics.set(false)
                     if (errorCode != androidx.biometric.BiometricPrompt.ERROR_USER_CANCELED &&
                         errorCode != androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
                         errorCode != androidx.biometric.BiometricPrompt.ERROR_CANCELED) {
@@ -314,18 +324,19 @@ class MainActivity : FragmentActivity() {
                 }
             )
         } catch (t: Throwable) {
-            isPromptingBiometrics = false
+            isPromptingBiometrics.set(false)
             SecurityLogger.error("MainActivity", "Unhandled exception in triggerBiometricUnlock", t)
         }
     }
 
     private fun triggerBiometricEnrollment(onResult: (Boolean) -> Unit) {
         try {
-            if (isPromptingBiometrics) {
+            if (!isPromptingBiometrics.compareAndSet(false, true)) {
                 onResult(false)
                 return
             }
             if (!app.biometricManager.canAuthenticate(requireStrong = true)) {
+                isPromptingBiometrics.set(false)
                 onResult(false)
                 return
             }
@@ -333,6 +344,7 @@ class MainActivity : FragmentActivity() {
             lifecycleScope.launch {
                 val setupResult = app.vaultRepository.setupBiometrics()
                 if (setupResult.isError) {
+                    isPromptingBiometrics.set(false)
                     onResult(false)
                     return@launch
                 }
@@ -345,12 +357,12 @@ class MainActivity : FragmentActivity() {
                 }
 
                 if (decryptCipher == null) {
+                    isPromptingBiometrics.set(false)
                     onResult(false)
                     return@launch
                 }
 
                 val cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
-                isPromptingBiometrics = true
 
                 app.biometricManager.promptBiometric(
                     activity = this@MainActivity,
@@ -359,7 +371,7 @@ class MainActivity : FragmentActivity() {
                     negativeButtonText = getString(R.string.biometric_prompt_enroll_cancel),
                     cryptoObject = cryptoObject,
                     onSuccess = { result ->
-                        isPromptingBiometrics = false
+                        isPromptingBiometrics.set(false)
                         val authenticatedCipher = result.cryptoObject?.cipher
                         if (authenticatedCipher != null) {
                             app.preferencesRepository.setBiometricEnabled(true)
@@ -375,7 +387,7 @@ class MainActivity : FragmentActivity() {
                         }
                     },
                     onError = { _, _ ->
-                        isPromptingBiometrics = false
+                        isPromptingBiometrics.set(false)
                         app.preferencesRepository.setBiometricEnabled(false)
                         onResult(false)
                     },
@@ -385,7 +397,7 @@ class MainActivity : FragmentActivity() {
                 )
             }
         } catch (t: Throwable) {
-            isPromptingBiometrics = false
+            isPromptingBiometrics.set(false)
             SecurityLogger.error("MainActivity", "Unhandled exception in triggerBiometricEnrollment", t)
             onResult(false)
         }
@@ -395,4 +407,97 @@ class MainActivity : FragmentActivity() {
         app.sessionManager.recordActivity()
         return super.dispatchTouchEvent(ev)
     }
+
+    @Deprecated("Deprecated in Java")
+    override fun startActivityForResult(intent: Intent, requestCode: Int) {
+        startActivityForResult(intent, requestCode, null)
+    }
+
+    /**
+     * Routes high-range request codes (≥ 0x00010000) generated by [ActivityResultRegistry]
+     * directly through the registry instead of the FragmentActivity legacy path, which would
+     * otherwise reject them with a 16-bit overflow check.
+     *
+     * The registry-first path is the correct long-term design: all modern Jetpack components
+     * (Compose, CameraX, BiometricPrompt) register through [ActivityResultRegistry] and must
+     * receive their results through [onActivityResult] → [activityResultRegistry.dispatchResult].
+     * Bypassing the registry was the root of the original reflection hack.
+     */
+    @Deprecated("Deprecated in Java")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        if ((requestCode and -0x10000) != 0) {
+            // High-range code produced by ActivityResultRegistry — skip FragmentActivity's
+            // legacy 16-bit check entirely and hand back to the framework directly.
+            try {
+                androidx.core.app.ActivityCompat.startActivityForResult(this, intent, requestCode, options)
+                return
+            } catch (_: Throwable) {
+                // Fallthrough to super on failure
+            }
+        }
+        super.startActivityForResult(intent, requestCode, options)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun startIntentSenderForResult(
+        intent: android.content.IntentSender,
+        requestCode: Int,
+        fillInIntent: Intent?,
+        flagsMask: Int,
+        flagsValues: Int,
+        extraFlags: Int
+    ) {
+        startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, null)
+    }
+
+    /**
+     * Same registry-first routing as [startActivityForResult]: high-range request codes generated
+     * by [ActivityResultRegistry] bypass the legacy FragmentActivity 16-bit check.
+     */
+    @Deprecated("Deprecated in Java")
+    override fun startIntentSenderForResult(
+        intent: android.content.IntentSender,
+        requestCode: Int,
+        fillInIntent: Intent?,
+        flagsMask: Int,
+        flagsValues: Int,
+        extraFlags: Int,
+        options: Bundle?
+    ) {
+        if ((requestCode and -0x10000) != 0) {
+            try {
+                startIntentSenderFromChild(
+                    null, intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options
+                )
+                return
+            } catch (_: Throwable) {
+                // Fallthrough to super on failure
+            }
+        }
+        super.startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        // Compose ActivityResultRegistry requires receiving the result to invoke its registered callbacks.
+        // Legacy FragmentActivity intercepts any requestCode >= 0x00010000 assuming it was destined for
+        // a Fragment, dropping it when no Fragment matches. We ensure ActivityResultRegistry receives it first.
+        if (!activityResultRegistry.dispatchResult(requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        val data = Intent()
+            .putExtra(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions.EXTRA_PERMISSIONS, permissions)
+            .putExtra(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions.EXTRA_PERMISSION_GRANT_RESULTS, grantResults)
+        if (!activityResultRegistry.dispatchResult(requestCode, android.app.Activity.RESULT_OK, data)) {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        }
+    }
 }
+

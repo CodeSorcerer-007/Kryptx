@@ -7,6 +7,9 @@
 **100% Offline • Post-Quantum Fortified • Zero-Network Android Password Fortress**
 
 <p align="center">
+  <a href="https://play.google.com/store/apps/details?id=com.kryptx.app"><img src="https://img.shields.io/badge/Google_Play-Get_It_On-00E676?style=for-the-badge&logo=google-play&logoColor=white" alt="Get it on Google Play" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/GitHub-Download_APK-238636?style=for-the-badge&logo=github&logoColor=white" alt="Download APK" /></a>
+  <br>
   <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-16%20(API%2036)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="Android 16" /></a>
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-FF4081?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
@@ -21,6 +24,12 @@
 > — **Steve Jobs**
 
 **Kryptx** is built from the ground up from the **user's perspective**—not an engineer's checklist. Most security tools are intimidating, cluttered with jargon, and fragile. Kryptx feels weightless, natural, and friendly enough for anyone to use as their lifelong password companion, while remaining mathematically impenetrable underneath.
+
+<p align="center">
+  <a href="https://play.google.com/store/apps/details?id=com.kryptx.app">
+    <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="70" />
+  </a>
+</p>
 
 </div>
 
@@ -44,12 +53,15 @@ Every technology listed below is 100% active and running in the production app:
 |:---|:---|:---|
 | **OS & Core** | **Android 16 (API 36) & Kotlin 2.3.20** | Modern edge-to-edge architecture with compileSdk 36 and targetSdk 36. |
 | **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, Argon2id, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`). |
-| **Interface** | **Jetpack Compose (Material 3)** | Spring physics (`KryptxMotion`), haptic feedback, frosted glassmorphism. |
-| **Encryption** | **Rust Native + Android Keystore** | Bare-metal XChaCha20-Poly1305 and AES-256-GCM with BouncyCastle fallback; Android Keystore TEE hardware wrapping. |
+| **Interface** | **Jetpack Compose (Material 3)** | Spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
+| **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces. |
+| **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration. |
+| **Hardware Security Keys** | **NFC IsoDep + USB OTG HID (YubiKey)** | Physical challenge-response via NFC and USB HID slot-2 HMAC-SHA1 protocol (instruction `0x38`) with device-bound HMAC fallback. |
 | **Key Derivation** | **Argon2id & PBKDF2-HMAC-SHA256** | High-iteration memory-hard key derivation in bare-metal Rust with 32-byte cryptographically secure salts. Uniform KDF preservation across password changes and key rotations. |
-| **Post-Quantum** | **ML-KEM-768 (FIPS 203)** | Hybrid post-quantum key encapsulation via BouncyCastle. |
+| **Post-Quantum** | **ML-KEM-768 (FIPS 203) & ML-DSA-65 (FIPS 204)** | Hybrid post-quantum key encapsulation and digital signature verification via BouncyCastle. |
 | **Persistence** | **Encrypted SQLite (WAL Mode)** | `KryptxDatabaseHelper` with zero plaintext rows and AES-256-GCM envelope encryption. |
-| **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; zeroized direct buffers. |
+| **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; two-pass zeroization (`Arrays.fill` + Rust `zeroize`). |
+| **Resilience Shield** | **Enterprise `CrashDefense`** | Immortal main looper preventing UI thread termination during Compose recomposition/layout, thread-level sentinels, and sanitized zero-leak telemetry. |
 | **Document Sandbox** | **Native `PdfRenderer` + `FileProvider`** | 100% offline hardware-accelerated PDF rendering with page navigation; safe read-only delegation to external viewers via secure `FileProvider`. |
 | **Scanning** | **CameraX API + ZXing** | Real-time TOTP QR code stream decoding in volatile RAM only; pre-prompt permission rationale. |
 | **Autofill** | **Phishing-Resistant Autofill** | Strict host and subdomain verification via `DomainMatcher`; dedicated `AutofillAuthActivity` protected with `FLAG_SECURE`. |
@@ -81,6 +93,12 @@ graph TD;
     *   **Predictive Back Navigation**: Native `enableOnBackInvokedCallback="true"` integration across Android 16 (API 36).
     *   **Live Permissions & Integrations Dashboard**: Real-time Settings screen hub verifying Camera, Scoped Storage SAF, Android Autofill Service, and Hardware Keystore TEE / StrongBox isolation.
     *   **Safe Picker Active Guards**: Launching system permission prompts, app details settings, or document pickers never triggers accidental background vault lockouts.
+7.  **Enterprise Anti-Crash & Self-Healing Sentinel (`CrashDefense`)**:
+    *   **Immortal Main Looper**: Traps unhandled UI exceptions during Compose recomposition, measure/layout, and touch dispatch without terminating process execution.
+    *   **Foldable & Rotation Debounce**: 700ms debounce absorbs screen rotations and foldable device folding/unfolding transitions without inadvertently triggering auto-lock.
+8.  **Progressive Exponential Backoff & Brute-Force Throttling**:
+    *   **Graduated Lockout Schedule**: 3 attempts (10s), 5 attempts (30s), 8 attempts (2m), 10 attempts (5m), 15 attempts (10m), and 20+ attempts (15m hard cap).
+    *   **Persistent Throttle State**: Lockout counters and expiration timestamps survive app kills and device restarts.
 
 ---
 
@@ -114,13 +132,24 @@ Organize your life into clean, dedicated categories:
 ### 🚨 5. Emergency & Anti-Coercion Protection
 *   **Duress Decoy Vault**: If forced to unlock your phone under duress, enter your secondary Duress PIN to open an innocent decoy vault with believable fake accounts.
 *   **Panic Self-Destruct**: An optional emergency wipe PIN that instantly zeroes out your cryptographic keys and deletes the database.
-*   **Hardware Security Keys**: FIDO2 USB and NFC security token support for hardware-backed unlock.
+*   **Hardware Security Keys**: Physical YubiKey USB OTG (slot-2 HMAC-SHA1 challenge-response instruction `0x38`) and NFC IsoDep security token challenge-response support for hardware-backed unlock.
 
 ### 📦 6. Truly Portable Backups
 *   **Encrypted Backup (`.kryptx`)**: Export your entire vault encrypted with Argon2id + AES-256-GCM. You can restore this file on any Android phone running Kryptx—now or 10 years from now.
 *   **Offline Web Vault Companion (`.html`)**: Self-contained single-file HTML companion with client-side WebCrypto AES-GCM that opens offline in any desktop browser.
 *   **Emergency Recovery Kit**: Generates a clean 1-page PDF containing your unique Vault ID, Salt, and secure recovery parameters for safe-deposit box storage.
 *   **Universal Importer**: Easily switch from Bitwarden, 1Password, LastPass, Chrome, or KeePass with offline CSV/JSON auto-detection.
+
+---
+
+## 📲 Installation & Downloads
+
+Kryptx is officially available on the Google Play Store for seamless installation and automatic security updates. Direct standalone signed APKs are also provided on GitHub Releases for air-gapped environments.
+
+| Distribution Channel | Link | Target |
+|:---|:---:|:---|
+| **Google Play Store** | [![Get it on Google Play](https://img.shields.io/badge/Google_Play-Install_Now-4285F4?style=for-the-badge&logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.kryptx.app) | **Recommended**. Automated updates and verified Google Play Protect security scans. |
+| **GitHub Releases** | [![Download APK](https://img.shields.io/badge/GitHub_Releases-Download_APK-238636?style=for-the-badge&logo=github&logoColor=white)](https://github.com/CodeSorcerer-007/Kryptx/releases) | Standalone signed `.apk` releases with SHA-256 cryptographic checksums for offline sideloading. |
 
 ---
 
@@ -163,12 +192,13 @@ To generate the production-ready, signed `.aab` for Google Play Console:
 
 ---
 
-## 🚀 Google Play Console Production Readiness
+## 🚀 Google Play Store Publication & Compliance
 
-Kryptx is fully audited and optimized for Google Play Store publication:
+Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.google.com/store/apps/details?id=com.kryptx.app)) and meets all modern Android & Google Play developer standards:
 
 | Criteria | Status | Implementation Details |
 |:---|:---:|:---|
+| **Play Store Listing** | ✅ Live | Available at [play.google.com/store/apps/details?id=com.kryptx.app](https://play.google.com/store/apps/details?id=com.kryptx.app) |
 | **Packaging** | ✅ Ready | Android App Bundle (`.aab`) with embedded Baseline Profiles (`baseline.prof`) |
 | **Target SDK** | ✅ Compliant | **API 36 (Android 16)** compliant with Google Play target SDK policy |
 | **Minimum SDK** | ✅ Wide Reach | **API 26 (Android 8.0)**, covering >95% of active global devices |

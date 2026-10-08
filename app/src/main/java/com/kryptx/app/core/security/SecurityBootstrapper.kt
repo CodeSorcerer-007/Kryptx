@@ -3,6 +3,7 @@ package com.kryptx.app.core.security
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import com.kryptx.app.BuildConfig
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -31,20 +32,9 @@ object SecurityBootstrapper {
             details.add("Build signed with test-keys")
         }
 
-        // 2. Check for common root binaries
-        val paths = arrayOf(
-            "/system/app/Superuser.apk",
-            "/sbin/su",
-            "/system/bin/su",
-            "/system/xbin/su",
-            "/data/local/xbin/su",
-            "/data/local/bin/su",
-            "/system/sd/xbin/su",
-            "/system/bin/failsafe/su",
-            "/data/local/su",
-            "/su/bin/su",
-            "/magisk/.core/bin/su"
-        )
+        // 2. Check for common root binaries — uses the same authoritative path list as RootDetector
+        //    to prevent maintenance drift between the two scanners.
+        val paths = RootDetector.ROOT_BINARY_PATHS.toTypedArray()
 
         for (path in paths) {
             if (File(path).exists()) {
@@ -72,8 +62,11 @@ object SecurityBootstrapper {
             // Ignored if access denied (which is normal on hardened SELinux)
         }
 
-        // 4. Validate APK signature self-integrity against repackaging/resigning
-        if (!verifyApkSignature(context)) {
+        // 4. Validate APK signature self-integrity against repackaging/resigning.
+        //    In release builds, enforce the exact baked-in SHA-256 certificate fingerprint.
+        //    In debug builds (empty fingerprint), fall back to well-formedness check only.
+        val pinnedFingerprint = BuildConfig.RELEASE_CERT_SHA256.takeIf { it.isNotBlank() }
+        if (!verifyApkSignature(context, pinnedFingerprint)) {
             isCompromised = true
             details.add("APK signature verification failure: possible repackaging or signature tampering")
         }

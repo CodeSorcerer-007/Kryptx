@@ -99,21 +99,23 @@ fun BottomNavTab.toScreen(): Screen = when (this) {
 }
 
 fun parseScreenRoute(route: String): Screen = when {
-    route == Screen.Onboarding.route -> Screen.Onboarding
-    route == Screen.SetupMasterPassword.route -> Screen.SetupMasterPassword
-    route == Screen.Unlock.route -> Screen.Unlock
-    route == Screen.VaultDashboard.route -> Screen.VaultDashboard
-    route == Screen.TotpList.route -> Screen.TotpList
-    route == Screen.Generator.route -> Screen.Generator
-    route == Screen.SecurityCenter.route -> Screen.SecurityCenter
-    route == Screen.Settings.route -> Screen.Settings
-    route == Screen.Search.route -> Screen.Search
-    route == Screen.SecuritySettings.route -> Screen.SecuritySettings
-    route == Screen.AppearanceSettings.route -> Screen.AppearanceSettings
-    route == Screen.BackupExport.route -> Screen.BackupExport
-    route.startsWith("item_detail/") -> Screen.ItemDetail(route.removePrefix("item_detail/"))
-    route.startsWith("add_edit_item?itemId=") -> {
-        val id = route.substringAfter("add_edit_item?itemId=")
+    route == Screen.Onboarding.route           -> Screen.Onboarding
+    route == Screen.SetupMasterPassword.route  -> Screen.SetupMasterPassword
+    route == Screen.Unlock.route               -> Screen.Unlock
+    route == Screen.VaultDashboard.route       -> Screen.VaultDashboard
+    route == Screen.TotpList.route             -> Screen.TotpList
+    route == Screen.Generator.route            -> Screen.Generator
+    route == Screen.SecurityCenter.route       -> Screen.SecurityCenter
+    route == Screen.Settings.route             -> Screen.Settings
+    route == Screen.Search.route               -> Screen.Search
+    route == Screen.SecuritySettings.route     -> Screen.SecuritySettings
+    route == Screen.AppearanceSettings.route   -> Screen.AppearanceSettings
+    route == Screen.BackupExport.route         -> Screen.BackupExport
+    route.startsWith(Screen.ItemDetail.ROUTE_PREFIX) -> {
+        Screen.ItemDetail(route.removePrefix(Screen.ItemDetail.ROUTE_PREFIX))
+    }
+    route.startsWith(Screen.AddEditItem.ROUTE_PREFIX) -> {
+        val id = route.removePrefix(Screen.AddEditItem.ROUTE_PREFIX)
         Screen.AddEditItem(id.ifBlank { null })
     }
     else -> Screen.VaultDashboard

@@ -255,10 +255,10 @@ fun AddEditItemScreen(
                     if (saved != null) {
                         newAttachments.add(saved)
                     } else {
-                        // errorMessage is now driven by SaveResult — surface via a local state
+                        localError = "Failed to encrypt and attach file"
                     }
                 } catch (t: Throwable) {
-                    // no-op: user-visible error will appear via save result
+                    localError = "Attachment error: ${t.localizedMessage ?: "Unable to read file"}"
                 }
             }
         }
@@ -276,9 +276,11 @@ fun AddEditItemScreen(
                     val saved = addEditViewModel.saveAttachment(context, uri, fileName, mimeType)
                     if (saved != null) {
                         newAttachments.add(saved)
+                    } else {
+                        localError = "Failed to encrypt and attach file"
                     }
                 } catch (t: Throwable) {
-                    // no-op
+                    localError = "Attachment error: ${t.localizedMessage ?: "Unable to read file"}"
                 }
             }
         }
@@ -618,7 +620,7 @@ fun AddEditItemScreen(
                     if (title.value.isBlank()) {
                         title.value = parsed.issuer.ifBlank { parsed.accountName }
                     }
-                    if (username?.value?.isBlank() == true && parsed.accountName.isNotBlank()) {
+                    if (username?.value.isNullOrBlank() && parsed.accountName.isNotBlank()) {
                         username?.value = parsed.accountName
                     }
                 } else {

@@ -287,6 +287,7 @@ class KryptxDatabaseHelper(
     /**
      * Direct single-item lookup from SQLite without full vault decryption.
      */
+    @com.kryptx.app.core.security.RequiresVaultKey
     suspend fun loadItemById(itemId: String, vaultKey: ByteArray): VaultItem? = withContext(Dispatchers.IO) {
         // Check current in-memory cache first
         _itemsFlow.value.firstOrNull { it.id == itemId }?.let { return@withContext it }
@@ -321,6 +322,7 @@ class KryptxDatabaseHelper(
         }
     }
 
+    @com.kryptx.app.core.security.RequiresVaultKey
     suspend fun loadAllItems(vaultKey: ByteArray): List<VaultItem> = withContext(Dispatchers.IO) {
         val activeItems = mutableListOf<VaultItem>()
         val trashItems = mutableListOf<VaultItem>()
@@ -402,11 +404,16 @@ class KryptxDatabaseHelper(
         activeItems
     }
 
-    @Suppress("DEPRECATION")
+    @com.kryptx.app.core.security.RequiresVaultKey
     suspend fun saveItem(item: VaultItem, vaultKey: ByteArray): Boolean = withContext(Dispatchers.IO) {
-        val serializedJson = json.encodeToString(item)
+        val plainBytes = json.encodeToString(item).toByteArray(Charsets.UTF_8)
         val aad = item.id.toByteArray(Charsets.UTF_8)
-        val encryptedPayload = CryptoEngine.encryptString(serializedJson, vaultKey, aad)
+        val encryptedPayload = try {
+            val encrypted = CryptoEngine.encrypt(plainBytes, vaultKey, aad)
+            java.util.Base64.getEncoder().encodeToString(encrypted)
+        } finally {
+            com.kryptx.app.core.crypto.SecureMemory.wipe(plainBytes)
+        }
 
         val db = writableDatabase
         // Store a random opaque sort token instead of real timestamp to prevent
@@ -471,7 +478,6 @@ class KryptxDatabaseHelper(
     /**
      * Batch-inserts multiple vault items within a single atomic SQLite transaction.
      */
-    @Suppress("DEPRECATION")
     suspend fun saveItemsBatch(items: List<VaultItem>, vaultKey: ByteArray): Int = withContext(Dispatchers.IO) {
         if (items.isEmpty()) return@withContext 0
 
@@ -481,9 +487,14 @@ class KryptxDatabaseHelper(
         db.beginTransaction()
         try {
             for (item in items) {
-                val serializedJson = json.encodeToString(item)
+                val plainBytes = json.encodeToString(item).toByteArray(Charsets.UTF_8)
                 val aad = item.id.toByteArray(Charsets.UTF_8)
-                val encryptedPayload = CryptoEngine.encryptString(serializedJson, vaultKey, aad)
+                val encryptedPayload = try {
+                    val encrypted = CryptoEngine.encrypt(plainBytes, vaultKey, aad)
+                    java.util.Base64.getEncoder().encodeToString(encrypted)
+                } finally {
+                    com.kryptx.app.core.crypto.SecureMemory.wipe(plainBytes)
+                }
 
                 val values = ContentValues().apply {
                     put(COL_ID, item.id)
@@ -524,7 +535,6 @@ class KryptxDatabaseHelper(
      * SQLite transaction. If any decryption or re-encryption operation fails, the transaction is
      * immediately rolled back to maintain complete data integrity.
      */
-    @Suppress("DEPRECATION")
     suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int = withContext(Dispatchers.IO) {
         val db = writableDatabase
         val itemsToUpdate = mutableListOf<Pair<String, String>>()
@@ -549,7 +559,15 @@ class KryptxDatabaseHelper(
                 } catch (_: Exception) {
                     CryptoEngine.decryptString(encryptedPayload, oldKey, null)
                 }
-                val newEncryptedPayload = CryptoEngine.encryptString(decryptedJson, newKey, aad)
+                val newEncryptedPayload = run {
+                    val newPlainBytes = decryptedJson.toByteArray(Charsets.UTF_8)
+                    try {
+                        val encrypted = CryptoEngine.encrypt(newPlainBytes, newKey, aad)
+                        java.util.Base64.getEncoder().encodeToString(encrypted)
+                    } finally {
+                        com.kryptx.app.core.crypto.SecureMemory.wipe(newPlainBytes)
+                    }
+                }
                 itemsToUpdate.add(Pair(itemId, newEncryptedPayload))
             }
         }
@@ -620,6 +638,12 @@ class KryptxDatabaseHelper(
 
     /**
      * Empties all items currently in the trash bin permanently.
+     *
+     * Each item's encrypted payload column is overwritten with a random blob of the **same
+     * byte length** as the original ciphertext before the row is deleted. This ensures that
+     * the SQLCipher page containing the data is dirtied with fresh random content, preventing
+     * residual ciphertext recovery from partially reclaimed pages. The [secure_delete FAST]
+     * PRAGMA subsequently zeros the freed page before it is reused.
      */
     suspend fun emptyTrash(vaultKey: ByteArray): Int = withContext(Dispatchers.IO) {
         val trashItems = _trashFlow.value.toList()
@@ -628,14 +652,26 @@ class KryptxDatabaseHelper(
         db.beginTransaction()
         try {
             for (item in trashItems) {
-                // Defensive overwrite
+                // Size-proportional random overwrite — matches the actual ciphertext length
+                // so the full page segment is overwritten rather than just the first 128 bytes.
                 try {
-                    val randomJunk = ByteArray(128)
+                    val existingPayloadBytes = db.query(
+                        TABLE_VAULT_ITEMS,
+                        arrayOf(COL_ENCRYPTED_PAYLOAD),
+                        "$COL_ID = ?",
+                        arrayOf(item.id),
+                        null, null, null
+                    ).use { c ->
+                        if (c.moveToFirst()) c.getString(0)?.length ?: 128 else 128
+                    }
+                    val wipeSize = existingPayloadBytes.coerceAtLeast(128)
+                    val randomJunk = ByteArray(wipeSize)
                     secureRandom.nextBytes(randomJunk)
                     val wipeValues = ContentValues().apply {
                         put(COL_ENCRYPTED_PAYLOAD, android.util.Base64.encodeToString(randomJunk, android.util.Base64.NO_WRAP))
                     }
                     db.update(TABLE_VAULT_ITEMS, wipeValues, "$COL_ID = ?", arrayOf(item.id))
+                    com.kryptx.app.core.crypto.SecureMemory.wipe(randomJunk)
                 } catch (_: Exception) {}
                 val rows = db.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(item.id))
                 if (rows > 0) deletedCount++
@@ -649,19 +685,34 @@ class KryptxDatabaseHelper(
     }
 
     /**
-     * Permanently deletes an item with defensive zero-overwriting before row removal.
+     * Permanently deletes an item with size-proportional random overwriting before row removal.
+     *
+     * The encrypted payload column is first overwritten with random bytes matching the original
+     * ciphertext length, ensuring the full SQLCipher page segment is dirtied before deletion.
+     * The [secure_delete FAST] PRAGMA then zeros the freed page on reuse.
      */
     suspend fun deleteItem(itemId: String): Boolean = withContext(Dispatchers.IO) {
         val db = writableDatabase
 
-        // Secure wipe: overwrite encrypted payload before delete
+        // Size-proportional random overwrite
         try {
-            val randomJunk = ByteArray(128)
+            val existingLength = db.query(
+                TABLE_VAULT_ITEMS,
+                arrayOf(COL_ENCRYPTED_PAYLOAD),
+                "$COL_ID = ?",
+                arrayOf(itemId),
+                null, null, null
+            ).use { c ->
+                if (c.moveToFirst()) c.getString(0)?.length ?: 128 else 128
+            }
+            val wipeSize = existingLength.coerceAtLeast(128)
+            val randomJunk = ByteArray(wipeSize)
             secureRandom.nextBytes(randomJunk)
             val wipeValues = ContentValues().apply {
                 put(COL_ENCRYPTED_PAYLOAD, android.util.Base64.encodeToString(randomJunk, android.util.Base64.NO_WRAP))
             }
             db.update(TABLE_VAULT_ITEMS, wipeValues, "$COL_ID = ?", arrayOf(itemId))
+            com.kryptx.app.core.crypto.SecureMemory.wipe(randomJunk)
         } catch (_: Exception) {
             // Proceed with standard delete if wipe update fails
         }

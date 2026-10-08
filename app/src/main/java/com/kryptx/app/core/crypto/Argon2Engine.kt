@@ -24,34 +24,58 @@ object Argon2Engine {
      * Standard RFC 9106 Argon2id cryptographic profiles.
      */
     data class Argon2Params(
-        val memoryCostKb: Int = 16_384, // 16 MB standard mobile memory footprint
-        val iterations: Int = 3,         // 3 passes
+        val memoryCostKb: Int = 65_536, // 64 MB — OWASP recommended minimum for high-security use
+        val iterations: Int = 4,         // 4 passes
         val parallelism: Int = 1,        // 1 lane
         val outputLength: Int = 32       // 256-bit output key
     ) {
         companion object {
-            val DEFAULT = Argon2Params(memoryCostKb = 16_384, iterations = 3, parallelism = 1, outputLength = 32)
+            /**
+             * High-security profile: 64 MB / 4 iterations.
+             * OWASP-recommended minimum for interactive password hashing.
+             * Default for all devices with ≥ 256 MB JVM heap.
+             */
             val HIGH_SECURITY = Argon2Params(memoryCostKb = 65_536, iterations = 4, parallelism = 1, outputLength = 32)
+
+            /**
+             * Flagship extreme profile: 256 MB / 4 iterations / 4 lanes.
+             * Used on high-memory devices (≥ 512 MB heap) for maximum brute-force resistance.
+             */
+            val FLAGSHIP_EXTREME = Argon2Params(memoryCostKb = 262_144, iterations = 4, parallelism = 4, outputLength = 32)
+
+            /**
+             * Low-RAM profile for Android Go / sub-2 GB devices (< 256 MB JVM heap).
+             * 16 MB / 3 iterations — substantially stronger than any PBKDF2 configuration
+             * while avoiding OOM on heavily memory-constrained hardware.
+             */
+            val LOW_RAM = Argon2Params(memoryCostKb = 16_384, iterations = 3, parallelism = 1, outputLength = 32)
+
+            /**
+             * Fast test profile — never used in production.
+             */
             val FAST_TEST = Argon2Params(memoryCostKb = 64, iterations = 1, parallelism = 1, outputLength = 32)
 
             /**
-             * Low-RAM profile for Android Go / sub-2 GB devices.
-             * 8 MB is still orders of magnitude stronger than any PBKDF2 configuration and
-             * prevents OOM during vault unlock on heavily memory-constrained devices.
+             * Default alias points to HIGH_SECURITY — the OWASP-recommended baseline.
              */
-            val LOW_RAM = Argon2Params(memoryCostKb = 8_192, iterations = 3, parallelism = 1, outputLength = 32)
+            val DEFAULT = HIGH_SECURITY
 
             /**
              * Automatically selects the appropriate Argon2 profile based on available JVM heap.
-             * - ≥ 256 MB heap → DEFAULT (16 MB, 3 rounds)
-             * - < 256 MB heap → LOW_RAM (8 MB, 3 rounds) for Android Go / constrained devices
+             * - ≥ 512 MB heap → FLAGSHIP_EXTREME (256 MB, 4 rounds, 4 lanes) for flagship silicon
+             * - ≥ 256 MB heap → HIGH_SECURITY (64 MB, 4 rounds) — OWASP recommended minimum
+             * - < 256 MB heap → LOW_RAM (16 MB, 3 rounds) for Android Go / constrained devices
              *
-             * This check uses Runtime.maxMemory() which reflects the Dalvik heap ceiling
-             * assigned by the OS, not total device RAM, giving a conservative estimate.
+             * Uses Runtime.maxMemory() which reflects the Dalvik heap ceiling assigned by the OS,
+             * giving a conservative estimate that avoids OOM on constrained devices.
              */
             fun forDevice(): Argon2Params {
                 val maxHeapMb = Runtime.getRuntime().maxMemory() / (1024 * 1024)
-                return if (maxHeapMb >= 256) DEFAULT else LOW_RAM
+                return when {
+                    maxHeapMb >= 512 -> FLAGSHIP_EXTREME
+                    maxHeapMb >= 256 -> HIGH_SECURITY
+                    else -> LOW_RAM
+                }
             }
         }
     }

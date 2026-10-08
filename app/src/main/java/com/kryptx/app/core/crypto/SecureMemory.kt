@@ -2,6 +2,7 @@ package com.kryptx.app.core.crypto
 
 import com.kryptx.app.core.security.SecurityLogger
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.Arrays
 
 /**
@@ -11,7 +12,17 @@ import java.util.Arrays
 object SecureMemory {
 
     @Volatile
-    private var memoryFence: Int = 0
+    private var memoryFence: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** CSPRNG instance reused across wipe calls. SecureRandom is thread-safe per JCA spec. */
+    private val wipeRng: SecureRandom by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        try {
+            // SHA1PRNG is fast and always available on Android; NativePRNG may block on /dev/random.
+            SecureRandom.getInstance("SHA1PRNG")
+        } catch (_: Throwable) {
+            SecureRandom()
+        }
+    }
 
     /**
      * Overwrites a CharArray with null characters ('\0') with a hardware/JIT memory barrier.
@@ -19,24 +30,37 @@ object SecureMemory {
     fun wipe(chars: CharArray?) {
         if (chars != null) {
             Arrays.fill(chars, '\u0000')
-            // JIT dead-store elimination compiler barrier
+            // JIT dead-store elimination compiler barrier — the AtomicInteger update prevents
+            // the JIT from eliding the fill as dead code (it cannot know the side effects).
             if (chars.isNotEmpty()) {
-                memoryFence = memoryFence xor chars[0].code
+                memoryFence.set(memoryFence.get() xor chars[0].code)
             }
         }
     }
 
     /**
-     * Overwrites a ByteArray with zeros with a hardware/JIT memory barrier.
+     * Overwrites a ByteArray with two passes — random bytes then zeros — before releasing,
+     * providing defense-in-depth against:
+     *  1. JIT dead-store elimination (XOR barrier after each pass)
+     *  2. Compiler reuse of the same virtual address with residual plaintext still readable
+     *     in adjacent CPU cache lines
+     *
+     * The random pass prevents trivially recognizable zero-fill patterns in memory dumps.
      */
     fun wipe(bytes: ByteArray?) {
-        if (bytes != null) {
-            Arrays.fill(bytes, 0.toByte())
-            // JIT dead-store elimination compiler barrier
-            if (bytes.isNotEmpty()) {
-                memoryFence = memoryFence xor bytes[0].toInt()
-            }
+        if (bytes == null || bytes.isEmpty()) return
+        // Pass 1 — random overwrite
+        try {
+            wipeRng.nextBytes(bytes)
+        } catch (_: Throwable) {
+            // Fallback: XOR-scramble without CSPRNG rather than skip the pass
+            for (i in bytes.indices) bytes[i] = (bytes[i].toInt() xor 0xAA).toByte()
         }
+        memoryFence.set(memoryFence.get() xor bytes[0].toInt())
+        // Pass 2 — zero out
+        Arrays.fill(bytes, 0.toByte())
+        // JIT dead-store elimination compiler barrier
+        memoryFence.set(memoryFence.get() xor bytes[0].toInt())
     }
 
     /**
