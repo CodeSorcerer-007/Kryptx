@@ -17,10 +17,13 @@ object SecureMemory {
     /** CSPRNG instance reused across wipe calls. SecureRandom is thread-safe per JCA spec. */
     private val wipeRng: SecureRandom by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         try {
-            // SHA1PRNG is fast and always available on Android; NativePRNG may block on /dev/random.
-            SecureRandom.getInstance("SHA1PRNG")
+            SecureRandom.getInstance("NativePRNG")
         } catch (_: Throwable) {
-            SecureRandom()
+            try {
+                SecureRandom.getInstance("SHA1PRNG")
+            } catch (_: Throwable) {
+                SecureRandom()
+            }
         }
     }
 
@@ -149,18 +152,7 @@ object SecureMemory {
     }
 
     init {
-        try {
-            System.loadLibrary("kryptx_crypto")
-        } catch (e: Throwable) {
-            // Non-fatal: JVM crypto fallbacks (AES-256-GCM, PBKDF2) remain active.
-            // Native-only features (mlock, XChaCha20, ML-KEM) will be unavailable.
-            // This is logged at WARN but should be treated as a security degradation in production.
-            SecurityLogger.warn(
-                "SecureMemory",
-                "Native crypto library (kryptx_crypto) failed to load — JVM fallbacks active. Some PQC features will be unavailable.",
-                e
-            )
-        }
+        NativeCryptoLoader.ensureLoaded()
     }
 
     @JvmStatic
@@ -169,16 +161,25 @@ object SecureMemory {
     @JvmStatic
     external fun munlockBuffer(buffer: java.nio.ByteBuffer): Boolean
 
+    @Volatile
+    var isLastAllocationLocked: Boolean = false
+        private set
+
     /**
      * Allocates a memory-locked, page-aligned DirectByteBuffer that cannot be swapped to disk
      * and is excluded from OS core dumps. Ultimate military-grade memory protection.
      */
     fun allocateSecureBuffer(capacity: Int): java.nio.ByteBuffer {
         val buffer = java.nio.ByteBuffer.allocateDirect(capacity)
-        try {
-            mlockBuffer(buffer)
-        } catch (_: Throwable) {
-            // Fallback gracefully if JNI fails
+        isLastAllocationLocked = try {
+            val locked = mlockBuffer(buffer)
+            if (!locked) {
+                SecurityLogger.warn("SecureMemory", "mlockBuffer returned false for direct buffer of size $capacity")
+            }
+            locked
+        } catch (t: Throwable) {
+            SecurityLogger.warn("SecureMemory", "mlockBuffer JNI failed for direct buffer of size $capacity", t)
+            false
         }
         return buffer
     }

@@ -30,6 +30,7 @@ object KryptxDbMigrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_security_history_ts ON $TABLE_SECURITY_HISTORY($COL_HIST_TIMESTAMP ASC)")
             } catch (e: Exception) {
                 SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 2", e)
+                throw e
             }
         }
 
@@ -49,6 +50,7 @@ object KryptxDbMigrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_log_ts ON $TABLE_ACTIVITY_LOG($COL_ACT_TIMESTAMP DESC)")
             } catch (e: Exception) {
                 SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 3", e)
+                throw e
             }
         }
 
@@ -58,6 +60,7 @@ object KryptxDbMigrations {
                 db.execSQL("UPDATE $TABLE_VAULT_ITEMS SET $COL_TYPE = 'CUSTOM' WHERE $COL_TYPE IN ('SSH_KEY', 'CRYPTO_WALLET', 'BANK_ACCOUNT')")
             } catch (e: Exception) {
                 SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 4", e)
+                throw e
             }
         }
 
@@ -70,6 +73,7 @@ object KryptxDbMigrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_search_tokens_hmac ON ${KryptxDbSchema.TABLE_SEARCH_TOKENS}(${KryptxDbSchema.COL_SRCH_TOKEN_HMAC})")
             } catch (e: Exception) {
                 SecurityLogger.error("KryptxDbMigrations", "Failed to apply migration to version 5", e)
+                throw e
             }
         }
     }

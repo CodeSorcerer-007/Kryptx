@@ -46,6 +46,8 @@ interface IPreferencesRepository {
     val shakeToLockEnabled: StateFlow<Boolean>
     val acousticFeedbackEnabled: StateFlow<Boolean>
     val biometricEnrollmentPrompted: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val autoDestructEnabled: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val autoDestructMaxAttempts: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(10)
 
     fun setThemeMode(mode: AppThemeMode)
     fun setDynamicColor(enable: Boolean)
@@ -53,6 +55,8 @@ interface IPreferencesRepository {
     fun setLockOnBackground(lock: Boolean)
     fun setBiometricEnabled(enabled: Boolean)
     fun setBiometricEnrollmentPrompted(prompted: Boolean) {}
+    fun setAutoDestructEnabled(enabled: Boolean) {}
+    fun setAutoDestructMaxAttempts(attempts: Int) {}
     fun setClipboardTimeout(seconds: Int)
     fun setFlagSecureEnabled(enabled: Boolean)
     fun setOnboardingCompleted(completed: Boolean)

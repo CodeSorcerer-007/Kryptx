@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +75,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 /**
  * Crash-Proof In-App Secure Attachment Sandbox Viewer.
@@ -445,8 +447,25 @@ private fun PdfDocumentViewer(
     }
 
     var currentPageIndex by remember { mutableIntStateOf(0) }
-    var currentBitmap by remember(currentPageIndex, holder) {
-        mutableStateOf(holder.renderPage(currentPageIndex))
+    var currentBitmapNative by remember { mutableStateOf<Bitmap?>(null) }
+    var currentBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(currentPageIndex, holder) {
+        val result = withContext(Dispatchers.IO) {
+            holder.renderPageWithNative(currentPageIndex)
+        }
+        withContext(Dispatchers.Main) {
+            currentBitmapNative?.recycle()
+            currentBitmap = result?.first
+            currentBitmapNative = result?.second
+        }
+    }
+
+    DisposableEffect(holder) {
+        onDispose {
+            currentBitmapNative?.recycle()
+            currentBitmapNative = null
+        }
     }
 
     Column(
@@ -466,7 +485,6 @@ private fun PdfDocumentViewer(
                     onClick = {
                         if (currentPageIndex > 0) {
                             currentPageIndex--
-                            currentBitmap = holder.renderPage(currentPageIndex)
                         }
                     },
                     enabled = currentPageIndex > 0
@@ -488,7 +506,6 @@ private fun PdfDocumentViewer(
                     onClick = {
                         if (currentPageIndex < holder.pageCount - 1) {
                             currentPageIndex++
-                            currentBitmap = holder.renderPage(currentPageIndex)
                         }
                     },
                     enabled = currentPageIndex < holder.pageCount - 1
@@ -507,9 +524,10 @@ private fun PdfDocumentViewer(
                 .weight(1f),
             contentAlignment = Alignment.Center
         ) {
-            if (currentBitmap != null) {
+            val bm = currentBitmap
+            if (bm != null) {
                 Image(
-                    bitmap = currentBitmap!!,
+                    bitmap = bm,
                     contentDescription = "$fileName Page ${currentPageIndex + 1}",
                     modifier = Modifier
                         .fillMaxSize()
@@ -540,15 +558,19 @@ private class PdfRendererHolder(val context: Context, val pdfBytes: ByteArray) {
         try {
             tempFile = File.createTempFile("kryptx_pdf_", ".pdf", context.cacheDir)
             tempFile?.writeBytes(pdfBytes)
-            pfd = ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY)
-            renderer = PdfRenderer(pfd!!)
-            pageCount = renderer!!.pageCount
+            val file = tempFile ?: throw IOException("Temp file creation failed")
+            val fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                ?: throw IOException("ParcelFileDescriptor.open returned null")
+            pfd = fd
+            val r = PdfRenderer(fd)
+            renderer = r
+            pageCount = r.pageCount
         } catch (t: Throwable) {
             error = t.message ?: "Unable to read PDF structure"
         }
     }
 
-    fun renderPage(pageIndex: Int): ImageBitmap? {
+    fun renderPageWithNative(pageIndex: Int): Pair<ImageBitmap, Bitmap>? {
         val r = renderer ?: return null
         if (pageIndex !in 0 until pageCount) return null
         return try {
@@ -559,18 +581,21 @@ private class PdfRendererHolder(val context: Context, val pdfBytes: ByteArray) {
             val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
             page.close()
-            bitmap.asImageBitmap()
+            Pair(bitmap.asImageBitmap(), bitmap)
         } catch (_: Throwable) {
             null
         }
     }
 
+    fun renderPage(pageIndex: Int): ImageBitmap? = renderPageWithNative(pageIndex)?.first
+
     fun close() {
-        try {
-            renderer?.close()
-            pfd?.close()
-            tempFile?.delete()
-        } catch (_: Throwable) {}
+        try { renderer?.close() } catch (_: Throwable) {}
+        try { pfd?.close() } catch (_: Throwable) {}
+        try { tempFile?.delete() } catch (_: Throwable) {}
+        renderer = null
+        pfd = null
+        tempFile = null
     }
 }
 

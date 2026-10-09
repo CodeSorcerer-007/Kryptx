@@ -11,6 +11,7 @@ import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 import com.kryptx.app.core.security.ActivityLogManager
@@ -36,7 +37,9 @@ class UnlockViewModel(
     }
 
     init {
-        checkVaultStatus()
+        viewModelScope.launch(Dispatchers.IO) {
+            checkVaultStatus()
+        }
     }
 
     fun checkVaultStatus() {
@@ -56,28 +59,28 @@ class UnlockViewModel(
         _uiState.value = _uiState.value.copy(errorMessage = message, isLoading = false)
     }
 
-    fun handleNfcTag(tag: android.nfc.Tag, onSuccess: () -> Unit) {
+    fun handleNfcTag(tag: android.nfc.Tag, passwordChars: CharArray, onSuccess: () -> Unit) {
         if (!_uiState.value.isHardwareKeyRequired) return
         val challenge = vaultRepository.getHardwareKeyChallenge() ?: return
         val expectedUidHash = vaultRepository.getHardwareKeyUidHash()
-        val password = _uiState.value.password
 
-        if (password.isBlank()) {
+        if (passwordChars.isEmpty()) {
             _uiState.value = _uiState.value.copy(errorMessage = "Enter master password first, then tap your security key")
             return
         }
 
+        val chars = passwordChars.copyOf()
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             val keyManager = com.kryptx.app.core.security.HardwareSecurityKeyManager()
             val hardwareSecret = keyManager.processTagResponse(tag, expectedUidHash, challenge)
 
             if (hardwareSecret == null) {
+                SecureMemory.wipe(chars)
                 _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = "Unrecognized or mismatched security key")
                 return@launch
             }
 
-            val chars = password.toCharArray()
             val result = try {
                 vaultRepository.unlockWithHardwareKey(chars, hardwareSecret)
             } finally {
@@ -100,6 +103,15 @@ class UnlockViewModel(
         }
     }
 
+    fun handleNfcTag(tag: android.nfc.Tag, onSuccess: () -> Unit) {
+        val chars = _uiState.value.password.toCharArray()
+        try {
+            handleNfcTag(tag, chars, onSuccess)
+        } finally {
+            SecureMemory.wipe(chars)
+        }
+    }
+
     fun onPasswordChanged(password: String) {
         _uiState.value = _uiState.value.copy(
             password = password,
@@ -107,9 +119,8 @@ class UnlockViewModel(
         )
     }
 
-    fun unlockWithPassword(onSuccess: () -> Unit) {
-        val password = _uiState.value.password
-        if (password.isEmpty()) {
+    fun unlockWithPassword(passwordChars: CharArray, onSuccess: () -> Unit) {
+        if (passwordChars.isEmpty()) {
             _uiState.value = _uiState.value.copy(errorMessage = "Please enter your master password")
             return
         }
@@ -126,11 +137,10 @@ class UnlockViewModel(
             return
         }
 
-        // Immediately clear password from StateFlow to minimize JVM String heap retention
+        val chars = passwordChars.copyOf()
         _uiState.value = _uiState.value.copy(password = "", isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
-            val chars = password.toCharArray()
             val result = try {
                 vaultRepository.unlockWithPassword(chars)
             } finally {
@@ -163,6 +173,20 @@ class UnlockViewModel(
         }
     }
 
+    fun unlockWithPassword(onSuccess: () -> Unit) {
+        val password = _uiState.value.password
+        if (password.isEmpty()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Please enter your master password")
+            return
+        }
+        val chars = password.toCharArray()
+        try {
+            unlockWithPassword(chars, onSuccess)
+        } finally {
+            SecureMemory.wipe(chars)
+        }
+    }
+
     fun setupNewVault(password: String, confirm: String, enableBiometrics: Boolean, onSuccess: () -> Unit) {
         if (password.length < 8) {
             _uiState.value = _uiState.value.copy(errorMessage = "Master password must be at least 8 characters")
@@ -173,14 +197,17 @@ class UnlockViewModel(
             return
         }
 
+        // Convert to CharArray BEFORE suspending so the String reference is released ASAP.
+        val chars = password.toCharArray()
+        val confirmChars = confirm.toCharArray()
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
-            val chars = password.toCharArray()
             val result = try {
                 vaultRepository.setupNewVault(chars)
             } finally {
                 SecureMemory.wipe(chars)
+                SecureMemory.wipe(confirmChars)
             }
 
             when (result) {
@@ -273,6 +300,14 @@ data class UnlockUiState(
     val isBiometricsAvailable: Boolean = false,
     val isHardwareKeyRequired: Boolean = false,
     val hardwareKeyLabel: String? = null,
+    /**
+     * NOTE: The password is stored as a String here solely because Compose TextField state is
+     * String-bound.  It is immediately converted to a CharArray and wiped inside every
+     * unlock/setup call.  Clearing this field to "" as soon as the coroutine takes ownership
+     * (before any I/O) minimises the GC-dependent heap exposure window.
+     *
+     * A full migration to a custom CharArray-backed TextField is tracked in the roadmap.
+     */
     val password: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null

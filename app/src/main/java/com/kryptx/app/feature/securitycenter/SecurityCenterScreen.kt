@@ -122,7 +122,7 @@ fun SecurityCenterScreen(
                     }
                 }
             } else {
-                val r = report!!
+                val r = report ?: return@Scaffold
                 val displayedIssues = remember(r.issues, selectedFilter) {
                     if (selectedFilter == null) r.issues else r.issues.filter { it.type == selectedFilter }
                 }

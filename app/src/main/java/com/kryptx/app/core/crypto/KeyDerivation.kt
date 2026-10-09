@@ -62,11 +62,37 @@ object KeyDerivation {
 
         return try {
             val secretKey = keyFactory.generateSecret(keySpec)
-            secretKey.encoded
+            val keyBytes = secretKey.encoded
+            try {
+                if (secretKey is javax.security.auth.Destroyable && !secretKey.isDestroyed) {
+                    secretKey.destroy()
+                }
+            } catch (_: Throwable) {
+                // Destroyable is unsupported on some Android SecretKey implementations
+            }
+            keyBytes
         } catch (e: InvalidKeySpecException) {
             throw IllegalStateException("Failed to derive cryptographic key from master password", e)
         } finally {
             (keySpec as? PBEKeySpec)?.clearPassword()
+        }
+    }
+
+    /**
+     * Derives a key and passes it to [block], guaranteeing that the key byte array is zeroized
+     * with [SecureMemory.wipe] in a finally block immediately after execution.
+     */
+    inline fun <R> withDerivedKey(
+        password: CharArray,
+        salt: ByteArray,
+        iterations: Int = DEFAULT_ITERATIONS,
+        block: (ByteArray) -> R
+    ): R {
+        val key = deriveKey(password, salt, iterations)
+        return try {
+            block(key)
+        } finally {
+            SecureMemory.wipe(key)
         }
     }
 

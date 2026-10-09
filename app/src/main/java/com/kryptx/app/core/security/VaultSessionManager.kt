@@ -143,6 +143,7 @@ class VaultSessionManager(
 
     private val lockListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
     private val unlockListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+    private val failedAttemptListeners = java.util.concurrent.CopyOnWriteArrayList<(Int) -> Unit>()
 
     fun addLockListener(listener: () -> Unit) {
         lockListeners.add(listener)
@@ -158,6 +159,14 @@ class VaultSessionManager(
 
     fun removeUnlockListener(listener: () -> Unit) {
         unlockListeners.remove(listener)
+    }
+
+    fun addFailedAttemptListener(listener: (Int) -> Unit) {
+        failedAttemptListeners.add(listener)
+    }
+
+    fun removeFailedAttemptListener(listener: (Int) -> Unit) {
+        failedAttemptListeners.remove(listener)
     }
 
     /**
@@ -226,7 +235,12 @@ class VaultSessionManager(
             autoLockJob?.cancel()
             autoLockJob = scope.launch {
                 delay(autoLockTimeout.seconds * 1000L)
-                lock(isTimeout = true)
+                synchronized(this@VaultSessionManager) {
+                    val currentJob = coroutineContext[Job]
+                    if (currentJob != null && currentJob.isActive && autoLockJob === currentJob) {
+                        lock(isTimeout = true)
+                    }
+                }
             }
         }
     }
@@ -314,7 +328,7 @@ class VaultSessionManager(
         lockoutJob = scope.launch {
             while (_lockoutSecondsRemaining.value > 0) {
                 delay(1000L)
-                _lockoutSecondsRemaining.value -= 1
+                _lockoutSecondsRemaining.update { (it - 1).coerceAtLeast(0) }
                 if (_lockoutSecondsRemaining.value == 0) {
                     lockoutSaver?.invoke(_failedAttempts.value, 0L)
                 }
@@ -358,6 +372,14 @@ class VaultSessionManager(
             startLockoutCountdown(lockoutDuration, lockoutUntilMs)
         } else {
             lockoutSaver?.invoke(attempts, 0L)
+        }
+
+        failedAttemptListeners.forEach { listener ->
+            try {
+                listener(attempts)
+            } catch (t: Throwable) {
+                SecurityLogger.error("VaultSessionManager", "Failed attempt listener threw an exception", t)
+            }
         }
     }
 

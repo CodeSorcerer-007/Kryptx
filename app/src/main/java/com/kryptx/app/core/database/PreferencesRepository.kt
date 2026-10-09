@@ -37,6 +37,8 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_SCRAMBLED_PIN_DISABLED = "scrambled_pin_disabled"
         private const val KEY_SHAKE_TO_LOCK = "shake_to_lock_enabled"
         private const val KEY_ACOUSTIC_FEEDBACK = "acoustic_feedback_enabled"
+        private const val KEY_AUTO_DESTRUCT_ENABLED = "auto_destruct_enabled"
+        private const val KEY_AUTO_DESTRUCT_MAX_ATTEMPTS = "auto_destruct_max_attempts"
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -58,6 +60,12 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
 
     private val _biometricEnrollmentPrompted = MutableStateFlow(prefs.getBoolean(KEY_BIOMETRIC_ENROLLMENT_PROMPTED, false))
     override val biometricEnrollmentPrompted: StateFlow<Boolean> = _biometricEnrollmentPrompted.asStateFlow()
+
+    private val _autoDestructEnabled = MutableStateFlow(prefs.getBoolean(KEY_AUTO_DESTRUCT_ENABLED, false))
+    override val autoDestructEnabled: StateFlow<Boolean> = _autoDestructEnabled.asStateFlow()
+
+    private val _autoDestructMaxAttempts = MutableStateFlow(prefs.getInt(KEY_AUTO_DESTRUCT_MAX_ATTEMPTS, 10))
+    override val autoDestructMaxAttempts: StateFlow<Int> = _autoDestructMaxAttempts.asStateFlow()
 
     private val _clipboardTimeout = MutableStateFlow(prefs.getInt(KEY_CLIPBOARD_TIMEOUT, 30))
     override val clipboardTimeout: StateFlow<Int> = _clipboardTimeout.asStateFlow()
@@ -202,6 +210,16 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         prefs.edit().putBoolean(KEY_ACOUSTIC_FEEDBACK, enabled).apply()
         _acousticFeedbackEnabled.value = enabled
         com.kryptx.app.core.designsystem.components.KryptxAudio.isEnabled = enabled
+    }
+
+    override fun setAutoDestructEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_DESTRUCT_ENABLED, enabled).apply()
+        _autoDestructEnabled.value = enabled
+    }
+
+    override fun setAutoDestructMaxAttempts(attempts: Int) {
+        prefs.edit().putInt(KEY_AUTO_DESTRUCT_MAX_ATTEMPTS, attempts).apply()
+        _autoDestructMaxAttempts.value = attempts
     }
 
     override fun hasSeenFeatureIntro(featureKey: String): Boolean {

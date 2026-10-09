@@ -122,27 +122,25 @@ jobs:
       - name: Build Reproducible Debug APK
         run: ./gradlew assembleDebug -Dorg.gradle.project.reproducible=true --no-daemon --stacktrace
 
-      - name: Generate Debug SHA-256 Checksum
+      - name: Generate Debug SHA-256 Checksums
         run: |
-          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
-          if [ -f "$APK_PATH" ]; then
-            sha256sum "$APK_PATH" > "$APK_PATH.sha256"
-            echo "Debug APK SHA-256: $(cat $APK_PATH.sha256)"
-          fi
+          for f in $(find app/build/outputs/apk/debug/ -name "*.apk"); do
+            sha256sum "$f" > "${f}.sha256"
+            echo "Debug APK: $f SHA-256: $(cat ${f}.sha256)"
+          done
 
-      - name: Enforce APK Size Budget (<= 25 MB)
+      - name: Enforce APK Size Budget (<= 45 MB Debug / <= 25 MB Release)
         run: |
-          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
-          if [ -f "$APK_PATH" ]; then
-            SIZE_BYTES=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
-            MAX_BYTES=26214400 # 25 MB
-            echo "Debug APK size: $SIZE_BYTES bytes (Budget: $MAX_BYTES bytes)"
+          for f in $(find app/build/outputs/apk/debug/ -name "*.apk"); do
+            SIZE_BYTES=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+            MAX_BYTES=47185920 # 45 MB budget for un-minified debug builds
+            echo "Debug APK: $f size: $SIZE_BYTES bytes (Budget: $MAX_BYTES bytes)"
             if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
-              echo "ERROR: APK size ($SIZE_BYTES bytes) exceeds 25 MB budget!"
+              echo "ERROR: APK size ($SIZE_BYTES bytes) exceeds budget!"
               exit 1
             fi
-            echo "APK size budget check passed."
-          fi
+          done
+          echo "All debug APK size budget checks passed."
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4

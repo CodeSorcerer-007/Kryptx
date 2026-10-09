@@ -46,10 +46,16 @@ object AdaptiveKdfCalibrator {
         val startTime = System.currentTimeMillis()
 
         val spec = PBEKeySpec(samplePassword, sampleSalt, SAMPLE_ROUNDS, 256)
-        val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val key = skf.generateSecret(spec)
-        val sampleBytes = key.encoded
-        SecureMemory.wipe(sampleBytes)
+        try {
+            val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            val key = skf.generateSecret(spec)
+            val sampleBytes = key.encoded
+            SecureMemory.wipe(sampleBytes)
+        } finally {
+            spec.clearPassword()
+            SecureMemory.wipe(samplePassword)
+            SecureMemory.wipe(sampleSalt)
+        }
 
         val sampleDurationMs = (System.currentTimeMillis() - startTime).coerceAtLeast(1)
 
@@ -61,27 +67,31 @@ object AdaptiveKdfCalibrator {
         val maxMemoryBytes = Runtime.getRuntime().maxMemory()
         val maxMemoryMb = (maxMemoryBytes / (1024 * 1024)).toInt()
 
-        val (argon2MemKb, argon2Iter, argon2Parallelism, hwClass) = when {
+        data class CalibrationIntermediate(
+            val memKb: Int, val iter: Int, val par: Int, val hwClass: HardwareClass
+        )
+
+        val intermediate = when {
             maxMemoryMb >= 512 && recommendedPbkdf2Rounds >= 1_200_000 -> {
-                listOf(262 * 1024, 4, 4, HardwareClass.FLAGSHIP_EXTREME)
+                CalibrationIntermediate(262 * 1024, 4, 4, HardwareClass.FLAGSHIP_EXTREME)
             }
             maxMemoryMb >= 256 && recommendedPbkdf2Rounds >= 800_000 -> {
-                listOf(128 * 1024, 4, 4, HardwareClass.HIGH_PERFORMANCE)
+                CalibrationIntermediate(128 * 1024, 4, 4, HardwareClass.HIGH_PERFORMANCE)
             }
             else -> {
                 // STANDARD tier now starts at 64 MB / 4 iterations — OWASP minimum for
                 // interactive password hashing. Only LOW_RAM devices (< 256 MB heap) fall here.
-                listOf(64 * 1024, 4, 4, HardwareClass.STANDARD)
+                CalibrationIntermediate(64 * 1024, 4, 4, HardwareClass.STANDARD)
             }
         }
 
         KdfCalibrationResult(
             recommendedPbkdf2Rounds = recommendedPbkdf2Rounds,
-            recommendedArgon2MemoryKb = argon2MemKb as Int,
-            recommendedArgon2Iterations = argon2Iter as Int,
-            recommendedArgon2Parallelism = argon2Parallelism as Int,
+            recommendedArgon2MemoryKb = intermediate.memKb,
+            recommendedArgon2Iterations = intermediate.iter,
+            recommendedArgon2Parallelism = intermediate.par,
             benchmarkDurationMs = sampleDurationMs,
-            hardwareClass = hwClass as HardwareClass
+            hardwareClass = intermediate.hwClass
         )
     }
 }

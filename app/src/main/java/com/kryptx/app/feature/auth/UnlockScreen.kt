@@ -82,6 +82,7 @@ fun UnlockScreen(
     val isBiometricPrompted by viewModel.isBiometricEnrollmentPrompted.collectAsState()
     var rememberMe by remember { mutableStateOf(true) }
     var triggerCelebration by remember { mutableStateOf(false) }
+    var localPassword by rememberSaveable { mutableStateOf("") }
 
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -117,8 +118,11 @@ fun UnlockScreen(
     }
 
     fun submitUnlock() {
-        if (uiState.password.isNotBlank() && lockoutSeconds == 0) {
-            viewModel.unlockWithPassword(onSuccess = {
+        val input = localPassword.ifBlank { uiState.password }
+        if (input.isNotBlank() && lockoutSeconds == 0) {
+            val chars = input.toCharArray()
+            viewModel.unlockWithPassword(chars, onSuccess = {
+                localPassword = ""
                 KryptxHaptics.confirm(view)
                 com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(view.context)
                 triggerCelebration = true
@@ -248,8 +252,13 @@ fun UnlockScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         KryptxTextField(
-                            value = uiState.password,
-                            onValueChange = { viewModel.onPasswordChanged(it) },
+                            value = if (localPassword.isNotEmpty()) localPassword else uiState.password,
+                            onValueChange = {
+                                localPassword = it
+                                if (uiState.errorMessage != null) {
+                                    viewModel.setErrorMessage(null)
+                                }
+                            },
                             label = "Master Password",
                             placeholder = "Enter master password to decrypt",
                             isPassword = true,
@@ -378,7 +387,7 @@ fun UnlockScreen(
                         text = "Unlock Vault",
                         useBrandGradient = true,
                         modifier = Modifier.testTag("unlock_button"),
-                        enabled = uiState.password.isNotBlank() && lockoutSeconds == 0,
+                        enabled = (localPassword.isNotBlank() || uiState.password.isNotBlank()) && lockoutSeconds == 0,
                         onClick = { submitUnlock() }
                     )
                 }

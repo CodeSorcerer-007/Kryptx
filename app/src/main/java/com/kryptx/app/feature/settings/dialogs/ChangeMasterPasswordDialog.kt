@@ -58,7 +58,7 @@ fun ChangeMasterPasswordDialog(
 
                 if (localError != null) {
                     Text(
-                        text = localError!!,
+                        text = localError ?: "",
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 8.dp)
@@ -77,7 +77,12 @@ fun ChangeMasterPasswordDialog(
                         localError = "New passwords do not match"
                         return@TextButton
                     }
-                    onSubmit(currentPassword, newPassword)
+                    val curr = currentPassword
+                    val next = newPassword
+                    currentPassword = ""
+                    newPassword = ""
+                    confirmPassword = ""
+                    onSubmit(curr, next)
                 }
             ) {
                 Text("Update Password", color = KryptxBlue, fontWeight = FontWeight.Bold)

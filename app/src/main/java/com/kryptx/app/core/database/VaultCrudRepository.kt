@@ -166,24 +166,29 @@ class VaultCrudRepositoryImpl(
                 val pqcPubKeyBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY)
                 val isPostQuantum = pqcPubKeyBase64 != null
 
-                val plaintextBytes = json.encodeToString(items).toByteArray(Charsets.UTF_8)
-                val ciphertext = try {
-                    CryptoEngine.encrypt(plaintextBytes, encryptionKey)
+                val (ciphertextBase64, saltBase64, checksum, hmacBase64) = try {
+                    val plaintextBytes = json.encodeToString(items).toByteArray(Charsets.UTF_8)
+                    val ciphertext = try {
+                        CryptoEngine.encrypt(plaintextBytes, encryptionKey)
+                    } finally {
+                        SecureMemory.wipe(plaintextBytes)
+                    }
+
+                    val sBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+                    val cBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
+                    val chk = VaultExporter.computeSha256Checksum(cBase64)
+
+                    val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), encryptionKey)
+                    val hmacBytes = VaultExporter.computeHmacSha256(ciphertext, hmacKey)
+                    val hmBase64 = Base64.encodeToString(hmacBytes, Base64.NO_WRAP)
+                    SecureMemory.wipe(hmacKey)
+                    SecureMemory.wipe(ciphertext)
+
+                    listOf(cBase64, sBase64, chk, hmBase64)
                 } finally {
-                    SecureMemory.wipe(plaintextBytes)
+                    SecureMemory.wipe(encryptionKey)
+                    SecureMemory.wipe(salt)
                 }
-
-                val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
-                val ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
-                val checksum = VaultExporter.computeSha256Checksum(ciphertextBase64)
-
-                val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), encryptionKey)
-                val hmacBytes = VaultExporter.computeHmacSha256(ciphertext, hmacKey)
-                val hmacBase64 = Base64.encodeToString(hmacBytes, Base64.NO_WRAP)
-                SecureMemory.wipe(hmacKey)
-
-                SecureMemory.wipe(encryptionKey)
-                SecureMemory.wipe(salt)
 
                 val header = BackupHeader(
                     app = "Kryptx",
@@ -351,25 +356,27 @@ class VaultCrudRepositoryImpl(
                     userHandle = userHandle,
                     userName = userName
                 )
+                try {
+                    val encryptedPrivKey = CryptoEngine.encrypt(registration.rawPrivateKeyBytes, activeVek)
+                    val privKeyCiphertext = Base64.encodeToString(encryptedPrivKey, Base64.NO_WRAP)
 
-                val encryptedPrivKey = CryptoEngine.encrypt(registration.rawPrivateKeyBytes, activeVek)
-                val privKeyCiphertext = Base64.encodeToString(encryptedPrivKey, Base64.NO_WRAP)
-                SecureMemory.wipe(registration.rawPrivateKeyBytes)
+                    val item = VaultItem(
+                        title = rpName,
+                        type = ItemType.PASSKEY,
+                        username = userName,
+                        website = "https://$rpId",
+                        passkeyRpId = rpId,
+                        passkeyUserHandle = userHandle,
+                        passkeyCredentialId = registration.credentialId,
+                        passkeyPublicKeyCoseBase64 = registration.publicKeyCoseBase64,
+                        passkeyPrivateKeyCiphertext = privKeyCiphertext,
+                        passkeySignCount = 0
+                    )
 
-                val item = VaultItem(
-                    title = rpName,
-                    type = ItemType.PASSKEY,
-                    username = userName,
-                    website = "https://$rpId",
-                    passkeyRpId = rpId,
-                    passkeyUserHandle = userHandle,
-                    passkeyCredentialId = registration.credentialId,
-                    passkeyPublicKeyCoseBase64 = registration.publicKeyCoseBase64,
-                    passkeyPrivateKeyCiphertext = privKeyCiphertext,
-                    passkeySignCount = 0
-                )
-
-                KryptxResult.Success(item)
+                    KryptxResult.Success(item)
+                } finally {
+                    registration.wipe()
+                }
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to register passkey", e)
             }

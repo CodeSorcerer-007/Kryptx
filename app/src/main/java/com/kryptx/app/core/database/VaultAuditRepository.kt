@@ -33,8 +33,9 @@ class VaultAuditRepositoryImpl(
     }
 
     override suspend fun computeSecurityAudit(): SecurityAuditReport = withContext(Dispatchers.Default) {
-        if (!isAuditDirty && cachedAuditReport != null) {
-            return@withContext cachedAuditReport!!
+        val cached = cachedAuditReport
+        if (!isAuditDirty && cached != null) {
+            return@withContext cached
         }
 
         sessionManager.withVaultKey { activeVek ->

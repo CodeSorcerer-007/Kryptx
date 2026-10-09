@@ -1,16 +1,12 @@
-package com.kryptx.app.feature.autofill
+package com.kryptx.app.feature.credentials
 
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.view.autofill.AutofillId
-import android.view.autofill.AutofillManager
-import android.view.autofill.AutofillValue
-import android.widget.RemoteViews
-import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,10 +20,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,6 +35,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -61,11 +58,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
-import android.service.autofill.Dataset
 import com.kryptx.app.KryptxApplication
+import com.kryptx.app.core.crypto.PasskeyEngine
 import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
@@ -79,74 +75,54 @@ import com.kryptx.app.core.designsystem.theme.KryptxTheme
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.model.VaultItem
+import com.kryptx.app.core.security.DomainMatcher
 import com.kryptx.app.core.security.SecurityLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.util.Base64
 
 /**
- * Sovereign Autofill Authentication & Credential Selection Activity.
+ * Sovereign Credential Authentication & Confirmation Activity for Android 14+ Credential Manager.
  *
- * Intercepts Android Autofill auth callbacks, securely verifies biometric or master password
- * credentials, matches items to the requesting domain/app, and returns EXTRA_AUTHENTICATION_RESULT
- * so target apps (browsers, native apps) are filled seamlessly.
+ * Handles WebAuthn Passkey assertions and registrations, password fulfillment, and biometric
+ * verification with hardware-backed screenshot protection.
  */
-class AutofillAuthActivity : FragmentActivity() {
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+class CredentialAuthActivity : FragmentActivity() {
 
-    companion object {
-        const val EXTRA_AUTH_TOKEN = "com.kryptx.autofill.AUTH_TOKEN"
-        const val EXTRA_WEB_DOMAIN = "com.kryptx.autofill.WEB_DOMAIN"
-        const val EXTRA_PACKAGE_NAME = "com.kryptx.autofill.PACKAGE_NAME"
-        const val EXTRA_USERNAME_ID = "com.kryptx.autofill.USERNAME_ID"
-        const val EXTRA_PASSWORD_ID = "com.kryptx.autofill.PASSWORD_ID"
-    }
-
-    private var targetDomain: String? = null
+    private var targetOrigin: String? = null
     private var targetPackage: String? = null
-    private var usernameFieldId: AutofillId? = null
-    private var passwordFieldId: AutofillId? = null
+    private var targetRpId: String? = null
+    private var targetItemId: String? = null
+    private var targetOptionId: String? = null
+    private var targetAction: String? = null
+    private var targetCredentialType: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         try {
-            val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mRequestedPermissionsFromFragment")
+            val field = FragmentActivity::class.java.getDeclaredField("mRequestedPermissionsFromFragment")
             field.isAccessible = true
             field.setBoolean(this, true)
         } catch (_: Throwable) {}
 
-        // Immediately enforce hardware window screenshot & screen-recording protection
+        // Enforce hardware FLAG_SECURE protection
         window.setFlags(
             android.view.WindowManager.LayoutParams.FLAG_SECURE,
             android.view.WindowManager.LayoutParams.FLAG_SECURE
         )
         enableEdgeToEdge()
 
-        // Security: Validate that this activity was launched by KryptxAutofillService or Android Autofill subsystem.
-        val authToken = intent.getStringExtra(EXTRA_AUTH_TOKEN)
-        val hasSystemAssistStructure = intent.hasExtra(AutofillManager.EXTRA_ASSIST_STRUCTURE) ||
-            intent.hasExtra(AutofillManager.EXTRA_CLIENT_STATE)
-        val isValidToken = AutofillAuthTokenManager.validateAndConsumeToken(authToken)
-
-        if (!isValidToken && !hasSystemAssistStructure) {
+        val authToken = intent.getStringExtra(CredentialConstants.EXTRA_AUTH_TOKEN)
+        val isValidToken = CredentialAuthTokenManager.validateAndConsumeToken(authToken)
+        if (!isValidToken) {
             SecurityLogger.warn(
-                "AutofillAuthActivity",
-                "Unauthorized launch attempt without valid auth token or system structure. Finishing."
-            )
-            setResult(Activity.RESULT_CANCELED)
-            finish()
-            return
-        }
-
-        val hasValidIntent = intent.hasExtra(EXTRA_WEB_DOMAIN) ||
-            intent.hasExtra(EXTRA_PACKAGE_NAME) ||
-            intent.hasExtra(EXTRA_USERNAME_ID) ||
-            intent.hasExtra(EXTRA_PASSWORD_ID) ||
-            hasSystemAssistStructure
-        if (!hasValidIntent) {
-            SecurityLogger.warn(
-                "AutofillAuthActivity",
-                "Launched without autofill extras — possible unauthorized caller. Finishing."
+                "CredentialAuthActivity",
+                "Unauthorized launch attempt without valid auth token. Finishing."
             )
             setResult(Activity.RESULT_CANCELED)
             finish()
@@ -160,112 +136,38 @@ class AutofillAuthActivity : FragmentActivity() {
         }
         app.sessionManager.setPickerActive(true)
 
-        // Observe user preferences for FLAG_SECURE
+        // Observe user screenshot protection preferences
         lifecycleScope.launch {
             app.preferencesRepository.flagSecureEnabled.collect { enabled ->
-                com.kryptx.app.core.security.ScreenshotProtection.apply(this@AutofillAuthActivity, enabled)
+                com.kryptx.app.core.security.ScreenshotProtection.apply(this@CredentialAuthActivity, enabled)
             }
         }
 
-        targetDomain = intent.getStringExtra(EXTRA_WEB_DOMAIN)
-        targetPackage = intent.getStringExtra(EXTRA_PACKAGE_NAME)
-
-        val assistStructure: android.app.assist.AssistStructure? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(AutofillManager.EXTRA_ASSIST_STRUCTURE, android.app.assist.AssistStructure::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(AutofillManager.EXTRA_ASSIST_STRUCTURE)
-        }
-        if (targetPackage.isNullOrBlank()) {
-            targetPackage = assistStructure?.activityComponent?.packageName
-        }
-
-        usernameFieldId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(EXTRA_USERNAME_ID, AutofillId::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_USERNAME_ID)
-        }
-
-        passwordFieldId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(EXTRA_PASSWORD_ID, AutofillId::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_PASSWORD_ID)
-        }
+        targetAction = intent.action
+        targetItemId = intent.getStringExtra(CredentialConstants.EXTRA_ITEM_ID)
+        targetOptionId = intent.getStringExtra(CredentialConstants.EXTRA_OPTION_ID)
+        targetRpId = intent.getStringExtra(CredentialConstants.EXTRA_RP_ID)
+        targetOrigin = intent.getStringExtra(CredentialConstants.EXTRA_ORIGIN)
+        targetPackage = intent.getStringExtra(CredentialConstants.EXTRA_PACKAGE_NAME)
+        targetCredentialType = intent.getStringExtra(CredentialConstants.EXTRA_CREDENTIAL_TYPE)
 
         setContent {
             val themeMode by app.preferencesRepository.themeMode.collectAsState()
             val dynamicColor by app.preferencesRepository.dynamicColor.collectAsState()
 
             KryptxTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
-                AutofillAuthScreen(
-                    targetDomain = targetDomain,
+                CredentialAuthScreen(
+                    targetAction = targetAction,
+                    targetOrigin = targetOrigin,
                     targetPackage = targetPackage,
-                    onItemSelect = { item -> fillAndFinish(item) },
+                    targetItemId = targetItemId,
+                    onItemSelect = { item -> fulfillGetCredential(item) },
+                    onCreateConfirm = { userName, userDisplayName -> fulfillCreateCredential(userName, userDisplayName) },
                     onCancel = { cancelAndFinish() },
                     onBiometricUnlock = { onTriggerBiometrics() }
                 )
             }
         }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun fillAndFinish(item: VaultItem) {
-        val app = application as? KryptxApplication ?: run {
-            setResult(Activity.RESULT_CANCELED)
-            finish()
-            return
-        }
-        val datasetBuilder = Dataset.Builder()
-        var hasValue = false
-
-        val uId = usernameFieldId
-        val pId = passwordFieldId
-
-        if (uId != null && item.username.isNotBlank()) {
-            val presentation = RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
-                setTextViewText(android.R.id.text1, item.username)
-            }
-            datasetBuilder.setValue(uId, AutofillValue.forText(item.username), presentation)
-            hasValue = true
-        }
-
-        if (pId != null && item.password.isNotBlank()) {
-            val presentation = RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
-                setTextViewText(android.R.id.text1, "••••••••")
-            }
-            datasetBuilder.setValue(pId, AutofillValue.forText(item.password), presentation)
-            hasValue = true
-        }
-
-        // Single-field or fallback autofill: fill either password or username into whichever ID is present
-        if (!hasValue) {
-            val fallbackId = pId ?: uId
-            if (fallbackId != null) {
-                val fillText = item.password.ifBlank { item.username }
-                if (fillText.isNotBlank()) {
-                    val presentation = RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
-                        setTextViewText(android.R.id.text1, if (item.password.isNotBlank()) "••••••••" else item.username)
-                    }
-                    datasetBuilder.setValue(fallbackId, AutofillValue.forText(fillText), presentation)
-                    hasValue = true
-                }
-            }
-        }
-
-        if (hasValue) {
-            val replyIntent = Intent().apply {
-                putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, datasetBuilder.build())
-            }
-            app.activityLogManager.logEvent("Autofill", "Filled credentials for ${item.title}")
-            setResult(Activity.RESULT_OK, replyIntent)
-        } else {
-            setResult(Activity.RESULT_CANCELED)
-        }
-
-        app.sessionManager.setPickerActive(false)
-        finish()
     }
 
     private fun cancelAndFinish() {
@@ -275,13 +177,18 @@ class AutofillAuthActivity : FragmentActivity() {
         finish()
     }
 
+    override fun onDestroy() {
+        val app = application as? KryptxApplication
+        app?.sessionManager?.setPickerActive(false)
+        super.onDestroy()
+    }
+
     private fun onTriggerBiometrics() {
         val app = application as? KryptxApplication ?: return
+        if (app.sessionManager.lockoutSecondsRemaining.value > 0) return
         if (!app.biometricManager.canAuthenticate(requireStrong = true)) return
         val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
         if (!isConfigured) return
-
-        if (app.sessionManager.lockoutSecondsRemaining.value > 0) return
 
         val decryptCipher = try {
             app.vaultRepository.getBiometricDecryptCipher()
@@ -293,44 +200,281 @@ class AutofillAuthActivity : FragmentActivity() {
 
         app.biometricManager.promptBiometric(
             activity = this,
-            title = "Unlock Kryptx Autofill",
-            subtitle = "Touch sensor to decrypt and autofill credentials",
+            title = "Unlock Kryptx Credentials",
+            subtitle = "Touch sensor to authenticate and use credential",
             cryptoObject = cryptoObject,
             onSuccess = { result ->
                 val cipher = result.cryptoObject?.cipher ?: return@promptBiometric
                 lifecycleScope.launch {
-                    val unlockResult = app.vaultRepository.unlockWithBiometricCipher(cipher)
-                    if (unlockResult.isError) {
-                        Toast.makeText(
-                            this@AutofillAuthActivity,
-                            "Biometric unlock failed. Please authenticate with master password.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    app.vaultRepository.unlockWithBiometricCipher(cipher)
                 }
             },
-            onError = { _, errString ->
-                if (errString.isNotBlank()) {
-                    Toast.makeText(this@AutofillAuthActivity, errString, Toast.LENGTH_SHORT).show()
-                }
-            },
+            onError = { _, _ -> },
             onFailed = {
                 app.sessionManager.recordFailedAttempt()
             }
         )
     }
 
-    override fun onDestroy() {
-        val app = application as? KryptxApplication
-        app?.sessionManager?.setPickerActive(false)
-        super.onDestroy()
+    /**
+     * Completes a GetCredentialRequest for either Passkey or Password.
+     */
+    private fun fulfillGetCredential(item: VaultItem) {
+        val app = application as KryptxApplication
+        lifecycleScope.launch {
+            if (item.type == ItemType.PASSKEY) {
+                fulfillPasskeyAssertion(app, item)
+            } else {
+                fulfillPasswordGet(app, item)
+            }
+        }
+    }
+
+    private suspend fun fulfillPasskeyAssertion(app: KryptxApplication, item: VaultItem) {
+        val frameworkGetReq: android.service.credentials.GetCredentialRequest? =
+            intent.getParcelableExtra(
+                android.service.credentials.CredentialProviderService.EXTRA_GET_CREDENTIAL_REQUEST,
+                android.service.credentials.GetCredentialRequest::class.java
+            )
+
+        var requestJsonStr = ""
+        var clientDataHashBytes: ByteArray? = null
+
+        frameworkGetReq?.credentialOptions?.forEach { opt ->
+            val data = opt.credentialRetrievalData
+            val req = data.getString(CredentialConstants.BUNDLE_KEY_REQUEST_JSON)
+            if (!req.isNullOrBlank()) {
+                requestJsonStr = req
+            }
+            val hash = data.getByteArray(CredentialConstants.BUNDLE_KEY_CLIENT_DATA_HASH)
+            if (hash != null) {
+                clientDataHashBytes = hash
+            }
+        }
+
+        val effectiveRpId = item.passkeyRpId.ifBlank {
+            targetRpId ?: targetOrigin?.removePrefix("https://")?.removePrefix("http://")?.substringBefore(':') ?: ""
+        }
+
+        var challengeBase64 = ""
+        if (requestJsonStr.isNotBlank()) {
+            try {
+                val json = JSONObject(requestJsonStr)
+                challengeBase64 = json.optString("challenge")
+            } catch (_: Exception) {}
+        }
+
+        if (challengeBase64.isBlank()) {
+            val challengeBytes = ByteArray(32)
+            java.security.SecureRandom().nextBytes(challengeBytes)
+            challengeBase64 = Base64.getUrlEncoder().withoutPadding().encodeToString(challengeBytes)
+        }
+
+        val effectiveOrigin = targetOrigin ?: "https://$effectiveRpId"
+        val clientDataJsonBytes = PasskeyEngine.buildClientDataJson(
+            type = "webauthn.get",
+            challengeBase64 = challengeBase64,
+            origin = effectiveOrigin
+        )
+
+        val assertResult = withContext(Dispatchers.IO) {
+            app.vaultRepository.assertPasskey(item, clientDataJsonBytes, effectiveRpId)
+        }
+
+        when (assertResult) {
+            is KryptxResult.Success -> {
+                val assertion = assertResult.data
+                val responseJson = JSONObject().apply {
+                    put("id", item.passkeyCredentialId)
+                    put("rawId", item.passkeyCredentialId)
+                    put("type", "public-key")
+                    put("authenticatorAttachment", "platform")
+                    put("response", JSONObject().apply {
+                        put("authenticatorData", assertion.authenticatorDataBase64)
+                        put("clientDataJSON", assertion.clientDataJsonBase64)
+                        put("signature", assertion.signatureBase64)
+                        put("userHandle", assertion.userHandleBase64)
+                    })
+                    put("clientExtensionResults", JSONObject())
+                }.toString()
+
+                val dataBundle = Bundle().apply {
+                    putString(CredentialConstants.BUNDLE_KEY_AUTHENTICATION_RESPONSE_JSON, responseJson)
+                }
+
+                val credType = targetCredentialType
+                    ?: KryptxCredentialProviderSliceHelper.TYPE_PUBLIC_KEY_CREDENTIAL_ANDROIDX
+                val credential = android.credentials.Credential(credType, dataBundle)
+                val getResponse = android.credentials.GetCredentialResponse(credential)
+
+                val replyIntent = Intent().apply {
+                    putExtra(android.service.credentials.CredentialProviderService.EXTRA_GET_CREDENTIAL_RESPONSE, getResponse)
+                }
+                app.activityLogManager.logEvent("Passkey", "Signed assertion for ${item.title}")
+                setResult(Activity.RESULT_OK, replyIntent)
+                finish()
+            }
+            is KryptxResult.Error -> {
+                SecurityLogger.error("CredentialAuth", "Passkey assertion failed: ${assertResult.message}")
+                setResult(Activity.RESULT_CANCELED)
+                finish()
+            }
+        }
+    }
+
+    private fun fulfillPasswordGet(app: KryptxApplication, item: VaultItem) {
+        val dataBundle = Bundle().apply {
+            putString(CredentialConstants.BUNDLE_KEY_ID, item.username)
+            putString(CredentialConstants.BUNDLE_KEY_PASSWORD, item.password)
+        }
+
+        val credential = android.credentials.Credential(
+            android.credentials.Credential.TYPE_PASSWORD_CREDENTIAL,
+            dataBundle
+        )
+        val getResponse = android.credentials.GetCredentialResponse(credential)
+
+        val replyIntent = Intent().apply {
+            putExtra(android.service.credentials.CredentialProviderService.EXTRA_GET_CREDENTIAL_RESPONSE, getResponse)
+        }
+        app.activityLogManager.logEvent("Credential", "Retrieved password for ${item.title}")
+        setResult(Activity.RESULT_OK, replyIntent)
+        finish()
+    }
+
+    /**
+     * Completes a CreateCredentialRequest for Passkeys or Passwords.
+     */
+    private fun fulfillCreateCredential(userNameInput: String, userDisplayNameInput: String) {
+        val app = application as KryptxApplication
+        lifecycleScope.launch {
+            val frameworkCreateReq: android.service.credentials.CreateCredentialRequest? =
+                intent.getParcelableExtra(
+                    android.service.credentials.CredentialProviderService.EXTRA_CREATE_CREDENTIAL_REQUEST,
+                    android.service.credentials.CreateCredentialRequest::class.java
+                )
+
+            val reqData = frameworkCreateReq?.data ?: intent.extras ?: Bundle()
+            val requestType = frameworkCreateReq?.type ?: targetCredentialType ?: ""
+
+            if (requestType == KryptxCredentialProviderSliceHelper.TYPE_PUBLIC_KEY_CREDENTIAL_ANDROIDX ||
+                requestType == KryptxCredentialProviderSliceHelper.TYPE_PUBLIC_KEY_CREDENTIAL_FRAMEWORK
+            ) {
+                val reqJsonStr = reqData.getString(CredentialConstants.BUNDLE_KEY_REQUEST_JSON) ?: ""
+                var rpId = targetRpId ?: targetOrigin?.removePrefix("https://")?.removePrefix("http://")?.substringBefore(':') ?: ""
+                var rpName = rpId
+                var userName = userNameInput
+                var userHandle = ""
+                var challengeBytes = ByteArray(32)
+
+                if (reqJsonStr.isNotBlank()) {
+                    try {
+                        val json = JSONObject(reqJsonStr)
+                        val rpObj = json.optJSONObject("rp")
+                        if (rpObj != null) {
+                            rpId = rpObj.optString("id", rpId)
+                            rpName = rpObj.optString("name", rpName)
+                        }
+                        val userObj = json.optJSONObject("user")
+                        if (userObj != null) {
+                            if (userName.isBlank()) {
+                                userName = userObj.optString("name", userObj.optString("displayName", "User"))
+                            }
+                            userHandle = userObj.optString("id", "")
+                        }
+                        val chalB64 = json.optString("challenge")
+                        if (chalB64.isNotBlank()) {
+                            challengeBytes = Base64.getUrlDecoder().decode(chalB64)
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                if (userName.isBlank()) userName = "User"
+                if (userHandle.isBlank()) {
+                    userHandle = Base64.getUrlEncoder().withoutPadding().encodeToString(userName.toByteArray(Charsets.UTF_8))
+                }
+
+                val registerResult = withContext(Dispatchers.IO) {
+                    app.vaultRepository.registerPasskey(
+                        rpId = rpId,
+                        rpName = rpName,
+                        userHandle = userHandle,
+                        userName = userName,
+                        challenge = challengeBytes
+                    )
+                }
+
+                when (registerResult) {
+                    is KryptxResult.Success -> {
+                        val newItem = registerResult.data
+                        withContext(Dispatchers.IO) {
+                            app.vaultRepository.saveItem(newItem)
+                        }
+
+                        val origin = targetOrigin ?: "https://$rpId"
+                        val challengeB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(challengeBytes)
+                        val clientDataJsonBytes = PasskeyEngine.buildClientDataJson(
+                            type = "webauthn.create",
+                            challengeBase64 = challengeB64,
+                            origin = origin
+                        )
+
+                        val attestationB64 = PasskeyEngine.createAttestationObjectBase64(
+                            rpId = rpId,
+                            credentialIdBase64 = newItem.passkeyCredentialId,
+                            publicKeyCoseBase64 = newItem.passkeyPublicKeyCoseBase64
+                        )
+
+                        val regResponseJson = JSONObject().apply {
+                            put("id", newItem.passkeyCredentialId)
+                            put("rawId", newItem.passkeyCredentialId)
+                            put("type", "public-key")
+                            put("authenticatorAttachment", "platform")
+                            put("response", JSONObject().apply {
+                                put("clientDataJSON", Base64.getUrlEncoder().withoutPadding().encodeToString(clientDataJsonBytes))
+                                put("attestationObject", attestationB64)
+                            })
+                            put("clientExtensionResults", JSONObject())
+                        }.toString()
+
+                        val responseBundle = Bundle().apply {
+                            putString(CredentialConstants.BUNDLE_KEY_REGISTRATION_RESPONSE_JSON, regResponseJson)
+                        }
+
+                        val createResponse = android.credentials.CreateCredentialResponse(responseBundle)
+                        val replyIntent = Intent().apply {
+                            putExtra(android.service.credentials.CredentialProviderService.EXTRA_CREATE_CREDENTIAL_RESPONSE, createResponse)
+                        }
+                        app.activityLogManager.logEvent("Passkey", "Registered sovereign passkey for $rpName")
+                        setResult(Activity.RESULT_OK, replyIntent)
+                        finish()
+                    }
+                    is KryptxResult.Error -> {
+                        SecurityLogger.error("CredentialAuth", "Failed to register passkey: ${registerResult.message}")
+                        setResult(Activity.RESULT_CANCELED)
+                        finish()
+                    }
+                }
+            } else {
+                // Password creation fallback
+                val createResponse = android.credentials.CreateCredentialResponse(Bundle())
+                val replyIntent = Intent().apply {
+                    putExtra(android.service.credentials.CredentialProviderService.EXTRA_CREATE_CREDENTIAL_RESPONSE, createResponse)
+                }
+                setResult(Activity.RESULT_OK, replyIntent)
+                finish()
+            }
+        }
     }
 
     @Composable
-    private fun AutofillAuthScreen(
-        targetDomain: String?,
+    private fun CredentialAuthScreen(
+        targetAction: String?,
+        targetOrigin: String?,
         targetPackage: String?,
+        targetItemId: String?,
         onItemSelect: (VaultItem) -> Unit,
+        onCreateConfirm: (String, String) -> Unit,
         onCancel: () -> Unit,
         onBiometricUnlock: () -> Unit
     ) {
@@ -339,10 +483,9 @@ class AutofillAuthActivity : FragmentActivity() {
             return
         }
         val isUnlocked by app.sessionManager.isUnlocked.collectAsState()
-        val biometricEnabled by app.preferencesRepository.biometricEnabled.collectAsState()
         val lockoutSeconds by app.sessionManager.lockoutSecondsRemaining.collectAsState()
-        val isBiometricsConfigured = remember(biometricEnabled) {
-            biometricEnabled && app.vaultRepository.isBiometricsConfigured()
+        val isBiometricsConfigured = remember {
+            app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
         }
         val view = LocalView.current
         val scope = rememberCoroutineScope()
@@ -355,7 +498,6 @@ class AutofillAuthActivity : FragmentActivity() {
         var masterPasswordInput by remember { mutableStateOf("") }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var isLoading by remember { mutableStateOf(false) }
-
         var allItems by remember { mutableStateOf<List<VaultItem>>(emptyList()) }
 
         // Trigger biometrics on initial launch if locked and configured and not locked out
@@ -366,38 +508,49 @@ class AutofillAuthActivity : FragmentActivity() {
                 withContext(Dispatchers.IO) {
                     try {
                         allItems = app.vaultRepository.getItems().first()
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            errorMessage = if (app.sessionManager.isLocked())
-                                "Vault is locked — unlock first to view credentials"
-                            else
-                                "Failed to load credentials: ${e.message}"
-                        }
-                    }
+                    } catch (_: Exception) {}
                 }
             }
         }
 
-        val matchedItems = remember(allItems, targetDomain, targetPackage, searchQuery) {
-            val loginItems = allItems.filter { it.type == ItemType.LOGIN || it.type == ItemType.PASSKEY }
+        // Auto-fulfill if specific itemId was targeted once unlocked
+        LaunchedEffect(isUnlocked, allItems) {
+            if (isUnlocked && !targetItemId.isNullOrBlank() && allItems.isNotEmpty()) {
+                val found = allItems.firstOrNull { it.id == targetItemId }
+                if (found != null) {
+                    onItemSelect(found)
+                }
+            }
+        }
+
+        val displaySubtitle = targetOrigin ?: targetPackage ?: "Kryptx Sovereign Credentials"
+
+        val matchingItems = remember(allItems, targetOrigin, targetPackage, searchQuery) {
+            val eligible = allItems.filter { !it.isDeleted && (it.type == ItemType.LOGIN || it.type == ItemType.PASSKEY) }
             if (searchQuery.isNotBlank()) {
                 val q = searchQuery.lowercase().trim()
-                loginItems.filter {
+                eligible.filter {
                     it.title.lowercase().contains(q) ||
-                            it.username.lowercase().contains(q) ||
-                            it.website.lowercase().contains(q)
+                    it.username.lowercase().contains(q) ||
+                    it.website.lowercase().contains(q) ||
+                    it.passkeyRpId.lowercase().contains(q)
                 }
-            } else if (!targetDomain.isNullOrBlank() || !targetPackage.isNullOrBlank()) {
-                val matched = loginItems.filter { item ->
+            } else if (!targetOrigin.isNullOrBlank() || !targetPackage.isNullOrBlank()) {
+                val filtered = eligible.filter { item ->
                     when {
-                        !targetDomain.isNullOrBlank() && com.kryptx.app.core.security.DomainMatcher.isDomainMatch(targetDomain, item.website) -> true
-                        !targetPackage.isNullOrBlank() && com.kryptx.app.core.security.DomainMatcher.isPackageMatch(targetPackage, item.website, item.title) -> true
+                        !targetOrigin.isNullOrBlank() -> {
+                            val itemDomain = if (item.type == ItemType.PASSKEY) item.passkeyRpId else item.website
+                            DomainMatcher.isDomainMatch(targetOrigin, itemDomain)
+                        }
+                        !targetPackage.isNullOrBlank() -> {
+                            DomainMatcher.isPackageMatch(targetPackage, item.website, item.title)
+                        }
                         else -> false
                     }
                 }
-                if (matched.isNotEmpty()) matched else loginItems
+                if (filtered.isNotEmpty()) filtered else eligible
             } else {
-                loginItems
+                eligible
             }
         }
 
@@ -430,7 +583,7 @@ class AutofillAuthActivity : FragmentActivity() {
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Lock,
+                                    imageVector = Icons.Default.Shield,
                                     contentDescription = null,
                                     tint = KryptxBlue,
                                     modifier = Modifier.size(20.dp)
@@ -439,12 +592,12 @@ class AutofillAuthActivity : FragmentActivity() {
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Kryptx Autofill",
+                                    text = "Kryptx Passkey Sync",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Text(
-                                    text = targetDomain ?: targetPackage ?: "Sovereign Vault",
+                                    text = displaySubtitle,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -465,7 +618,7 @@ class AutofillAuthActivity : FragmentActivity() {
                     Spacer(modifier = Modifier.height(16.dp))
 
                     if (!isUnlocked) {
-                        // Locked State: Authenticate with Biometrics or Password
+                        // Locked State: Biometric or Password Prompt
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -480,7 +633,7 @@ class AutofillAuthActivity : FragmentActivity() {
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Authenticate to decrypt credentials for autofill",
+                                text = "Authenticate to authorize credential operation",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -561,7 +714,7 @@ class AutofillAuthActivity : FragmentActivity() {
                             Spacer(modifier = Modifier.height(16.dp))
 
                             KryptxPrimaryButton(
-                                text = if (lockoutSeconds > 0) "Retry in ${lockoutSeconds}s" else if (isLoading) "Unlocking..." else "Unlock & Fill",
+                                text = if (lockoutSeconds > 0) "Retry in ${lockoutSeconds}s" else if (isLoading) "Unlocking..." else "Unlock & Authorize",
                                 enabled = !isLoading && lockoutSeconds == 0,
                                 leadingIcon = if (isLoading) {
                                     {
@@ -609,8 +762,50 @@ class AutofillAuthActivity : FragmentActivity() {
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
+                    } else if (targetAction == CredentialConstants.ACTION_CREATE_CREDENTIAL) {
+                        // Create Credential View
+                        var userNameInput by remember { mutableStateOf("") }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Create Sovereign Passkey",
+                                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Save an encrypted WebAuthn passkey in your vault for $displaySubtitle",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            KryptxTextField(
+                                value = userNameInput,
+                                onValueChange = { userNameInput = it },
+                                label = "Account Username (optional)",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            KryptxPrimaryButton(
+                                text = "Save Passkey in Kryptx",
+                                onClick = {
+                                    KryptxHaptics.confirm(view)
+                                    onCreateConfirm(userNameInput, userNameInput)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     } else {
-                        // Unlocked State: Credential Picker
+                        // Unlocked Credential Picker List
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -632,7 +827,7 @@ class AutofillAuthActivity : FragmentActivity() {
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            if (matchedItems.isEmpty()) {
+                            if (matchingItems.isEmpty()) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -640,9 +835,9 @@ class AutofillAuthActivity : FragmentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = errorMessage ?: "No credentials found for this service",
+                                        text = "No credentials found for this service",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = if (errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             } else {
@@ -652,8 +847,8 @@ class AutofillAuthActivity : FragmentActivity() {
                                         .weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    items(matchedItems, key = { it.id }) { item ->
-                                        AutofillCredentialCard(
+                                    items(matchingItems, key = { it.id }) { item ->
+                                        CredentialItemCard(
                                             item = item,
                                             onClick = {
                                                 KryptxHaptics.confirm(view)
@@ -671,7 +866,7 @@ class AutofillAuthActivity : FragmentActivity() {
     }
 
     @Composable
-    private fun AutofillCredentialCard(
+    private fun CredentialItemCard(
         item: VaultItem,
         onClick: () -> Unit
     ) {
@@ -701,7 +896,7 @@ class AutofillAuthActivity : FragmentActivity() {
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Key,
+                            imageVector = if (item.type == ItemType.PASSKEY) Icons.Default.Fingerprint else Icons.Default.Key,
                             contentDescription = null,
                             tint = KryptxBlue,
                             modifier = Modifier.size(20.dp)
@@ -716,18 +911,21 @@ class AutofillAuthActivity : FragmentActivity() {
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onBackground
                         )
-                        if (item.username.isNotBlank()) {
-                            Text(
-                                text = item.username,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        val subtitle = if (item.type == ItemType.PASSKEY) {
+                            "Passkey • ${item.username.ifBlank { item.passkeyRpId }}"
+                        } else {
+                            item.username.ifBlank { "Password credential" }
                         }
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
                 Text(
-                    text = "Fill",
+                    text = "Select",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                     color = KryptxBlue,
                     modifier = Modifier
@@ -736,86 +934,6 @@ class AutofillAuthActivity : FragmentActivity() {
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun startActivityForResult(intent: Intent, requestCode: Int) {
-        startActivityForResult(intent, requestCode, null)
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
-        var bypassed = false
-        if ((requestCode and -0x10000) != 0) {
-            try {
-                val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedActivityFromFragment")
-                field.isAccessible = true
-                field.setBoolean(this, true)
-                bypassed = true
-            } catch (_: Throwable) {}
-        }
-        try {
-            super.startActivityForResult(intent, requestCode, options)
-        } finally {
-            if (bypassed) {
-                try {
-                    val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedActivityFromFragment")
-                    field.isAccessible = true
-                    field.setBoolean(this, false)
-                } catch (_: Throwable) {}
-            }
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun startIntentSenderForResult(
-        intent: android.content.IntentSender,
-        requestCode: Int,
-        fillInIntent: Intent?,
-        flagsMask: Int,
-        flagsValues: Int,
-        extraFlags: Int
-    ) {
-        startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, null)
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun startIntentSenderForResult(
-        intent: android.content.IntentSender,
-        requestCode: Int,
-        fillInIntent: Intent?,
-        flagsMask: Int,
-        flagsValues: Int,
-        extraFlags: Int,
-        options: Bundle?
-    ) {
-        var bypassed = false
-        if ((requestCode and -0x10000) != 0) {
-            try {
-                val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedIntentSenderFromFragment")
-                field.isAccessible = true
-                field.setBoolean(this, true)
-                bypassed = true
-            } catch (_: Throwable) {}
-        }
-        try {
-            super.startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options)
-        } finally {
-            if (bypassed) {
-                try {
-                    val field = androidx.fragment.app.FragmentActivity::class.java.getDeclaredField("mStartedIntentSenderFromFragment")
-                    field.isAccessible = true
-                    field.setBoolean(this, false)
-                } catch (_: Throwable) {}
-            }
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (!activityResultRegistry.dispatchResult(requestCode, resultCode, data)) {
-            super.onActivityResult(requestCode, resultCode, data)
         }
     }
 }

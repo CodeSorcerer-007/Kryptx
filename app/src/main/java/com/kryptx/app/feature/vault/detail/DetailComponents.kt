@@ -216,9 +216,9 @@ fun TotpCountdownCard(
         }
     }
 
-    if (totpCode == null) return
+    val code = totpCode ?: return
 
-    val secondsRemaining = totpCode!!.secondsRemaining
+    val secondsRemaining = code.secondsRemaining
     val urgencyColor by animateColorAsState(
         targetValue = when {
             secondsRemaining <= 5 -> KryptxRed
@@ -249,12 +249,12 @@ fun TotpCountdownCard(
             )
             .padding(14.dp)
             .semantics(mergeDescendants = true) {
-                val spokenCode = totpCode!!.code.map { it }.joinToString(", ")
+                val spokenCode = code.code.map { it }.joinToString(", ")
                 contentDescription = "2FA Authenticator Code. $spokenCode. ${secondsRemaining} seconds remaining."
                 onClick(label = "Copy 2FA Code", action = {
                     com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
                     copied = true
-                    onCopyCode(totpCode!!.code)
+                    onCopyCode(code.code)
                     true
                 })
             }
@@ -274,7 +274,7 @@ fun TotpCountdownCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = totpCode!!.formattedCode,
+                    text = code.formattedCode,
                     style = MonospaceTotp.copy(
                         fontSize = 24.sp,
                         color = MaterialTheme.colorScheme.onSurface
@@ -306,7 +306,7 @@ fun TotpCountdownCard(
                     onClick = {
                         com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
                         copied = true
-                        onCopyCode(totpCode!!.code)
+                        onCopyCode(code.code)
                         scope.launch {
                             delay(2000L)
                             copied = false

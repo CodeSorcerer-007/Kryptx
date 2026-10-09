@@ -137,9 +137,13 @@ object Argon2Engine {
         val byteBuffer: ByteBuffer = StandardCharsets.UTF_8.encode(charBuffer)
         val bytes = ByteArray(byteBuffer.remaining())
         byteBuffer.get(bytes)
-        // Zero out intermediate byte buffer backing array if accessible
+        // Zero out intermediate byte buffer
         if (byteBuffer.hasArray()) {
             Arrays.fill(byteBuffer.array(), 0.toByte())
+        } else if (!byteBuffer.isReadOnly) {
+            byteBuffer.clear()
+            val zeros = ByteArray(byteBuffer.capacity())
+            byteBuffer.put(zeros)
         }
         return bytes
     }

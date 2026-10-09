@@ -60,12 +60,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kryptx.app.KryptxApplication
+import com.kryptx.app.core.designsystem.components.KryptxPermissionRationaleDialog
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
+import com.kryptx.app.core.designsystem.components.findActivity
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 
@@ -79,6 +82,7 @@ fun DeviceIntegrationsSheet(
     val app = context.applicationContext as? KryptxApplication
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val lifecycleOwner = LocalLifecycleOwner.current
+    val activity = remember(context) { context.findActivity() }
 
     // Reactive permission and service states that refresh when returning to foreground
     var hasCameraPermission by remember {
@@ -93,12 +97,23 @@ fun DeviceIntegrationsSheet(
         )
     }
 
+    // Tracks whether the OS dialog has been fired at least once so we can detect permanent denial
+    var cameraPermissionRequested by remember { mutableStateOf(false) }
+    // Controls the in-app rationale dialog shown before the OS system dialog
+    var showCameraRationale by remember { mutableStateOf(false) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         app?.sessionManager?.setPickerActive(false)
         hasCameraPermission = granted
+        cameraPermissionRequested = true
     }
+
+    // True when the user has permanently denied camera (system won't show dialog again)
+    val isCameraPermanentlyDenied = cameraPermissionRequested && activity?.let {
+        !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+    } ?: false
 
     // Refresh state when resuming activity
     DisposableEffect(lifecycleOwner) {
@@ -147,6 +162,27 @@ fun DeviceIntegrationsSheet(
                 app?.sessionManager?.setPickerActive(false)
             }
         }
+    }
+
+    // In-app rationale dialog — shown before the OS camera system dialog
+    if (showCameraRationale) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.CameraAlt,
+            title = "Camera Access",
+            description = "Kryptx uses the camera exclusively to scan TOTP 2FA QR codes. Frames are processed in volatile RAM and never written to storage or shared externally.",
+            confirmButtonText = "Grant Camera Access",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showCameraRationale = false
+                app?.sessionManager?.setPickerActive(true)
+                try {
+                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                } catch (_: Throwable) {
+                    app?.sessionManager?.setPickerActive(false)
+                }
+            },
+            onDismiss = { showCameraRationale = false }
+        )
     }
 
     ModalBottomSheet(
@@ -216,13 +252,12 @@ fun DeviceIntegrationsSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             KryptxPrimaryButton(
-                                text = "Grant Permission",
+                                text = if (isCameraPermanentlyDenied) "Open App Settings" else "Grant Permission",
                                 onClick = {
-                                    app?.sessionManager?.setPickerActive(true)
-                                    try {
-                                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                                    } catch (_: Throwable) {
-                                        app?.sessionManager?.setPickerActive(false)
+                                    if (isCameraPermanentlyDenied) {
+                                        openAppSettings()
+                                    } else {
+                                        showCameraRationale = true
                                     }
                                 },
                                 height = 44.dp,

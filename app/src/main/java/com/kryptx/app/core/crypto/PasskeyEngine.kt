@@ -40,7 +40,16 @@ object PasskeyEngine {
         val userHandle: String,
         val rpId: String,
         val algorithm: String = "ES256 (ECDSA P-256)"
-    )
+    ) : java.io.Closeable {
+        fun wipe() {
+            SecureMemory.wipe(rawPrivateKeyBytes)
+            SecureMemory.wipe(rawPublicKeyBytes)
+        }
+
+        override fun close() {
+            wipe()
+        }
+    }
 
     data class PasskeyAssertionSignature(
         val authenticatorDataBase64: String,
@@ -82,6 +91,86 @@ object PasskeyEngine {
             rpId = rpId
         )
     }
+
+    /**
+     * Creates a W3C WebAuthn Level 3 compliant Attestation Object (CBOR encoded with fmt="none").
+     *
+     * Format:
+     * - authData: [32-byte rpIdHash] + [1-byte flags (UP=1, UV=1, AT=1 -> 0x45)] + [4-byte signCount (0)]
+     *             + [16-byte aaguid (zeros)] + [2-byte credentialIdLength] + [credentialIdBytes] + [cosePublicKeyBytes]
+     * - cborMap: { "fmt": "none", "attStmt": {}, "authData": authData }
+     */
+    fun createAttestationObject(
+        rpId: String,
+        credentialIdBytes: ByteArray,
+        cosePublicKeyBytes: ByteArray
+    ): ByteArray {
+        val rpIdHash = sha256(rpId.toByteArray(Charsets.UTF_8))
+        val authDataStream = ByteArrayOutputStream()
+        authDataStream.write(rpIdHash)
+        authDataStream.write(0x45) // Flags: UP (0x01) | UV (0x04) | AT (0x40)
+        authDataStream.write(ByteBuffer.allocate(4).putInt(0).array()) // Sign count: 0
+
+        // Attested Credential Data:
+        // AAGUID: 16 bytes of zeros for sovereign/privacy-preserving platform authenticator
+        authDataStream.write(ByteArray(16))
+
+        // Credential ID Length: 2 bytes big-endian
+        val credIdLenBuffer = ByteBuffer.allocate(2).putShort(credentialIdBytes.size.toShort()).array()
+        authDataStream.write(credIdLenBuffer)
+
+        // Credential ID:
+        authDataStream.write(credentialIdBytes)
+
+        // COSE Public Key:
+        authDataStream.write(cosePublicKeyBytes)
+
+        val authData = authDataStream.toByteArray()
+
+        // Deterministic CBOR Encoding for { "fmt": "none", "attStmt": {}, "authData": authData }
+        val cborStream = ByteArrayOutputStream()
+        cborStream.write(0xa3) // Map of 3 items
+
+        // 1. "fmt": "none"
+        cborStream.write(byteArrayOf(0x63, 'f'.code.toByte(), 'm'.code.toByte(), 't'.code.toByte()))
+        cborStream.write(byteArrayOf(0x64, 'n'.code.toByte(), 'o'.code.toByte(), 'n'.code.toByte(), 'e'.code.toByte()))
+
+        // 2. "attStmt": {}
+        cborStream.write(byteArrayOf(0x67, 'a'.code.toByte(), 't'.code.toByte(), 't'.code.toByte(), 'S'.code.toByte(), 't'.code.toByte(), 'm'.code.toByte(), 't'.code.toByte()))
+        cborStream.write(0xa0) // Empty map
+
+        // 3. "authData": authData
+        cborStream.write(byteArrayOf(0x68, 'a'.code.toByte(), 'u'.code.toByte(), 't'.code.toByte(), 'h'.code.toByte(), 'D'.code.toByte(), 'a'.code.toByte(), 't'.code.toByte(), 'a'.code.toByte()))
+        // Byte string encoding: major type 2 (0x40)
+        if (authData.size < 24) {
+            cborStream.write(0x40 or authData.size)
+        } else if (authData.size <= 255) {
+            cborStream.write(0x58)
+            cborStream.write(authData.size)
+        } else {
+            cborStream.write(0x59)
+            cborStream.write((authData.size shr 8) and 0xff)
+            cborStream.write(authData.size and 0xff)
+        }
+        cborStream.write(authData)
+
+        return cborStream.toByteArray()
+    }
+
+    /**
+     * Builds and base64url-encodes the WebAuthn Attestation Object for registration responses.
+     */
+    fun createAttestationObjectBase64(
+        rpId: String,
+        credentialIdBase64: String,
+        publicKeyCoseBase64: String
+    ): String {
+        val credIdBytes = Base64.getUrlDecoder().decode(credentialIdBase64)
+        val coseBytes = Base64.getUrlDecoder().decode(publicKeyCoseBase64)
+        val attestationBytes = createAttestationObject(rpId, credIdBytes, coseBytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(attestationBytes)
+    }
+
 
     /**
      * Signs a WebAuthn authentication assertion challenge using the stored passkey private key.

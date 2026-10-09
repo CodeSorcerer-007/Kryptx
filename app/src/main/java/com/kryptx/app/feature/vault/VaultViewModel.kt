@@ -125,12 +125,13 @@ class VaultViewModel(
         _searchQuery,
         _sortOption
     ) { items, category, query, sort ->
-        // Refresh entropy cache whenever the item list changes (passwords may have rotated)
-        synchronized(_entropyCache) {
-            _entropyCache.clear()
-            items.forEach { item ->
-                if (item.password.isNotBlank()) {
-                    _entropyCache[item.id] = EntropyCalculator.analyze(item.password).entropyBits
+        // Compute entropy lazily only when sorting by WEAKEST_FIRST
+        if (sort == SortOption.WEAKEST_FIRST) {
+            synchronized(_entropyCache) {
+                items.forEach { item ->
+                    if (item.password.isNotBlank() && !_entropyCache.containsKey(item.id)) {
+                        _entropyCache[item.id] = EntropyCalculator.analyze(item.password).entropyBits
+                    }
                 }
             }
         }
@@ -418,6 +419,9 @@ class VaultViewModel(
         sessionManager.removeLockListener(lockListener)
         synchronized(_deletedItemStack) {
             _deletedItemStack.clear()
+        }
+        synchronized(_entropyCache) {
+            _entropyCache.clear()
         }
     }
 }

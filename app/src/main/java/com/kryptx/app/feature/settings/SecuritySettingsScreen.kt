@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LockOpen
@@ -84,6 +85,8 @@ fun SecuritySettingsScreen(
     val scrambledPinDisabled by viewModel.scrambledPinDisabled.collectAsState()
     val hasDuress by viewModel.hasDuress.collectAsState()
     val hasPanic by viewModel.hasPanic.collectAsState()
+    val autoDestructEnabled by viewModel.autoDestructEnabled.collectAsState()
+    val autoDestructMaxAttempts by viewModel.autoDestructMaxAttempts.collectAsState()
     val activityEvents by viewModel.activityEvents.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -431,9 +434,9 @@ fun SecuritySettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (hasDuress || hasPanic) "Active Defenses Armed (Tap to configure)" else "Duress decoy vault & panic self-destruct protocol",
+                            text = if (hasDuress || hasPanic || autoDestructEnabled) "Active Defenses Armed (Tap to configure)" else "Duress decoy vault, panic & auto-destruct protocol",
                             fontSize = 12.sp,
-                            color = if (hasDuress || hasPanic) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (hasDuress || hasPanic || autoDestructEnabled) KryptxEmerald else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Icon(
@@ -539,6 +542,65 @@ fun SecuritySettingsScreen(
                                 color = if (hasPanic) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Auto-Destruct Section
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, (if (autoDestructEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline).copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background((if (autoDestructEnabled) MaterialTheme.colorScheme.error else KryptxAmber).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteForever,
+                                contentDescription = null,
+                                tint = if (autoDestructEnabled) MaterialTheme.colorScheme.error else KryptxAmber,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Emergency Auto-Destruct",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (autoDestructEnabled) "Armed (Wipes device data after $autoDestructMaxAttempts failed attempts)" else "Disabled (Self-destruct after failed attempts)",
+                                fontSize = 12.sp,
+                                color = if (autoDestructEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Switch(
+                            checked = autoDestructEnabled,
+                            onCheckedChange = { enabled ->
+                                viewModel.setAutoDestructEnabled(enabled)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.error,
+                                checkedTrackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                            )
+                        )
                     }
                 }
             }

@@ -226,8 +226,9 @@ fun Modifier.holographicGlow(
  */
 fun Modifier.staggeredEntrance(
     index: Int,
-    baseDelayMs: Long = 35L
+    baseDelayMs: Long = 25L
 ): Modifier = composed {
+    if (index >= 6) return@composed this
     var isVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -237,12 +238,12 @@ fun Modifier.staggeredEntrance(
 
     val alpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
         label = "stagger_alpha"
     )
     val translationY by animateFloatAsState(
-        targetValue = if (isVisible) 0f else 40f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        targetValue = if (isVisible) 0f else 24f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
         label = "stagger_trans_y"
     )
 

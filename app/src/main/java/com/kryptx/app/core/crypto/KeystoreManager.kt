@@ -26,12 +26,29 @@ class KeystoreManager {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val BIOMETRIC_KEY_ALIAS = "kryptx_biometric_master_key"
         private const val TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
-        private val OAEP_SPEC = OAEPParameterSpec(
+        private val OAEP_SPEC_SHA256 = OAEPParameterSpec(
+            "SHA-256",
+            "MGF1",
+            MGF1ParameterSpec.SHA256,
+            PSource.PSpecified.DEFAULT
+        )
+        private val OAEP_SPEC_SHA1 = OAEPParameterSpec(
             "SHA-256",
             "MGF1",
             MGF1ParameterSpec.SHA1,
             PSource.PSpecified.DEFAULT
         )
+        private val OAEP_SPEC: OAEPParameterSpec
+            get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) OAEP_SPEC_SHA256 else OAEP_SPEC_SHA1
+
+        private fun initCipherWithOaep(cipher: Cipher, opmode: Int, key: java.security.Key) {
+            try {
+                cipher.init(opmode, key, OAEP_SPEC)
+            } catch (_: java.security.InvalidAlgorithmParameterException) {
+                // Fallback for TEE implementations that restrict MGF1 to SHA-1
+                cipher.init(opmode, key, OAEP_SPEC_SHA1)
+            }
+        }
     }
 
     // Widened to `internal` so top-level extension functions in this file can access it
@@ -143,17 +160,30 @@ class KeystoreManager {
 
     /**
      * Checks whether the biometric hardware key was permanently invalidated by a newly enrolled biometric.
+     * Uses getKeyStore().getKey directly to avoid creating a new key pair as a side effect when absent.
      */
     fun isBiometricKeyPermanentlyInvalidated(iv: ByteArray = ByteArray(0)): Boolean {
-        if (!hasBiometricKey()) return false
         return try {
-            val keyPair = getOrCreateBiometricKeyPair()
+            val ks = getKeyStore()
+            if (!ks.containsAlias(BIOMETRIC_KEY_ALIAS)) return false
+            val privateKey = ks.getKey(BIOMETRIC_KEY_ALIAS, null) as? PrivateKey ?: return false
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, keyPair.private, OAEP_SPEC)
+            initCipherWithOaep(cipher, Cipher.DECRYPT_MODE, privateKey)
             false
         } catch (e: Exception) {
-            e is android.security.keystore.KeyPermanentlyInvalidatedException
+            isCausePermanentlyInvalidated(e)
         }
+    }
+
+    private fun isCausePermanentlyInvalidated(throwable: Throwable?): Boolean {
+        var current: Throwable? = throwable
+        while (current != null) {
+            if (current is android.security.keystore.KeyPermanentlyInvalidatedException) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     /**
@@ -164,13 +194,13 @@ class KeystoreManager {
         return try {
             val keyPair = getOrCreateBiometricKeyPair()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.ENCRYPT_MODE, keyPair.public, OAEP_SPEC)
+            initCipherWithOaep(cipher, Cipher.ENCRYPT_MODE, keyPair.public)
             cipher.doFinal(vek)
-        } catch (_: Exception) {
+        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
             removeBiometricKey()
             val newKeyPair = getOrCreateBiometricKeyPair()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.ENCRYPT_MODE, newKeyPair.public, OAEP_SPEC)
+            initCipherWithOaep(cipher, Cipher.ENCRYPT_MODE, newKeyPair.public)
             cipher.doFinal(vek)
         }
     }
@@ -183,7 +213,7 @@ class KeystoreManager {
         return try {
             val keyPair = getOrCreateBiometricKeyPair()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, keyPair.private, OAEP_SPEC)
+            initCipherWithOaep(cipher, Cipher.DECRYPT_MODE, keyPair.private)
             cipher
         } catch (e: Exception) {
             if (e is android.security.keystore.KeyPermanentlyInvalidatedException ||
@@ -201,7 +231,7 @@ class KeystoreManager {
         return try {
             val keyPair = getOrCreateBiometricKeyPair()
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.ENCRYPT_MODE, keyPair.public, OAEP_SPEC)
+            initCipherWithOaep(cipher, Cipher.ENCRYPT_MODE, keyPair.public)
             cipher
         } catch (_: Exception) {
             null
@@ -358,13 +388,14 @@ fun KeystoreManager.wrapVekWithEcdh(
     val rawSharedSecret = ka.generateSecret()
 
     // 3. HKDF-SHA256 to derive 32-byte wrapping key
+    val ephemeralPubBytes = ephemeralPair.public.encoded
     val wrappingKey = try {
         val hkdf = org.bouncycastle.crypto.generators.HKDFBytesGenerator(
             org.bouncycastle.crypto.digests.SHA256Digest()
         )
         hkdf.init(org.bouncycastle.crypto.params.HKDFParameters(
             rawSharedSecret,
-            null, // no salt — raw shared secret is high entropy
+            ephemeralPubBytes, // RFC 5869: ephemeral public key as HKDF salt for domain separation
             ECDH_HKDF_INFO.toByteArray(Charsets.UTF_8)
         ))
         ByteArray(32).also { hkdf.generateBytes(it, 0, 32) }
@@ -421,7 +452,7 @@ fun KeystoreManager.unwrapVekWithEcdh(
         )
         hkdf.init(org.bouncycastle.crypto.params.HKDFParameters(
             rawSharedSecret,
-            null,
+            ephemeralPublicKeyBytes, // matches wrapVekWithEcdh salt
             ECDH_HKDF_INFO.toByteArray(Charsets.UTF_8)
         ))
         ByteArray(32).also { hkdf.generateBytes(it, 0, 32) }

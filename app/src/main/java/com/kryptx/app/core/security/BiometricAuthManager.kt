@@ -89,7 +89,7 @@ class BiometricAuthManager(private val context: Context) {
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setConfirmationRequired(false)
+            .setConfirmationRequired(true)
             .setNegativeButtonText(negativeButtonText)
             .setAllowedAuthenticators(if (cryptoObject != null) BIOMETRIC_STRONG else (BIOMETRIC_STRONG or BIOMETRIC_WEAK))
             .build()

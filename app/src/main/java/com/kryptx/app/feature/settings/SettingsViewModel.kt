@@ -12,6 +12,7 @@ import com.kryptx.app.core.model.EncryptedBackupPayload
 import com.kryptx.app.core.security.ActivityEvent
 import com.kryptx.app.core.security.ActivityLogManager
 import com.kryptx.app.core.security.VaultSessionManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,26 +41,45 @@ class SettingsViewModel(
     val scrambledPinDisabled = preferencesRepository.scrambledPinDisabled
     val shakeToLockEnabled = preferencesRepository.shakeToLockEnabled
     val acousticFeedbackEnabled = preferencesRepository.acousticFeedbackEnabled
+    val autoDestructEnabled = preferencesRepository.autoDestructEnabled
+    val autoDestructMaxAttempts = preferencesRepository.autoDestructMaxAttempts
+
+    fun setAutoDestructEnabled(enabled: Boolean) {
+        preferencesRepository.setAutoDestructEnabled(enabled)
+    }
+
+    fun setAutoDestructMaxAttempts(attempts: Int) {
+        preferencesRepository.setAutoDestructMaxAttempts(attempts)
+    }
 
     val activityEvents: StateFlow<List<ActivityEvent>> = activityLogManager?.events
         ?: MutableStateFlow(emptyList<ActivityEvent>()).asStateFlow()
 
-    private val _hasDuress = MutableStateFlow(vaultRepository.hasDuressPassword())
+    private val _hasDuress = MutableStateFlow(false)
     val hasDuress: StateFlow<Boolean> = _hasDuress.asStateFlow()
 
-    private val _hasPanic = MutableStateFlow(vaultRepository.hasPanicPassword())
+    private val _hasPanic = MutableStateFlow(false)
     val hasPanic: StateFlow<Boolean> = _hasPanic.asStateFlow()
 
     private val _exportStatus = MutableStateFlow<String?>(null)
     val exportStatus: StateFlow<String?> = _exportStatus.asStateFlow()
 
-    private val _isHardwareKeyEnrolled = MutableStateFlow(vaultRepository.isHardwareKeyEnrolled())
+    private val _isHardwareKeyEnrolled = MutableStateFlow(false)
     val isHardwareKeyEnrolled: StateFlow<Boolean> = _isHardwareKeyEnrolled.asStateFlow()
 
-    private val _hardwareKeyLabel = MutableStateFlow(vaultRepository.getHardwareKeyLabel())
+    private val _hardwareKeyLabel = MutableStateFlow<String?>(null)
     val hardwareKeyLabel: StateFlow<String?> = _hardwareKeyLabel.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            _hasDuress.value = vaultRepository.hasDuressPassword()
+            _hasPanic.value = vaultRepository.hasPanicPassword()
+            _isHardwareKeyEnrolled.value = vaultRepository.isHardwareKeyEnrolled()
+            _hardwareKeyLabel.value = vaultRepository.getHardwareKeyLabel()
+        }
+    }
 
     fun refreshActivityLog() {
         activityLogManager?.loadEvents()
@@ -70,10 +90,12 @@ class SettingsViewModel(
     }
 
     fun refreshDuressStatus() {
-        _hasDuress.value = vaultRepository.hasDuressPassword()
-        _hasPanic.value = vaultRepository.hasPanicPassword()
-        _isHardwareKeyEnrolled.value = vaultRepository.isHardwareKeyEnrolled()
-        _hardwareKeyLabel.value = vaultRepository.getHardwareKeyLabel()
+        viewModelScope.launch(Dispatchers.IO) {
+            _hasDuress.value = vaultRepository.hasDuressPassword()
+            _hasPanic.value = vaultRepository.hasPanicPassword()
+            _isHardwareKeyEnrolled.value = vaultRepository.isHardwareKeyEnrolled()
+            _hardwareKeyLabel.value = vaultRepository.getHardwareKeyLabel()
+        }
     }
 
     fun setThemeMode(mode: AppThemeMode) {
@@ -152,13 +174,13 @@ class SettingsViewModel(
         preferencesRepository.setAcousticFeedbackEnabled(enabled)
     }
 
-    fun setupDuressPassword(duressPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        if (duressPin.length < 4) {
+    fun setupDuressPassword(duressPin: CharArray, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (duressPin.size < 4) {
             onError("Duress PIN/Password must be at least 4 characters")
             return
         }
+        val chars = duressPin.copyOf()
         viewModelScope.launch {
-            val chars = duressPin.toCharArray()
             val result = try {
                 vaultRepository.setupDuressPassword(chars)
             } finally {
@@ -177,6 +199,15 @@ class SettingsViewModel(
         }
     }
 
+    fun setupDuressPassword(duressPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val chars = duressPin.toCharArray()
+        try {
+            setupDuressPassword(chars, onSuccess, onError)
+        } finally {
+            SecureMemory.wipe(chars)
+        }
+    }
+
     fun removeDuressPassword(onComplete: () -> Unit) {
         viewModelScope.launch {
             vaultRepository.removeDuressPassword()
@@ -186,13 +217,13 @@ class SettingsViewModel(
         }
     }
 
-    fun setupPanicPassword(panicPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        if (panicPin.length < 4) {
+    fun setupPanicPassword(panicPin: CharArray, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (panicPin.size < 4) {
             onError("Panic PIN/Password must be at least 4 characters")
             return
         }
+        val chars = panicPin.copyOf()
         viewModelScope.launch {
-            val chars = panicPin.toCharArray()
             val result = try {
                 vaultRepository.setupPanicPassword(chars)
             } finally {
@@ -210,6 +241,15 @@ class SettingsViewModel(
         }
     }
 
+    fun setupPanicPassword(panicPin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val chars = panicPin.toCharArray()
+        try {
+            setupPanicPassword(chars, onSuccess, onError)
+        } finally {
+            SecureMemory.wipe(chars)
+        }
+    }
+
     fun removePanicPassword(onComplete: () -> Unit) {
         viewModelScope.launch {
             vaultRepository.removePanicPassword()
@@ -218,9 +258,9 @@ class SettingsViewModel(
         }
     }
 
-    fun removeHardwareKey(masterPass: String, onComplete: () -> Unit, onError: (String) -> Unit) {
+    fun removeHardwareKey(masterPass: CharArray, onComplete: () -> Unit, onError: (String) -> Unit) {
+        val chars = masterPass.copyOf()
         viewModelScope.launch {
-            val chars = masterPass.toCharArray()
             val result = try {
                 vaultRepository.removeHardwareKey(chars)
             } finally {
@@ -236,21 +276,30 @@ class SettingsViewModel(
         }
     }
 
+    fun removeHardwareKey(masterPass: String, onComplete: () -> Unit, onError: (String) -> Unit) {
+        val chars = masterPass.toCharArray()
+        try {
+            removeHardwareKey(chars, onComplete, onError)
+        } finally {
+            SecureMemory.wipe(chars)
+        }
+    }
+
     fun changeMasterPassword(
-        currentPass: String,
-        newPass: String,
+        currentPass: CharArray,
+        newPass: CharArray,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        if (newPass.length < 8) {
+        if (newPass.size < 8) {
             onError("New master password must be at least 8 characters")
             return
         }
 
-        viewModelScope.launch {
-            val currChars = currentPass.toCharArray()
-            val newChars = newPass.toCharArray()
+        val currChars = currentPass.copyOf()
+        val newChars = newPass.copyOf()
 
+        viewModelScope.launch {
             val result = try {
                 vaultRepository.changeMasterPassword(currChars, newChars)
             } finally {
@@ -272,8 +321,24 @@ class SettingsViewModel(
         }
     }
 
-    suspend fun exportEncryptedBackup(password: String): ByteArray? {
-        val chars = password.toCharArray()
+    fun changeMasterPassword(
+        currentPass: String,
+        newPass: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val currChars = currentPass.toCharArray()
+        val newChars = newPass.toCharArray()
+        try {
+            changeMasterPassword(currChars, newChars, onSuccess, onError)
+        } finally {
+            SecureMemory.wipe(currChars)
+            SecureMemory.wipe(newChars)
+        }
+    }
+
+    suspend fun exportEncryptedBackup(password: CharArray): ByteArray? {
+        val chars = password.copyOf()
         return try {
             val result = vaultRepository.exportEncryptedBackup(chars)
             result.getOrNull()?.let { payload ->
@@ -281,6 +346,15 @@ class SettingsViewModel(
                 json.encodeToString(EncryptedBackupPayload.serializer(), payload)
                     .toByteArray(Charsets.UTF_8)
             }
+        } finally {
+            SecureMemory.wipe(chars)
+        }
+    }
+
+    suspend fun exportEncryptedBackup(password: String): ByteArray? {
+        val chars = password.toCharArray()
+        return try {
+            exportEncryptedBackup(chars)
         } finally {
             SecureMemory.wipe(chars)
         }

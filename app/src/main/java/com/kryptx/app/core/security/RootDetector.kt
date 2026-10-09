@@ -287,8 +287,13 @@ object RootDetector {
             hardwareAttestationFailed = true
         } finally {
             try {
-                keyStore?.deleteEntry(alias)
-            } catch (_: Throwable) {}
+                val ks = keyStore ?: java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                if (ks.containsAlias(alias)) {
+                    ks.deleteEntry(alias)
+                }
+            } catch (t: Throwable) {
+                SecurityLogger.warn("RootDetector", "Failed to cleanup ephemeral attestation key alias", t)
+            }
         }
 
         val isRooted = hasRootBinary || hasRootManager || (hasTestKeys && !isEmulator) || hardwareAttestationFailed

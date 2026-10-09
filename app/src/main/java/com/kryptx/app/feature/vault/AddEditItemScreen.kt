@@ -106,9 +106,14 @@ fun AddEditItemScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val addEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel = customAddEditViewModel ?: androidx.lifecycle.viewmodel.compose.viewModel(
-        factory = com.kryptx.app.core.di.KryptxViewModelFactory(context.applicationContext as KryptxApplication)
-    )
+    val factory = remember(context) {
+        com.kryptx.app.core.di.KryptxViewModelFactory(
+            context.applicationContext as? KryptxApplication
+                ?: error("applicationContext is not KryptxApplication")
+        )
+    }
+    val addEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel = customAddEditViewModel
+        ?: androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
 
     val items by viewModel.rawItems.collectAsState()
     val existingItem = remember(itemId, items) {

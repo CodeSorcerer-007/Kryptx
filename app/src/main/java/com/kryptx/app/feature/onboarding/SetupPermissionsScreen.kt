@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.view.autofill.AutofillManager
 import androidx.activity.compose.BackHandler
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.ButtonDefaults
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -73,14 +76,29 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kryptx.app.KryptxApplication
 import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.KryptxLogo
+import com.kryptx.app.core.designsystem.components.KryptxPermissionRationaleDialog
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
+import com.kryptx.app.core.designsystem.components.findActivity
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxShapes
 import com.kryptx.app.core.security.NfcHardwareKeyManager
 
+/**
+ * In-app permission onboarding screen — shows a rationale dialog (with privacy guarantees)
+ * before launching any OS system permission dialog or settings deeplink.
+ *
+ * Flow per permission:
+ *  1. User taps "Grant Permission" button
+ *  2. [KryptxPermissionRationaleDialog] is shown explaining WHY and confirming offline privacy
+ *  3. User taps "Continue" → OS system dialog fires
+ *  4. If previously denied permanently → Settings deeplink shown directly
+ *
+ * On Android 13+ (API 33) POST_NOTIFICATIONS is also surfaced here since Kryptx uses
+ * a local AlarmManager notification to remind the user when the clipboard auto-clears.
+ */
 @Composable
 fun SetupPermissionsScreen(
     onContinue: () -> Unit,
@@ -91,12 +109,35 @@ fun SetupPermissionsScreen(
     val view = LocalView.current
     val app = context.applicationContext as? KryptxApplication
     val lifecycleOwner = LocalLifecycleOwner.current
+    val activity = remember(context) { context.findActivity() }
 
+    // ── Permission states ────────────────────────────────────────────────────
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
+
+    var hasNotificationPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else true // Permission not required below Android 13
+        )
+    }
+
+    val requiresNotificationPermission = remember {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    }
+
+    // Track whether we've fired the OS dialog at least once (for permanent-denial detection)
+    var notificationPermissionRequested by remember { mutableStateOf(false) }
+
+    // True once the user has permanently denied notifications (system won't show dialog again)
+    val isNotificationPermanentlyDenied = requiresNotificationPermission &&
+            notificationPermissionRequested && activity?.let {
+        !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
+    } ?: false
 
     var isAutofillEnabled by remember {
         mutableStateOf(
@@ -112,86 +153,155 @@ fun SetupPermissionsScreen(
         canAuth == BiometricManager.BIOMETRIC_SUCCESS || canAuth == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED
     }
 
-    val hasNfcHardware = remember {
-        NfcHardwareKeyManager.hasNfc(context)
-    }
+    val hasNfcHardware = remember { NfcHardwareKeyManager.hasNfc(context) }
 
-    var isNfcActive by remember {
-        mutableStateOf(
-            NfcHardwareKeyManager.isNfcEnabled(context)
-        )
-    }
+    var isNfcActive by remember { mutableStateOf(NfcHardwareKeyManager.isNfcEnabled(context)) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
+    // ── Rationale dialog state ───────────────────────────────────────────────
+    var showCameraRationale by remember { mutableStateOf(false) }
+    var showNotificationRationale by remember { mutableStateOf(false) }
+    var showAutofillRationale by remember { mutableStateOf(false) }
+
+    // ── Permission launchers ─────────────────────────────────────────────────
+    val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         app?.sessionManager?.setPickerActive(false)
         hasCameraPermission = granted
-        if (granted) {
-            KryptxHaptics.confirm(view)
-        }
+        if (granted) KryptxHaptics.confirm(view)
     }
 
-    // Refresh states when returning from system dialogs/settings
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        app?.sessionManager?.setPickerActive(false)
+        hasNotificationPermission = granted
+        notificationPermissionRequested = true
+        if (granted) KryptxHaptics.confirm(view)
+    }
+
+    // Refresh all states whenever the app returns from a system settings deeplink
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasCameraPermission = ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.CAMERA
+                    context, Manifest.permission.CAMERA
                 ) == PackageManager.PERMISSION_GRANTED
 
-                isAutofillEnabled = context.getSystemService(AutofillManager::class.java)?.hasEnabledAutofillServices() == true
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    hasNotificationPermission = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                }
+
+                isAutofillEnabled = context.getSystemService(AutofillManager::class.java)
+                    ?.hasEnabledAutofillServices() == true
                 isNfcActive = NfcHardwareKeyManager.isNfcEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     BackHandler(onBack = onBack)
 
+    // Settings deeplinks
     val openAppSettings: () -> Unit = {
         app?.sessionManager?.setPickerActive(true)
         try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.fromParts("package", context.packageName, null)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-        } catch (_: Exception) {
-            app?.sessionManager?.setPickerActive(false)
-        }
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } catch (_: Exception) { app?.sessionManager?.setPickerActive(false) }
     }
 
     val openAutofillSettings: () -> Unit = {
         app?.sessionManager?.setPickerActive(true)
         try {
-            val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
+            context.startActivity(
+                Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
         } catch (_: Exception) {
             try {
-                val fallbackIntent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE)
-                context.startActivity(fallbackIntent)
-            } catch (_: Exception) {
-                app?.sessionManager?.setPickerActive(false)
-            }
+                context.startActivity(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE))
+            } catch (_: Exception) { app?.sessionManager?.setPickerActive(false) }
         }
     }
 
     val openNfcSettings: () -> Unit = {
         try {
-            val intent = Intent(Settings.ACTION_NFC_SETTINGS).apply {
+            context.startActivity(Intent(Settings.ACTION_NFC_SETTINGS).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
+            })
         } catch (_: Exception) {}
     }
+
+    // ── Rationale dialogs ────────────────────────────────────────────────────
+    if (showCameraRationale) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.CameraAlt,
+            title = "Camera Access",
+            description = "Kryptx uses the camera exclusively to scan 2FA QR codes and capture encrypted attachment photos. Frames are processed in volatile RAM and never written to external storage.",
+            confirmButtonText = "Grant Camera Access",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showCameraRationale = false
+                app?.sessionManager?.setPickerActive(true)
+                cameraLauncher.launch(Manifest.permission.CAMERA)
+            },
+            onDismiss = { showCameraRationale = false }
+        )
+    }
+
+    if (showNotificationRationale) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.Notifications,
+            title = "Allow Notifications",
+            description = "Kryptx shows a local-only notification when it auto-clears your clipboard after a copy. No push servers, no remote alerts — strictly local OS notifications on this device.",
+            privacyGuarantee = "100% Offline: All notifications are generated locally. Zero network calls are ever made.",
+            confirmButtonText = "Allow Notifications",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showNotificationRationale = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (isNotificationPermanentlyDenied) {
+                        // OS dialog won't appear again — send user to system settings
+                        openAppSettings()
+                    } else {
+                        app?.sessionManager?.setPickerActive(true)
+                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            },
+            onDismiss = { showNotificationRationale = false }
+        )
+    }
+
+    if (showAutofillRationale) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.AutoAwesome,
+            title = "1-Tap Android Autofill",
+            description = "This will open Android Settings where you can set Kryptx as your autofill provider. Kryptx fills credentials inside Chrome, Firefox, and native apps. All matching happens 100% on-device.",
+            privacyGuarantee = "No data leaves your device. Autofill matching is done offline in the app sandbox.",
+            confirmButtonText = "Open Autofill Settings",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showAutofillRationale = false
+                openAutofillSettings()
+            },
+            onDismiss = { showAutofillRationale = false }
+        )
+    }
+
+    // All required (non-optional) permissions are satisfied
+    val allCriticalGranted = hasCameraPermission &&
+            (!requiresNotificationPermission || hasNotificationPermission)
 
     Scaffold(
         modifier = modifier
@@ -212,7 +322,6 @@ fun SetupPermissionsScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Logo & Header
             KryptxLogo(size = 72.dp, showGlow = true)
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -234,7 +343,7 @@ fun SetupPermissionsScreen(
                 textAlign = TextAlign.Center
             )
 
-            // 1. Camera Runtime Permission Card
+            // ── 1. Camera ──────────────────────────────────────────────────────
             SetupPermissionItemCard(
                 title = "Camera Access",
                 badgeText = if (hasCameraPermission) "Granted & Active" else "Permission Required",
@@ -249,14 +358,7 @@ fun SetupPermissionsScreen(
                         ) {
                             KryptxPrimaryButton(
                                 text = "Grant Permission",
-                                onClick = {
-                                    app?.sessionManager?.setPickerActive(true)
-                                    try {
-                                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                                    } catch (_: Throwable) {
-                                        app?.sessionManager?.setPickerActive(false)
-                                    }
-                                },
+                                onClick = { showCameraRationale = true },
                                 height = 40.dp,
                                 modifier = Modifier
                                     .weight(1f)
@@ -271,7 +373,7 @@ fun SetupPermissionsScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                    contentDescription = null,
+                                    contentDescription = "Open system settings",
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -284,7 +386,38 @@ fun SetupPermissionsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 2. Biometric Enclave Card
+            // ── 2. Notifications (Android 13+) ─────────────────────────────────
+            if (requiresNotificationPermission) {
+                SetupPermissionItemCard(
+                    title = "Local Notifications",
+                    badgeText = if (hasNotificationPermission) "Granted & Active" else "Recommended",
+                    isPositive = hasNotificationPermission,
+                    icon = Icons.Default.Notifications,
+                    description = "Allows Kryptx to show a local reminder when clipboard auto-clear fires. Zero remote notifications, push servers, or analytics — strictly on-device.",
+                    action = {
+                        if (!hasNotificationPermission) {
+                            KryptxPrimaryButton(
+                                text = if (isNotificationPermanentlyDenied) "Open App Settings" else "Allow Notifications",
+                                onClick = {
+                                    if (isNotificationPermanentlyDenied) {
+                                        openAppSettings()
+                                    } else {
+                                        showNotificationRationale = true
+                                    }
+                                },
+                                height = 40.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("grant_notification_permission_button")
+                            )
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // ── 3. Biometric ───────────────────────────────────────────────────
             SetupPermissionItemCard(
                 title = "Biometric Authentication",
                 badgeText = if (hasBiometrics) "Hardware Enclave Ready" else "Device Unsupported",
@@ -296,7 +429,7 @@ fun SetupPermissionsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 3. Android Autofill Service Card
+            // ── 4. Autofill ────────────────────────────────────────────────────
             SetupPermissionItemCard(
                 title = "1-Tap Android Autofill",
                 badgeText = if (isAutofillEnabled) "Active Provider" else "Optional Setup",
@@ -307,7 +440,7 @@ fun SetupPermissionsScreen(
                     if (!isAutofillEnabled) {
                         KryptxPrimaryButton(
                             text = "Enable Kryptx Autofill",
-                            onClick = openAutofillSettings,
+                            onClick = { showAutofillRationale = true },
                             height = 40.dp,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -319,7 +452,7 @@ fun SetupPermissionsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 4. Hardware NFC Key Card (if device has NFC)
+            // ── 5. NFC Hardware Security Keys ─────────────────────────────────
             if (hasNfcHardware) {
                 SetupPermissionItemCard(
                     title = "NFC Security Keys",
@@ -343,7 +476,7 @@ fun SetupPermissionsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 5. Zero-Network Air-Gap Guarantee
+            // ── 6. Zero-Network Guarantee ─────────────────────────────────────
             SetupPermissionItemCard(
                 title = "Zero-Network Security",
                 badgeText = "100% Air-Gapped",
@@ -355,8 +488,8 @@ fun SetupPermissionsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Bottom CTA Actions
-            if (!hasCameraPermission) {
+            // ── Bottom CTA ─────────────────────────────────────────────────────
+            if (!allCriticalGranted) {
                 KryptxPrimaryButton(
                     text = "Grant OS Permissions",
                     containerColor = KryptxBlue,
@@ -365,11 +498,12 @@ fun SetupPermissionsScreen(
                         .fillMaxWidth()
                         .testTag("setup_grant_all_permissions_button"),
                     onClick = {
-                        app?.sessionManager?.setPickerActive(true)
-                        try {
-                            permissionLauncher.launch(Manifest.permission.CAMERA)
-                        } catch (_: Throwable) {
-                            app?.sessionManager?.setPickerActive(false)
+                        // Show rationale for first ungranted required permission
+                        when {
+                            !hasCameraPermission -> showCameraRationale = true
+                            requiresNotificationPermission && !hasNotificationPermission ->
+                                if (isNotificationPermanentlyDenied) openAppSettings()
+                                else showNotificationRationale = true
                         }
                     }
                 )

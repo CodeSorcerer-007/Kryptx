@@ -160,27 +160,33 @@ object CryptoEngine {
         return decryptedFrame.copyOfRange(4 + aadLen, decryptedFrame.size)
     }
 
-    private val sessionNonceCounter = java.util.concurrent.atomic.AtomicLong(0)
+    private val sessionNonceCounter = java.util.concurrent.atomic.AtomicLong(0L)
+    private val sessionIvPrefix = ByteArray(8).also { secureRandom.nextBytes(it) }
 
     /**
      * Generates a 96-bit nonce following NIST SP 800-38D §8.2.1:
-     * 64 bits of CSPRNG entropy + 32-bit monotonic invocation counter.
-     * Prevents nonce reuse across up to 2^32 encryptions even under low-entropy OEM conditions.
+     * 64 bits of CSPRNG entropy prefix + 32-bit monotonic invocation counter.
+     * Prevents nonce reuse across up to 2^32 encryptions per session.
+     * If the 32-bit counter rolls over, safely re-randomizes the 64-bit prefix.
      */
     internal fun generateDeterministicIv(): ByteArray {
         val iv = ByteArray(IV_LENGTH_BYTES)
-        val prefix = ByteArray(4)
-        secureRandom.nextBytes(prefix)
-        System.arraycopy(prefix, 0, iv, 0, 4)
-        val counterVal = sessionNonceCounter.getAndIncrement()
-        iv[4] = (counterVal ushr 56).toByte()
-        iv[5] = (counterVal ushr 48).toByte()
-        iv[6] = (counterVal ushr 40).toByte()
-        iv[7] = (counterVal ushr 32).toByte()
-        iv[8] = (counterVal ushr 24).toByte()
-        iv[9] = (counterVal ushr 16).toByte()
-        iv[10] = (counterVal ushr 8).toByte()
-        iv[11] = counterVal.toByte()
+        val ctr = sessionNonceCounter.getAndIncrement()
+        if (ctr >= 0xFFFFFFFFL) {
+            synchronized(sessionIvPrefix) {
+                if (sessionNonceCounter.get() >= 0xFFFFFFFFL) {
+                    secureRandom.nextBytes(sessionIvPrefix)
+                    sessionNonceCounter.set(0L)
+                }
+            }
+        }
+        synchronized(sessionIvPrefix) {
+            System.arraycopy(sessionIvPrefix, 0, iv, 0, 8)
+        }
+        iv[8] = ((ctr ushr 24) and 0xFFL).toByte()
+        iv[9] = ((ctr ushr 16) and 0xFFL).toByte()
+        iv[10] = ((ctr ushr 8) and 0xFFL).toByte()
+        iv[11] = (ctr and 0xFFL).toByte()
         return iv
     }
 
@@ -244,19 +250,16 @@ object CryptoEngine {
                     try {
                         NativeCryptoEngineWrapper.decryptNative(payload, key)
                     } catch (e: Exception) {
-                        // AEADBadTagException indicates authentication failure — never fall back,
-                        // as that would allow ciphertext confusion attacks across cipher families.
                         if (e is javax.crypto.AEADBadTagException ||
                             e.cause is javax.crypto.AEADBadTagException ||
                             e.javaClass.name.contains("AEADBadTag")) {
                             throw e
                         }
-                        // Only fall back for non-auth failures (e.g. native library unavailable)
-                        SecurityLogger.warn("CryptoEngine", "XChaCha20 tagged decryption failed (non-auth), falling back to legacy: ${e.javaClass.simpleName}", e)
-                        decryptLegacy(encryptedData, key, associatedData)
+                        SecurityLogger.error("CryptoEngine", "XChaCha20 tagged decryption failed: ${e.javaClass.simpleName}", e)
+                        throw e
                     }
                 } else {
-                    decryptLegacy(encryptedData, key, associatedData)
+                    throw IllegalStateException("XChaCha20 ciphertext cannot be decrypted: native crypto engine is unavailable")
                 }
             }
             CIPHER_TAG_XCHACHA_AAD -> {
@@ -268,15 +271,13 @@ object CryptoEngine {
                     val decryptedFrame = try {
                         NativeCryptoEngineWrapper.decryptNative(payload, key)
                     } catch (e: Exception) {
-                        // Auth tag failures must never fall through.
                         if (e is javax.crypto.AEADBadTagException ||
                             e.cause is javax.crypto.AEADBadTagException ||
                             e.javaClass.name.contains("AEADBadTag")) {
                             throw e
                         }
-                        SecurityLogger.warn("CryptoEngine", "XChaCha20-AAD tagged decryption failed (non-auth), falling back to AES-GCM: ${e.javaClass.simpleName}", e)
-                        // Non-auth failure — repack and attempt AES-GCM (legacy payload would have 0x02 tag)
-                        return decryptJvm(payload, key, associatedData)
+                        SecurityLogger.error("CryptoEngine", "XChaCha20-AAD tagged decryption failed: ${e.javaClass.simpleName}", e)
+                        throw e
                     }
                     try {
                         unpackAadFrame(decryptedFrame, associatedData)
@@ -284,8 +285,7 @@ object CryptoEngine {
                         SecureMemory.wipe(decryptedFrame)
                     }
                 } else {
-                    // Native engine unavailable — fall back to AES-GCM (legacy path)
-                    decryptLegacy(encryptedData, key, associatedData)
+                    throw IllegalStateException("XChaCha20-AAD ciphertext cannot be decrypted: native crypto engine is unavailable")
                 }
             }
             CIPHER_TAG_AES_GCM -> {
@@ -428,19 +428,19 @@ object CryptoEngine {
     }
 
     /**
-     * Helper to encrypt a CharArray into a Base64-encoded encrypted payload string.
-     * Minimizes String memory retention.
+     * Helper to encrypt a CharArray into a Base64-encoded encrypted payload string using UTF-8 encoding.
+     * Minimizes String memory retention by streaming directly via CharBuffer.
      */
     fun encryptCharArray(
         chars: CharArray,
         key: ByteArray,
         associatedData: ByteArray? = null
     ): String {
-        val byteBuffer = ByteBuffer.allocate(chars.size * 2)
-        for (c in chars) {
-            byteBuffer.putChar(c)
-        }
-        val plainBytes = byteBuffer.array()
+        val encoder = java.nio.charset.StandardCharsets.UTF_8.newEncoder()
+        val charBuffer = java.nio.CharBuffer.wrap(chars)
+        val byteBuffer = encoder.encode(charBuffer)
+        val plainBytes = ByteArray(byteBuffer.remaining())
+        byteBuffer.get(plainBytes)
         return try {
             val encrypted = encrypt(plainBytes, key, associatedData)
             Base64.getEncoder().encodeToString(encrypted)
@@ -450,7 +450,7 @@ object CryptoEngine {
     }
 
     /**
-     * Helper to decrypt a Base64-encoded encrypted payload string into a CharArray.
+     * Helper to decrypt a Base64-encoded encrypted payload string into a CharArray using UTF-8 decoding.
      * Minimizes String memory retention.
      */
     fun decryptToCharArray(
@@ -461,16 +461,24 @@ object CryptoEngine {
         val encryptedBytes = Base64.getDecoder().decode(encryptedBase64)
         val decryptedBytes = decrypt(encryptedBytes, key, associatedData)
         return try {
-            require(decryptedBytes.size % 2 == 0) {
-                "Decrypted payload has odd byte count (${decryptedBytes.size}); " +
-                "cannot decode as CharArray — possible format mismatch or payload corruption"
-            }
+            val decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
             val byteBuffer = ByteBuffer.wrap(decryptedBytes)
-            val chars = CharArray(decryptedBytes.size / 2)
-            for (i in chars.indices) {
-                chars[i] = byteBuffer.char
-            }
+            val charBuffer = decoder.decode(byteBuffer)
+            val chars = CharArray(charBuffer.remaining())
+            charBuffer.get(chars)
             chars
+        } catch (_: java.nio.charset.CharacterCodingException) {
+            // Backward-compatibility fallback for legacy UTF-16BE payloads
+            if (decryptedBytes.size % 2 == 0) {
+                val byteBuffer = ByteBuffer.wrap(decryptedBytes)
+                val chars = CharArray(decryptedBytes.size / 2)
+                for (i in chars.indices) {
+                    chars[i] = byteBuffer.char
+                }
+                chars
+            } else {
+                throw IllegalArgumentException("Cannot decode decrypted bytes to CharArray")
+            }
         } finally {
             SecureMemory.wipe(decryptedBytes)
         }

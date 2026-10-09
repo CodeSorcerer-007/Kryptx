@@ -1,11 +1,15 @@
 package com.kryptx.app.core.security
 
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.content.ClipboardManager
 import android.os.Build
-import android.content.ClipData
+import androidx.core.app.NotificationCompat
+import com.kryptx.app.KryptxApplication
+import com.kryptx.app.R
 
 class ClipboardClearReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -46,10 +50,37 @@ class ClipboardClearReceiver : BroadcastReceiver() {
                     } else {
                         clipboardManager.setPrimaryClip(ClipData.newPlainText("", ""))
                     }
+                    postClipboardClearedNotification(context)
                 }
             } catch (e: Exception) {
                 // Ignore
             }
         }
+    }
+
+    /**
+     * Posts a silent, auto-dismissing local notification confirming clipboard was cleared.
+     * This is the implementation that backs the POST_NOTIFICATIONS permission declaration.
+     * Only fires if a sensitive clipboard entry was actually wiped.
+     */
+    private fun postClipboardClearedNotification(context: Context) {
+        try {
+            val nm = context.getSystemService(NotificationManager::class.java) ?: return
+            val notification = NotificationCompat.Builder(context, KryptxApplication.CHANNEL_CLIPBOARD)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("Clipboard Cleared")
+                .setContentText("Kryptx auto-wiped a sensitive secret from your clipboard.")
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setAutoCancel(true)
+                .setTimeoutAfter(8_000L) // Auto-dismiss after 8 s
+                .build()
+            nm.notify(NOTIFICATION_ID_CLIPBOARD_CLEAR, notification)
+        } catch (_: Exception) {
+            // Never crash if notification posting fails (e.g. permission not granted)
+        }
+    }
+
+    companion object {
+        private const val NOTIFICATION_ID_CLIPBOARD_CLEAR = 1001
     }
 }

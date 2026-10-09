@@ -16,72 +16,82 @@ import com.kryptx.app.feature.vault.editor.AddEditViewModel
  * Deterministic, reflection-free ViewModel factory implementing manual dependency injection
  * in accordance with ADR-001.
  *
+ * Accepts [KryptxDependencies] rather than [KryptxApplication] directly so the factory can be
+ * constructed with a test fake that implements the same interface — enabling full ViewModel unit
+ * testing without an Android instrumented environment.
+ *
  * Ensures deterministic lifecycles, zero reflection overhead, and strict auditable wiring
  * for all cryptographic security components.
  */
 class KryptxViewModelFactory(
-    private val app: KryptxApplication
+    private val deps: KryptxDependencies
 ) : ViewModelProvider.Factory {
+
+    /**
+     * Secondary constructor that accepts the Application directly for call sites that
+     * already hold a [KryptxApplication] reference, avoiding a breaking API change.
+     */
+    constructor(app: KryptxApplication) : this(deps = app)
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(UnlockViewModel::class.java) -> {
                 UnlockViewModel(
-                    vaultRepository = app.vaultRepository,
-                    sessionManager = app.sessionManager,
-                    preferencesRepository = app.preferencesRepository,
-                    activityLogManager = app.activityLogManager
+                    vaultRepository = deps.vaultRepository,
+                    sessionManager = deps.sessionManager,
+                    preferencesRepository = deps.preferencesRepository,
+                    activityLogManager = deps.activityLogManager
                 ) as T
             }
             modelClass.isAssignableFrom(VaultViewModel::class.java) -> {
                 VaultViewModel(
-                    vaultRepository = app.vaultRepository,
-                    sessionManager = app.sessionManager,
-                    clipboardSecurityManager = app.clipboardManager,
-                    attachmentManager = app.attachmentManager,
-                    preferencesRepository = app.preferencesRepository,
-                    activityLogManager = app.activityLogManager
+                    vaultRepository = deps.vaultRepository,
+                    sessionManager = deps.sessionManager,
+                    clipboardSecurityManager = deps.clipboardManager,
+                    attachmentManager = deps.attachmentManager,
+                    preferencesRepository = deps.preferencesRepository,
+                    activityLogManager = deps.activityLogManager
                 ) as T
             }
             modelClass.isAssignableFrom(AddEditViewModel::class.java) -> {
                 AddEditViewModel(
-                    vaultRepository = app.vaultRepository,
-                    sessionManager = app.sessionManager,
-                    attachmentManager = app.attachmentManager,
-                    activityLogManager = app.activityLogManager
+                    vaultRepository = deps.vaultRepository,
+                    sessionManager = deps.sessionManager,
+                    attachmentManager = deps.attachmentManager,
+                    activityLogManager = deps.activityLogManager
                 ) as T
             }
             modelClass.isAssignableFrom(GeneratorViewModel::class.java) -> {
                 GeneratorViewModel(
-                    clipboardSecurityManager = app.clipboardManager
+                    clipboardSecurityManager = deps.clipboardManager
                 ) as T
             }
             modelClass.isAssignableFrom(SecurityCenterViewModel::class.java) -> {
                 SecurityCenterViewModel(
-                    vaultRepository = app.vaultRepository,
-                    clipboardSecurityManager = app.clipboardManager,
-                    activityLogManager = app.activityLogManager
+                    vaultRepository = deps.vaultRepository,
+                    clipboardSecurityManager = deps.clipboardManager,
+                    activityLogManager = deps.activityLogManager
                 ) as T
             }
             modelClass.isAssignableFrom(TotpViewModel::class.java) -> {
                 TotpViewModel(
-                    vaultRepository = app.vaultRepository,
-                    clipboardSecurityManager = app.clipboardManager
+                    vaultRepository = deps.vaultRepository,
+                    clipboardSecurityManager = deps.clipboardManager
                 ) as T
             }
             modelClass.isAssignableFrom(SearchViewModel::class.java) -> {
                 SearchViewModel(
-                    vaultRepository = app.vaultRepository,
-                    clipboardSecurityManager = app.clipboardManager
+                    vaultRepository = deps.vaultRepository,
+                    clipboardSecurityManager = deps.clipboardManager
                 ) as T
             }
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> {
                 SettingsViewModel(
-                    preferencesRepository = app.preferencesRepository,
-                    vaultRepository = app.vaultRepository,
-                    sessionManager = app.sessionManager,
-                    activityLogManager = app.activityLogManager
+                    preferencesRepository = deps.preferencesRepository,
+                    vaultRepository = deps.vaultRepository,
+                    sessionManager = deps.sessionManager,
+                    activityLogManager = deps.activityLogManager
                 ) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

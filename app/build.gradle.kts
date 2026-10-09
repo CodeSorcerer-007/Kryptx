@@ -27,6 +27,15 @@ android {
         }
     }
 
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     val localProperties = Properties().apply {
         val localPropertiesFile = rootProject.file("local.properties")
         if (localPropertiesFile.exists()) {
@@ -47,6 +56,9 @@ android {
         ?: (project.findProperty("kryptx.key.alias") as? String)
         ?: "kryptx-release"
 
+    val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+    val isCi = System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null
+
     signingConfigs {
         if (releaseKeyStore.exists() && keyStorePassword != null && keyPasswordVal != null) {
             create("release") {
@@ -59,8 +71,8 @@ android {
                 enableV3Signing = true
                 enableV4Signing = true
             }
-        } else if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
-            // On CI, missing signing credentials is a hard build failure — never silently
+        } else if (isCi && isReleaseTask) {
+            // On CI, missing signing credentials during release build is a hard build failure — never silently
             // fall back to the debug keystore in production/release builds.
             error(
                 "Release signing credentials are missing on CI.\n" +
@@ -77,23 +89,34 @@ android {
             ndk {
                 debugSymbolLevel = "FULL"
             }
-            // Hard-fail if no release signing config is available. Shipping a release APK
-            // signed with the debug keystore is a supply-chain footgun.
+            // Only require release signing config when actually assembling a release build.
+            // Guarded so Gradle sync from developer workstations succeeds without signing keys.
             val releaseSigningConfig = signingConfigs.findByName("release")
-                ?: error(
+            if (releaseSigningConfig != null) {
+                signingConfig = releaseSigningConfig
+            } else if (isReleaseTask) {
+                error(
                     "Release signing config not found.\n" +
                     "Provide KRYPTX_KEYSTORE_PASSWORD / KRYPTX_KEY_PASSWORD via env vars " +
                     "or local.properties before building a release APK."
                 )
-            signingConfig = releaseSigningConfig
+            }
 
             // Inject the release APK signing certificate SHA-256 fingerprint into BuildConfig.
             // This fingerprint is computed from the release keystore at build time and baked into
             // the APK so SecurityBootstrapper can enforce exact-match certificate pinning at runtime.
-            // Override via KRYPTX_RELEASE_FINGERPRINT env var for custom release pipelines.
+            val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+            val isCi = System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null
             val releaseFp = System.getenv("KRYPTX_RELEASE_FINGERPRINT")
                 ?: localProperties.getProperty("kryptx.release.fingerprint")
-                ?: ""
+                ?: run {
+                    if (isCi && isReleaseBuild) {
+                        error("KRYPTX_RELEASE_FINGERPRINT must be configured on CI for release builds to enforce certificate pinning.")
+                    } else if (isReleaseBuild) {
+                        logger.warn("WARNING: Building release variant without 'kryptx.release.fingerprint' or 'KRYPTX_RELEASE_FINGERPRINT'. Certificate pinning will be inactive.")
+                    }
+                    ""
+                }
             buildConfigField("String", "RELEASE_CERT_SHA256", "\"$releaseFp\"")
 
             proguardFiles(
@@ -277,6 +300,27 @@ tasks.register<Exec>("buildRustEngine") {
         "cargo", "ndk", "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86", "-t", "x86_64", 
         "-o", jniLibsDir.absolutePath, "build", "--release"
     )
+
+    doLast {
+        if (ndkDir.isNotEmpty()) {
+            val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+            val exeExt = if (isWindows) ".exe" else ""
+            val stripTool = fileTree("$ndkDir/toolchains/llvm/prebuilt") {
+                include("**/llvm-strip$exeExt")
+            }.firstOrNull()
+
+            if (stripTool?.exists() == true) {
+                fileTree(jniLibsDir) {
+                    include("**/*.so")
+                }.forEach { soFile ->
+                    ProcessBuilder(stripTool.absolutePath, "--strip-unneeded", soFile.absolutePath)
+                        .redirectErrorStream(true)
+                        .start()
+                        .waitFor()
+                }
+            }
+        }
+    }
 }
 
 tasks.register<Copy>("copyApk") {
@@ -287,7 +331,10 @@ tasks.register<Copy>("copyApk") {
     from(layout.buildDirectory.dir("outputs/apk/debug"))
     include("*.apk")
     into(rootProject.layout.projectDirectory.dir("apk"))
-    rename { "Kryptx-Security-Debug.apk" }
+    rename { name ->
+        if (name.contains("universal")) "Kryptx-Security-Debug.apk"
+        else name.replace("app-", "Kryptx-Debug-")
+    }
 }
 
 afterEvaluate {

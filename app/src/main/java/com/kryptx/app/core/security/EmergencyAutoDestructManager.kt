@@ -23,11 +23,28 @@ class EmergencyAutoDestructManager(
     private val context: Context,
     private val sessionManager: VaultSessionManager? = null,
     private val keystoreManager: KeystoreManager? = null,
-    private val maxFailedAttempts: Int = 10,
-    private val isEnabled: Boolean = false
+    private var maxFailedAttempts: Int = 10,
+    private var isEnabled: Boolean = false,
+    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null
 ) {
     private val secureRandom = SecureRandom()
     private val localFailedAttempts = java.util.concurrent.atomic.AtomicInteger(0)
+
+    val effectiveEnabled: Boolean
+        get() = preferencesRepository?.autoDestructEnabled?.value ?: isEnabled
+
+    val effectiveMaxAttempts: Int
+        get() = preferencesRepository?.autoDestructMaxAttempts?.value ?: maxFailedAttempts
+
+    fun setEnabled(enabled: Boolean) {
+        this.isEnabled = enabled
+        preferencesRepository?.setAutoDestructEnabled(enabled)
+    }
+
+    fun setMaxFailedAttempts(attempts: Int) {
+        this.maxFailedAttempts = attempts
+        preferencesRepository?.setAutoDestructMaxAttempts(attempts)
+    }
 
     data class AutoDestructState(
         val isEnabled: Boolean,
@@ -40,11 +57,13 @@ class EmergencyAutoDestructManager(
         // Delegate to VaultSessionManager's authoritative counter to avoid counter drift if provided,
         // otherwise fall back to local counter (e.g. standalone/test mode)
         val current = sessionManager?.failedAttempts?.value ?: localFailedAttempts.get()
+        val enabled = effectiveEnabled
+        val maxAttempts = effectiveMaxAttempts
         return AutoDestructState(
-            isEnabled = isEnabled,
-            maxFailedAttempts = maxFailedAttempts,
+            isEnabled = enabled,
+            maxFailedAttempts = maxAttempts,
             currentFailedAttempts = current,
-            remainingAttempts = (maxFailedAttempts - current).coerceAtLeast(0)
+            remainingAttempts = (maxAttempts - current).coerceAtLeast(0)
         )
     }
 
@@ -55,9 +74,9 @@ class EmergencyAutoDestructManager(
      * Returns true if auto-destruct was triggered.
      */
     fun onFailedAttempt(): Boolean {
-        if (!isEnabled) return false
+        if (!effectiveEnabled) return false
         val current = sessionManager?.failedAttempts?.value ?: localFailedAttempts.get()
-        if (current >= maxFailedAttempts) {
+        if (current >= effectiveMaxAttempts) {
             triggerEmergencyWipe()
             return true
         }
@@ -70,14 +89,14 @@ class EmergencyAutoDestructManager(
      * Returns true if auto-destruct was triggered.
      */
     fun recordFailedAttempt(): Boolean {
-        if (!isEnabled) return false
+        if (!effectiveEnabled) return false
         val current = if (sessionManager != null) {
             sessionManager.recordFailedAttempt()
             sessionManager.failedAttempts.value
         } else {
             localFailedAttempts.incrementAndGet()
         }
-        if (current >= maxFailedAttempts) {
+        if (current >= effectiveMaxAttempts) {
             triggerEmergencyWipe()
             return true
         }

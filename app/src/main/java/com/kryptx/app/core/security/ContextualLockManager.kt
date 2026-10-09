@@ -57,7 +57,7 @@ class ContextualLockManager(
     fun startListening() {
         if (!isListening && accelerometer != null && sensorManager != null) {
             try {
-                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
                 isListening = true
                 faceDownStartTime = 0L
                 acceleration = 0f

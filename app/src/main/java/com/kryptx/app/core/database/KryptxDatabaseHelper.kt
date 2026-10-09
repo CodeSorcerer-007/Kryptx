@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.File
 import java.security.SecureRandom
 
 /**
@@ -244,16 +245,14 @@ class KryptxDatabaseHelper(
                     androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
             } catch (t: Throwable) {
-                com.kryptx.app.core.security.SecurityLogger.warn(
+                com.kryptx.app.core.security.SecurityLogger.error(
                     "KryptxDatabaseHelper",
-                    "EncryptedSharedPreferences initialization failed; falling back to private SharedPreferences",
+                    "CRITICAL: EncryptedSharedPreferences failed — refusing insecure fallback",
                     t
                 )
-                try {
-                    context.getSharedPreferences("kryptx_metadata_prefs_fallback", Context.MODE_PRIVATE)
-                } catch (_: Throwable) {
-                    context.getSharedPreferences("kryptx_metadata_prefs", Context.MODE_PRIVATE)
-                }
+                throw SecurityException(
+                    "Hardware-backed secure storage unavailable: ${t.message}", t
+                )
             }.also { cachedPrefs = it }
         }
     }
@@ -364,7 +363,12 @@ class KryptxDatabaseHelper(
                     } else {
                         activeItems.add(item)
                     }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    com.kryptx.app.core.security.SecurityLogger.warn(
+                        "KryptxDatabaseHelper",
+                        "Failed to decrypt vault item $itemId — possible tampering or corruption",
+                        e
+                    )
                 }
             }
         }
@@ -537,57 +541,56 @@ class KryptxDatabaseHelper(
      */
     suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int = withContext(Dispatchers.IO) {
         val db = writableDatabase
-        val itemsToUpdate = mutableListOf<Pair<String, String>>()
-
-        val cursor = db.query(
-            TABLE_VAULT_ITEMS,
-            arrayOf(COL_ID, COL_ENCRYPTED_PAYLOAD),
-            null,
-            null,
-            null,
-            null,
-            null
-        )
-
-        cursor.use {
-            while (it.moveToNext()) {
-                val itemId = it.getString(0)
-                val encryptedPayload = it.getString(1)
-                val aad = itemId.toByteArray(Charsets.UTF_8)
-                val decryptedJson = try {
-                    CryptoEngine.decryptString(encryptedPayload, oldKey, aad)
-                } catch (_: Exception) {
-                    CryptoEngine.decryptString(encryptedPayload, oldKey, null)
-                }
-                val newEncryptedPayload = run {
-                    val newPlainBytes = decryptedJson.toByteArray(Charsets.UTF_8)
-                    try {
-                        val encrypted = CryptoEngine.encrypt(newPlainBytes, newKey, aad)
-                        java.util.Base64.getEncoder().encodeToString(encrypted)
-                    } finally {
-                        com.kryptx.app.core.crypto.SecureMemory.wipe(newPlainBytes)
-                    }
-                }
-                itemsToUpdate.add(Pair(itemId, newEncryptedPayload))
-            }
-        }
-
         var updatedCount = 0
+
         db.beginTransaction()
         try {
-            for ((itemId, newPayload) in itemsToUpdate) {
-                val values = ContentValues().apply {
-                    put(COL_ENCRYPTED_PAYLOAD, newPayload)
-                    put(COL_UPDATED_AT, secureRandom.nextLong())
+            val cursor = db.query(
+                TABLE_VAULT_ITEMS,
+                arrayOf(COL_ID, COL_ENCRYPTED_PAYLOAD),
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+
+            cursor.use {
+                while (it.moveToNext()) {
+                    val itemId = it.getString(0)
+                    val encryptedPayload = it.getString(1)
+                    val aad = itemId.toByteArray(Charsets.UTF_8)
+                    val encryptedBytes = java.util.Base64.getDecoder().decode(encryptedPayload)
+                    val plainBytes = try {
+                        CryptoEngine.decrypt(encryptedBytes, oldKey, aad)
+                    } catch (_: Exception) {
+                        CryptoEngine.decrypt(encryptedBytes, oldKey, null)
+                    }
+                    val newEncryptedPayload = try {
+                        val encrypted = CryptoEngine.encrypt(plainBytes, newKey, aad)
+                        try {
+                            java.util.Base64.getEncoder().encodeToString(encrypted)
+                        } finally {
+                            com.kryptx.app.core.crypto.SecureMemory.wipe(encrypted)
+                        }
+                    } finally {
+                        com.kryptx.app.core.crypto.SecureMemory.wipe(plainBytes)
+                    }
+
+                    val values = ContentValues().apply {
+                        put(COL_ENCRYPTED_PAYLOAD, newEncryptedPayload)
+                        put(COL_UPDATED_AT, secureRandom.nextLong())
+                    }
+                    val rows = db.update(
+                        TABLE_VAULT_ITEMS,
+                        values,
+                        "$COL_ID = ?",
+                        arrayOf(itemId)
+                    )
+                    if (rows > 0) updatedCount++
                 }
-                val rows = db.update(
-                    TABLE_VAULT_ITEMS,
-                    values,
-                    "$COL_ID = ?",
-                    arrayOf(itemId)
-                )
-                if (rows > 0) updatedCount++
             }
+
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -869,33 +872,38 @@ class KryptxDatabaseHelper(
         val existingDecoys = loadAllItems(vek)
         if (existingDecoys.isNotEmpty()) return@withContext
 
+        val rng = java.security.SecureRandom()
+        val num = rng.nextInt(900) + 100
+        val alphabet = "abcdefghijklmnopqrstuvwxyz"
+        val suffix = (1..4).map { alphabet[rng.nextInt(alphabet.length)] }.joinToString("")
+
         val sampleDecoys = listOf(
             VaultItem(
                 title = "Netflix",
                 type = ItemType.LOGIN,
-                username = "personal.viewer@gmail.com",
-                password = "Password2024!netflix",
+                username = "viewer_${suffix}${num}@gmail.com",
+                password = "Stream!${num}#${suffix.uppercase()}",
                 website = "https://netflix.com"
             ),
             VaultItem(
                 title = "Spotify Music",
                 type = ItemType.LOGIN,
-                username = "music_fan_99",
-                password = "TuneStream!9902",
+                username = "music_fan_${suffix}",
+                password = "Tune!${num}*${suffix.uppercase()}",
                 website = "https://spotify.com"
             ),
             VaultItem(
                 title = "Home Wi-Fi Network",
                 type = ItemType.WIFI,
-                wifiSsid = "Netgear_Home_5G",
-                wifiPassword = "WirelessPass9876",
+                wifiSsid = "Netgear_Home_${num}_5G",
+                wifiPassword = "WirelessPass_${suffix}${num}",
                 wifiSecurityType = "WPA2/WPA3 Personal"
             ),
             VaultItem(
                 title = "Amazon Shopping",
                 type = ItemType.LOGIN,
-                username = "shopper.user@gmail.com",
-                password = "AmzSecure#Shop2023",
+                username = "shopper_${suffix}${num}@gmail.com",
+                password = "AmzSecure#${num}!${suffix.uppercase()}",
                 website = "https://amazon.com"
             )
         )
@@ -987,7 +995,17 @@ class KryptxDatabaseHelper(
         } catch (_: Throwable) {}
         _itemsFlow.value = emptyList()
         _trashFlow.value = emptyList()
-        return context.deleteDatabase(databaseName)
+        val deleted = context.deleteDatabase(databaseName)
+        try {
+            val dbFile = context.getDatabasePath(databaseName)
+            val parentDir = dbFile.parentFile
+            if (parentDir != null) {
+                File(parentDir, "$databaseName-wal").let { if (it.exists()) it.delete() }
+                File(parentDir, "$databaseName-shm").let { if (it.exists()) it.delete() }
+                File(parentDir, "$databaseName-journal").let { if (it.exists()) it.delete() }
+            }
+        } catch (_: Throwable) {}
+        return deleted
     }
 
     /**

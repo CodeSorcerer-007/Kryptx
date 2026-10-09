@@ -22,6 +22,7 @@ import com.kryptx.app.KryptxApplication
 import com.kryptx.app.MainActivity
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,7 +78,7 @@ class KryptxAutofillService : AutofillService() {
             val windowNode = structure.getWindowNodeAt(i)
             val root = windowNode?.rootViewNode
             if (root != null) {
-                traverseNode(root, parsedForm, 0)
+                traverseNode(root, parsedForm)
             }
         }
 
@@ -97,55 +98,63 @@ class KryptxAutofillService : AutofillService() {
         // 1. If vault is unlocked, search for matching credentials off the binder thread
         if (isUnlocked) {
             serviceScope.launch {
-                val matchedItems = findMatchingItems(app, parsedForm)
-                if (matchedItems.isNotEmpty()) {
-                    var addedDatasets = 0
-                    matchedItems.take(5).forEach { item ->
-                        val presentation = createItemPresentation(item)
-                        val datasetBuilder = Dataset.Builder()
-                        var fieldAssigned = false
+                try {
+                    val matchedItems = findMatchingItems(app, parsedForm)
+                    if (cancellationSignal.isCanceled) return@launch
+                    if (matchedItems.isNotEmpty()) {
+                        var addedDatasets = 0
+                        matchedItems.take(5).forEach { item ->
+                            val presentation = createItemPresentation(item)
+                            val datasetBuilder = Dataset.Builder()
+                            var fieldAssigned = false
 
-                        parsedForm.usernameFieldId?.let { uId ->
-                            if (item.username.isNotBlank()) {
-                                datasetBuilder.setValue(uId, AutofillValue.forText(item.username), presentation)
-                                fieldAssigned = true
-                            }
-                        }
-
-                        parsedForm.passwordFieldId?.let { pId ->
-                            if (item.password.isNotBlank()) {
-                                datasetBuilder.setValue(pId, AutofillValue.forText(item.password), presentation)
-                                fieldAssigned = true
-                            }
-                        }
-
-                        if (fieldAssigned) {
-                            try {
-                                responseBuilder.addDataset(datasetBuilder.build())
-                                addedDatasets++
-                            } catch (e: Exception) {}
-                        }
-                    }
-
-                    if (addedDatasets > 0) {
-                        // Add SaveInfo to prompt user to save new/updated credentials
-                        parsedForm.passwordFieldId?.let { passId ->
-                            val saveInfoBuilder = SaveInfo.Builder(
-                                SaveInfo.SAVE_DATA_TYPE_PASSWORD,
-                                arrayOf(passId)
-                            )
                             parsedForm.usernameFieldId?.let { uId ->
-                                saveInfoBuilder.setOptionalIds(arrayOf(uId))
+                                if (item.username.isNotBlank()) {
+                                    datasetBuilder.setValue(uId, AutofillValue.forText(item.username), presentation)
+                                    fieldAssigned = true
+                                }
                             }
-                            responseBuilder.setSaveInfo(saveInfoBuilder.build())
+
+                            parsedForm.passwordFieldId?.let { pId ->
+                                if (item.password.isNotBlank()) {
+                                    datasetBuilder.setValue(pId, AutofillValue.forText(item.password), presentation)
+                                    fieldAssigned = true
+                                }
+                            }
+
+                            if (fieldAssigned) {
+                                try {
+                                    responseBuilder.addDataset(datasetBuilder.build())
+                                    addedDatasets++
+                                } catch (e: Exception) {}
+                            }
                         }
 
-                        callback.onSuccess(responseBuilder.build())
-                        return@launch
+                        if (addedDatasets > 0) {
+                            // Add SaveInfo to prompt user to save new/updated credentials
+                            parsedForm.passwordFieldId?.let { passId ->
+                                val saveInfoBuilder = SaveInfo.Builder(
+                                    SaveInfo.SAVE_DATA_TYPE_PASSWORD,
+                                    arrayOf(passId)
+                                )
+                                parsedForm.usernameFieldId?.let { uId ->
+                                    saveInfoBuilder.setOptionalIds(arrayOf(uId))
+                                }
+                                responseBuilder.setSaveInfo(saveInfoBuilder.build())
+                            }
+
+                            callback.onSuccess(responseBuilder.build())
+                            return@launch
+                        }
                     }
+                    // No match found or no fields populated — fall through to auth route
+                    callback.onSuccess(buildAuthFillResponse(parsedForm, isUnlocked))
+                } catch (_: CancellationException) {
+                    // Scope cancelled — framework timeout handles it gracefully
+                } catch (e: Exception) {
+                    com.kryptx.app.core.security.SecurityLogger.error("KryptxAutofillService", "Autofill request failed", e)
+                    callback.onFailure("Autofill service unavailable")
                 }
-                // No match found or no fields populated — fall through to auth route
-                callback.onSuccess(buildAuthFillResponse(parsedForm, isUnlocked))
             }
             return
         }
@@ -160,6 +169,7 @@ class KryptxAutofillService : AutofillService() {
             ?: (if (parsedForm.usernameFieldId == null) parsedForm.focusedFieldId ?: parsedForm.allAutofillIds.firstOrNull() else null)
 
         val intent = Intent(this, AutofillAuthActivity::class.java).apply {
+            putExtra(AutofillAuthActivity.EXTRA_AUTH_TOKEN, AutofillAuthTokenManager.generateToken())
             parsedForm.webDomain?.let { putExtra(AutofillAuthActivity.EXTRA_WEB_DOMAIN, it) }
             parsedForm.packageName?.let { putExtra(AutofillAuthActivity.EXTRA_PACKAGE_NAME, it) }
             parsedForm.usernameFieldId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
@@ -230,9 +240,20 @@ class KryptxAutofillService : AutofillService() {
         }
     }
 
-    private fun traverseNode(node: AssistStructure.ViewNode?, parsed: ParsedForm, depth: Int = 0) {
-        if (node == null || depth > 30) return
+    private fun traverseNode(root: AssistStructure.ViewNode, parsed: ParsedForm) {
+        val stack = ArrayDeque<Pair<AssistStructure.ViewNode, Int>>()
+        stack.addLast(root to 0)
+        while (stack.isNotEmpty()) {
+            val (node, depth) = stack.removeLast()
+            if (depth > 60) continue
+            processNode(node, parsed)
+            for (i in 0 until node.childCount) {
+                node.getChildAt(i)?.let { stack.addLast(it to depth + 1) }
+            }
+        }
+    }
 
+    private fun processNode(node: AssistStructure.ViewNode, parsed: ParsedForm) {
         node.autofillId?.let { id ->
             if (node.isFocused && parsed.focusedFieldId == null) {
                 parsed.focusedFieldId = id
@@ -282,13 +303,6 @@ class KryptxAutofillService : AutofillService() {
                 if (isEditable && !parsed.allAutofillIds.contains(id)) {
                     parsed.allAutofillIds.add(id)
                 }
-            }
-        }
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChildAt(i)
-            if (child != null) {
-                traverseNode(child, parsed, depth + 1)
             }
         }
     }
@@ -415,10 +429,13 @@ class KryptxAutofillService : AutofillService() {
                             app.vaultRepository.saveItem(newItem)
                             app.activityLogManager.logEvent("Autofill", "Saved new credential for ${newItem.title}")
                         }
+                        callback.onSuccess()
                     } catch (e: Exception) {
-                        // ignore and proceed
+                        com.kryptx.app.core.security.SecurityLogger.error("KryptxAutofillService", "Failed to save autofill credential", e)
+                        callback.onFailure("Failed to save credential")
                     }
                 }
+                return
             }
         }
 

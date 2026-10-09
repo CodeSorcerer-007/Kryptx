@@ -132,7 +132,7 @@ fun PanicPinSetupDialog(
 
                 if (errorMsg != null) {
                     Text(
-                        text = errorMsg!!,
+                        text = errorMsg ?: "",
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 8.dp)
@@ -181,7 +181,10 @@ fun PanicPinSetupDialog(
                         errorMsg = "Panic PINs do not match"
                         return@TextButton
                     }
-                    onSetPanicPin(panicPin)
+                    val pin = panicPin
+                    panicPin = ""
+                    confirmPin = ""
+                    onSetPanicPin(pin)
                 }
             ) {
                 Text(

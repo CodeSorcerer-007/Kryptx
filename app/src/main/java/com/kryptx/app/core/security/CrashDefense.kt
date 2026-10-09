@@ -147,11 +147,15 @@ object CrashDefense {
                     recordCrash(throwable, "MainLooper")
                     SecurityLogger.error(
                         TAG,
-                        "MainLooper message cycle caught non-critical UI exception — recovering: " +
+                        "MainLooper message cycle caught non-critical UI exception — restarting Activity: " +
                         "${throwable::class.java.simpleName}: ${throwable.message}",
                         throwable
                     )
-                    // Non-critical UI exception: re-enter the loop
+                    // Force a clean Activity restart rather than resuming with a corrupted slot table
+                    Handler(Looper.getMainLooper()).post {
+                        recoverApplicationGracefully()
+                    }
+                    break
                 }
             }
         }

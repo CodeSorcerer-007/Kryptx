@@ -61,4 +61,38 @@ class PasskeyEngineTest {
         assertEquals(37, authData.size)
         assertEquals(0x05.toByte(), authData[32]) // UP + UV flags
     }
+
+    @Test
+    fun `passkey attestation generates valid CBOR fmt none object with UP UV AT flags`() {
+        val reg = PasskeyEngine.createPasskeyRegistration(
+            rpId = "passkeys.io",
+            userHandle = "sovereign_user",
+            userName = "sovereign"
+        )
+
+        val credIdBytes = Base64.getUrlDecoder().decode(reg.credentialId)
+        val coseBytes = Base64.getUrlDecoder().decode(reg.publicKeyCoseBase64)
+
+        val attestation = PasskeyEngine.createAttestationObject(
+            rpId = "passkeys.io",
+            credentialIdBytes = credIdBytes,
+            cosePublicKeyBytes = coseBytes
+        )
+
+        assertTrue("Attestation must not be empty", attestation.isNotEmpty())
+
+        // Validate CBOR header map of 3 items (0xa3)
+        assertEquals(0xa3.toByte(), attestation[0])
+
+        // Verify attestation base64 url encoding
+        val attestationB64 = PasskeyEngine.createAttestationObjectBase64(
+            rpId = "passkeys.io",
+            credentialIdBase64 = reg.credentialId,
+            publicKeyCoseBase64 = reg.publicKeyCoseBase64
+        )
+        assertTrue(attestationB64.isNotBlank())
+        val decoded = Base64.getUrlDecoder().decode(attestationB64)
+        assertEquals(attestation.size, decoded.size)
+    }
 }
+

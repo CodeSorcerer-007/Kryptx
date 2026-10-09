@@ -2,6 +2,9 @@ package com.kryptx.app
 
 import android.app.Activity
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.os.Bundle
 import com.kryptx.app.core.database.KryptxDatabaseHelper
 import com.kryptx.app.core.database.PreferencesRepository
@@ -35,7 +38,8 @@ class KryptxApplication : Application(), KryptxDependencies {
     override val biometricManager: BiometricAuthManager get() = container.biometricManager
     override val attachmentManager: com.kryptx.app.core.security.IAttachmentManager get() = container.attachmentManager
     override val memoryWatchdog: com.kryptx.app.core.security.CryptographicMemoryWatchdog get() = container.memoryWatchdog
-    val activityLogManager: ActivityLogManager get() = container.activityLogManager
+    override val activityLogManager: ActivityLogManager get() = container.activityLogManager
+    override val emergencyAutoDestructManager: com.kryptx.app.core.security.EmergencyAutoDestructManager get() = container.emergencyAutoDestructManager
 
     private val activeActivityCount = AtomicInteger(0)
 
@@ -44,6 +48,9 @@ class KryptxApplication : Application(), KryptxDependencies {
 
         // 0. Install enterprise CrashDefense shield FIRST before any code runs
         com.kryptx.app.core.security.CrashDefense.install(this)
+
+        // 1a. Create notification channels (required on API 26+; safe to call every launch)
+        createNotificationChannels()
 
         // 1. Run basic offline integrity checks safely
         try {
@@ -119,5 +126,32 @@ class KryptxApplication : Application(), KryptxDependencies {
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) {}
         })
+    }
+
+    /**
+     * Registers all notification channels required by the app.
+     * Safe to call on every launch — Android is idempotent for existing channels.
+     * Must be called before any NotificationManager.notify() call (API 26+ requirement).
+     */
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+
+        // Channel: clipboard auto-clear countdown / confirmation
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_CLIPBOARD,
+                "Clipboard Auto-Clear",
+                NotificationManager.IMPORTANCE_LOW   // Silent — no sound, no heads-up
+            ).apply {
+                description = "Shows a local countdown while Kryptx is about to wipe a sensitive secret from your clipboard. 100% offline — zero network calls."
+                setShowBadge(false)
+            }
+        )
+    }
+
+    companion object {
+        /** Notification channel ID for clipboard auto-clear events. */
+        const val CHANNEL_CLIPBOARD = "kryptx_clipboard_clear"
     }
 }

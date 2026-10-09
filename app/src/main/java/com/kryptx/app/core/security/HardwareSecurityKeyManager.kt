@@ -49,12 +49,32 @@ class HardwareSecurityKeyManager(
     /**
      * Blends physical hardware token challenge-response bytes with the standard KDF salt
      * to form a hardware-bound master derivation salt.
+     *
+     * Uses HKDF-SHA256 (RFC 5869) for proper domain separation and second-preimage resistance.
+     * Input keying material = hardwareResponse (high-entropy HMAC-SHA1/256 output from token).
+     * Salt = baseSalt (32-byte CSPRNG salt from vault setup).
+     * Info = "Kryptx-HW-Salt-v1" for domain separation.
+     * Output length = 32 bytes.
      */
     fun deriveHardwareBoundSalt(baseSalt: ByteArray, hardwareResponse: ByteArray): ByteArray {
-        val md = MessageDigest.getInstance("SHA-256")
-        md.update(baseSalt)
-        md.update(hardwareResponse)
-        return md.digest()
+        // HKDF-Extract: PRK = HMAC-SHA256(salt=baseSalt, ikm=hardwareResponse)
+        val prk = try {
+            val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+            mac.init(javax.crypto.spec.SecretKeySpec(baseSalt, "HmacSHA256"))
+            mac.doFinal(hardwareResponse)
+        } finally {
+            // hardwareResponse is caller-owned; do not wipe here
+        }
+        // HKDF-Expand: OKM = T(1) = HMAC-SHA256(PRK, info || 0x01)
+        return try {
+            val info = "Kryptx-HW-Salt-v1".toByteArray(Charsets.UTF_8)
+            val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+            mac.init(javax.crypto.spec.SecretKeySpec(prk, "HmacSHA256"))
+            mac.update(info)
+            mac.doFinal(byteArrayOf(0x01.toByte()))
+        } finally {
+            SecureMemory.wipe(prk)
+        }
     }
 
     /**

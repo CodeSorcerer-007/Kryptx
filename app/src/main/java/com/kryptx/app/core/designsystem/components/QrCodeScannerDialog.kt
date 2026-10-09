@@ -244,6 +244,7 @@ private fun CameraPreviewWithScanner(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val fallbackLifecycleOwner = LocalLifecycleOwner.current
     val activity = remember(context) { context.findActivity() }
     val lifecycleOwner = activity ?: fallbackLifecycleOwner
@@ -308,7 +309,7 @@ private fun CameraPreviewWithScanner(
                                         if (!result.isNullOrBlank() && !isScanned) {
                                             isScanned = true
                                             KryptxHaptics.successVibration(ctx)
-                                            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                                            coroutineScope.launch(Dispatchers.Main) {
                                                 onQrCodeScanned(result)
                                             }
                                         }

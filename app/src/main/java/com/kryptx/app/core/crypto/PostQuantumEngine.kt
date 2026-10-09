@@ -10,6 +10,8 @@ import org.bouncycastle.pqc.crypto.mlkem.MLKEMKeyPairGenerator
 import org.bouncycastle.pqc.crypto.mlkem.MLKEMParameters
 import org.bouncycastle.pqc.crypto.mlkem.MLKEMPrivateKeyParameters
 import org.bouncycastle.pqc.crypto.mlkem.MLKEMPublicKeyParameters
+import com.kryptx.app.core.model.KryptxErrorType
+import com.kryptx.app.core.model.KryptxResult
 import java.security.SecureRandom
 import java.util.Base64
 
@@ -97,20 +99,35 @@ object PostQuantumEngine {
         recipientPublicKeyBytes: ByteArray,
         classicalSaltOrSecret: ByteArray? = null
     ): EncapsulatedPayload {
-        val pubParams = MLKEMPublicKeyParameters(mlkemParams, recipientPublicKeyBytes)
-        val generator = MLKEMGenerator(secureRandom)
-        val secretWithEncapsulation = generator.generateEncapsulated(pubParams)
+        return try {
+            val pubParams = MLKEMPublicKeyParameters(mlkemParams, recipientPublicKeyBytes)
+            val generator = MLKEMGenerator(secureRandom)
+            val secretWithEncapsulation = generator.generateEncapsulated(pubParams)
 
-        val rawPqcSecret = secretWithEncapsulation.secret
-        val encapsulation = secretWithEncapsulation.encapsulation
+            val rawPqcSecret = secretWithEncapsulation.secret
+            val encapsulation = secretWithEncapsulation.encapsulation
 
-        val derivedHybridSecret = deriveHybridSecret(rawPqcSecret, classicalSaltOrSecret)
-        SecureMemory.wipe(rawPqcSecret)
+            val derivedHybridSecret = deriveHybridSecret(rawPqcSecret, classicalSaltOrSecret)
+            SecureMemory.wipe(rawPqcSecret)
 
-        return EncapsulatedPayload(
-            encapsulation = encapsulation,
-            sharedSecret = derivedHybridSecret
-        )
+            EncapsulatedPayload(
+                encapsulation = encapsulation,
+                sharedSecret = derivedHybridSecret
+            )
+        } catch (e: Exception) {
+            throw IllegalArgumentException("ML-KEM encapsulation failed on recipient public key: ${e.message}", e)
+        }
+    }
+
+    fun encapsulateSafe(
+        recipientPublicKeyBytes: ByteArray,
+        classicalSaltOrSecret: ByteArray? = null
+    ): KryptxResult<EncapsulatedPayload> {
+        return try {
+            KryptxResult.Success(encapsulate(recipientPublicKeyBytes, classicalSaltOrSecret))
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.CORRUPTED_CIPHERTEXT, "ML-KEM encapsulation failed: ${e.message}", e)
+        }
     }
 
     /**
@@ -121,14 +138,30 @@ object PostQuantumEngine {
         privateKeyBytes: ByteArray,
         classicalSaltOrSecret: ByteArray? = null
     ): ByteArray {
-        val privParams = MLKEMPrivateKeyParameters(mlkemParams, privateKeyBytes)
-        val extractor = MLKEMExtractor(privParams)
-        val rawPqcSecret = extractor.extractSecret(encapsulationBytes)
+        return try {
+            val privParams = MLKEMPrivateKeyParameters(mlkemParams, privateKeyBytes)
+            val extractor = MLKEMExtractor(privParams)
+            val rawPqcSecret = extractor.extractSecret(encapsulationBytes)
 
-        val derivedHybridSecret = deriveHybridSecret(rawPqcSecret, classicalSaltOrSecret)
-        SecureMemory.wipe(rawPqcSecret)
+            val derivedHybridSecret = deriveHybridSecret(rawPqcSecret, classicalSaltOrSecret)
+            SecureMemory.wipe(rawPqcSecret)
 
-        return derivedHybridSecret
+            derivedHybridSecret
+        } catch (e: Exception) {
+            throw IllegalArgumentException("ML-KEM decapsulation failed: ${e.message}", e)
+        }
+    }
+
+    fun decapsulateSafe(
+        encapsulationBytes: ByteArray,
+        privateKeyBytes: ByteArray,
+        classicalSaltOrSecret: ByteArray? = null
+    ): KryptxResult<ByteArray> {
+        return try {
+            KryptxResult.Success(decapsulate(encapsulationBytes, privateKeyBytes, classicalSaltOrSecret))
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DECRYPTION_FAILED, "ML-KEM decapsulation failed: ${e.message}", e)
+        }
     }
 
     /**
@@ -195,12 +228,16 @@ object PostQuantumEngine {
      * Cryptographically signs data using an ML-DSA-65 private key.
      */
     fun sign(data: ByteArray, privateKeyBytes: ByteArray): ByteArray {
-        val params = org.bouncycastle.pqc.crypto.mldsa.MLDSAParameters.ml_dsa_65
-        val privParams = org.bouncycastle.pqc.crypto.mldsa.MLDSAPrivateKeyParameters(params, privateKeyBytes)
-        val signer = org.bouncycastle.pqc.crypto.mldsa.MLDSASigner()
-        signer.init(true, privParams)
-        signer.update(data, 0, data.size)
-        return signer.generateSignature()
+        return try {
+            val params = org.bouncycastle.pqc.crypto.mldsa.MLDSAParameters.ml_dsa_65
+            val privParams = org.bouncycastle.pqc.crypto.mldsa.MLDSAPrivateKeyParameters(params, privateKeyBytes)
+            val signer = org.bouncycastle.pqc.crypto.mldsa.MLDSASigner()
+            signer.init(true, privParams)
+            signer.update(data, 0, data.size)
+            signer.generateSignature()
+        } catch (e: Exception) {
+            throw IllegalArgumentException("ML-DSA signing failed on private key: ${e.message}", e)
+        }
     }
 
     /**
@@ -237,6 +274,18 @@ object PostQuantumEngine {
         return Pair(encapsulated.encapsulation, ciphertext)
     }
 
+    fun encryptHybridSafe(
+        plaintext: ByteArray,
+        recipientPublicKeyBytes: ByteArray,
+        associatedData: ByteArray? = null
+    ): KryptxResult<Pair<ByteArray, ByteArray>> {
+        return try {
+            KryptxResult.Success(encryptHybrid(plaintext, recipientPublicKeyBytes, associatedData))
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.CORRUPTED_CIPHERTEXT, "ML-KEM hybrid encryption failed: ${e.message}", e)
+        }
+    }
+
     /**
      * Decrypts Post-Quantum Hybrid ciphertext.
      */
@@ -251,6 +300,19 @@ object PostQuantumEngine {
             CryptoEngine.decrypt(ciphertextBytes, sharedSecret, associatedData)
         } finally {
             SecureMemory.wipe(sharedSecret)
+        }
+    }
+
+    fun decryptHybridSafe(
+        encapsulationBytes: ByteArray,
+        ciphertextBytes: ByteArray,
+        privateKeyBytes: ByteArray,
+        associatedData: ByteArray? = null
+    ): KryptxResult<ByteArray> {
+        return try {
+            KryptxResult.Success(decryptHybrid(encapsulationBytes, ciphertextBytes, privateKeyBytes, associatedData))
+        } catch (e: Exception) {
+            KryptxResult.Error(KryptxErrorType.DECRYPTION_FAILED, "ML-KEM hybrid decryption failed: ${e.message}", e)
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.kryptx.app.core.database
 
 import android.content.ContentValues
+import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.security.SecurityLogger
 import net.zetetic.database.sqlcipher.SQLiteDatabase
@@ -42,8 +43,25 @@ class HmacSearchIndex {
 
     // ── HMAC key lifecycle ────────────────────────────────────────────────────
 
+    private val keyLock = Any()
     @Volatile
     private var searchHmacKey: ByteArray? = null
+
+    /**
+     * Executes [block] with a defensive copy of the active search HMAC key.
+     * Guarantees [SecureMemory.wipe] on the key copy upon completion, preventing
+     * TOCTOU races if [clearKey] is called concurrently on another thread.
+     */
+    private inline fun <R> withKey(block: (ByteArray) -> R): R? {
+        val keyCopy = synchronized(keyLock) {
+            searchHmacKey?.copyOf()
+        } ?: return null
+        return try {
+            block(keyCopy)
+        } finally {
+            SecureMemory.wipe(keyCopy)
+        }
+    }
 
     /**
      * Derives and caches the search HMAC key from the active Vault Encryption Key.
@@ -52,18 +70,25 @@ class HmacSearchIndex {
     fun initKey(vek: ByteArray) {
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(vek, "HmacSHA256"))
-        searchHmacKey = mac.doFinal(INDEX_CONTEXT.toByteArray(Charsets.UTF_8))
+        val derived = mac.doFinal(INDEX_CONTEXT.toByteArray(Charsets.UTF_8))
+        synchronized(keyLock) {
+            searchHmacKey?.fill(0)
+            searchHmacKey = derived
+        }
     }
 
     /**
      * Wipes the cached search HMAC key from RAM.  Call on vault lock.
      */
     fun clearKey() {
-        searchHmacKey?.fill(0)
-        searchHmacKey = null
+        synchronized(keyLock) {
+            searchHmacKey?.fill(0)
+            searchHmacKey = null
+        }
     }
 
-    val isKeyAvailable: Boolean get() = searchHmacKey != null
+    val isKeyAvailable: Boolean
+        get() = synchronized(keyLock) { searchHmacKey != null }
 
     // ── Write operations ──────────────────────────────────────────────────────
 
@@ -75,25 +100,25 @@ class HmacSearchIndex {
      * so both operations are atomic.
      */
     fun upsertTokens(db: SQLiteDatabase, item: VaultItem) {
-        val key = searchHmacKey ?: return  // Index disabled if vault is locked
-
-        // Remove stale tokens first (REPLACE would only work on PRIMARY KEY conflicts)
-        db.delete(
-            TABLE_SEARCH_TOKENS,
-            "$COL_ITEM_ID = ?",
-            arrayOf(item.id)
-        )
-
-        val tokens = buildTokenSet(item)
-        for (token in tokens) {
-            val hmac = hmacHex(key, token)
-            val cv = ContentValues(2)
-            cv.put(COL_ITEM_ID, item.id)
-            cv.put(COL_TOKEN_HMAC, hmac)
-            db.insertWithOnConflict(
-                TABLE_SEARCH_TOKENS, null, cv,
-                SQLiteDatabase.CONFLICT_IGNORE
+        withKey { key ->
+            // Remove stale tokens first (REPLACE would only work on PRIMARY KEY conflicts)
+            db.delete(
+                TABLE_SEARCH_TOKENS,
+                "$COL_ITEM_ID = ?",
+                arrayOf(item.id)
             )
+
+            val tokens = buildTokenSet(item)
+            for (token in tokens) {
+                val hmac = hmacHex(key, token)
+                val cv = ContentValues(2)
+                cv.put(COL_ITEM_ID, item.id)
+                cv.put(COL_TOKEN_HMAC, hmac)
+                db.insertWithOnConflict(
+                    TABLE_SEARCH_TOKENS, null, cv,
+                    SQLiteDatabase.CONFLICT_IGNORE
+                )
+            }
         }
     }
 
@@ -112,18 +137,31 @@ class HmacSearchIndex {
      * table is found empty (e.g. first unlock after migration from DB v4).
      */
     fun rebuildAll(db: SQLiteDatabase, items: List<VaultItem>) {
-        val key = searchHmacKey ?: return
-        db.beginTransaction()
-        try {
-            db.delete(TABLE_SEARCH_TOKENS, null, null)
-            for (item in items) {
-                if (!item.isDeleted) upsertTokens(db, item)
+        withKey { key ->
+            db.beginTransaction()
+            try {
+                db.delete(TABLE_SEARCH_TOKENS, null, null)
+                for (item in items) {
+                    if (!item.isDeleted) {
+                        val tokens = buildTokenSet(item)
+                        for (token in tokens) {
+                            val hmac = hmacHex(key, token)
+                            val cv = ContentValues(2)
+                            cv.put(COL_ITEM_ID, item.id)
+                            cv.put(COL_TOKEN_HMAC, hmac)
+                            db.insertWithOnConflict(
+                                TABLE_SEARCH_TOKENS, null, cv,
+                                SQLiteDatabase.CONFLICT_IGNORE
+                            )
+                        }
+                    }
+                }
+                db.setTransactionSuccessful()
+            } catch (e: Exception) {
+                SecurityLogger.warn("HmacSearchIndex", "rebuildAll failed", e)
+            } finally {
+                db.endTransaction()
             }
-            db.setTransactionSuccessful()
-        } catch (e: Exception) {
-            SecurityLogger.warn("HmacSearchIndex", "rebuildAll failed", e)
-        } finally {
-            db.endTransaction()
         }
     }
 
@@ -151,7 +189,6 @@ class HmacSearchIndex {
      * applying structured filters via [SearchQueryParser].
      */
     fun queryItemIds(db: SQLiteDatabase, query: String): Set<String>? {
-        val key = searchHmacKey ?: return null
         if (query.isBlank()) return null
 
         val queryTokens = tokenise(query.trim().lowercase())
@@ -159,28 +196,28 @@ class HmacSearchIndex {
 
         if (queryTokens.isEmpty()) return null
 
-        // For each query token, find all item_ids that have that HMAC.
-        // Intersect across all tokens (AND semantics).
-        var candidateIds: Set<String>? = null
+        return withKey { key ->
+            var candidateIds: Set<String>? = null
 
-        for (token in queryTokens) {
-            val hmac = hmacHex(key, token)
-            val ids = mutableSetOf<String>()
+            for (token in queryTokens) {
+                val hmac = hmacHex(key, token)
+                val ids = mutableSetOf<String>()
 
-            db.rawQuery(
-                "SELECT DISTINCT $COL_ITEM_ID FROM $TABLE_SEARCH_TOKENS WHERE $COL_TOKEN_HMAC = ?",
-                arrayOf(hmac)
-            ).use { cursor ->
-                while (cursor.moveToNext()) {
-                    ids.add(cursor.getString(0))
+                db.rawQuery(
+                    "SELECT DISTINCT $COL_ITEM_ID FROM $TABLE_SEARCH_TOKENS WHERE $COL_TOKEN_HMAC = ?",
+                    arrayOf(hmac)
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        ids.add(cursor.getString(0))
+                    }
                 }
+
+                candidateIds = candidateIds?.intersect(ids) ?: ids
+                if (candidateIds.isEmpty()) return@withKey emptySet()
             }
 
-            candidateIds = candidateIds?.intersect(ids) ?: ids
-            if (candidateIds.isEmpty()) return emptySet()
+            candidateIds ?: emptySet()
         }
-
-        return candidateIds ?: emptySet()
     }
 
     /**

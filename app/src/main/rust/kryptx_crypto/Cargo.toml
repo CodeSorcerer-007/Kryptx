@@ -21,4 +21,8 @@ crate-type = ["cdylib", "lib"]
 name = "kryptx_crypto"
 
 [profile.release]
-debug = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

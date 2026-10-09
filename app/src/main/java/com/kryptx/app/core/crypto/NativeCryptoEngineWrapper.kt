@@ -17,6 +17,7 @@ object NativeCryptoEngineWrapper {
 
     private val engineInstance: RustEngine? by lazy {
         try {
+            NativeCryptoLoader.ensureLoaded()
             RustEngine()
         } catch (t: Throwable) {
             Log.w(TAG, "Native Rust engine not loaded on this host architecture; falling back to JVM engine: ${t.message}")
@@ -37,12 +38,9 @@ object NativeCryptoEngineWrapper {
     }
 
     fun generateVaultKey(): ByteArray {
-        val eng = engineInstance
-        return if (eng != null) {
-            eng.generateSalt(32u)
-        } else {
-            CryptoEngine.generateVaultKey()
-        }
+        // Dedicated 256-bit CSPRNG key generation for the Vault Encryption Key (VEK),
+        // decoupled from salt generation routines.
+        return CryptoEngine.generateVaultKey()
     }
 
     fun deriveKey(password: CharArray, salt: ByteArray): ByteArray {
@@ -69,6 +67,7 @@ object NativeCryptoEngineWrapper {
                 // This wrapper always invokes the native engine when available.
                 eng.encrypt(plaintext, key)
             } catch (t: Throwable) {
+                if (t is Error) throw t
                 CryptoEngine.encryptJvm(plaintext, key, associatedData)
             }
         } else {
@@ -83,6 +82,7 @@ object NativeCryptoEngineWrapper {
                 // If the ciphertext has a 24-byte nonce and was encrypted with XChaCha20-Poly1305
                 eng.decrypt(ciphertext, key)
             } catch (t: Throwable) {
+                if (t is Error) throw t
                 // Authentication tag failures indicate ciphertext tampering — never fall through.
                 // Propagate immediately so the caller (CryptoEngine.decrypt) can enforce its own
                 // strict no-fallthrough policy for AEADBadTagException.

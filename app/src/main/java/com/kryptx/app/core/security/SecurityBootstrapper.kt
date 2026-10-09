@@ -66,6 +66,9 @@ object SecurityBootstrapper {
         //    In release builds, enforce the exact baked-in SHA-256 certificate fingerprint.
         //    In debug builds (empty fingerprint), fall back to well-formedness check only.
         val pinnedFingerprint = BuildConfig.RELEASE_CERT_SHA256.takeIf { it.isNotBlank() }
+        if (!BuildConfig.DEBUG && pinnedFingerprint == null) {
+            Log.w(TAG, "RELEASE_CERT_SHA256 is unconfigured in release build. Running self-integrity check without pinned fingerprint.")
+        }
         if (!verifyApkSignature(context, pinnedFingerprint)) {
             isCompromised = true
             details.add("APK signature verification failure: possible repackaging or signature tampering")

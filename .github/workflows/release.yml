@@ -87,24 +87,26 @@ jobs:
 
       - name: Enforce APK Size Budget (<= 25 MB)
         run: |
-          APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
-          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+          APK_FILES=$(find app/build/outputs/apk/release/ -name "*.apk")
+          if [ -z "$APK_FILES" ]; then
+            echo "No release APK found to check size!"
+            exit 1
+          fi
+          MAX_BYTES=26214400 # 25 MB
+          for APK_PATH in $APK_FILES; do
             SIZE_BYTES=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
-            MAX_BYTES=26214400 # 25 MB
             echo "Release APK: $APK_PATH ($SIZE_BYTES bytes, budget: $MAX_BYTES bytes)"
             if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
-              echo "ERROR: Release APK exceeds 25 MB budget ($SIZE_BYTES > $MAX_BYTES)!"
+              echo "ERROR: Release APK $APK_PATH exceeds 25 MB budget ($SIZE_BYTES > $MAX_BYTES)!"
               exit 1
             fi
-            echo "Size budget verified."
-          else
-            echo "No release APK found to check size!"
-          fi
+          done
+          echo "All release APK size budgets verified."
 
       - name: Generate SHA-256 Checksums
         run: |
           mkdir -p release-dist
-          cp app/build/outputs/apk/release/*.apk release-dist/ || true
+          find app/build/outputs/apk/release/ -name "*.apk" -exec cp {} release-dist/ \;
           cd release-dist
           for f in *.apk; do
             if [ -f "$f" ]; then

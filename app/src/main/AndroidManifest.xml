@@ -6,6 +6,17 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Required on Android 13+ (API 33) to show the local clipboard-clear notification -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+        Required on Android 12+ (API 31) to schedule an exact-time clipboard auto-clear alarm.
+        On devices where the user has not granted this (or has revoked it), the app silently
+        falls back to an inexact alarm via setAndAllowWhileIdle() — no crash, just wider window.
+        Declared with minSdkVersion="31" so older devices ignore it entirely.
+    -->
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:minSdkVersion="31" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
@@ -13,6 +24,7 @@
 
     <application
         android:name=".KryptxApplication"
+        android:hardwareAccelerated="true"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -27,6 +39,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -39,7 +52,7 @@
 
         <activity
             android:name=".feature.autofill.AutofillAuthActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.Kryptx"
             android:windowSoftInputMode="adjustResize" />
 
@@ -77,6 +90,25 @@
             <meta-data
                 android:name="android.autofill"
                 android:resource="@xml/autofill_service_config" />
+        </service>
+
+        <activity
+            android:name=".feature.credentials.CredentialAuthActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Kryptx"
+            android:windowSoftInputMode="adjustResize" />
+
+        <service
+            android:name=".feature.credentials.KryptxCredentialProviderService"
+            android:exported="true"
+            android:label="Kryptx Passkey &amp; Password Sync"
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.credentials.provider"
+                android:resource="@xml/credential_provider_config" />
         </service>
 
     </application>

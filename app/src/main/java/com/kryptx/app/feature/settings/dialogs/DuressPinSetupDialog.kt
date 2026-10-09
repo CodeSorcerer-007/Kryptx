@@ -71,7 +71,7 @@ fun DuressPinSetupDialog(
 
                 if (errorMsg != null) {
                     Text(
-                        text = errorMsg!!,
+                        text = errorMsg ?: "",
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 8.dp)
@@ -101,7 +101,10 @@ fun DuressPinSetupDialog(
                         errorMsg = "Duress PINs do not match"
                         return@TextButton
                     }
-                    onSetDuressPin(duressPin)
+                    val pin = duressPin
+                    duressPin = ""
+                    confirmPin = ""
+                    onSetDuressPin(pin)
                 }
             ) {
                 Text("Save Duress PIN", color = KryptxBlue, fontWeight = FontWeight.Bold)

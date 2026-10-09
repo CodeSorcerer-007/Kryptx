@@ -53,7 +53,7 @@ Every technology listed below is 100% active and running in the production app:
 |:---|:---|:---|
 | **OS & Core** | **Android 16 (API 36) & Kotlin 2.3.20** | Modern edge-to-edge architecture with compileSdk 36 and targetSdk 36. |
 | **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, Argon2id, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`). |
-| **Interface** | **Jetpack Compose (Material 3)** | Spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
+| **Interface** | **Jetpack Compose (Material 3)** | Native 120 FPS high-refresh rate lock (`preferredDisplayModeId`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
 | **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces. |
 | **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration. |
 | **Hardware Security Keys** | **NFC IsoDep + USB OTG HID (YubiKey)** | Physical challenge-response via NFC and USB HID slot-2 HMAC-SHA1 protocol (instruction `0x38`) with device-bound HMAC fallback. |
@@ -99,6 +99,9 @@ graph TD;
 8.  **Progressive Exponential Backoff & Brute-Force Throttling**:
     *   **Graduated Lockout Schedule**: 3 attempts (10s), 5 attempts (30s), 8 attempts (2m), 10 attempts (5m), 15 attempts (10m), and 20+ attempts (15m hard cap).
     *   **Persistent Throttle State**: Lockout counters and expiration timestamps survive app kills and device restarts.
+9.  **Fluid 120 FPS High Refresh Rate & Low-Latency UI**:
+    *   **Hardware Display Lock**: Requests `preferredDisplayModeId` and `preferredRefreshRate` matching the panel's highest refresh rate (90Hz / 120Hz / 144Hz), preventing OEM downclocking under `FLAG_SECURE`.
+    *   **Scroll-Optimized Pipeline**: Throttled touch activity dispatch to `ACTION_DOWN` eliminates lock contention during scroll flings; optimized LazyColumn animation lifecycle prevents frame drops.
 
 ---
 
@@ -174,7 +177,8 @@ Kryptx is officially available on the Google Play Store for seamless installatio
 ```bash
 ./gradlew assembleDebug
 ```
-* **Output Path**: `app/build/outputs/apk/debug/app-debug.apk`
+* **Output Artifacts**: `app/build/outputs/apk/debug/` (generates per-ABI split APKs `app-arm64-v8a-debug.apk`, `app-armeabi-v7a-debug.apk`, `app-x86-debug.apk`, `app-x86_64-debug.apk`, plus `app-universal-debug.apk`)
+* **Quick Copy Task**: `./gradlew copyApk` places named builds into the root `apk/` directory.
 
 ### Build Production Android App Bundle (.aab)
 To generate the production-ready, signed `.aab` for Google Play Console:
@@ -188,7 +192,7 @@ To generate the production-ready, signed `.aab` for Google Play Console:
 ```bash
 ./gradlew assembleRelease
 ```
-* **Output APK**: `app/build/outputs/apk/release/app-release.apk`
+* **Output Artifacts**: `app/build/outputs/apk/release/` (generates lightweight per-architecture APKs: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` with stripped native binaries, and `app-universal-release.apk`)
 
 ---
 

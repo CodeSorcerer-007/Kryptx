@@ -289,11 +289,12 @@ fun VaultDashboardScreen(
                     }
 
             // 2.5 Subtle Kryptx Pulse hero card
-            if (securityReport != null && securityReport!!.overallScore < 90) {
+            val sr = securityReport
+            if (sr != null && sr.overallScore < 90) {
                 item {
                     Spacer(modifier = Modifier.height(14.dp))
                     VaultSecurityAlertCard(
-                        report = securityReport!!,
+                        report = sr,
                         onClick = onNavigateToSecurityCenter
                     )
                 }
@@ -341,7 +342,7 @@ fun VaultDashboardScreen(
                             title = when {
                                 searchQuery.isNotBlank() -> "Search Results (${items.size})"
                                 selectedCategory == null -> "All Items (${items.size})"
-                                else -> "${selectedCategory!!.categoryName} (${items.size})"
+                                else -> "${selectedCategory?.categoryName ?: "All Items"} (${items.size})"
                             }
                         ) {
                             KryptxEmptyState(
@@ -388,7 +389,7 @@ fun VaultDashboardScreen(
                                     text = when {
                                         searchQuery.isNotBlank() -> "Search Results (${items.size})"
                                         selectedCategory == null -> "All Items (${items.size})"
-                                        else -> "${selectedCategory!!.categoryName} (${items.size})"
+                                        else -> "${selectedCategory?.categoryName ?: "All Items"} (${items.size})"
                                     },
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
