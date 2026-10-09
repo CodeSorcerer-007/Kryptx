@@ -56,6 +56,9 @@ object KryptxDbSchema {
     const val KEY_HARDWARE_KEY_CHALLENGE = "hardware_key_challenge"
     const val KEY_ACTIVE_VAULT = "active_vault_id"
     const val KEY_KDF_ALGORITHM = "kdf_algorithm"
+    const val KEY_ARGON2_MEMORY_KB = "argon2_memory_kb"
+    const val KEY_ARGON2_ITERATIONS = "argon2_iterations"
+    const val KEY_ARGON2_PARALLELISM = "argon2_parallelism"
     const val KEY_PQC_IDENTITY_PUBLIC_KEY = "pqc_identity_public_key"
     const val KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT = "pqc_identity_private_key_ct"
 

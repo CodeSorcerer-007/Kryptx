@@ -36,12 +36,34 @@ object AdaptiveKdfCalibrator {
         FLAGSHIP_EXTREME
     }
 
+    @Volatile
+    private var cachedCalibrationResult: KdfCalibrationResult? = null
+
+    /**
+     * Returns the cached [KdfCalibrationResult] if available, otherwise executes a fast calibration.
+     */
+    suspend fun getCalibratedOrBenchmark(): KdfCalibrationResult {
+        return cachedCalibrationResult ?: calibrateHardware().also { cachedCalibrationResult = it }
+    }
+
+    /**
+     * Resets the cached calibration result (used in unit tests).
+     */
+    fun resetCache() {
+        cachedCalibrationResult = null
+    }
+
     /**
      * Executes a fast CPU/RAM benchmark to compute calibrated KDF work factors.
      */
     suspend fun calibrateHardware(): KdfCalibrationResult = withContext(Dispatchers.Default) {
-        val samplePassword = "CalibrationProbeSecret123!".toCharArray()
-        val sampleSalt = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        val random = SecureRandom()
+        val randomBytes = ByteArray(24).also { random.nextBytes(it) }
+        val samplePassword = CharArray(24) { i ->
+            ((randomBytes[i].toInt() and 0x7F) % 94 + 33).toChar()
+        }
+        SecureMemory.wipe(randomBytes)
+        val sampleSalt = ByteArray(32).also { random.nextBytes(it) }
 
         val startTime = System.currentTimeMillis()
 
@@ -78,10 +100,13 @@ object AdaptiveKdfCalibrator {
             maxMemoryMb >= 256 && recommendedPbkdf2Rounds >= 800_000 -> {
                 CalibrationIntermediate(128 * 1024, 4, 4, HardwareClass.HIGH_PERFORMANCE)
             }
+            maxMemoryMb >= 256 -> {
+                // HIGH_SECURITY OWASP baseline (64 MB, 4 rounds, 1 lane)
+                CalibrationIntermediate(64 * 1024, 4, 1, HardwareClass.STANDARD)
+            }
             else -> {
-                // STANDARD tier now starts at 64 MB / 4 iterations — OWASP minimum for
-                // interactive password hashing. Only LOW_RAM devices (< 256 MB heap) fall here.
-                CalibrationIntermediate(64 * 1024, 4, 4, HardwareClass.STANDARD)
+                // Constrained memory devices (< 256 MB heap)
+                CalibrationIntermediate(16 * 1024, 3, 1, HardwareClass.STANDARD)
             }
         }
 

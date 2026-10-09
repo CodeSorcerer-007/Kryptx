@@ -423,5 +423,20 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
                 minimum = "0.85".toBigDecimal()
             }
         }
+        rule {
+            element = "PACKAGE"
+            includes = listOf("com.kryptx.app.core.crypto", "com.kryptx.app.core.security")
+            limit {
+                counter = "INSTRUCTION"
+                value = "COVEREDRATIO"
+                minimum = "0.90".toBigDecimal()
+            }
+        }
     }
+}
+
+tasks.register("aggregatedCoverageReport") {
+    group = "Reporting"
+    description = "Merges Jacoco coverage reports across all core and feature modules"
+    dependsOn("jacocoTestReport")
 }

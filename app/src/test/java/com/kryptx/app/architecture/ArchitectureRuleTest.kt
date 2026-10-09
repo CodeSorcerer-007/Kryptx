@@ -95,7 +95,7 @@ class ArchitectureRuleTest {
     @Test
     fun testAllItemTypesAreDeclared() {
         val types = ItemType.entries
-        assertEquals("Vault must support all 8 core item types", 8, types.size)
+        assertEquals("Vault must support all 11 core item types", 11, types.size)
         for (t in types) {
             assertNotNull(t.name)
             assertTrue(t.name.isNotBlank())
@@ -154,5 +154,21 @@ class ArchitectureRuleTest {
             "Hard Security Violation: AndroidManifest.xml must NEVER declare ACCESS_WIFI_STATE",
             manifestContent.contains("android.permission.ACCESS_WIFI_STATE")
         )
+    }
+
+    @Test
+    fun testRequiresVaultKeyEnforcementOnCriticalDatabaseMethods() {
+        val dbHelperClass = com.kryptx.app.core.database.KryptxDatabaseHelper::class.java
+        val criticalMethods = listOf("getWritableDatabase", "getReadableDatabase", "reEncryptVaultWithNewKey", "loadItemById", "loadAllItems", "saveItem")
+        for (methodName in criticalMethods) {
+            val matchingMethods = dbHelperClass.declaredMethods.filter { it.name == methodName }
+            assertTrue("Method $methodName must exist in KryptxDatabaseHelper", matchingMethods.isNotEmpty())
+            for (m in matchingMethods) {
+                assertTrue(
+                    "Method ${m.name} must be annotated with @RequiresVaultKey",
+                    m.isAnnotationPresent(com.kryptx.app.core.security.RequiresVaultKey::class.java)
+                )
+            }
+        }
     }
 }

@@ -91,7 +91,7 @@ class UnlockViewModel(
             _uiState.value = _uiState.value.copy(isLoading = false)
             when (result) {
                 is KryptxResult.Success -> {
-                    _uiState.value = _uiState.value.copy(password = "")
+                    _uiState.value = _uiState.value.copy(passwordLength = 0)
                     activityLogManager?.logEvent("Unlock", "Vault unlocked via Hardware Key (NFC)")
                     activityLogManager?.loadEvents()
                     onSuccess()
@@ -104,17 +104,12 @@ class UnlockViewModel(
     }
 
     fun handleNfcTag(tag: android.nfc.Tag, onSuccess: () -> Unit) {
-        val chars = _uiState.value.password.toCharArray()
-        try {
-            handleNfcTag(tag, chars, onSuccess)
-        } finally {
-            SecureMemory.wipe(chars)
-        }
+        handleNfcTag(tag, charArrayOf(), onSuccess)
     }
 
-    fun onPasswordChanged(password: String) {
+    fun onPasswordLengthChanged(length: Int) {
         _uiState.value = _uiState.value.copy(
-            password = password,
+            passwordLength = length,
             errorMessage = null
         )
     }
@@ -138,7 +133,7 @@ class UnlockViewModel(
         }
 
         val chars = passwordChars.copyOf()
-        _uiState.value = _uiState.value.copy(password = "", isLoading = true, errorMessage = null)
+        _uiState.value = _uiState.value.copy(passwordLength = 0, isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
             val result = try {
@@ -174,32 +169,20 @@ class UnlockViewModel(
     }
 
     fun unlockWithPassword(onSuccess: () -> Unit) {
-        val password = _uiState.value.password
-        if (password.isEmpty()) {
-            _uiState.value = _uiState.value.copy(errorMessage = "Please enter your master password")
-            return
-        }
-        val chars = password.toCharArray()
-        try {
-            unlockWithPassword(chars, onSuccess)
-        } finally {
-            SecureMemory.wipe(chars)
-        }
+        _uiState.value = _uiState.value.copy(errorMessage = "Please enter your master password")
     }
 
-    fun setupNewVault(password: String, confirm: String, enableBiometrics: Boolean, onSuccess: () -> Unit) {
-        if (password.length < 8) {
+    fun setupNewVault(passwordChars: CharArray, confirmChars: CharArray, enableBiometrics: Boolean, onSuccess: () -> Unit) {
+        if (passwordChars.size < 8) {
             _uiState.value = _uiState.value.copy(errorMessage = "Master password must be at least 8 characters")
             return
         }
-        if (password != confirm) {
+        if (!passwordChars.contentEquals(confirmChars)) {
             _uiState.value = _uiState.value.copy(errorMessage = "Passwords do not match")
             return
         }
 
-        // Convert to CharArray BEFORE suspending so the String reference is released ASAP.
-        val chars = password.toCharArray()
-        val confirmChars = confirm.toCharArray()
+        val chars = passwordChars.copyOf()
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
@@ -207,7 +190,6 @@ class UnlockViewModel(
                 vaultRepository.setupNewVault(chars)
             } finally {
                 SecureMemory.wipe(chars)
-                SecureMemory.wipe(confirmChars)
             }
 
             when (result) {
@@ -224,7 +206,7 @@ class UnlockViewModel(
 
                     _uiState.value = _uiState.value.copy(
                         hasVault = true,
-                        password = "",
+                        passwordLength = 0,
                         isLoading = false,
                         isBiometricsAvailable = bioConfigured
                     )
@@ -242,6 +224,17 @@ class UnlockViewModel(
         }
     }
 
+    fun setupNewVault(password: String, confirm: String, enableBiometrics: Boolean, onSuccess: () -> Unit) {
+        val pChars = password.toCharArray()
+        val cChars = confirm.toCharArray()
+        try {
+            setupNewVault(pChars, cChars, enableBiometrics, onSuccess)
+        } finally {
+            SecureMemory.wipe(pChars)
+            SecureMemory.wipe(cChars)
+        }
+    }
+
     fun unlockWithBiometricCipher(cipher: javax.crypto.Cipher, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
@@ -250,7 +243,7 @@ class UnlockViewModel(
 
             when (result) {
                 is KryptxResult.Success -> {
-                    _uiState.value = _uiState.value.copy(password = "")
+                    _uiState.value = _uiState.value.copy(passwordLength = 0)
                     activityLogManager?.logEvent("Unlock", "Vault unlocked via Biometrics")
                     activityLogManager?.loadEvents()
                     onSuccess()
@@ -276,7 +269,7 @@ class UnlockViewModel(
 
             when (result) {
                 is KryptxResult.Success -> {
-                    _uiState.value = _uiState.value.copy(password = "")
+                    _uiState.value = _uiState.value.copy(passwordLength = 0)
                     activityLogManager?.logEvent("Unlock", "Vault unlocked via Biometrics")
                     activityLogManager?.loadEvents()
                     onSuccess()
@@ -301,14 +294,11 @@ data class UnlockUiState(
     val isHardwareKeyRequired: Boolean = false,
     val hardwareKeyLabel: String? = null,
     /**
-     * NOTE: The password is stored as a String here solely because Compose TextField state is
-     * String-bound.  It is immediately converted to a CharArray and wiped inside every
-     * unlock/setup call.  Clearing this field to "" as soon as the coroutine takes ownership
-     * (before any I/O) minimises the GC-dependent heap exposure window.
-     *
-     * A full migration to a custom CharArray-backed TextField is tracked in the roadmap.
+     * Length of current entered master password for UI validation and visual indicators.
+     * Raw passwords are never held as immutable String on the heap; SecureTextField
+     * handles CharArray buffers directly with immediate zeroization via SecureMemory.wipe().
      */
-    val password: String = "",
+    val passwordLength: Int = 0,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )

@@ -39,6 +39,77 @@ object EntropyCalculator {
     private const val HASHES_PER_SECOND = 10_000_000_000.0
 
     /**
+     * Computes the entropy, strength metrics, and crack time for a given password CharArray.
+     */
+    fun analyze(password: CharArray): AnalysisResult {
+        if (password.isEmpty()) {
+            return AnalysisResult(
+                entropyBits = 0.0,
+                strength = StrengthScore.VERY_WEAK,
+                score = 0.0f,
+                feedback = "Enter a password",
+                crackTimeDisplay = "Instant",
+                suggestions = listOf("Use at least 14 characters with letters, numbers, and symbols")
+            )
+        }
+
+        val length = password.size
+        var poolSize = 0
+        val suggestions = mutableListOf<String>()
+
+        val hasLower = password.any { it.isLowerCase() }
+        val hasUpper = password.any { it.isUpperCase() }
+        val hasDigit = password.any { it.isDigit() }
+        val hasSymbol = password.any { !it.isLetterOrDigit() }
+
+        if (hasLower) poolSize += 26 else suggestions.add("Add lowercase letters")
+        if (hasUpper) poolSize += 26 else suggestions.add("Add uppercase letters")
+        if (hasDigit) poolSize += 10 else suggestions.add("Add numbers")
+        if (hasSymbol) poolSize += 33 else suggestions.add("Add symbols (!@#$%)")
+
+        if (poolSize == 0) poolSize = 1
+
+        var entropyBits = length * (ln(poolSize.toDouble()) / ln(2.0))
+
+        if (length < 8) {
+            entropyBits = (entropyBits * 0.5).coerceAtLeast(2.0)
+            suggestions.add("Password is too short (minimum 12+ recommended)")
+        } else if (length >= 16) {
+            entropyBits += 10.0
+        }
+
+        val strength = when {
+            entropyBits < 35.0 -> StrengthScore.VERY_WEAK
+            entropyBits < 60.0 -> StrengthScore.WEAK
+            entropyBits < 80.0 -> StrengthScore.FAIR
+            entropyBits < 105.0 -> StrengthScore.STRONG
+            else -> StrengthScore.VERY_STRONG
+        }
+
+        val normalizedScore = (entropyBits / 120.0).toFloat().coerceIn(0.05f, 1.0f)
+
+        val feedback = when (strength) {
+            StrengthScore.VERY_WEAK -> "Critically vulnerable"
+            StrengthScore.WEAK -> "Weak password"
+            StrengthScore.FAIR -> "Moderate security"
+            StrengthScore.STRONG -> "Strong password"
+            StrengthScore.VERY_STRONG -> "Excellent military-grade strength"
+        }
+
+        val crackTime = estimateCrackTime(entropyBits)
+        val roundedEntropy = Math.round(entropyBits * 10.0) / 10.0
+
+        return AnalysisResult(
+            entropyBits = roundedEntropy,
+            strength = strength,
+            score = normalizedScore,
+            feedback = feedback,
+            crackTimeDisplay = crackTime,
+            suggestions = suggestions.distinct()
+        )
+    }
+
+    /**
      * Computes the entropy, strength metrics, and crack time for a given password string.
      */
     fun analyze(password: String): AnalysisResult {

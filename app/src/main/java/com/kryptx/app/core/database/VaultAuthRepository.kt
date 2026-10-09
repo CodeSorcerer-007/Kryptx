@@ -1,6 +1,7 @@
 package com.kryptx.app.core.database
 
 import android.util.Base64
+import com.kryptx.app.core.crypto.Argon2Engine
 import com.kryptx.app.core.crypto.CryptoEngine
 import com.kryptx.app.core.crypto.KeyDerivation
 import com.kryptx.app.core.crypto.PostQuantumEngine
@@ -80,12 +81,29 @@ class VaultAuthRepositoryImpl(
 
     override fun getBiometricEncryptCipher(): Cipher? = keystoreManager.getEncryptCipher()
 
+    private fun base64Decode(str: String): ByteArray {
+        return try {
+            Base64.decode(str, Base64.NO_WRAP) ?: java.util.Base64.getDecoder().decode(str)
+        } catch (_: Throwable) {
+            java.util.Base64.getDecoder().decode(str)
+        }
+    }
+
+    private fun base64Encode(bytes: ByteArray): String {
+        return try {
+            Base64.encodeToString(bytes, Base64.NO_WRAP) ?: java.util.Base64.getEncoder().encodeToString(bytes)
+        } catch (_: Throwable) {
+            java.util.Base64.getEncoder().encodeToString(bytes)
+        }
+    }
+
     override suspend fun setupNewVault(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         val salt = KeyDerivation.generateSalt()
         var derivedMasterKey: ByteArray? = null
         var vek: ByteArray? = null
         try {
-            derivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, salt)
+            val argon2Params = Argon2Engine.Argon2Params.forDevice()
+            derivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, salt, argon2Params)
             vek = CryptoEngine.generateVaultKey()
 
             val encryptedVekPayload = CryptoEngine.encrypt(vek, derivedMasterKey)
@@ -99,6 +117,9 @@ class VaultAuthRepositoryImpl(
 
             dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, saltBase64)
             dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
+            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, argon2Params.memoryCostKb.toString())
+            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, argon2Params.iterations.toString())
+            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, argon2Params.parallelism.toString())
             dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, tokenBase64)
             dbHelper.setMetadata(KryptxDbSchema.KEY_HAS_SETUP, "true")
 
@@ -166,12 +187,26 @@ class VaultAuthRepositoryImpl(
         val tokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN)
 
         if (saltBase64 != null && tokenBase64 != null) {
-            val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
-            val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+            val salt = base64Decode(saltBase64)
+            val tokenBytes = base64Decode(tokenBase64)
 
             val kdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM)
+            val memoryKb = dbHelper.getMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB)?.toIntOrNull()
+            val iterations = dbHelper.getMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS)?.toIntOrNull()
+            val parallelism = dbHelper.getMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM)?.toIntOrNull()
+            val argon2Params = if (memoryKb != null && iterations != null && parallelism != null) {
+                Argon2Engine.Argon2Params(
+                    memoryCostKb = memoryKb,
+                    iterations = iterations,
+                    parallelism = parallelism,
+                    outputLength = 32
+                )
+            } else {
+                Argon2Engine.Argon2Params.forDevice()
+            }
+
             val derivedMasterKey = if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-                KeyDerivation.deriveKeyArgon2(masterPassword, salt)
+                KeyDerivation.deriveKeyArgon2(masterPassword, salt, argon2Params)
             } else {
                 KeyDerivation.deriveKey(masterPassword, salt)
             }
@@ -190,6 +225,11 @@ class VaultAuthRepositoryImpl(
                     dbHelper.loadAllItems(activeKey)
                 }
                 success = true
+                if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier && memoryKb == null) {
+                    dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, argon2Params.memoryCostKb.toString())
+                    dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, argon2Params.iterations.toString())
+                    dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, argon2Params.parallelism.toString())
+                }
                 onAuditInvalidated?.invoke()
             } catch (e: Exception) {
                 // Decryption failure is expected when the password is wrong — this is a normal fallthrough.
@@ -341,12 +381,16 @@ class VaultAuthRepositoryImpl(
             SecureMemory.wipe(verifiedVek)
 
             val newSalt = KeyDerivation.generateSalt()
-            val newDerivedKey = KeyDerivation.deriveKeyArgon2(newPassword, newSalt)
+            val newParams = Argon2Engine.Argon2Params.forDevice()
+            val newDerivedKey = KeyDerivation.deriveKeyArgon2(newPassword, newSalt, newParams)
             val newEncryptedVek = CryptoEngine.encrypt(activeVek, newDerivedKey)
 
             dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, Base64.encodeToString(newSalt, Base64.NO_WRAP))
             dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP))
             dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
+            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, newParams.memoryCostKb.toString())
+            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, newParams.iterations.toString())
+            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, newParams.parallelism.toString())
 
             if (isBiometricsConfigured()) {
                 setupBiometrics()
@@ -365,8 +409,8 @@ class VaultAuthRepositoryImpl(
             val tokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN)
                 ?: return@withVaultKey KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault token not found")
 
-            val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
-            val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+            val salt = base64Decode(saltBase64)
+            val tokenBytes = base64Decode(tokenBase64)
             val currentDerivedKey = deriveMasterKeyForVault(currentMasterPassword, salt)
 
             val verifiedVek = try {
@@ -380,23 +424,26 @@ class VaultAuthRepositoryImpl(
 
             val newVek = CryptoEngine.generateVaultKey()
             var reEncrypted = false
+            var tokenUpdated = false
             var rekeyed = false
 
             try {
-                // Step 1: Re-encrypt all vault items under new VEK
+                // Step 1: Re-encrypt all vault items under new VEK (transactional SQL)
                 dbHelper.reEncryptVaultWithNewKey(activeVek, newVek)
                 reEncrypted = true
 
-                // Step 2: Rekey SQLCipher database file encryption to match new VEK
+                // Step 2: Encrypt new VEK under master password and update verification token
+                val newEncryptedVek = CryptoEngine.encrypt(newVek, currentDerivedKey)
+                dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, base64Encode(newEncryptedVek))
+                tokenUpdated = true
+
+                // Step 3: Rekey SQLCipher database file encryption to match new VEK (non-transactional PRAGMA rekey, last)
                 val newDbKey = deriveSqlCipherKey(newVek)
                 dbHelper.rekeyDatabase(newDbKey)
                 SecureMemory.wipe(newDbKey)
                 rekeyed = true
 
-                // Step 3: Encrypt new VEK under master password and update verification token
-                val newEncryptedVek = CryptoEngine.encrypt(newVek, currentDerivedKey)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP))
-
+                // Step 4: sessionManager.unlock(newVek)
                 sessionManager.unlock(newVek, isDecoy = false)
 
                 if (isBiometricsConfigured()) {
@@ -418,6 +465,13 @@ class VaultAuthRepositoryImpl(
                         SecurityLogger.error("VaultAuthRepository", "Rollback rekeyDatabase failed", rollbackRekeyEx)
                     } finally {
                         SecureMemory.wipe(oldDbKey)
+                    }
+                }
+                if (tokenUpdated) {
+                    try {
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, tokenBase64)
+                    } catch (rollbackTokenEx: Exception) {
+                        SecurityLogger.error("VaultAuthRepository", "Rollback verification token failed", rollbackTokenEx)
                     }
                 }
                 if (reEncrypted) {
@@ -849,7 +903,20 @@ class VaultAuthRepositoryImpl(
     private fun deriveMasterKeyForVault(password: CharArray, salt: ByteArray): ByteArray {
         val kdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM)
         return if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-            KeyDerivation.deriveKeyArgon2(password, salt)
+            val memoryKb = dbHelper.getMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB)?.toIntOrNull()
+            val iterations = dbHelper.getMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS)?.toIntOrNull()
+            val parallelism = dbHelper.getMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM)?.toIntOrNull()
+            val params = if (memoryKb != null && iterations != null && parallelism != null) {
+                Argon2Engine.Argon2Params(
+                    memoryCostKb = memoryKb,
+                    iterations = iterations,
+                    parallelism = parallelism,
+                    outputLength = 32
+                )
+            } else {
+                Argon2Engine.Argon2Params.forDevice()
+            }
+            KeyDerivation.deriveKeyArgon2(password, salt, params)
         } else {
             KeyDerivation.deriveKey(password, salt)
         }

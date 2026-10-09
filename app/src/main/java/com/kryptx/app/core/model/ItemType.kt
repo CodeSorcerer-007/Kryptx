@@ -31,14 +31,14 @@ enum class ItemType(val displayName: String, val categoryName: String) {
     SECURE_NOTE("Secure Note", "Notes"),
     WIFI("Wi-Fi Network", "Wi-Fi"),
     API_KEY("API Key / Token", "API Keys"),
+    BANK_ACCOUNT("Bank Account", "Banking"),
+    CRYPTO_WALLET("Crypto Wallet", "Crypto"),
+    SSH_KEY("SSH Key", "SSH Keys"),
     CUSTOM("Custom Item", "Custom");
 
     companion object {
         fun fromString(value: String): ItemType {
-            return when (value.uppercase()) {
-                "BANK_ACCOUNT", "CRYPTO_WALLET", "SSH_KEY" -> CUSTOM
-                else -> entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: LOGIN
-            }
+            return entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: LOGIN
         }
     }
 }

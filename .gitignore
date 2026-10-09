@@ -72,6 +72,7 @@ Thumbs.db
 
 # IDE & Release artifacts
 .vscode/
+.kiro/
 release-artifacts/
 
 # Rust build artifacts

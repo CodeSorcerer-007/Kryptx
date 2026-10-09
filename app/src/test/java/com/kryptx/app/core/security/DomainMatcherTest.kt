@@ -83,4 +83,12 @@ class DomainMatcherTest {
         assertFalse(DomainMatcher.isDomainMatch(spoofedDomain, "paypal.com"))
         assertFalse(DomainMatcher.isDomainMatch("paypal.com", spoofedDomain))
     }
+
+    @Test
+    fun testSpoofedTitleWithoutDomainOrPackageMatchRejected() {
+        // Attack scenario: malicious app with title "PayPal" but package "com.attacker.evil"
+        assertFalse(DomainMatcher.isPackageMatch("com.attacker.evil", "paypal.com", "PayPal"))
+        // Attack scenario: malicious app with package "com.attacker.unrelated"
+        assertFalse(DomainMatcher.isPackageMatch("com.attacker.unrelated", "google.com", "Google"))
+    }
 }

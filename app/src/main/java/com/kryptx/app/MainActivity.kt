@@ -23,7 +23,9 @@ import com.kryptx.app.feature.settings.SettingsViewModel
 import com.kryptx.app.feature.totp.TotpViewModel
 import com.kryptx.app.feature.vault.VaultViewModel
 import com.kryptx.app.core.security.ContextualLockManager
+import com.kryptx.app.core.security.SecurityBootstrapper
 import com.kryptx.app.core.security.SecurityLogger
+import com.kryptx.app.feature.auth.SecurityCompromisedActivity
 import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
@@ -55,6 +57,23 @@ class MainActivity : FragmentActivity() {
         )
         enableEdgeToEdge()
         configureHighRefreshRate()
+
+        // Dimension 1.1: Blocking root/tamper detection gate before vault access
+        if (!SecurityBootstrapper.isCompromiseAcknowledged(this)) {
+            val report = SecurityBootstrapper.checkDeviceIntegrity(this)
+            if (report.isCompromised) {
+                val intent = Intent(this, SecurityCompromisedActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    putStringArrayListExtra(
+                        SecurityCompromisedActivity.EXTRA_DETAILS,
+                        ArrayList(report.details)
+                    )
+                }
+                startActivity(intent)
+                finish()
+                return
+            }
+        }
 
         hasAutoPromptedBiometrics =
             savedInstanceState?.getBoolean("hasAutoPromptedBiometrics") ?: false

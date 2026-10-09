@@ -55,10 +55,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.DisposableEffect
+import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.designsystem.components.KryptxCelebrationOverlay
 import com.kryptx.app.core.designsystem.components.KryptxHaptics
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
-import com.kryptx.app.core.designsystem.components.KryptxTextField
+import com.kryptx.app.core.designsystem.components.SecureTextField
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.components.bounceClick
 import com.kryptx.app.core.designsystem.components.frostedGlass
@@ -82,7 +84,13 @@ fun UnlockScreen(
     val isBiometricPrompted by viewModel.isBiometricEnrollmentPrompted.collectAsState()
     var rememberMe by remember { mutableStateOf(true) }
     var triggerCelebration by remember { mutableStateOf(false) }
-    var localPassword by rememberSaveable { mutableStateOf("") }
+    var passwordChars by remember { mutableStateOf(CharArray(0)) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            SecureMemory.wipe(passwordChars)
+        }
+    }
 
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -118,11 +126,11 @@ fun UnlockScreen(
     }
 
     fun submitUnlock() {
-        val input = localPassword.ifBlank { uiState.password }
-        if (input.isNotBlank() && lockoutSeconds == 0) {
-            val chars = input.toCharArray()
+        if (passwordChars.isNotEmpty() && lockoutSeconds == 0) {
+            val chars = passwordChars.copyOf()
             viewModel.unlockWithPassword(chars, onSuccess = {
-                localPassword = ""
+                SecureMemory.wipe(passwordChars)
+                passwordChars = CharArray(0)
                 KryptxHaptics.confirm(view)
                 com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(view.context)
                 triggerCelebration = true
@@ -251,10 +259,12 @@ fun UnlockScreen(
                         .offset { IntOffset(shakeOffset.value.roundToInt(), 0) }
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        KryptxTextField(
-                            value = if (localPassword.isNotEmpty()) localPassword else uiState.password,
-                            onValueChange = {
-                                localPassword = it
+                        SecureTextField(
+                            value = passwordChars,
+                            onValueChange = { newChars ->
+                                SecureMemory.wipe(passwordChars)
+                                passwordChars = newChars
+                                viewModel.onPasswordLengthChanged(newChars.size)
                                 if (uiState.errorMessage != null) {
                                     viewModel.setErrorMessage(null)
                                 }
@@ -387,7 +397,7 @@ fun UnlockScreen(
                         text = "Unlock Vault",
                         useBrandGradient = true,
                         modifier = Modifier.testTag("unlock_button"),
-                        enabled = (localPassword.isNotBlank() || uiState.password.isNotBlank()) && lockoutSeconds == 0,
+                        enabled = passwordChars.isNotEmpty() && lockoutSeconds == 0,
                         onClick = { submitUnlock() }
                     )
                 }

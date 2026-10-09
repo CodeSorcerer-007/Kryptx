@@ -110,6 +110,9 @@ data class VaultItem(
             ItemType.SECURE_NOTE -> notes.lines().firstOrNull() ?: "Secure Note"
             ItemType.WIFI -> wifiSsid
             ItemType.API_KEY -> apiEndpoint.ifBlank { "API Token" }
+            ItemType.BANK_ACCOUNT -> customFields.firstOrNull { it.label == "Bank Name" }?.value ?: "Bank Account"
+            ItemType.CRYPTO_WALLET -> customFields.firstOrNull { it.label == "Network" }?.value ?: "Crypto Wallet"
+            ItemType.SSH_KEY -> customFields.firstOrNull { it.label == "Host" }?.value ?: "SSH Key"
             ItemType.CUSTOM -> customFields.firstOrNull { it.label != SUBTYPE_SENTINEL_LABEL }?.let { "${it.label}: ${it.value}" } ?: "Custom Entry"
         }
 
@@ -145,6 +148,9 @@ data class VaultItem(
             ItemType.WIFI -> wifiPassword
             ItemType.API_KEY -> apiKey.ifBlank { apiSecret }
             ItemType.IDENTITY -> identityIdNumber
+            ItemType.BANK_ACCOUNT -> customFields.firstOrNull { it.label == "Account Number" }?.value ?: ""
+            ItemType.CRYPTO_WALLET -> customFields.firstOrNull { it.label == "Seed Phrase" }?.value ?: customFields.firstOrNull { it.label == "Address" }?.value ?: ""
+            ItemType.SSH_KEY -> customFields.firstOrNull { it.label == "Private Key" }?.value ?: customFields.firstOrNull { it.label == "Public Key" }?.value ?: ""
             ItemType.CUSTOM -> customFields.firstOrNull { it.isSecured && it.label != SUBTYPE_SENTINEL_LABEL }?.value ?: ""
         }
 
@@ -202,6 +208,22 @@ data class VaultItem(
             )
             ItemType.SECURE_NOTE -> VaultPayload.SecureNote(
                 content = notes
+            )
+            ItemType.BANK_ACCOUNT -> VaultPayload.BankAccount(
+                bankName    = customFields.firstOrNull { it.label == "Bank Name" }?.value ?: "",
+                accountNumber = customFields.firstOrNull { it.label == "Account Number" }?.value ?: "",
+                routingNumber = customFields.firstOrNull { it.label == "Routing Number" }?.value ?: "",
+                swiftBic    = customFields.firstOrNull { it.label == "SWIFT / BIC" }?.value ?: ""
+            )
+            ItemType.CRYPTO_WALLET -> VaultPayload.CryptoWallet(
+                address     = customFields.firstOrNull { it.label == "Address" }?.value ?: "",
+                seedPhrase  = customFields.firstOrNull { it.label == "Seed Phrase" }?.value ?: "",
+                network     = customFields.firstOrNull { it.label == "Network" }?.value ?: ""
+            )
+            ItemType.SSH_KEY -> VaultPayload.SshKey(
+                publicKey   = customFields.firstOrNull { it.label == "Public Key" }?.value ?: "",
+                privateKey  = customFields.firstOrNull { it.label == "Private Key" }?.value ?: "",
+                host        = customFields.firstOrNull { it.label == "Host" }?.value ?: ""
             )
             ItemType.CUSTOM -> {
                 // Read the reserved sub-type sentinel written by fromPayload()
@@ -424,12 +446,11 @@ data class VaultItem(
             is VaultPayload.BankAccount -> VaultItem(
                 id = id,
                 title = title,
-                type = ItemType.CUSTOM,
+                type = ItemType.BANK_ACCOUNT,
                 isFavorite = isFavorite,
                 tags = tags,
                 notes = notes,
                 customFields = listOf(
-                    CustomField(id = UUID.randomUUID().toString(), label = SUBTYPE_SENTINEL_LABEL, value = SUBTYPE_BANK_ACCOUNT),
                     CustomField(id = UUID.randomUUID().toString(), label = "Bank Name", value = payload.bankName),
                     CustomField(id = UUID.randomUUID().toString(), label = "Account Number", value = payload.accountNumber, isSecured = true),
                     CustomField(id = UUID.randomUUID().toString(), label = "Routing Number", value = payload.routingNumber),
@@ -446,12 +467,11 @@ data class VaultItem(
             is VaultPayload.CryptoWallet -> VaultItem(
                 id = id,
                 title = title,
-                type = ItemType.CUSTOM,
+                type = ItemType.CRYPTO_WALLET,
                 isFavorite = isFavorite,
                 tags = tags,
                 notes = notes,
                 customFields = listOf(
-                    CustomField(id = UUID.randomUUID().toString(), label = SUBTYPE_SENTINEL_LABEL, value = SUBTYPE_CRYPTO_WALLET),
                     CustomField(id = UUID.randomUUID().toString(), label = "Address", value = payload.address),
                     CustomField(id = UUID.randomUUID().toString(), label = "Seed Phrase", value = payload.seedPhrase, isSecured = true),
                     CustomField(id = UUID.randomUUID().toString(), label = "Network", value = payload.network)
@@ -467,12 +487,11 @@ data class VaultItem(
             is VaultPayload.SshKey -> VaultItem(
                 id = id,
                 title = title,
-                type = ItemType.CUSTOM,
+                type = ItemType.SSH_KEY,
                 isFavorite = isFavorite,
                 tags = tags,
                 notes = notes,
                 customFields = listOf(
-                    CustomField(id = UUID.randomUUID().toString(), label = SUBTYPE_SENTINEL_LABEL, value = SUBTYPE_SSH_KEY),
                     CustomField(id = UUID.randomUUID().toString(), label = "Public Key", value = payload.publicKey),
                     CustomField(id = UUID.randomUUID().toString(), label = "Private Key", value = payload.privateKey, isSecured = true),
                     CustomField(id = UUID.randomUUID().toString(), label = "Host", value = payload.host)

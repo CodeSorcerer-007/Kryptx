@@ -24,7 +24,7 @@ import java.security.SecureRandom
  * High-performance SQLCipher database helper with zero-plaintext storage and transactional integrity.
  * The entire database file is now encrypted at the page-level using SQLCipher 4.
  */
-class KryptxDatabaseHelper(
+open class KryptxDatabaseHelper(
     private val context: Context,
     private val databaseName: String = DATABASE_NAME
 ) {
@@ -124,7 +124,7 @@ class KryptxDatabaseHelper(
      * encryption matches the new key derived from the rotated VEK.
      */
     @Synchronized
-    fun rekeyDatabase(newKey: ByteArray) {
+    open fun rekeyDatabase(newKey: ByteArray) {
         val helper = internalHelper
             ?: throw IllegalStateException("SQLCipher database key is not set — vault must be unlocked before rekeying.")
         val db = helper.writableDatabase
@@ -150,12 +150,14 @@ class KryptxDatabaseHelper(
     }
 
     // Pass the SQLCipher key to all database accessors
+    @get:com.kryptx.app.core.security.RequiresVaultKey
     val writableDatabase: SQLiteDatabase
         get() = internalHelper?.writableDatabase
             ?: throw IllegalStateException(
                 "SQLCipher database key is not set — vault must be unlocked before accessing the database."
             )
 
+    @get:com.kryptx.app.core.security.RequiresVaultKey
     val readableDatabase: SQLiteDatabase
         get() = internalHelper?.readableDatabase
             ?: throw IllegalStateException(
@@ -257,7 +259,7 @@ class KryptxDatabaseHelper(
         }
     }
 
-    fun getMetadata(key: String): String? {
+    open fun getMetadata(key: String): String? {
         return try {
             getSecurePrefs().getString(key, null)
         } catch (t: Throwable) {
@@ -267,7 +269,7 @@ class KryptxDatabaseHelper(
     }
 
     @SuppressLint("ApplySharedPref")
-    fun setMetadata(key: String, value: String) {
+    open fun setMetadata(key: String, value: String) {
         try {
             getSecurePrefs().edit().putString(key, value).commit()
         } catch (t: Throwable) {
@@ -275,7 +277,7 @@ class KryptxDatabaseHelper(
         }
     }
 
-    fun hasVaultSetup(): Boolean {
+    open fun hasVaultSetup(): Boolean {
         return getMetadata(KEY_HAS_SETUP) == "true" && getMetadata(KEY_VERIFICATION_TOKEN) != null
     }
 
@@ -539,7 +541,8 @@ class KryptxDatabaseHelper(
      * SQLite transaction. If any decryption or re-encryption operation fails, the transaction is
      * immediately rolled back to maintain complete data integrity.
      */
-    suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int = withContext(Dispatchers.IO) {
+    @com.kryptx.app.core.security.RequiresVaultKey
+    open suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int = withContext(Dispatchers.IO) {
         val db = writableDatabase
         var updatedCount = 0
 

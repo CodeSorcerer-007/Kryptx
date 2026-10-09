@@ -15,6 +15,33 @@ import java.io.InputStreamReader
 object SecurityBootstrapper {
 
     private const val TAG = "SecurityBootstrapper"
+    private const val PREFS_NAME = "kryptx_security_integrity"
+    private const val KEY_COMPROMISE_ACKNOWLEDGED = "compromise_acknowledged"
+
+    @Volatile
+    private var isSessionAcknowledged: Boolean = false
+
+    fun isCompromiseAcknowledged(context: Context): Boolean {
+        if (isSessionAcknowledged) return true
+        return try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.getBoolean(KEY_COMPROMISE_ACKNOWLEDGED, false)
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    fun setCompromiseAcknowledged(context: Context, acknowledged: Boolean) {
+        isSessionAcknowledged = acknowledged
+        try {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_COMPROMISE_ACKNOWLEDGED, acknowledged)
+                .apply()
+        } catch (_: Throwable) {
+            // Ignored
+        }
+    }
 
     data class IntegrityReport(
         val isCompromised: Boolean,
@@ -67,7 +94,9 @@ object SecurityBootstrapper {
         //    In debug builds (empty fingerprint), fall back to well-formedness check only.
         val pinnedFingerprint = BuildConfig.RELEASE_CERT_SHA256.takeIf { it.isNotBlank() }
         if (!BuildConfig.DEBUG && pinnedFingerprint == null) {
-            Log.w(TAG, "RELEASE_CERT_SHA256 is unconfigured in release build. Running self-integrity check without pinned fingerprint.")
+            isCompromised = true
+            details.add("CRITICAL: RELEASE_CERT_SHA256 not configured — certificate pinning inactive")
+            Log.e(TAG, "RELEASE_CERT_SHA256 is unconfigured in release build. Repackaging defense inactive.")
         }
         if (!verifyApkSignature(context, pinnedFingerprint)) {
             isCompromised = true

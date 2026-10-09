@@ -413,6 +413,9 @@ fun VaultItemDetailScreen(
                             )
                         }
                     }
+                    ItemType.BANK_ACCOUNT,
+                    ItemType.CRYPTO_WALLET,
+                    ItemType.SSH_KEY,
                     ItemType.CUSTOM -> {
                         if (item.customFields.isEmpty()) {
                             Text(

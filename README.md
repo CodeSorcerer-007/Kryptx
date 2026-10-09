@@ -56,8 +56,8 @@ Every technology listed below is 100% active and running in the production app:
 | **Interface** | **Jetpack Compose (Material 3)** | Native 120 FPS high-refresh rate lock (`preferredDisplayModeId`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
 | **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces. |
 | **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration. |
-| **Hardware Security Keys** | **NFC IsoDep + USB OTG HID (YubiKey)** | Physical challenge-response via NFC and USB HID slot-2 HMAC-SHA1 protocol (instruction `0x38`) with device-bound HMAC fallback. |
-| **Key Derivation** | **Argon2id & PBKDF2-HMAC-SHA256** | High-iteration memory-hard key derivation in bare-metal Rust with 32-byte cryptographically secure salts. Uniform KDF preservation across password changes and key rotations. |
+| **Hardware Security Keys** | **NFC IsoDep + USB OTG HID + BLE (YubiKey / FIDO2)** | Physical challenge-response via NFC, USB HID slot-2 HMAC-SHA1 protocol (instruction `0x38`), and CTAP2 BLE wireless hardware keys with device-bound HMAC fallback. |
+| **Key Derivation** | **Adaptive Argon2id & PBKDF2-HMAC-SHA256** | Hardware-calibrated memory-hard key derivation (`AdaptiveKdfCalibrator`) in bare-metal Rust with 32-byte cryptographically secure salts. Uniform KDF preservation across password changes and key rotations. |
 | **Post-Quantum** | **ML-KEM-768 (FIPS 203) & ML-DSA-65 (FIPS 204)** | Hybrid post-quantum key encapsulation and digital signature verification via BouncyCastle. |
 | **Persistence** | **Encrypted SQLite (WAL Mode)** | `KryptxDatabaseHelper` with zero plaintext rows and AES-256-GCM envelope encryption. |
 | **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; two-pass zeroization (`Arrays.fill` + Rust `zeroize`). |
@@ -102,6 +102,12 @@ graph TD;
 9.  **Fluid 120 FPS High Refresh Rate & Low-Latency UI**:
     *   **Hardware Display Lock**: Requests `preferredDisplayModeId` and `preferredRefreshRate` matching the panel's highest refresh rate (90Hz / 120Hz / 144Hz), preventing OEM downclocking under `FLAG_SECURE`.
     *   **Scroll-Optimized Pipeline**: Throttled touch activity dispatch to `ACTION_DOWN` eliminates lock contention during scroll flings; optimized LazyColumn animation lifecycle prevents frame drops.
+10. **Multi-Protocol Hardware Key Security**:
+    *   **NFC & USB OTG**: Physical YubiKey challenge-response (HMAC-SHA1 slot-2, instruction `0x38`) with IsoDep tag detection and USB HID enumeration.
+    *   **Wireless BLE Security Tokens**: `BleHardwareKeyManager` support for wireless FIDO2/CTAP2 authenticators with automated scanning, MTU negotiation, and device-bound key unwrapping.
+11. **Runtime Tamper & Compromise Sentinel (`SecurityBootstrapper`)**:
+    *   **Integrity Verification**: Checks for root binaries, debugger attachments, hooking frameworks, and uncalibrated runtimes at startup.
+    *   **Compromised Quarantine**: Transitions to a dedicated non-recoverable `SecurityCompromisedActivity` with immediate cryptographic memory purge if hardware or OS security is breached.
 
 ---
 
@@ -177,8 +183,7 @@ Kryptx is officially available on the Google Play Store for seamless installatio
 ```bash
 ./gradlew assembleDebug
 ```
-* **Output Artifacts**: `app/build/outputs/apk/debug/` (generates per-ABI split APKs `app-arm64-v8a-debug.apk`, `app-armeabi-v7a-debug.apk`, `app-x86-debug.apk`, `app-x86_64-debug.apk`, plus `app-universal-debug.apk`)
-* **Quick Copy Task**: `./gradlew copyApk` places named builds into the root `apk/` directory.
+* **Output Path**: `app/build/outputs/apk/debug/app-debug.apk`
 
 ### Build Production Android App Bundle (.aab)
 To generate the production-ready, signed `.aab` for Google Play Console:
@@ -192,7 +197,7 @@ To generate the production-ready, signed `.aab` for Google Play Console:
 ```bash
 ./gradlew assembleRelease
 ```
-* **Output Artifacts**: `app/build/outputs/apk/release/` (generates lightweight per-architecture APKs: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` with stripped native binaries, and `app-universal-release.apk`)
+* **Output APK**: `app/build/outputs/apk/release/app-release.apk`
 
 ---
 

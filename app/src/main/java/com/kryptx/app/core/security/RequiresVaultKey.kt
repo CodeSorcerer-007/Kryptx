@@ -25,7 +25,7 @@ package com.kryptx.app.core.security
  * static analysis rules.
  */
 @MustBeDocumented
-@Retention(AnnotationRetention.SOURCE)
+@Retention(AnnotationRetention.RUNTIME)
 @Target(
     AnnotationTarget.FUNCTION,
     AnnotationTarget.PROPERTY_GETTER,

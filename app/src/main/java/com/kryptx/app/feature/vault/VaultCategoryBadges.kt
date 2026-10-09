@@ -104,6 +104,9 @@ fun VaultCategoryBadges(
                 ItemType.WIFI -> "WI-FI" to KryptxEmerald
                 ItemType.IDENTITY -> "ID" to KryptxViolet
                 ItemType.API_KEY -> "API" to KryptxAmber
+                ItemType.BANK_ACCOUNT -> "BANK" to KryptxEmerald
+                ItemType.CRYPTO_WALLET -> "CRYPTO" to KryptxAmber
+                ItemType.SSH_KEY -> "SSH" to KryptxCyan
                 ItemType.CUSTOM -> "CUSTOM" to KryptxBlue
             }
 

@@ -1,5 +1,6 @@
 package com.kryptx.app.core.crypto
 
+import androidx.annotation.VisibleForTesting
 import com.kryptx.app.core.security.SecurityLogger
 import java.nio.ByteBuffer
 import java.security.SecureRandom
@@ -115,6 +116,7 @@ object CryptoEngine {
      * The frame is encrypted as a single XChaCha20-Poly1305 payload so the AAD is covered by
      * the authentication tag. Callers MUST wipe the returned array with [SecureMemory.wipe].
      */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun buildAadFrame(associatedData: ByteArray, plaintext: ByteArray): ByteArray {
         val frame = ByteArray(4 + associatedData.size + plaintext.size)
         frame[0] = (associatedData.size ushr 24).toByte()
@@ -134,6 +136,7 @@ object CryptoEngine {
      * @throws javax.crypto.AEADBadTagException if the embedded AAD does not match [expectedAssociatedData].
      * @throws IllegalArgumentException if the frame is malformed or too short.
      */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun unpackAadFrame(decryptedFrame: ByteArray, expectedAssociatedData: ByteArray?): ByteArray {
         require(decryptedFrame.size >= 4) {
             "XChaCha20-AAD frame too short (${decryptedFrame.size} bytes); minimum 4 bytes for AAD length header"
@@ -169,6 +172,7 @@ object CryptoEngine {
      * Prevents nonce reuse across up to 2^32 encryptions per session.
      * If the 32-bit counter rolls over, safely re-randomizes the 64-bit prefix.
      */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun generateDeterministicIv(): ByteArray {
         val iv = ByteArray(IV_LENGTH_BYTES)
         val ctr = sessionNonceCounter.getAndIncrement()

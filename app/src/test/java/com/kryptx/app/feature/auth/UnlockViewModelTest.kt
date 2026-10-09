@@ -49,13 +49,13 @@ class UnlockViewModelTest {
         viewModel.checkVaultStatus()
         assertFalse(viewModel.uiState.value.hasVault)
         assertFalse(viewModel.uiState.value.isBiometricsAvailable)
-        assertEquals("", viewModel.uiState.value.password)
+        assertEquals(0, viewModel.uiState.value.passwordLength)
     }
 
     @Test
-    fun testOnPasswordChangedUpdatesState() {
-        viewModel.onPasswordChanged("NewPass123")
-        assertEquals("NewPass123", viewModel.uiState.value.password)
+    fun testOnPasswordLengthChangedUpdatesState() {
+        viewModel.onPasswordLengthChanged(10)
+        assertEquals(10, viewModel.uiState.value.passwordLength)
         assertNull(viewModel.uiState.value.errorMessage)
     }
 
@@ -64,19 +64,19 @@ class UnlockViewModelTest {
         var setupSuccess = false
 
         // Password too short
-        viewModel.setupNewVault("short", "short", false) { setupSuccess = true }
+        viewModel.setupNewVault("short".toCharArray(), "short".toCharArray(), false) { setupSuccess = true }
         testScheduler.runCurrent()
         assertFalse(setupSuccess)
         assertNotNull(viewModel.uiState.value.errorMessage)
 
         // Passwords do not match
-        viewModel.setupNewVault("ValidPassword123", "MismatchPassword456", false) { setupSuccess = true }
+        viewModel.setupNewVault("ValidPassword123".toCharArray(), "MismatchPassword456".toCharArray(), false) { setupSuccess = true }
         testScheduler.runCurrent()
         assertFalse(setupSuccess)
         assertNotNull(viewModel.uiState.value.errorMessage)
 
-        // Valid setup
-        viewModel.setupNewVault("ValidPassword123", "ValidPassword123", true) { setupSuccess = true }
+        // Valid setup with CharArray
+        viewModel.setupNewVault("ValidPassword123".toCharArray(), "ValidPassword123".toCharArray(), true) { setupSuccess = true }
         testScheduler.runCurrent()
         assertTrue(setupSuccess)
         assertTrue(viewModel.uiState.value.hasVault)
@@ -88,28 +88,25 @@ class UnlockViewModelTest {
         var unlockSuccess = false
 
         // Empty password
-        viewModel.onPasswordChanged("")
-        viewModel.unlockWithPassword { unlockSuccess = true }
+        viewModel.unlockWithPassword(charArrayOf()) { unlockSuccess = true }
         assertFalse(unlockSuccess)
         assertNotNull(viewModel.uiState.value.errorMessage)
 
         // Setup first
-        viewModel.setupNewVault("SecretMasterKey123", "SecretMasterKey123", false) {}
+        viewModel.setupNewVault("SecretMasterKey123".toCharArray(), "SecretMasterKey123".toCharArray(), false) {}
         testScheduler.runCurrent()
 
         // Wrong password
-        viewModel.onPasswordChanged("WrongPassword")
-        viewModel.unlockWithPassword { unlockSuccess = true }
+        viewModel.unlockWithPassword("WrongPassword".toCharArray()) { unlockSuccess = true }
         testScheduler.runCurrent()
         assertFalse(unlockSuccess)
         assertNotNull(viewModel.uiState.value.errorMessage)
 
         // Correct password
-        viewModel.onPasswordChanged("SecretMasterKey123")
-        viewModel.unlockWithPassword { unlockSuccess = true }
+        viewModel.unlockWithPassword("SecretMasterKey123".toCharArray()) { unlockSuccess = true }
         testScheduler.runCurrent()
         assertTrue(unlockSuccess)
-        assertEquals("", viewModel.uiState.value.password)
+        assertEquals(0, viewModel.uiState.value.passwordLength)
     }
 
     @Test

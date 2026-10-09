@@ -12,11 +12,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Note
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
@@ -48,6 +51,9 @@ fun ItemTypeBadge(type: ItemType, modifier: Modifier = Modifier) {
         ItemType.SECURE_NOTE -> Pair(Icons.AutoMirrored.Filled.Note, Color(0xFF26A69A))
         ItemType.WIFI -> Pair(Icons.Default.Wifi, Color(0xFF42A5F5))
         ItemType.API_KEY -> Pair(Icons.Default.Key, Color(0xFFFF7043))
+        ItemType.BANK_ACCOUNT -> Pair(Icons.Default.AccountBalance, KryptxEmerald)
+        ItemType.CRYPTO_WALLET -> Pair(Icons.Default.AccountBalanceWallet, KryptxAmber)
+        ItemType.SSH_KEY -> Pair(Icons.Default.Terminal, KryptxBrightBlue)
         ItemType.CUSTOM -> Pair(Icons.Default.Lock, Color(0xFF78909C))
     }
 

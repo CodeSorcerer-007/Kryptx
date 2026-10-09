@@ -552,7 +552,10 @@ fun AddEditItemScreen(
                         )
                     }
                 }
-                ItemType.CUSTOM -> {}
+                ItemType.CUSTOM,
+                ItemType.BANK_ACCOUNT,
+                ItemType.CRYPTO_WALLET,
+                ItemType.SSH_KEY -> {}
             }
 
             Spacer(modifier = Modifier.height(16.dp))

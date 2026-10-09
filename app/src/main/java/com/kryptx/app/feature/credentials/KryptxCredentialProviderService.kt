@@ -293,6 +293,8 @@ class KryptxCredentialProviderService : CredentialProviderService() {
         callback: OutcomeReceiver<Void, android.credentials.ClearCredentialStateException>
     ) {
         if (cancellationSignal.isCanceled) return
+        val app = applicationContext as? KryptxApplication
+        app?.sessionManager?.lockVault()
         callback.onResult(null)
     }
 
@@ -304,9 +306,13 @@ class KryptxCredentialProviderService : CredentialProviderService() {
         val nonDeleted = allItems.filter { !it.isDeleted }
         return nonDeleted.filter { item ->
             when {
+                item.type == ItemType.PASSKEY -> {
+                    // Strict RP ID validation (Item 5.1): passkey RP ID must strictly match requested origin
+                    val effectiveRpId = item.passkeyRpId.ifBlank { item.website }
+                    !targetOrigin.isNullOrBlank() && DomainMatcher.isDomainMatch(targetOrigin, effectiveRpId)
+                }
                 !targetOrigin.isNullOrBlank() -> {
-                    val itemTarget = if (item.type == ItemType.PASSKEY) item.passkeyRpId else item.website
-                    DomainMatcher.isDomainMatch(targetOrigin, itemTarget)
+                    DomainMatcher.isDomainMatch(targetOrigin, item.website)
                 }
                 !targetPackage.isNullOrBlank() -> {
                     DomainMatcher.isPackageMatch(targetPackage, item.website, item.title)

@@ -275,14 +275,62 @@ class HardwareSecurityKeyManager(
         return Base64.getEncoder().encodeToString(digest)
     }
 
+    private val bleKeyManager = BleHardwareKeyManager(context)
+
     /**
-     * Checks if NFC or USB Security hardware is supported and active on the device.
+     * Verifies and processes a BLE hardware security key challenge.
+     */
+    fun processBleChallenge(
+        bleDevice: android.bluetooth.BluetoothDevice?,
+        expectedUidHash: String?,
+        challenge: ByteArray
+    ): ByteArray? {
+        if (bleDevice == null) return null
+
+        val deviceAddress = bleDevice.address ?: return null
+        val devHash = Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(deviceAddress.toByteArray(Charsets.UTF_8))
+        )
+
+        if (expectedUidHash != null && expectedUidHash.isNotBlank() && devHash != expectedUidHash) {
+            return null
+        }
+
+        return bleKeyManager.processBleChallenge(bleDevice, challenge)
+    }
+
+    /**
+     * Enrolls a physical BLE security key.
+     */
+    fun enrollBleKey(
+        bleDevice: android.bluetooth.BluetoothDevice,
+        label: String = "Primary BLE Security Key"
+    ): Pair<KeyPairingState, ByteArray>? {
+        val challenge = generateFreshChallenge()
+        val response = processBleChallenge(bleDevice, null, challenge) ?: return null
+        val deviceAddress = bleDevice.address ?: return null
+        val tagHash = Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(deviceAddress.toByteArray(Charsets.UTF_8))
+        )
+        val state = KeyPairingState(
+            isEnrolled = true,
+            keyLabel = label,
+            pairedKeyUidHash = tagHash,
+            challengeSalt = Base64.getEncoder().encodeToString(challenge),
+            transport = KeyTransport.BLE
+        )
+        return Pair(state, response)
+    }
+
+    /**
+     * Checks if NFC, USB, or BLE Security hardware is supported and active on the device.
      */
     fun isHardwareAvailable(): Boolean {
         if (context == null) return false
         val nfcAvailable = NfcHardwareKeyManager.hasNfc(context) && NfcHardwareKeyManager.isNfcEnabled(context)
         val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager
         val usbAvailable = usbManager != null && usbManager.deviceList.isNotEmpty()
-        return nfcAvailable || usbAvailable
+        val bleAvailable = BleHardwareKeyManager.isBleSupported(context)
+        return nfcAvailable || usbAvailable || bleAvailable
     }
 }

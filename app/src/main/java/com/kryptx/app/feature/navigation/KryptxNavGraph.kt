@@ -123,7 +123,16 @@ fun parseScreenRoute(route: String): Screen = when {
 }
 
 private val ScreenBackStackSaver = Saver<SnapshotStateList<Screen>, List<String>>(
-    save = { list -> list.map { it.route } },
+    save = { list ->
+        // SECURITY: Only persist pre-auth screens. Post-auth deep navigation
+        // state is intentionally NOT restored after process death — the user
+        // must re-authenticate. This prevents stale screen state from leaking
+        // vault context across process boundaries.
+        list.filter {
+            it is Screen.Onboarding || it is Screen.SetupPermissions ||
+            it is Screen.SetupMasterPassword || it is Screen.Unlock
+        }.map { it.route }
+    },
     restore = { routeList ->
         routeList.map { parseScreenRoute(it) }.toMutableStateList()
     }

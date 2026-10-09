@@ -32,14 +32,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.crypto.EntropyCalculator
+import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.designsystem.components.KryptxLogo
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxScoreRing
-import com.kryptx.app.core.designsystem.components.KryptxTextField
+import com.kryptx.app.core.designsystem.components.SecureTextField
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
@@ -58,12 +60,19 @@ fun SetupMasterPasswordScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
+    var passwordChars by remember { mutableStateOf(CharArray(0)) }
+    var confirmPasswordChars by remember { mutableStateOf(CharArray(0)) }
     var enableBiometrics by remember { mutableStateOf(true) }
 
-    val entropyAnalysis = remember(password) {
-        EntropyCalculator.analyze(password)
+    DisposableEffect(Unit) {
+        onDispose {
+            SecureMemory.wipe(passwordChars)
+            SecureMemory.wipe(confirmPasswordChars)
+        }
+    }
+
+    val entropyAnalysis = remember(passwordChars) {
+        EntropyCalculator.analyze(passwordChars)
     }
 
     Scaffold(
@@ -105,9 +114,12 @@ fun SetupMasterPasswordScreen(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
-            KryptxTextField(
-                value = password,
-                onValueChange = { password = it },
+            SecureTextField(
+                value = passwordChars,
+                onValueChange = { newChars ->
+                    SecureMemory.wipe(passwordChars)
+                    passwordChars = newChars
+                },
                 label = "Master Password",
                 placeholder = "Minimum 8+ characters",
                 isPassword = true,
@@ -116,9 +128,12 @@ fun SetupMasterPasswordScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            KryptxTextField(
-                value = confirmPassword,
-                onValueChange = { confirmPassword = it },
+            SecureTextField(
+                value = confirmPasswordChars,
+                onValueChange = { newChars ->
+                    SecureMemory.wipe(confirmPasswordChars)
+                    confirmPasswordChars = newChars
+                },
                 label = "Confirm Master Password",
                 placeholder = "Re-enter master password",
                 isPassword = true,
@@ -126,7 +141,7 @@ fun SetupMasterPasswordScreen(
             )
 
             // Password Entropy Radar Card
-            if (password.isNotEmpty()) {
+            if (passwordChars.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Box(
                     modifier = Modifier
@@ -231,11 +246,13 @@ fun SetupMasterPasswordScreen(
                     containerColor = KryptxBlue,
                     contentColor = Color.White,
                     modifier = Modifier.testTag("create_vault_button"),
-                    enabled = password.isNotBlank() && confirmPassword.isNotBlank(),
+                    enabled = passwordChars.isNotEmpty() && confirmPasswordChars.isNotEmpty(),
                     onClick = {
+                        val pCopy = passwordChars.copyOf()
+                        val cCopy = confirmPasswordChars.copyOf()
                         viewModel.setupNewVault(
-                            password = password,
-                            confirm = confirmPassword,
+                            passwordChars = pCopy,
+                            confirmChars = cCopy,
                             enableBiometrics = false,
                             onSuccess = {
                                 if (enableBiometrics && onEnrollBiometrics != null) {

@@ -397,12 +397,15 @@ class KryptxAutofillService : AutofillService() {
                         val existingItems = app.vaultRepository.getItems().first()
 
                         // Use the same strict boundary-aware DomainMatcher as onFillRequest to prevent
-                        // substring-spoof attacks (e.g. "evil-paypal.com" matching "paypal.com" via contains()).
+                        // substring-spoof attacks (e.g. "evil-paypal.com" matching "paypal.com" via contains())
+                        // and title-spoof attacks where a malicious app title overwrites credentials.
                         val match = existingItems.firstOrNull { item ->
                             item.type == ItemType.LOGIN && (
-                                com.kryptx.app.core.security.DomainMatcher.isDomainMatch(extractedDomain, item.website) ||
-                                (!extractedDomain.isNullOrBlank() && com.kryptx.app.core.security.DomainMatcher.isPackageMatch(appPackage, item.website, item.title)) ||
-                                item.title.equals(formattedTitle, ignoreCase = true)
+                                when {
+                                    !extractedDomain.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isDomainMatch(extractedDomain, item.website)
+                                    !appPackage.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isPackageMatch(appPackage, item.website, item.title)
+                                    else -> false
+                                }
                             ) && (extractedUsername.isBlank() || item.username.equals(extractedUsername, ignoreCase = true))
                         }
 

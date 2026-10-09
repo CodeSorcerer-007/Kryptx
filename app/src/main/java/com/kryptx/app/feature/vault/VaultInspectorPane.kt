@@ -228,7 +228,11 @@ fun VaultInspectorPane(
                             scope = scope,
                             snackbarHostState = snackbarHostState
                         )
-                        ItemType.SECURE_NOTE, ItemType.CUSTOM -> {
+                        ItemType.SECURE_NOTE,
+                        ItemType.BANK_ACCOUNT,
+                        ItemType.CRYPTO_WALLET,
+                        ItemType.SSH_KEY,
+                        ItemType.CUSTOM -> {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
                                     text = "SECURE NOTE CONTENT",

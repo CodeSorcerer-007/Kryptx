@@ -1,0 +1,32 @@
+[package]
+name = "kryptx_crypto-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.kryptx_crypto]
+path = ".."
+
+[[bin]]
+name = "fuzz_xchacha20"
+path = "fuzz_targets/fuzz_xchacha20.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_argon2"
+path = "fuzz_targets/fuzz_argon2.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_decrypt"
+path = "fuzz_targets/fuzz_decrypt.rs"
+test = false
+doc = false

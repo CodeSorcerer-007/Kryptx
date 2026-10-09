@@ -359,6 +359,9 @@ sealed class ItemEditorState {
                 secretInit = item.apiSecret,
                 endpointInit = item.apiEndpoint
             )
+            ItemType.BANK_ACCOUNT,
+            ItemType.CRYPTO_WALLET,
+            ItemType.SSH_KEY,
             ItemType.CUSTOM -> Custom(
                 titleInit = item.title,
                 isFavoriteInit = item.isFavorite,
@@ -381,6 +384,9 @@ sealed class ItemEditorState {
             ItemType.SECURE_NOTE -> SecureNote()
             ItemType.WIFI -> Wifi()
             ItemType.API_KEY -> ApiKey()
+            ItemType.BANK_ACCOUNT,
+            ItemType.CRYPTO_WALLET,
+            ItemType.SSH_KEY,
             ItemType.CUSTOM -> Custom()
         }
     }

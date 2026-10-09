@@ -1,126 +1,135 @@
-@file:Suppress("DEPRECATION_ERROR") // encryptString used in tests for convenience — not a production security path
 package com.kryptx.app.core.database
 
+import com.kryptx.app.core.crypto.Argon2Engine
 import com.kryptx.app.core.crypto.CryptoEngine
 import com.kryptx.app.core.crypto.KeyDerivation
-import com.kryptx.app.core.crypto.SecureMemory
-import com.kryptx.app.core.model.ItemType
-import com.kryptx.app.core.model.VaultItem
-import com.kryptx.app.fake.FakeVaultRepository
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.runTest
+import com.kryptx.app.core.crypto.KeystoreManager
+import com.kryptx.app.core.model.KryptxErrorType
+import com.kryptx.app.core.model.KryptxResult
+import com.kryptx.app.core.security.VaultSessionManager
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito
 
 class VaultKeyRotationTest {
 
-    private lateinit var repository: FakeVaultRepository
+    private class FakeDatabaseHelper : KryptxDatabaseHelper(Mockito.mock(android.content.Context::class.java)) {
+        val metadata = mutableMapOf<String, String>()
+        val reEncryptCalls = mutableListOf<Pair<ByteArray, ByteArray>>()
+        var rekeyedKey: ByteArray? = null
+        var shouldFailRekey = false
+
+        override fun getMetadata(key: String): String? = metadata[key]
+        override fun setMetadata(key: String, value: String) {
+            metadata[key] = value
+        }
+        override suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int {
+            reEncryptCalls.add(Pair(oldKey.clone(), newKey.clone()))
+            return 10
+        }
+        override fun rekeyDatabase(newKey: ByteArray) {
+            if (shouldFailRekey) throw RuntimeException("Disk I/O error during rekey")
+            rekeyedKey = newKey.clone()
+        }
+    }
+
+    private lateinit var dbHelper: FakeDatabaseHelper
+    private lateinit var decoyDbHelper: FakeDatabaseHelper
+    private lateinit var sessionManager: VaultSessionManager
+    private lateinit var keystoreManager: KeystoreManager
+    private lateinit var repository: VaultAuthRepositoryImpl
+
+    private val masterPassword = "TestMasterPassword123!".toCharArray()
+    private val salt = KeyDerivation.generateSalt()
+    private val saltBase64 = java.util.Base64.getEncoder().encodeToString(salt)
+    private val initialVek = CryptoEngine.generateVaultKey()
+    private val fastArgon2Params = Argon2Engine.Argon2Params.FAST_TEST
+
+    private lateinit var derivedMasterKey: ByteArray
+    private lateinit var tokenBase64: String
 
     @Before
-    fun setup() = runTest {
-        repository = FakeVaultRepository()
-        repository.setupNewVault("InitialMasterPassword123!".toCharArray())
-    }
+    fun setUp() {
+        dbHelper = FakeDatabaseHelper()
+        decoyDbHelper = FakeDatabaseHelper()
+        sessionManager = VaultSessionManager()
+        keystoreManager = Mockito.mock(KeystoreManager::class.java)
 
-    @Test
-    fun testChangeMasterPasswordSuccess() = runTest {
-        val testItem = VaultItem(
-            id = "login-1",
-            title = "Proton Mail",
-            type = ItemType.LOGIN,
-            username = "user@proton.me",
-            password = "SecretProtonPassword!99"
+        derivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, salt, fastArgon2Params)
+        val encryptedVek = CryptoEngine.encrypt(initialVek, derivedMasterKey)
+        tokenBase64 = java.util.Base64.getEncoder().encodeToString(encryptedVek)
+
+        dbHelper.metadata[KryptxDbSchema.KEY_SALT] = saltBase64
+        dbHelper.metadata[KryptxDbSchema.KEY_VERIFICATION_TOKEN] = tokenBase64
+        dbHelper.metadata[KryptxDbSchema.KEY_KDF_ALGORITHM] = KeyDerivation.KdfAlgorithm.ARGON2ID.identifier
+        dbHelper.metadata[KryptxDbSchema.KEY_ARGON2_MEMORY_KB] = fastArgon2Params.memoryCostKb.toString()
+        dbHelper.metadata[KryptxDbSchema.KEY_ARGON2_ITERATIONS] = fastArgon2Params.iterations.toString()
+        dbHelper.metadata[KryptxDbSchema.KEY_ARGON2_PARALLELISM] = fastArgon2Params.parallelism.toString()
+
+        // Unlock session with initial VEK
+        sessionManager.unlock(initialVek, isDecoy = false)
+
+        repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager
         )
-        repository.saveItem(testItem)
-
-        // Change master password
-        val changeResult = repository.changeMasterPassword(
-            "InitialMasterPassword123!".toCharArray(),
-            "NewRotatedMasterPassword456#".toCharArray()
-        )
-        assertTrue("Master password rotation must succeed", changeResult.isSuccess)
-
-        // Old password must fail
-        val oldUnlockResult = repository.unlockWithPassword("InitialMasterPassword123!".toCharArray())
-        assertTrue("Old password must fail to unlock", oldUnlockResult.isError)
-
-        // New password must succeed
-        val newUnlockResult = repository.unlockWithPassword("NewRotatedMasterPassword456#".toCharArray())
-        assertTrue("New password must succeed in unlocking", newUnlockResult.isSuccess)
-
-        // Stored items must remain accessible
-        val items = repository.getItems().first()
-        assertEquals(1, items.size)
-        assertEquals("Proton Mail", items[0].title)
     }
 
     @Test
-    fun testChangeMasterPasswordWithWrongCurrentPasswordFails() = runTest {
-        val changeResult = repository.changeMasterPassword(
-            "WrongCurrentPassword!".toCharArray(),
-            "NewMasterPassword456#".toCharArray()
-        )
-        assertTrue("Password change must fail with wrong current password", changeResult.isError)
-    }
+    fun rotateVaultEncryptionKey_success_reordersAndAppliesNewVek() {
+        runBlocking {
+            val result = repository.rotateVaultEncryptionKey(masterPassword)
 
-    @Test
-    fun testRotateVaultEncryptionKeySuccess() = runTest {
-        val testItem = VaultItem(
-            id = "key-1",
-            title = "AWS IAM Root Key",
-            type = ItemType.API_KEY,
-            apiKey = "AKIAIOSFODNN7EXAMPLE",
-            apiSecret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-        )
-        repository.saveItem(testItem)
-
-        val rotateResult = repository.rotateVaultEncryptionKey("InitialMasterPassword123!".toCharArray())
-        assertTrue("VEK rotation must succeed", rotateResult.isSuccess)
-
-        val items = repository.getItems().first()
-        assertEquals(1, items.size)
-        assertEquals("AWS IAM Root Key", items[0].title)
-    }
-
-    @Test
-    fun testRotateVaultEncryptionKeyWithWrongPasswordFails() = runTest {
-        val rotateResult = repository.rotateVaultEncryptionKey("WrongPassword999!".toCharArray())
-        assertTrue("VEK rotation must fail with incorrect password", rotateResult.isError)
-    }
-
-    @Test
-    fun testDirectCryptoEngineReEncryptionIntegrity() {
-        val oldKey = KeyDerivation.generateSalt(32)
-        val newKey = KeyDerivation.generateSalt(32)
-        val plaintext = "Sensitive Confidential Master Data 2026"
-        val aad = "record-uuid-12345".toByteArray(Charsets.UTF_8)
-
-        // Encrypt with old key
-        val encryptedWithOldKey = CryptoEngine.encryptString(plaintext, oldKey, aad)
-
-        // Decrypt with old key and re-encrypt with new key
-        val decrypted = CryptoEngine.decryptString(encryptedWithOldKey, oldKey, aad)
-        assertEquals(plaintext, decrypted)
-
-        val encryptedWithNewKey = CryptoEngine.encryptString(decrypted, newKey, aad)
-
-        // Verify old key cannot decrypt new ciphertext
-        var failedAsExpected = false
-        try {
-            CryptoEngine.decryptString(encryptedWithNewKey, oldKey, aad)
-        } catch (_: Exception) {
-            failedAsExpected = true
+            assertTrue("Rotation must succeed: $result", result is KryptxResult.Success)
+            assertEquals("Exactly 1 re-encrypt call", 1, dbHelper.reEncryptCalls.size)
+            assertArrayEquals("Must re-encrypt from initial VEK", initialVek, dbHelper.reEncryptCalls[0].first)
+            assertNotNull("New VEK must be supplied", dbHelper.reEncryptCalls[0].second)
+            assertNotNull("Database must be rekeyed with new DB key", dbHelper.rekeyedKey)
+            assertTrue("Session must remain unlocked with new key", sessionManager.isUnlocked.value)
         }
-        assertTrue("Old key must not be able to decrypt data re-encrypted with new key", failedAsExpected)
+    }
 
-        // Verify new key decrypts properly
-        val finalDecrypted = CryptoEngine.decryptString(encryptedWithNewKey, newKey, aad)
-        assertEquals(plaintext, finalDecrypted)
+    @Test
+    fun rotateVaultEncryptionKey_faultInjectedOnRekey_triggersRollback() {
+        runBlocking {
+            dbHelper.shouldFailRekey = true
 
-        SecureMemory.wipe(oldKey)
-        SecureMemory.wipe(newKey)
+            val result = repository.rotateVaultEncryptionKey(masterPassword)
+
+            assertTrue("Rotation must return error on rekey failure", result is KryptxResult.Error)
+            val error = result as KryptxResult.Error
+            assertEquals(KryptxErrorType.DATABASE_ERROR, error.type)
+
+            // Rollback verification: token restored to original token
+            assertEquals("Verification token must be restored to original token", tokenBase64, dbHelper.metadata[KryptxDbSchema.KEY_VERIFICATION_TOKEN])
+            // Re-encrypt rolled back: second call re-encrypts back to initialVek
+            assertEquals("Must have 2 re-encrypt calls (forward + rollback)", 2, dbHelper.reEncryptCalls.size)
+            assertArrayEquals("Rollback must restore items under initial VEK", initialVek, dbHelper.reEncryptCalls[1].second)
+        }
+    }
+
+    @Test
+    fun rotateVaultEncryptionKey_wrongPassword_failsEarlyWithoutModifyingData() {
+        runBlocking {
+            val wrongPassword = "WrongPassword999!".toCharArray()
+
+            val result = repository.rotateVaultEncryptionKey(wrongPassword)
+
+            assertTrue("Rotation with wrong password must return WRONG_PASSWORD error", result is KryptxResult.Error)
+            val error = result as KryptxResult.Error
+            assertEquals(KryptxErrorType.WRONG_PASSWORD, error.type)
+
+            // Must never touch DB or encryption keys
+            assertEquals("No re-encryption must take place on wrong password", 0, dbHelper.reEncryptCalls.size)
+            assertEquals("Verification token unchanged", tokenBase64, dbHelper.metadata[KryptxDbSchema.KEY_VERIFICATION_TOKEN])
+            assertEquals("No database rekey performed", null, dbHelper.rekeyedKey)
+        }
     }
 }

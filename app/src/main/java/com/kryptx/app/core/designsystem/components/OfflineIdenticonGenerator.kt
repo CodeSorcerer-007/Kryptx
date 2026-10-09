@@ -131,6 +131,9 @@ object OfflineIdenticonGenerator {
             ItemType.SECURE_NOTE -> Icons.AutoMirrored.Filled.Note
             ItemType.WIFI -> Icons.Default.Wifi
             ItemType.API_KEY -> Icons.Default.DataObject
+            ItemType.BANK_ACCOUNT -> Icons.Default.AccountBalance
+            ItemType.CRYPTO_WALLET -> Icons.Default.AccountBalance
+            ItemType.SSH_KEY -> Icons.Default.Terminal
             ItemType.CUSTOM -> Icons.Default.Lock
         }
 

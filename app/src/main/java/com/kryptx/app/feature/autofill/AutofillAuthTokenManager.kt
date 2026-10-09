@@ -35,8 +35,22 @@ object AutofillAuthTokenManager {
     fun validateAndConsumeToken(token: String?): Boolean {
         cleanExpiredTokens()
         if (token.isNullOrBlank()) return false
-        val expiry = activeTokens.remove(token) ?: return false
-        return System.currentTimeMillis() <= expiry
+        val tokenBytes = token.toByteArray(Charsets.UTF_8)
+        val now = System.currentTimeMillis()
+        var matchedKey: String? = null
+        for ((activeKey, expiry) in activeTokens) {
+            val activeBytes = activeKey.toByteArray(Charsets.UTF_8)
+            if (now <= expiry && com.kryptx.app.core.crypto.SecureMemory.safeEquals(tokenBytes, activeBytes)) {
+                matchedKey = activeKey
+                break
+            }
+        }
+        return if (matchedKey != null) {
+            activeTokens.remove(matchedKey)
+            true
+        } else {
+            false
+        }
     }
 
     private fun cleanExpiredTokens() {
