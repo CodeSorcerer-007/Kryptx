@@ -125,6 +125,11 @@ object CrashDefense {
      * Security-critical exception types are identified by package prefix and class name to avoid
      * hard-coding a brittle exhaustive list.
      */
+    @Volatile
+    private var consecutiveCrashes = 0
+    @Volatile
+    private var lastCrashTimestamp = 0L
+
     private fun startMainLooperGuardian() {
         val mainHandler = Handler(Looper.getMainLooper())
         mainHandler.post {
@@ -132,6 +137,22 @@ object CrashDefense {
                 try {
                     Looper.loop()
                 } catch (throwable: Throwable) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastCrashTimestamp > 5000L) {
+                        consecutiveCrashes = 0
+                    }
+                    consecutiveCrashes++
+                    lastCrashTimestamp = now
+
+                    // If crashing repeatedly within 5 seconds, terminate process to prevent zombie loops
+                    if (consecutiveCrashes >= 3) {
+                        SecurityLogger.error(TAG, "Exceeded maximum consecutive crashes ($consecutiveCrashes) — terminating process to prevent zombie loop")
+                        try {
+                            android.os.Process.killProcess(android.os.Process.myPid())
+                        } catch (_: Throwable) {}
+                        return@post
+                    }
+
                     if (isSecurityCritical(throwable)) {
                         SecurityLogger.error(
                             TAG,

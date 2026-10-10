@@ -47,7 +47,7 @@ class ContextualLockManager(
 
     companion object {
         // 2.7g threshold matching physical device security standard in TESTING.md
-        const val SHAKE_THRESHOLD_ACCELERATION = 14.5f
+        const val SHAKE_THRESHOLD_ACCELERATION = 20.0f
         const val SHAKE_COOLDOWN_MS = 1000L
 
         const val FACE_DOWN_GRAVITY_THRESHOLD = -8.5f
@@ -100,7 +100,7 @@ class ContextualLockManager(
         lastAcceleration = currentAcceleration
         currentAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
         val delta = kotlin.math.abs(currentAcceleration - lastAcceleration)
-        acceleration = acceleration * 0.85f + delta
+        acceleration = acceleration * 0.9f + delta
 
         if (acceleration > SHAKE_THRESHOLD_ACCELERATION && (now - lastShakeTimestamp) >= SHAKE_COOLDOWN_MS) {
             lastShakeTimestamp = now

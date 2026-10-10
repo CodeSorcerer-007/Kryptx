@@ -20,6 +20,13 @@ import javax.crypto.spec.PSource
  * - Public Key (PURPOSE_ENCRYPT): Wraps the 32-byte VEK in background with zero user prompts.
  * - Private Key (PURPOSE_DECRYPT): Hardware-bound to Class 3 Strong Biometrics with per-use authentication.
  */
+enum class BiometricKeyStatus {
+    Valid,
+    NotEnrolled,
+    InvalidatedByEnrollment,
+    Corrupted
+}
+
 class KeystoreManager {
 
     companion object {
@@ -159,20 +166,44 @@ class KeystoreManager {
     }
 
     /**
+     * Inspects the biometric hardware key without creating a new key pair as a side effect.
+     * Accurately determines if the key is valid, missing, corrupted, or permanently invalidated by enrollment.
+     */
+    fun detectBiometricInvalidation(): BiometricKeyStatus {
+        return try {
+            val ks = getKeyStore()
+            if (!ks.containsAlias(BIOMETRIC_KEY_ALIAS)) return BiometricKeyStatus.NotEnrolled
+            val privateKey = ks.getKey(BIOMETRIC_KEY_ALIAS, null) as? PrivateKey ?: return BiometricKeyStatus.Corrupted
+            val cert = ks.getCertificate(BIOMETRIC_KEY_ALIAS)
+            if (cert?.publicKey == null) return BiometricKeyStatus.Corrupted
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            try {
+                initCipherWithOaep(cipher, Cipher.DECRYPT_MODE, privateKey)
+                BiometricKeyStatus.Valid
+            } catch (e: Exception) {
+                if (isCausePermanentlyInvalidated(e)) {
+                    BiometricKeyStatus.InvalidatedByEnrollment
+                } else if (e.javaClass.name.contains("UserNotAuthenticatedException")) {
+                    BiometricKeyStatus.Valid
+                } else {
+                    BiometricKeyStatus.Corrupted
+                }
+            }
+        } catch (e: Exception) {
+            if (isCausePermanentlyInvalidated(e)) {
+                BiometricKeyStatus.InvalidatedByEnrollment
+            } else {
+                BiometricKeyStatus.Corrupted
+            }
+        }
+    }
+
+    /**
      * Checks whether the biometric hardware key was permanently invalidated by a newly enrolled biometric.
      * Uses getKeyStore().getKey directly to avoid creating a new key pair as a side effect when absent.
      */
     fun isBiometricKeyPermanentlyInvalidated(iv: ByteArray = ByteArray(0)): Boolean {
-        return try {
-            val ks = getKeyStore()
-            if (!ks.containsAlias(BIOMETRIC_KEY_ALIAS)) return false
-            val privateKey = ks.getKey(BIOMETRIC_KEY_ALIAS, null) as? PrivateKey ?: return false
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            initCipherWithOaep(cipher, Cipher.DECRYPT_MODE, privateKey)
-            false
-        } catch (e: Exception) {
-            isCausePermanentlyInvalidated(e)
-        }
+        return detectBiometricInvalidation() == BiometricKeyStatus.InvalidatedByEnrollment
     }
 
     private fun isCausePermanentlyInvalidated(throwable: Throwable?): Boolean {

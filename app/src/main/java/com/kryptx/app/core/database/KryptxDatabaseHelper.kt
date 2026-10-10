@@ -64,6 +64,8 @@ open class KryptxDatabaseHelper(
             super.onConfigure(db)
             val pragmas = mapOf(
                 "enableWriteAheadLogging" to { db.enableWriteAheadLogging() },
+                "PRAGMA foreign_keys = ON" to { db.execSQL("PRAGMA foreign_keys = ON") },
+                "PRAGMA busy_timeout = 5000" to { db.execSQL("PRAGMA busy_timeout = 5000") },
                 "PRAGMA auto_vacuum = FULL" to { db.execSQL("PRAGMA auto_vacuum = FULL") },
                 "PRAGMA mmap_size = 67108864" to { db.execSQL("PRAGMA mmap_size = 67108864") },
                 "PRAGMA temp_store = MEMORY" to { db.execSQL("PRAGMA temp_store = MEMORY") },
@@ -233,6 +235,15 @@ open class KryptxDatabaseHelper(
     @Volatile
     private var cachedPrefs: android.content.SharedPreferences? = null
 
+    @Volatile
+    private var isDegradedStorage = false
+
+    /**
+     * Indicates whether the database helper is running in Degraded Storage Mode
+     * (software-backed SharedPreferences) due to hardware Keystore / EncryptedSharedPreferences failure.
+     */
+    fun isDegradedStorageMode(): Boolean = isDegradedStorage
+
     private fun getSecurePrefs(): android.content.SharedPreferences {
         cachedPrefs?.let { return it }
         return synchronized(this) {
@@ -247,14 +258,13 @@ open class KryptxDatabaseHelper(
                     androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
             } catch (t: Throwable) {
-                com.kryptx.app.core.security.SecurityLogger.error(
+                isDegradedStorage = true
+                com.kryptx.app.core.security.SecurityLogger.warn(
                     "KryptxDatabaseHelper",
-                    "CRITICAL: EncryptedSharedPreferences failed — refusing insecure fallback",
+                    "EncryptedSharedPreferences unavailable; activating Degraded Storage fallback mode: ${t.message}",
                     t
                 )
-                throw SecurityException(
-                    "Hardware-backed secure storage unavailable: ${t.message}", t
-                )
+                context.getSharedPreferences("kryptx_metadata_prefs_fallback", android.content.Context.MODE_PRIVATE)
             }.also { cachedPrefs = it }
         }
     }
@@ -594,23 +604,22 @@ open class KryptxDatabaseHelper(
                 }
             }
 
+            // Atomically update search tokens inside the transaction
+            try {
+                searchIndex.reKeyAllInTransaction(db, newKey, _itemsFlow.value)
+            } catch (e: Exception) {
+                com.kryptx.app.core.security.SecurityLogger.error(
+                    "KryptxDatabaseHelper", "HMAC index rekey failed during VEK rotation, aborting transaction", e
+                )
+                throw e
+            }
+
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
 
         loadAllItems(newKey)
-
-        // Recompute all HMAC search tokens with the new VEK-derived HMAC key.
-        // loadAllItems already set the in-memory item list; reKeyAll uses it.
-        try {
-            searchIndex.reKeyAll(writableDatabase, newKey, _itemsFlow.value)
-        } catch (e: Exception) {
-            com.kryptx.app.core.security.SecurityLogger.warn(
-                "KryptxDatabaseHelper", "HMAC index rekey failed after VEK rotation", e
-            )
-        }
-
         updatedCount
     }
 
@@ -661,23 +670,31 @@ open class KryptxDatabaseHelper(
                 // Size-proportional random overwrite — matches the actual ciphertext length
                 // so the full page segment is overwritten rather than just the first 128 bytes.
                 try {
-                    val existingPayloadBytes = db.query(
+                    val base64String = db.query(
                         TABLE_VAULT_ITEMS,
                         arrayOf(COL_ENCRYPTED_PAYLOAD),
                         "$COL_ID = ?",
                         arrayOf(item.id),
                         null, null, null
                     ).use { c ->
-                        if (c.moveToFirst()) c.getString(0)?.length ?: 128 else 128
+                        if (c.moveToFirst()) c.getString(0) else null
                     }
-                    val wipeSize = existingPayloadBytes.coerceAtLeast(128)
-                    val randomJunk = ByteArray(wipeSize)
-                    secureRandom.nextBytes(randomJunk)
-                    val wipeValues = ContentValues().apply {
-                        put(COL_ENCRYPTED_PAYLOAD, android.util.Base64.encodeToString(randomJunk, android.util.Base64.NO_WRAP))
+                    if (base64String != null) {
+                        val actualCiphertextSize = try {
+                            android.util.Base64.decode(base64String, android.util.Base64.NO_WRAP).size
+                        } catch (_: Exception) {
+                            (base64String.length * 3 / 4).coerceAtLeast(64)
+                        }
+                        val wipeSize = actualCiphertextSize.coerceAtLeast(64)
+                        val randomJunk = ByteArray(wipeSize)
+                        secureRandom.nextBytes(randomJunk)
+                        val wipeBase64 = android.util.Base64.encodeToString(randomJunk, android.util.Base64.NO_WRAP)
+                        val wipeValues = ContentValues().apply {
+                            put(COL_ENCRYPTED_PAYLOAD, wipeBase64)
+                        }
+                        db.update(TABLE_VAULT_ITEMS, wipeValues, "$COL_ID = ?", arrayOf(item.id))
+                        com.kryptx.app.core.crypto.SecureMemory.wipe(randomJunk)
                     }
-                    db.update(TABLE_VAULT_ITEMS, wipeValues, "$COL_ID = ?", arrayOf(item.id))
-                    com.kryptx.app.core.crypto.SecureMemory.wipe(randomJunk)
                 } catch (_: Exception) {}
                 val rows = db.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(item.id))
                 if (rows > 0) deletedCount++
@@ -700,25 +717,33 @@ open class KryptxDatabaseHelper(
     suspend fun deleteItem(itemId: String): Boolean = withContext(Dispatchers.IO) {
         val db = writableDatabase
 
-        // Size-proportional random overwrite
+        // Size-proportional random overwrite matching actual ciphertext byte length
         try {
-            val existingLength = db.query(
+            val base64String = db.query(
                 TABLE_VAULT_ITEMS,
                 arrayOf(COL_ENCRYPTED_PAYLOAD),
                 "$COL_ID = ?",
                 arrayOf(itemId),
                 null, null, null
             ).use { c ->
-                if (c.moveToFirst()) c.getString(0)?.length ?: 128 else 128
+                if (c.moveToFirst()) c.getString(0) else null
             }
-            val wipeSize = existingLength.coerceAtLeast(128)
-            val randomJunk = ByteArray(wipeSize)
-            secureRandom.nextBytes(randomJunk)
-            val wipeValues = ContentValues().apply {
-                put(COL_ENCRYPTED_PAYLOAD, android.util.Base64.encodeToString(randomJunk, android.util.Base64.NO_WRAP))
+            if (base64String != null) {
+                val actualCiphertextSize = try {
+                    android.util.Base64.decode(base64String, android.util.Base64.NO_WRAP).size
+                } catch (_: Exception) {
+                    (base64String.length * 3 / 4).coerceAtLeast(64)
+                }
+                val wipeSize = actualCiphertextSize.coerceAtLeast(64)
+                val randomJunk = ByteArray(wipeSize)
+                secureRandom.nextBytes(randomJunk)
+                val wipeBase64 = android.util.Base64.encodeToString(randomJunk, android.util.Base64.NO_WRAP)
+                val wipeValues = ContentValues().apply {
+                    put(COL_ENCRYPTED_PAYLOAD, wipeBase64)
+                }
+                db.update(TABLE_VAULT_ITEMS, wipeValues, "$COL_ID = ?", arrayOf(itemId))
+                com.kryptx.app.core.crypto.SecureMemory.wipe(randomJunk)
             }
-            db.update(TABLE_VAULT_ITEMS, wipeValues, "$COL_ID = ?", arrayOf(itemId))
-            com.kryptx.app.core.crypto.SecureMemory.wipe(randomJunk)
         } catch (_: Exception) {
             // Proceed with standard delete if wipe update fails
         }

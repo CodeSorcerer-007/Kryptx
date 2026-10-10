@@ -253,7 +253,7 @@ fun SetupMasterPasswordScreen(
                         viewModel.setupNewVault(
                             passwordChars = pCopy,
                             confirmChars = cCopy,
-                            enableBiometrics = false,
+                            enableBiometrics = enableBiometrics,
                             onSuccess = {
                                 if (enableBiometrics && onEnrollBiometrics != null) {
                                     onEnrollBiometrics { _ ->

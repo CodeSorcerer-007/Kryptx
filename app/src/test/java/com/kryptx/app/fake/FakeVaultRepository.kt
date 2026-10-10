@@ -58,6 +58,15 @@ class FakeVaultRepository : VaultRepository {
         if (biometricsConfigured) KryptxResult.Success(Unit)
         else KryptxResult.Error(KryptxErrorType.BIOMETRICS_NOT_AVAILABLE, "Not configured")
 
+    override fun detectBiometricStatus(): com.kryptx.app.core.crypto.BiometricKeyStatus =
+        if (biometricsConfigured) com.kryptx.app.core.crypto.BiometricKeyStatus.Valid
+        else com.kryptx.app.core.crypto.BiometricKeyStatus.NotEnrolled
+
+    override suspend fun reEnrollBiometrics(): KryptxResult<Unit> {
+        biometricsConfigured = true
+        return KryptxResult.Success(Unit)
+    }
+
     override suspend fun disableBiometrics() {
         biometricsConfigured = false
     }

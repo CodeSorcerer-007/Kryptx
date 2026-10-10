@@ -147,6 +147,7 @@ class UnlockViewModel(
         }
 
         val chars = passwordChars.copyOf()
+        SecureMemory.wipe(passwordChars)
         _uiState.value = _uiState.value.copy(passwordLength = 0, isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
@@ -277,31 +278,11 @@ class UnlockViewModel(
         }
     }
 
+    @Deprecated("Biometric unlock requires a hardware-bound Cipher. Use unlockWithBiometricCipher().")
     fun unlockWithBiometrics(onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val result = vaultRepository.unlockWithBiometrics()
-            _uiState.value = _uiState.value.copy(isLoading = false)
-
-            when (result) {
-                is KryptxResult.Success -> {
-                    applyKeepUnlockedOverride()
-                    _uiState.value = _uiState.value.copy(passwordLength = 0)
-                    activityLogManager?.logEvent("Unlock", "Vault unlocked via Biometrics")
-                    activityLogManager?.loadEvents()
-                    onSuccess()
-                }
-                is KryptxResult.Error -> {
-                    val message = when (result.type) {
-                        KryptxErrorType.KEYSTORE_INVALIDATED -> "Biometric enrollment changed. Please use your master password to re-enroll."
-                        KryptxErrorType.BIOMETRICS_NOT_AVAILABLE -> "Biometric unlock not configured."
-                        KryptxErrorType.BIOMETRICS_FAILED -> if (result.message.isNotBlank()) result.message else "Biometric authentication failed. Please try again."
-                        else -> if (result.message.isNotBlank()) result.message else "Biometric authentication failed. Please enter your master password."
-                    }
-                    _uiState.value = _uiState.value.copy(errorMessage = message)
-                }
-            }
-        }
+        _uiState.value = _uiState.value.copy(
+            errorMessage = "Biometric unlock requires a cipher — use unlockWithBiometricCipher()"
+        )
     }
 }
 

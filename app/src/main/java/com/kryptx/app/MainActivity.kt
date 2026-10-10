@@ -155,6 +155,7 @@ class MainActivity : FragmentActivity() {
             onShakeTriggered = {
                 if (app.sessionManager.isUnlocked.value) {
                     app.sessionManager.lock()
+                    contextualLockManager?.stopListening()
                     app.clipboardManager.copySensitiveText("", "", 0)
                     app.clipboardManager.clearNow()
                     com.kryptx.app.core.designsystem.components.KryptxHaptics.warning(window.decorView)
@@ -370,7 +371,8 @@ class MainActivity : FragmentActivity() {
                     if (errorCode != androidx.biometric.BiometricPrompt.ERROR_USER_CANCELED &&
                         errorCode != androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
                         errorCode != androidx.biometric.BiometricPrompt.ERROR_CANCELED) {
-                        unlockViewModel.setErrorMessage(errString.toString())
+                        SecurityLogger.warn("MainActivity", "Biometric prompt error: $errorCode - $errString")
+                        unlockViewModel.setErrorMessage(sanitizeBiometricError(errorCode, errString))
                     }
                 },
                 onFailed = {
@@ -400,24 +402,27 @@ class MainActivity : FragmentActivity() {
                 val setupResult = app.vaultRepository.setupBiometrics()
                 if (setupResult.isError) {
                     isPromptingBiometrics.set(false)
+                    unlockViewModel.setErrorMessage("Biometric setup failed. Please try again.")
                     onResult(false)
                     return@launch
                 }
 
-                val decryptCipher = try {
-                    app.vaultRepository.getBiometricDecryptCipher()
+                val encryptCipher = try {
+                    app.vaultRepository.getBiometricEncryptCipher()
                 } catch (t: Throwable) {
-                    SecurityLogger.warn("MainActivity", "Failed to obtain biometric decrypt cipher for enrollment", t)
+                    SecurityLogger.warn("MainActivity", "Failed to obtain biometric encrypt cipher for enrollment", t)
                     null
                 }
 
-                if (decryptCipher == null) {
+                if (encryptCipher == null) {
+                    SecurityLogger.warn("MainActivity", "Failed to obtain biometric encrypt cipher")
                     isPromptingBiometrics.set(false)
+                    unlockViewModel.setErrorMessage("Biometric setup failed. Please try again.")
                     onResult(false)
                     return@launch
                 }
 
-                val cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
+                val cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(encryptCipher)
 
                 app.biometricManager.promptBiometric(
                     activity = this@MainActivity,
@@ -429,25 +434,37 @@ class MainActivity : FragmentActivity() {
                         isPromptingBiometrics.set(false)
                         val authenticatedCipher = result.cryptoObject?.cipher
                         if (authenticatedCipher != null) {
-                            app.preferencesRepository.setBiometricEnabled(true)
-                            unlockViewModel.checkVaultStatus()
-                            com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
-                            com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
-                            app.activityLogManager.logEvent("Security", "Biometric unlock verified and activated")
-                            app.activityLogManager.loadEvents()
-                            onResult(true)
+                            lifecycleScope.launch {
+                                val enrollResult = app.vaultRepository.setupBiometricsWithCipher(authenticatedCipher)
+                                if (enrollResult.isSuccess) {
+                                    app.preferencesRepository.setBiometricEnabled(true)
+                                    unlockViewModel.checkVaultStatus()
+                                    com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
+                                    com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
+                                    app.activityLogManager.logEvent("Security", "Biometric unlock verified and activated")
+                                    app.activityLogManager.loadEvents()
+                                    onResult(true)
+                                } else {
+                                    app.preferencesRepository.setBiometricEnabled(false)
+                                    unlockViewModel.setErrorMessage("Biometric enrollment failed. Please try again.")
+                                    onResult(false)
+                                }
+                            }
                         } else {
                             app.preferencesRepository.setBiometricEnabled(false)
+                            unlockViewModel.setErrorMessage("Biometric authentication failed. Please try again.")
                             onResult(false)
                         }
                     },
-                    onError = { _, _ ->
+                    onError = { errorCode, errString ->
                         isPromptingBiometrics.set(false)
                         app.preferencesRepository.setBiometricEnabled(false)
+                        SecurityLogger.warn("MainActivity", "Biometric enrollment error: $errorCode - $errString")
+                        unlockViewModel.setErrorMessage("Biometric setup failed: ${sanitizeBiometricError(errorCode, errString)}")
                         onResult(false)
                     },
                     onFailed = {
-                        // User touched with unrecognized finger, keep prompt open
+                        unlockViewModel.setErrorMessage("Biometric authentication failed. Please try again.")
                     }
                 )
             }
@@ -455,6 +472,24 @@ class MainActivity : FragmentActivity() {
             isPromptingBiometrics.set(false)
             SecurityLogger.error("MainActivity", "Unhandled exception in triggerBiometricEnrollment", t)
             onResult(false)
+        }
+    }
+
+    private fun sanitizeBiometricError(errorCode: Int, errString: CharSequence?): String {
+        return when (errorCode) {
+            androidx.biometric.BiometricPrompt.ERROR_HW_UNAVAILABLE,
+            androidx.biometric.BiometricPrompt.ERROR_HW_NOT_PRESENT ->
+                "Biometric authentication is unavailable on this device"
+            androidx.biometric.BiometricPrompt.ERROR_LOCKOUT,
+            androidx.biometric.BiometricPrompt.ERROR_LOCKOUT_PERMANENT ->
+                "Too many failed biometric attempts. Please wait or use master password."
+            androidx.biometric.BiometricPrompt.ERROR_NO_BIOMETRICS ->
+                "No biometrics enrolled. Add biometric credential in device settings."
+            androidx.biometric.BiometricPrompt.ERROR_SECURITY_UPDATE_REQUIRED ->
+                "Device security update required for biometric authentication"
+            androidx.biometric.BiometricPrompt.ERROR_TIMEOUT ->
+                "Biometric authentication timed out"
+            else -> if (!errString.isNullOrBlank()) errString.toString() else "Biometric authentication failed. Please try again."
         }
     }
 
@@ -498,6 +533,7 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Deprecated in Java")
     override fun startActivityForResult(intent: Intent, requestCode: Int) {
         startActivityForResult(intent, requestCode, null)
@@ -509,11 +545,13 @@ class MainActivity : FragmentActivity() {
      * receive the result.  The actual start is always delegated to the super implementation —
      * no private-field reflection is needed.
      */
+    @Suppress("DEPRECATION")
     @Deprecated("Deprecated in Java")
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
         super.startActivityForResult(intent, requestCode, options)
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Deprecated in Java")
     override fun startIntentSenderForResult(
         intent: android.content.IntentSender,
@@ -526,6 +564,7 @@ class MainActivity : FragmentActivity() {
         startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, null)
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Deprecated in Java")
     override fun startIntentSenderForResult(
         intent: android.content.IntentSender,

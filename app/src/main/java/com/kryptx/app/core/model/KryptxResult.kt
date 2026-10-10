@@ -53,5 +53,6 @@ enum class KryptxErrorType {
     DATABASE_ERROR,
     IMPORT_PARSE_FAILED,
     EXPORT_FAILED,
+    RATE_LIMITED,
     UNKNOWN
 }

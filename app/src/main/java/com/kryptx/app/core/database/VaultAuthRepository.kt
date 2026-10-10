@@ -21,6 +21,8 @@ interface VaultAuthRepository {
     fun getBiometricDecryptCipher(): Cipher?
     fun getBiometricEncryptCipher(): Cipher?
 
+    fun detectBiometricStatus(): com.kryptx.app.core.crypto.BiometricKeyStatus
+    suspend fun reEnrollBiometrics(): KryptxResult<Unit>
     suspend fun setupNewVault(masterPassword: CharArray): KryptxResult<Unit>
     suspend fun unlockWithPassword(masterPassword: CharArray): KryptxResult<Unit>
     suspend fun setupBiometrics(): KryptxResult<Unit>
@@ -140,6 +142,12 @@ class VaultAuthRepositoryImpl(
     }
 
     override suspend fun unlockWithPassword(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        if (sessionManager.lockoutSecondsRemaining.value > 0) {
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.RATE_LIMITED,
+                "Too many failed unlock attempts. Please wait ${sessionManager.lockoutSecondsRemaining.value}s."
+            )
+        }
         if (hasPanicPassword()) {
             val panicSaltBase64 = dbHelper.getMetadata("panic_salt")
             val panicTokenBase64 = dbHelper.getMetadata("panic_token")
@@ -230,6 +238,21 @@ class VaultAuthRepositoryImpl(
                     dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, argon2Params.iterations.toString())
                     dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, argon2Params.parallelism.toString())
                 }
+
+                // If biometric was previously configured but invalidated by enrollment changes, auto-re-enroll now that we have the active VEK!
+                val hasBiometricWrapped = !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank()
+                if (hasBiometricWrapped && keystoreManager.isBiometricKeyPermanentlyInvalidated()) {
+                    try {
+                        keystoreManager.removeBiometricKey()
+                        val newWrappedVek = keystoreManager.wrapWithPublicKey(vek)
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, Base64.encodeToString(newWrappedVek, Base64.NO_WRAP))
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                        SecurityLogger.info("VaultAuthRepository", "Biometric key auto-re-enrolled following master password unlock")
+                    } catch (e: Exception) {
+                        SecurityLogger.warn("VaultAuthRepository", "Failed to auto-re-enroll biometric key", e)
+                    }
+                }
+
                 onAuditInvalidated?.invoke()
             } catch (e: Exception) {
                 // Decryption failure is expected when the password is wrong — this is a normal fallthrough.
@@ -313,6 +336,25 @@ class VaultAuthRepositoryImpl(
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Failed to enroll biometric key with cipher", e)
+            }
+        } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+    }
+
+    override fun detectBiometricStatus(): com.kryptx.app.core.crypto.BiometricKeyStatus {
+        return keystoreManager.detectBiometricInvalidation()
+    }
+
+    override suspend fun reEnrollBiometrics(): KryptxResult<Unit> = withContext(Dispatchers.Default) {
+        sessionManager.withVaultKey { activeVek ->
+            try {
+                keystoreManager.removeBiometricKey()
+                val wrappedVek = keystoreManager.wrapWithPublicKey(activeVek)
+                val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
+                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
+                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                KryptxResult.Success(Unit)
+            } catch (e: Exception) {
+                KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Failed to re-enroll biometric key", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }

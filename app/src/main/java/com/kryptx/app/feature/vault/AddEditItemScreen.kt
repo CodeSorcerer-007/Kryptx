@@ -249,7 +249,7 @@ fun AddEditItemScreen(
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
@@ -296,7 +296,9 @@ fun AddEditItemScreen(
     val launchPhotoPicker: () -> Unit = {
         app?.sessionManager?.setPickerActive(true)
         try {
-            photoPickerLauncher.launch("image/*")
+            photoPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
         } catch (e: Throwable) {
             app?.sessionManager?.setPickerActive(false)
             localError = "Unable to open photo gallery: ${e.message}"

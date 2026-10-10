@@ -176,6 +176,34 @@ class HmacSearchIndex {
         rebuildAll(db, items)
     }
 
+    /**
+     * Recomputes tokens within an already-active database transaction.
+     * Guarantees that token rekeying is atomically rolled back if the surrounding
+     * key rotation transaction fails.
+     */
+    fun reKeyAllInTransaction(db: SQLiteDatabase, newVek: ByteArray, items: List<VaultItem>) {
+        initKey(newVek)
+        withKey { key ->
+            db.delete(TABLE_SEARCH_TOKENS, null, null)
+            for (item in items) {
+                if (!item.isDeleted) {
+                    val tokens = buildTokenSet(item)
+                    for (token in tokens) {
+                        val hmac = hmacHex(key, token)
+                        val cv = ContentValues(2).apply {
+                            put(COL_ITEM_ID, item.id)
+                            put(COL_TOKEN_HMAC, hmac)
+                        }
+                        db.insertWithOnConflict(
+                            TABLE_SEARCH_TOKENS, null, cv,
+                            SQLiteDatabase.CONFLICT_IGNORE
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     // ── Query operations ──────────────────────────────────────────────────────
 
     /**
@@ -328,8 +356,8 @@ class HmacSearchIndex {
         /** Domain separation context for deriving the search HMAC key from the VEK. */
         private const val INDEX_CONTEXT = "kryptx-search-index-v1"
 
-        private const val MIN_TOKEN_LENGTH = 2
-        private const val MAX_PREFIX_LENGTH = 12
+        private const val MIN_TOKEN_LENGTH = 3
+        private const val MAX_PREFIX_LENGTH = 8
 
         private val HEX_CHARS = "0123456789abcdef".toCharArray()
 

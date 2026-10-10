@@ -28,6 +28,7 @@ class AttachmentManager(
 ) : IAttachmentManager {
 
     companion object {
+        const val MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024L // 50MB maximum attachment ceiling
         private const val CHUNK_SIZE = 64 * 1024 // 64 KB per authenticated chunk
         private const val MAGIC_HEADER = 0x4B525950 // 'KRYP'
     }
@@ -45,6 +46,13 @@ class AttachmentManager(
         mimeType: String,
         data: ByteArray
     ): VaultAttachment? = withContext(Dispatchers.IO) {
+        if (data.size > MAX_ATTACHMENT_SIZE) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "AttachmentManager",
+                "Attachment '$fileName' exceeds 50MB size limit (${data.size} bytes)"
+            )
+            return@withContext null
+        }
         val inputStream = ByteArrayInputStream(data)
         saveAttachmentStream(fileName, mimeType, inputStream)
     }
@@ -96,6 +104,13 @@ class AttachmentManager(
                     var chunkIndex = 0
                     while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                         totalPlainBytes += bytesRead
+                        if (totalPlainBytes > MAX_ATTACHMENT_SIZE) {
+                            com.kryptx.app.core.security.SecurityLogger.warn(
+                                "AttachmentManager",
+                                "Attachment stream '$fileName' exceeded 50MB size limit"
+                            )
+                            throw IllegalArgumentException("Attachment exceeds maximum allowed size of 50MB")
+                        }
                         val chunkPlaintext = if (bytesRead == CHUNK_SIZE) buffer else buffer.copyOf(bytesRead)
                         val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
                         val encryptedChunk = CryptoEngine.encrypt(chunkPlaintext, activeVek, aad)

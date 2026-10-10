@@ -116,7 +116,8 @@ class UnlockViewModelTest {
 
         viewModel.unlockWithBiometrics { unlockSuccess = true }
         testScheduler.runCurrent()
-        assertTrue(unlockSuccess)
+        assertFalse(unlockSuccess)
+        assertEquals("Biometric unlock requires a cipher — use unlockWithBiometricCipher()", viewModel.uiState.value.errorMessage)
     }
 
     @Test
