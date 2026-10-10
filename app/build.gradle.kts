@@ -157,12 +157,12 @@ android {
         unitTests.isReturnDefaultValues = true
         unitTests.all {
             it.useJUnit()
+            it.maxHeapSize = "1536m"
             it.testLogging {
-                events("passed", "skipped", "failed", "standardError")
+                events("failed")
                 showExceptions = true
                 showCauses = true
                 showStackTraces = true
-                exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
             }
         }
     }

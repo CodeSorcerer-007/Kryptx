@@ -34,6 +34,15 @@ class SearchViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private suspend fun <T> kotlinx.coroutines.flow.StateFlow<T>.awaitValue(timeoutMs: Long = 3000L, condition: (T) -> Boolean): T {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (condition(value)) return value
+            kotlinx.coroutines.delay(20)
+        }
+        return value
+    }
+
     @Test
     fun testSearchQueryMatching() = kotlinx.coroutines.runBlocking {
         val job = launch(kotlinx.coroutines.Dispatchers.Unconfined) { viewModel.searchResults.collect { } }
@@ -42,21 +51,21 @@ class SearchViewModelTest {
 
         fakeVaultRepository.saveItem(item1)
         fakeVaultRepository.saveItem(item2)
-        kotlinx.coroutines.delay(400)
+        viewModel.searchResults.awaitValue { it.size == 2 }
 
         viewModel.onQueryChanged("proton")
-        kotlinx.coroutines.delay(400)
-        assertEquals(1, viewModel.searchResults.value.size)
-        assertEquals("ProtonMail", viewModel.searchResults.value.first().title)
+        val protonResults = viewModel.searchResults.awaitValue { it.size == 1 && it.first().title == "ProtonMail" }
+        assertEquals(1, protonResults.size)
+        assertEquals("ProtonMail", protonResults.first().title)
 
         viewModel.onQueryChanged("ocean")
-        kotlinx.coroutines.delay(400)
-        assertEquals(1, viewModel.searchResults.value.size)
-        assertEquals("DigitalOcean", viewModel.searchResults.value.first().title)
+        val oceanResults = viewModel.searchResults.awaitValue { it.size == 1 && it.first().title == "DigitalOcean" }
+        assertEquals(1, oceanResults.size)
+        assertEquals("DigitalOcean", oceanResults.first().title)
 
         viewModel.onQueryChanged("")
-        kotlinx.coroutines.delay(400)
-        assertEquals(2, viewModel.searchResults.value.size)
+        val allResults = viewModel.searchResults.awaitValue { it.size == 2 }
+        assertEquals(2, allResults.size)
         
         job.cancel()
     }
@@ -69,13 +78,13 @@ class SearchViewModelTest {
 
         fakeVaultRepository.saveItem(strongItem)
         fakeVaultRepository.saveItem(weakItem)
-        kotlinx.coroutines.delay(400)
+        viewModel.searchResults.awaitValue { it.size == 2 }
 
         viewModel.selectFilter("WEAK")
-        kotlinx.coroutines.delay(400)
+        val weakResults = viewModel.searchResults.awaitValue { it.size == 1 && it.first().title == "Weak" }
 
-        assertEquals(1, viewModel.searchResults.value.size)
-        assertEquals("Weak", viewModel.searchResults.value.first().title)
+        assertEquals(1, weakResults.size)
+        assertEquals("Weak", weakResults.first().title)
         
         job.cancel()
     }
