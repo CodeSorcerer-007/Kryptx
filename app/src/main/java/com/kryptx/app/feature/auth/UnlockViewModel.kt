@@ -11,6 +11,8 @@ import com.kryptx.app.core.security.VaultSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -20,7 +22,8 @@ class UnlockViewModel(
     private val vaultRepository: VaultRepository,
     private val sessionManager: VaultSessionManager,
     private val preferencesRepository: IPreferencesRepository,
-    private val activityLogManager: ActivityLogManager? = null
+    private val activityLogManager: ActivityLogManager? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UnlockUiState())
@@ -50,7 +53,7 @@ class UnlockViewModel(
     }
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             checkVaultStatus()
         }
     }
@@ -60,12 +63,14 @@ class UnlockViewModel(
         val isBiometricConfigured = vaultRepository.isBiometricsConfigured() && preferencesRepository.biometricEnabled.value
         val isHardwareKey = vaultRepository.isHardwareKeyEnrolled()
         val keyLabel = vaultRepository.getHardwareKeyLabel()
-        _uiState.value = _uiState.value.copy(
-            hasVault = hasVault,
-            isBiometricsAvailable = isBiometricConfigured,
-            isHardwareKeyRequired = isHardwareKey,
-            hardwareKeyLabel = keyLabel
-        )
+        _uiState.update { current ->
+            current.copy(
+                hasVault = hasVault,
+                isBiometricsAvailable = isBiometricConfigured,
+                isHardwareKeyRequired = isHardwareKey,
+                hardwareKeyLabel = keyLabel
+            )
+        }
     }
 
     fun setErrorMessage(message: String?) {
@@ -280,9 +285,11 @@ class UnlockViewModel(
 
     @Deprecated("Biometric unlock requires a hardware-bound Cipher. Use unlockWithBiometricCipher().")
     fun unlockWithBiometrics(onSuccess: () -> Unit) {
-        _uiState.value = _uiState.value.copy(
-            errorMessage = "Biometric unlock requires a cipher — use unlockWithBiometricCipher()"
-        )
+        _uiState.update { current ->
+            current.copy(
+                errorMessage = "Biometric unlock requires a cipher — use unlockWithBiometricCipher()"
+            )
+        }
     }
 }
 

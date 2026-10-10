@@ -185,7 +185,7 @@ class MultiBugExplorationTest {
         val mockRepo = mock<VaultRepository>()
         val sessionManager = VaultSessionManager(testScope)
         val prefs = FakePreferencesRepository()
-        val viewModel = UnlockViewModel(mockRepo, sessionManager, prefs)
+        val viewModel = UnlockViewModel(mockRepo, sessionManager, prefs, ioDispatcher = testDispatcher)
 
         var onSuccessCalled = false
         viewModel.unlockWithBiometrics { onSuccessCalled = true }
