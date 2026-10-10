@@ -43,15 +43,17 @@ android {
         }
     }
 
-    val releaseKeyStore = System.getenv("KRYPTX_KEYSTORE_FILE")?.let { file(it) }
-        ?: file("kryptx-release-key.jks")
-    val keyStorePassword = System.getenv("KRYPTX_KEYSTORE_PASSWORD")
+    val releaseKeyStore = (System.getenv("KRYPTX_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }?.let { file(it) }
+        ?: file("kryptx-release-key.jks")).let {
+            if (it.exists()) it else rootProject.file("app/kryptx-release-key.jks")
+        }
+    val keyStorePassword = System.getenv("KRYPTX_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
         ?: localProperties.getProperty("kryptx.keystore.password")
         ?: (project.findProperty("kryptx.keystore.password") as? String)
-    val keyPasswordVal = System.getenv("KRYPTX_KEY_PASSWORD")
+    val keyPasswordVal = System.getenv("KRYPTX_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
         ?: localProperties.getProperty("kryptx.key.password")
         ?: (project.findProperty("kryptx.key.password") as? String)
-    val keyAliasVal = System.getenv("KRYPTX_KEY_ALIAS")
+    val keyAliasVal = System.getenv("KRYPTX_KEY_ALIAS")?.takeIf { it.isNotBlank() }
         ?: localProperties.getProperty("kryptx.key.alias")
         ?: (project.findProperty("kryptx.key.alias") as? String)
         ?: "kryptx-release"
@@ -107,7 +109,7 @@ android {
             // the APK so SecurityBootstrapper can enforce exact-match certificate pinning at runtime.
             val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
             val isCi = System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null
-            val releaseFp = System.getenv("KRYPTX_RELEASE_FINGERPRINT")
+            val releaseFp = System.getenv("KRYPTX_RELEASE_FINGERPRINT")?.takeIf { it.isNotBlank() }
                 ?: localProperties.getProperty("kryptx.release.fingerprint")
                 ?: run {
                     if (isCi && isReleaseBuild) {
