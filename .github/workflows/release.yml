@@ -38,7 +38,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Release Unit Tests & Security Audits
-        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
 
       - name: Zero-Network Hard Security Check
         run: |

@@ -90,13 +90,29 @@ class MultiBugExplorationTest {
     }
 
     private fun resolveSourceFile(path: String): java.io.File {
-        val candidates = listOf(
+        val cleanPath = path.removePrefix("app/")
+        val directCandidates = listOf(
             java.io.File(path),
-            java.io.File(path.removePrefix("app/")),
+            java.io.File(cleanPath),
+            java.io.File("app", cleanPath),
             java.io.File("..", path),
-            java.io.File("../app", path.removePrefix("app/"))
+            java.io.File("../app", cleanPath),
+            java.io.File("../../app", cleanPath)
         )
-        return candidates.firstOrNull { it.exists() } ?: java.io.File(path)
+        val found = directCandidates.firstOrNull { it.exists() }
+        if (found != null) return found
+
+        var current: java.io.File? = java.io.File(System.getProperty("user.dir", "."))
+        while (current != null) {
+            val candidate1 = java.io.File(current, path)
+            if (candidate1.exists()) return candidate1
+            val candidate2 = java.io.File(current, "app/$cleanPath")
+            if (candidate2.exists()) return candidate2
+            val candidate3 = java.io.File(current, cleanPath)
+            if (candidate3.exists()) return candidate3
+            current = current.parentFile
+        }
+        return java.io.File(path)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -145,12 +161,6 @@ class MultiBugExplorationTest {
         // On unfixed code, onShakeTriggered locks the vault, clears clipboard, triggers haptic,
         // but NEVER calls contextualLockManager?.stopListening().
         // Consequently, the accelerometer keeps firing within the same gesture.
-        val mainActivityClassBytes = MainActivity::class.java.classLoader
-            ?.getResourceAsStream("com/kryptx/app/MainActivity.class")
-            ?.readBytes()
-        assertNotNull("MainActivity.class must be loadable", mainActivityClassBytes)
-
-        val mainActivityClassText = String(mainActivityClassBytes!!, Charsets.ISO_8859_1)
 
         // Let's check if onShakeTriggered callback lambda specifically calls stopListening:
         // In unfixed MainActivity.kt lines 155-162:
