@@ -118,4 +118,36 @@ class UnlockViewModelTest {
         testScheduler.runCurrent()
         assertTrue(unlockSuccess)
     }
+
+    @Test
+    fun testKeepUnlockedUncheckedSetsLockOnBackground() = runTest(testDispatcher) {
+        viewModel.setupNewVault("SecretMasterKey123".toCharArray(), "SecretMasterKey123".toCharArray(), false) {}
+        testScheduler.runCurrent()
+
+        sessionManager.setLockOnBackground(false)
+        viewModel.setKeepUnlocked(false)
+
+        var unlockSuccess = false
+        viewModel.unlockWithPassword("SecretMasterKey123".toCharArray()) { unlockSuccess = true }
+        testScheduler.runCurrent()
+
+        assertTrue(unlockSuccess)
+        assertTrue(sessionManager.isLockOnBackground())
+    }
+
+    @Test
+    fun testKeepUnlockedCheckedPreservesLockOnBackground() = runTest(testDispatcher) {
+        viewModel.setupNewVault("SecretMasterKey123".toCharArray(), "SecretMasterKey123".toCharArray(), false) {}
+        testScheduler.runCurrent()
+
+        sessionManager.setLockOnBackground(false)
+        viewModel.setKeepUnlocked(true)
+
+        var unlockSuccess = false
+        viewModel.unlockWithPassword("SecretMasterKey123".toCharArray()) { unlockSuccess = true }
+        testScheduler.runCurrent()
+
+        assertTrue(unlockSuccess)
+        assertFalse(sessionManager.isLockOnBackground())
+    }
 }

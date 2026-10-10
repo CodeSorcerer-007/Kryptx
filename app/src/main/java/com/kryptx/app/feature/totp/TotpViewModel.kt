@@ -41,6 +41,10 @@ class TotpViewModel(
     val selectedCategory = MutableStateFlow<String?>("ALL")
     val sortOrder = MutableStateFlow(TotpSortOrder.ALPHABETICAL)
 
+    init {
+        startTicker()
+    }
+
     val totpAccounts: StateFlow<List<TotpAccount>> = combine(
         vaultRepository.getItems(),
         _tick
@@ -91,9 +95,9 @@ class TotpViewModel(
     private var tickerJob: kotlinx.coroutines.Job? = null
 
 
-    fun startTicker() {
+    fun startTicker(dispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default) {
         tickerJob?.cancel()
-        tickerJob = viewModelScope.launch {
+        tickerJob = viewModelScope.launch(dispatcher) {
             while (isActive) {
                 delay(1000L)
                 _tick.value = System.currentTimeMillis()

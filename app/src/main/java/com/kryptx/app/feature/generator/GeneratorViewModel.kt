@@ -130,7 +130,13 @@ class GeneratorViewModel(
         _result.value = GeneratorEngine.generate(cfg)
     }
 
-    fun copyToClipboard(label: String = "Generated Password") {
+    fun copyToClipboard(customLabel: String? = null) {
+        val label = customLabel ?: when (_config.value.mode) {
+            GeneratorMode.PASSWORD   -> "Generated Password"
+            GeneratorMode.PASSPHRASE -> "Generated Passphrase"
+            GeneratorMode.PIN        -> "Generated PIN"
+            GeneratorMode.USERNAME   -> "Generated Username"
+        }
         clipboardSecurityManager.copySensitiveText(label, _result.value.value, timeoutSeconds = 45)
     }
 }

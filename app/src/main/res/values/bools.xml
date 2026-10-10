@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Credential Provider Service requires Android 14 (API 34). Disabled by default. -->
+    <bool name="is_api34_or_higher">false</bool>
+</resources>

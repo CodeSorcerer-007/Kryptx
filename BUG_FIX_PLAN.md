@@ -37,6 +37,12 @@
 | B-25 | 🟡 MEDIUM | Autofill stall | `KryptxAutofillService.kt` | Callback never called if coroutine is cancelled mid-fill | ✅ FIXED |
 | B-26 | 🟡 MEDIUM | Autofill miss | `KryptxAutofillService.kt` (`traverseNode`) | Depth limit of 30 misses fields in deep Chrome/Firefox DOMs | ✅ FIXED |
 | B-27 | 🟡 MEDIUM | VaultDashboard crash | `VaultDashboardScreen.kt:292,296` | `securityReport!!` called right after null check (race-unsafe) | ✅ FIXED |
+| B-28 | 🔴 CRASH | Missing API gate | `AndroidManifest.xml` | `KryptxCredentialProviderService` missing API 34 gate crashes on API ≤ 33 | ✅ FIXED |
+| B-29 | 🟡 MEDIUM | Wrong clipboard label | `GeneratorViewModel.kt:133` | Hardcoded "Generated Password" for Passphrase, PIN, Username modes | ✅ FIXED |
+| B-30 | 🟡 MEDIUM | Dead code / intent | `AndroidManifest.xml` | Missing `ACTION_SEARCH` intent-filter & `searchable.xml` meta-data | ✅ FIXED |
+| B-31 | 🟠 HIGH | Unreachable cold start | `AndroidManifest.xml` | Missing NFC intent-filters & `nfc_tech_filter.xml` on `MainActivity` | ✅ FIXED |
+| B-32 | 🟡 MEDIUM | Timer freeze / lag | `TotpViewModel.kt` + `TotpListScreen.kt` | TOTP ticker not auto-started in init and stopped on tab navigation | ✅ FIXED |
+| B-33 | 🟠 HIGH | Dead UI control | `UnlockScreen.kt` + `UnlockViewModel.kt` | "Keep Unlocked" checkbox had no effect on session lifetime | ✅ FIXED |
 
 ---
 
@@ -777,6 +783,54 @@ if (sr != null && sr.overallScore < 90) {
 
 ---
 
+### B-28 🔴 — Missing API 34 gate on `KryptxCredentialProviderService`
+
+**File:** `app/src/main/AndroidManifest.xml`, `app/src/main/res/values/bools.xml`, `app/src/main/res/values-v34/bools.xml`  
+**What happens:** `KryptxCredentialProviderService` references API 34-only framework classes (`android.service.credentials.*`). On Android 13 and below, the OS attempting to bind or enumerate the service throws `ClassNotFoundException` or `VerifyError` crashing the app.  
+**Fix:** Added `android:enabled="@bool/is_api34_or_higher"` to the service manifest entry with default `false` in `res/values/bools.xml` and `true` override in `res/values-v34/bools.xml`.
+
+---
+
+### B-29 🟡 — Hardcoded "Generated Password" label in `GeneratorViewModel`
+
+**File:** `app/src/main/java/com/kryptx/app/feature/generator/GeneratorViewModel.kt`  
+**What happens:** When copying generated passphrases, PINs, or usernames, the clipboard notification, snackbar, and accessibility labels incorrectly read "Generated Password".  
+**Fix:** Derived label dynamically from `_config.value.mode`: `"Generated Password"`, `"Generated Passphrase"`, `"Generated PIN"`, or `"Generated Username"`.
+
+---
+
+### B-30 🟡 — Missing `ACTION_SEARCH` intent-filter and searchable XML
+
+**File:** `app/src/main/AndroidManifest.xml`, `app/src/main/res/xml/searchable.xml`  
+**What happens:** `MainActivity` had `ACTION_SEARCH` navigation logic, but no matching `<intent-filter>` or `<meta-data android:name="android.app.searchable">` in the manifest, leaving external search shortcuts permanently dead code.  
+**Fix:** Declared `ACTION_SEARCH` intent filter, registered searchable meta-data on `MainActivity`, and created `res/xml/searchable.xml`.
+
+---
+
+### B-31 🟠 — Missing NFC intent-filters for hardware security key cold start
+
+**File:** `app/src/main/AndroidManifest.xml`, `app/src/main/res/xml/nfc_tech_filter.xml`  
+**What happens:** `MainActivity` handled NFC tags in `onCreate`, but without registered NFC intent filters in the manifest, tapping an NFC key on cold start or when the app was in the background was silently ignored by the OS.  
+**Fix:** Added `ACTION_NDEF_DISCOVERED`, `ACTION_TECH_DISCOVERED`, and `ACTION_TAG_DISCOVERED` intent filters and created `res/xml/nfc_tech_filter.xml` with all standard tech types including `IsoDep`.
+
+---
+
+### B-32 🟡 — TOTP ticker not auto-started and stopped on tab switch
+
+**File:** `app/src/main/java/com/kryptx/app/feature/totp/TotpViewModel.kt`, `app/src/main/java/com/kryptx/app/feature/totp/TotpListScreen.kt`  
+**What happens:** The TOTP refresh ticker only started after the first composition frame rendered, and was stopped by `DisposableEffect.onDispose` when navigating away, causing frozen or expired codes when returning to the tab.  
+**Fix:** Added `init { startTicker() }` on `Dispatchers.Default` in `TotpViewModel`, and removed `viewModel.stopTicker()` from `onDispose` in `TotpListScreen.kt`.
+
+---
+
+### B-33 🟠 — "Keep Unlocked" checkbox had no effect on session lifetime
+
+**File:** `app/src/main/java/com/kryptx/app/feature/auth/UnlockScreen.kt`, `app/src/main/java/com/kryptx/app/feature/auth/UnlockViewModel.kt`  
+**What happens:** The `rememberMe` checkbox state was only stored in a local Compose variable and never passed to the ViewModel or session manager. Unchecking "Keep Unlocked" did not lock the vault when backgrounded.  
+**Fix:** Added `_keepUnlocked` state and `applyKeepUnlockedOverride()` to `UnlockViewModel` calling `sessionManager.setLockOnBackground(true)` on unlock, and wired `rememberMe` clicks in `UnlockScreen.kt`.
+
+---
+
 ## Prioritized Fix Order
 
 ### Phase 1 — Fix immediately (app crashes or silently corrupts data today)
@@ -821,6 +875,17 @@ if (sr != null && sr.overallScore < 90) {
 | 26 | B-25 | Autofill callback dropped on cancellation → add try/finally with `onFailure` | ✅ FIXED |
 | 27 | B-26 | DOM traversal depth 30 → increase to 60, switch to iterative stack | ✅ FIXED |
 
+### Phase 4 — System Integration & Intent Routing (Gating, intent contracts, UX state wiring)
+
+| # | Bug | Action | Status |
+|---|-----|--------|--------|
+| 28 | B-28 | `KryptxCredentialProviderService` API 34 gate → `res/values/bools.xml` + `values-v34` | ✅ FIXED |
+| 29 | B-29 | `GeneratorViewModel.copyToClipboard()` → mode-derived label | ✅ FIXED |
+| 30 | B-30 | `MainActivity` search intent → `ACTION_SEARCH` filter + `res/xml/searchable.xml` | ✅ FIXED |
+| 31 | B-31 | `MainActivity` NFC cold start → 3 NFC filters + `res/xml/nfc_tech_filter.xml` | ✅ FIXED |
+| 32 | B-32 | `TotpViewModel` ticker auto-start on `Dispatchers.Default` + preserve across tabs | ✅ FIXED |
+| 33 | B-33 | "Keep Unlocked" checkbox → wire to `UnlockViewModel` and `VaultSessionManager.setLockOnBackground` | ✅ FIXED |
+
 ---
 
 ## Files Touched Summary
@@ -828,7 +893,7 @@ if (sr != null && sr.overallScore < 90) {
 | File | Bugs Fixed |
 |------|-----------|
 | `feature/autofill/AutofillAuthActivity.kt` | B-01, B-14, B-22, B-25 |
-| `MainActivity.kt` | B-02, B-11, B-23 |
+| `MainActivity.kt` | B-02, B-11, B-23, B-30, B-31 |
 | `feature/securitycenter/SecurityCenterScreen.kt` | B-03 |
 | `feature/vault/detail/SecureAttachmentViewer.kt` | B-04, B-15, B-16 |
 | `core/database/VaultAuditRepository.kt` | B-05 |
@@ -843,7 +908,15 @@ if (sr != null && sr.overallScore < 90) {
 | `core/designsystem/components/QrCodeScannerDialog.kt` | B-10 |
 | `core/designsystem/components/AnimatedQrScanner.kt` | B-10 |
 | `feature/settings/SettingsViewModel.kt` | B-18 |
-| `feature/auth/UnlockViewModel.kt` | B-19 |
+| `feature/auth/UnlockViewModel.kt` | B-19, B-33 |
+| `feature/auth/UnlockScreen.kt` | B-33 |
 | `core/di/AppContainer.kt` | B-20 |
 | `feature/vault/AddEditItemScreen.kt` | B-24 |
 | `feature/autofill/KryptxAutofillService.kt` | B-25, B-26 |
+| `feature/generator/GeneratorViewModel.kt` | B-29 |
+| `feature/totp/TotpViewModel.kt` | B-32 |
+| `feature/totp/TotpListScreen.kt` | B-32 |
+| `AndroidManifest.xml` | B-28, B-30, B-31 |
+| `res/values/bools.xml` + `values-v34/bools.xml` | B-28 |
+| `res/xml/searchable.xml` | B-30 |
+| `res/xml/nfc_tech_filter.xml` | B-31 |

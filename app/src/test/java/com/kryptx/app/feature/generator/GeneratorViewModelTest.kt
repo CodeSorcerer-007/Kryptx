@@ -65,4 +65,31 @@ class GeneratorViewModelTest {
         assertEquals("Test Secret", fakeClipboard.lastCopiedLabel)
         assertEquals(currentSecret, fakeClipboard.lastCopiedText)
     }
+
+    @Test
+    fun testModeDerivedClipboardLabels() {
+        // PASSWORD mode
+        viewModel.updateMode(GeneratorMode.PASSWORD)
+        viewModel.copyToClipboard()
+        assertEquals("Generated Password", fakeClipboard.lastCopiedLabel)
+        assertEquals(45, fakeClipboard.lastTimeoutSeconds)
+
+        // PASSPHRASE mode
+        viewModel.updateMode(GeneratorMode.PASSPHRASE)
+        viewModel.copyToClipboard()
+        assertEquals("Generated Passphrase", fakeClipboard.lastCopiedLabel)
+        assertEquals(45, fakeClipboard.lastTimeoutSeconds)
+
+        // PIN mode
+        viewModel.updateMode(GeneratorMode.PIN)
+        viewModel.copyToClipboard()
+        assertEquals("Generated PIN", fakeClipboard.lastCopiedLabel)
+        assertEquals(45, fakeClipboard.lastTimeoutSeconds)
+
+        // USERNAME mode
+        viewModel.updateMode(GeneratorMode.USERNAME)
+        viewModel.copyToClipboard()
+        assertEquals("Generated Username", fakeClipboard.lastCopiedLabel)
+        assertEquals(45, fakeClipboard.lastTimeoutSeconds)
+    }
 }

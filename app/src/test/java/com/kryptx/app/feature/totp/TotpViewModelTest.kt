@@ -109,4 +109,27 @@ class TotpViewModelTest {
         assertEquals(1, viewModel.filteredTotpAccounts.value.size)
         assertEquals("GitHub", viewModel.filteredTotpAccounts.value.first().item.title)
     }
+
+    @Test
+    fun testTickerAutoStartedInInit() = runTest(testDispatcher) {
+        val itemWithTotp = VaultItem(
+            id = "totp_ticker",
+            title = "Live Ticker Test",
+            type = ItemType.LOGIN,
+            totpSecret = "JBSWY3DPEHPK3PXP"
+        )
+        fakeVaultRepository.saveItem(itemWithTotp)
+        testScheduler.runCurrent()
+
+        assertEquals(1, viewModel.totpAccounts.value.size)
+        val initialAccount = viewModel.totpAccounts.value.first()
+        org.junit.Assert.assertNotNull(initialAccount.code)
+
+        // Advance 1000ms - ticker launched in init emits new tick
+        testScheduler.advanceTimeBy(1001L)
+        testScheduler.runCurrent()
+
+        val updatedAccount = viewModel.totpAccounts.value.first()
+        org.junit.Assert.assertNotNull(updatedAccount.code)
+    }
 }

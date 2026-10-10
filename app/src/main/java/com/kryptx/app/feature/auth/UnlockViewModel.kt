@@ -32,6 +32,19 @@ class UnlockViewModel(
     val scrambledPinDisabled: StateFlow<Boolean> = preferencesRepository.scrambledPinDisabled
     val isBiometricEnrollmentPrompted: StateFlow<Boolean> = preferencesRepository.biometricEnrollmentPrompted
 
+    private val _keepUnlocked = MutableStateFlow(true)
+    val keepUnlocked: StateFlow<Boolean> = _keepUnlocked.asStateFlow()
+
+    fun setKeepUnlocked(value: Boolean) {
+        _keepUnlocked.value = value
+    }
+
+    private fun applyKeepUnlockedOverride() {
+        if (!_keepUnlocked.value) {
+            sessionManager.setLockOnBackground(true)
+        }
+    }
+
     fun setBiometricEnrollmentPrompted(prompted: Boolean) {
         preferencesRepository.setBiometricEnrollmentPrompted(prompted)
     }
@@ -91,6 +104,7 @@ class UnlockViewModel(
             _uiState.value = _uiState.value.copy(isLoading = false)
             when (result) {
                 is KryptxResult.Success -> {
+                    applyKeepUnlockedOverride()
                     _uiState.value = _uiState.value.copy(passwordLength = 0)
                     activityLogManager?.logEvent("Unlock", "Vault unlocked via Hardware Key (NFC)")
                     activityLogManager?.loadEvents()
@@ -146,6 +160,7 @@ class UnlockViewModel(
 
             when (result) {
                 is KryptxResult.Success -> {
+                    applyKeepUnlockedOverride()
                     // Self-heal: If the hardware biometric key was permanently invalidated (e.g., new fingerprint added),
                     // automatically regenerate it and re-wrap the VEK now that we have unlocked the vault.
                     if (preferencesRepository.biometricEnabled.value) {
@@ -243,6 +258,7 @@ class UnlockViewModel(
 
             when (result) {
                 is KryptxResult.Success -> {
+                    applyKeepUnlockedOverride()
                     _uiState.value = _uiState.value.copy(passwordLength = 0)
                     activityLogManager?.logEvent("Unlock", "Vault unlocked via Biometrics")
                     activityLogManager?.loadEvents()
@@ -269,6 +285,7 @@ class UnlockViewModel(
 
             when (result) {
                 is KryptxResult.Success -> {
+                    applyKeepUnlockedOverride()
                     _uiState.value = _uiState.value.copy(passwordLength = 0)
                     activityLogManager?.logEvent("Unlock", "Vault unlocked via Biometrics")
                     activityLogManager?.loadEvents()

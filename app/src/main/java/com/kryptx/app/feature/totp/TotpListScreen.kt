@@ -122,9 +122,7 @@ fun TotpListScreen(
 
     androidx.compose.runtime.DisposableEffect(viewModel) {
         viewModel.startTicker()
-        onDispose {
-            viewModel.stopTicker()
-        }
+        onDispose { }
     }
 
     var showAddDialog by remember { mutableStateOf(false) }

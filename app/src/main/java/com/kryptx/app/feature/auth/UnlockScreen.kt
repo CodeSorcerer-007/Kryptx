@@ -86,6 +86,10 @@ fun UnlockScreen(
     var triggerCelebration by remember { mutableStateOf(false) }
     var passwordChars by remember { mutableStateOf(CharArray(0)) }
 
+    LaunchedEffect(rememberMe) {
+        viewModel.setKeepUnlocked(rememberMe)
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             SecureMemory.wipe(passwordChars)
@@ -352,7 +356,10 @@ fun UnlockScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { rememberMe = !rememberMe }
+                        modifier = Modifier.clickable {
+                            rememberMe = !rememberMe
+                            viewModel.setKeepUnlocked(rememberMe)
+                        }
                     ) {
                         Box(
                             modifier = Modifier

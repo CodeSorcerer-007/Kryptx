@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Override: enable the Credential Provider Service on API 34+ devices. -->
+    <bool name="is_api34_or_higher">true</bool>
+</resources>
