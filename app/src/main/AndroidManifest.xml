@@ -129,14 +129,16 @@
             android:name=".feature.credentials.CredentialAuthActivity"
             android:exported="false"
             android:theme="@style/Theme.Kryptx"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize"
+            tools:targetApi="34" />
 
         <service
             android:name=".feature.credentials.KryptxCredentialProviderService"
             android:enabled="@bool/is_api34_or_higher"
             android:exported="true"
             android:label="Kryptx Passkey &amp; Password Sync"
-            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"
+            tools:targetApi="34">
             <intent-filter>
                 <action android:name="android.service.credentials.CredentialProviderService" />
             </intent-filter>

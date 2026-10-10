@@ -157,6 +157,14 @@ android {
             it.useJUnit()
         }
     }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = false
+        disable += listOf("InlinedApi")
+        htmlReport = true
+        xmlReport = true
+    }
 }
 
 kotlin {

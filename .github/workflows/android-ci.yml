@@ -21,13 +21,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Accept Android SDK Licenses & Install Components
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -73,7 +70,7 @@ jobs:
           echo "Zero-Network verification passed: 0 network permissions present."
 
       - name: Generate Coverage Report & Verify Threshold (85% Hard Gate)
-        run: ./gradlew jacocoTestReport jacocoTestCoverageVerification --no-daemon
+        run: ./gradlew :app:jacocoTestReport :app:jacocoTestCoverageVerification --no-daemon
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
@@ -105,13 +102,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Accept Android SDK Licenses & Install Components
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -147,8 +141,8 @@ jobs:
         with:
           name: kryptx-debug-apk
           path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/debug/app-debug.apk.sha256
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/debug/*.sha256
 
   build-release:
     name: Build Release APK
@@ -166,13 +160,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Accept Android SDK Licenses & Install Components
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -200,11 +191,10 @@ jobs:
 
       - name: Generate Release SHA-256 Checksum
         run: |
-          APK_PATH="app/build/outputs/apk/release/app-release.apk"
-          if [ -f "$APK_PATH" ]; then
-            sha256sum "$APK_PATH" > "$APK_PATH.sha256"
-            echo "Release APK SHA-256: $(cat $APK_PATH.sha256)"
-          fi
+          for f in $(find app/build/outputs/apk/release/ -name "*.apk"); do
+            sha256sum "$f" > "${f}.sha256"
+            echo "Release APK: $f SHA-256: $(cat ${f}.sha256)"
+          done
 
       - name: Secure Cleanup of Keystore
         if: always()
@@ -214,7 +204,7 @@ jobs:
           fi
 
       - name: Generate SBOM
-        run: ./gradlew dependencies --configuration releaseRuntimeClasspath > sbom-dependencies.txt
+        run: ./gradlew :app:dependencies --configuration releaseRuntimeClasspath > sbom-dependencies.txt
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
@@ -227,8 +217,8 @@ jobs:
         with:
           name: kryptx-release-apk
           path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/app-release.apk.sha256
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/*.sha256
 
   rust-tests:
     name: Rust Crypto Engine Tests
@@ -313,8 +303,6 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -379,11 +367,8 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Accept Android SDK Licenses
-        run: yes | sdkmanager --licenses || true
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -410,7 +395,7 @@ jobs:
             echo "verification-metadata.xml found — Gradle will enforce SHA-256 checksums on all resolved artifacts"
             # Running 'dependencies' forces resolution of the full dependency graph,
             # triggering checksum verification on every artifact.
-            ./gradlew dependencies --configuration releaseRuntimeClasspath --no-daemon 2>&1 | tail -20
+            ./gradlew :app:dependencies --configuration releaseRuntimeClasspath --no-daemon 2>&1 | tail -20
             echo "Dependency integrity verification PASSED — all artifact checksums matched."
           else
             echo "ERROR: gradle/verification-metadata.xml not found."

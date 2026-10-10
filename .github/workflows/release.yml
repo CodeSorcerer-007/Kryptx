@@ -26,13 +26,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Accept Android SDK Licenses & Install Components
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -116,7 +113,7 @@ jobs:
           cd ..
 
       - name: Generate Software Bill of Materials (SBOM)
-        run: ./gradlew dependencies --configuration releaseRuntimeClasspath > release-dist/sbom-dependencies.txt
+        run: ./gradlew :app:dependencies --configuration releaseRuntimeClasspath > release-dist/sbom-dependencies.txt
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
