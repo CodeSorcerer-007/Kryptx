@@ -99,7 +99,12 @@ class BiometricAuthManager(private val context: Context) {
             activePrompt = biometricPrompt
 
             if (cryptoObject != null) {
-                biometricPrompt.authenticate(promptInfo, cryptoObject)
+                try {
+                    biometricPrompt.authenticate(promptInfo, cryptoObject)
+                } catch (e: IllegalArgumentException) {
+                    // Fallback to biometric presence prompt if CryptoObject cipher lacks KeyStore auth handle
+                    biometricPrompt.authenticate(promptInfo)
+                }
             } else {
                 biometricPrompt.authenticate(promptInfo)
             }

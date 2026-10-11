@@ -11,6 +11,7 @@ import java.security.spec.MGF1ParameterSpec
 import javax.crypto.Cipher
 import javax.crypto.spec.OAEPParameterSpec
 import javax.crypto.spec.PSource
+import com.kryptx.app.core.security.SecurityLogger
 
 /**
  * Android Keystore manager for protecting vault master keys with hardware-backed security (StrongBox / TEE).
@@ -183,7 +184,7 @@ class KeystoreManager {
             } catch (e: Exception) {
                 if (isCausePermanentlyInvalidated(e)) {
                     BiometricKeyStatus.InvalidatedByEnrollment
-                } else if (e.javaClass.name.contains("UserNotAuthenticatedException")) {
+                } else if (isCauseUserNotAuthenticated(e)) {
                     BiometricKeyStatus.Valid
                 } else {
                     BiometricKeyStatus.Corrupted
@@ -206,10 +207,22 @@ class KeystoreManager {
         return detectBiometricInvalidation() == BiometricKeyStatus.InvalidatedByEnrollment
     }
 
+    private fun isCauseUserNotAuthenticated(throwable: Throwable?): Boolean {
+        var current: Throwable? = throwable
+        while (current != null) {
+            if (current.javaClass.name.contains("UserNotAuthenticatedException")) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
+    }
+
     private fun isCausePermanentlyInvalidated(throwable: Throwable?): Boolean {
         var current: Throwable? = throwable
         while (current != null) {
-            if (current is android.security.keystore.KeyPermanentlyInvalidatedException) {
+            if (current is android.security.keystore.KeyPermanentlyInvalidatedException ||
+                current.javaClass.name.contains("KeyPermanentlyInvalidatedException")) {
                 return true
             }
             current = current.cause
@@ -222,18 +235,13 @@ class KeystoreManager {
      * Can execute in the background with zero user prompts required.
      */
     fun wrapWithPublicKey(vek: ByteArray): ByteArray {
-        return try {
-            val keyPair = getOrCreateBiometricKeyPair()
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            initCipherWithOaep(cipher, Cipher.ENCRYPT_MODE, keyPair.public)
-            cipher.doFinal(vek)
-        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
+        if (isBiometricKeyPermanentlyInvalidated()) {
             removeBiometricKey()
-            val newKeyPair = getOrCreateBiometricKeyPair()
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            initCipherWithOaep(cipher, Cipher.ENCRYPT_MODE, newKeyPair.public)
-            cipher.doFinal(vek)
         }
+        val keyPair = getOrCreateBiometricKeyPair()
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        initCipherWithOaep(cipher, Cipher.ENCRYPT_MODE, keyPair.public)
+        return cipher.doFinal(vek)
     }
 
     /**
@@ -247,10 +255,7 @@ class KeystoreManager {
             initCipherWithOaep(cipher, Cipher.DECRYPT_MODE, keyPair.private)
             cipher
         } catch (e: Exception) {
-            if (e is android.security.keystore.KeyPermanentlyInvalidatedException ||
-                e is java.security.InvalidKeyException) {
-                removeBiometricKey()
-            }
+            SecurityLogger.warn("KeystoreManager", "Failed to obtain biometric decrypt cipher", e)
             null
         }
     }

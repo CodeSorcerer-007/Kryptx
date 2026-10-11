@@ -24,6 +24,7 @@ import com.kryptx.app.feature.totp.TotpViewModel
 import com.kryptx.app.feature.vault.VaultViewModel
 import com.kryptx.app.core.security.ContextualLockManager
 import com.kryptx.app.core.security.SecurityBootstrapper
+import com.kryptx.app.core.security.BiometricAuthManager
 import com.kryptx.app.core.security.SecurityLogger
 import com.kryptx.app.feature.auth.SecurityCompromisedActivity
 import kotlinx.coroutines.launch
@@ -200,7 +201,7 @@ class MainActivity : FragmentActivity() {
                     pendingShortcutTarget = pendingShortcutTarget,
                     onClearPendingShortcut = { pendingShortcutTarget = null },
                     onTriggerBiometrics = {
-                        triggerBiometricUnlock(force = false)
+                        triggerBiometricUnlock(force = true)
                     },
                     onEnrollBiometrics = { onResult ->
                         triggerBiometricEnrollment(onResult)
@@ -310,6 +311,18 @@ class MainActivity : FragmentActivity() {
             if (!isPromptingBiometrics.compareAndSet(false, true) && !force) return
             if (!app.biometricManager.canAuthenticate(requireStrong = true)) {
                 isPromptingBiometrics.set(false)
+                if (force) {
+                    val status = app.biometricManager.checkBiometricAvailability(requireStrong = true)
+                    val msg = when (status) {
+                        BiometricAuthManager.BiometricStatus.NOT_ENROLLED ->
+                            "No biometric enrolled on device. Please add a fingerprint in Android Settings."
+                        BiometricAuthManager.BiometricStatus.NO_HARDWARE ->
+                            "Biometric hardware not available on this device."
+                        else ->
+                            "Biometrics unavailable. Please use master password."
+                    }
+                    unlockViewModel.setErrorMessage(msg)
+                }
                 return
             }
             if (app.sessionManager.isUnlocked.value) {
@@ -324,6 +337,9 @@ class MainActivity : FragmentActivity() {
             val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
             if (!isConfigured) {
                 isPromptingBiometrics.set(false)
+                if (force) {
+                    unlockViewModel.setErrorMessage("Biometric unlock not configured. Please use your master password.")
+                }
                 return
             }
 
@@ -394,6 +410,16 @@ class MainActivity : FragmentActivity() {
             }
             if (!app.biometricManager.canAuthenticate(requireStrong = true)) {
                 isPromptingBiometrics.set(false)
+                val status = app.biometricManager.checkBiometricAvailability(requireStrong = true)
+                val msg = when (status) {
+                    BiometricAuthManager.BiometricStatus.NOT_ENROLLED ->
+                        "No biometric enrolled on device. Please add a fingerprint in Android Settings."
+                    BiometricAuthManager.BiometricStatus.NO_HARDWARE ->
+                        "Biometric hardware not available on this device."
+                    else ->
+                        "Biometrics unavailable on this device."
+                }
+                unlockViewModel.setErrorMessage(msg)
                 onResult(false)
                 return
             }
@@ -451,9 +477,22 @@ class MainActivity : FragmentActivity() {
                                 }
                             }
                         } else {
-                            app.preferencesRepository.setBiometricEnabled(false)
-                            unlockViewModel.setErrorMessage("Biometric authentication failed. Please try again.")
-                            onResult(false)
+                            lifecycleScope.launch {
+                                val enrollResult = app.vaultRepository.setupBiometrics()
+                                if (enrollResult.isSuccess) {
+                                    app.preferencesRepository.setBiometricEnabled(true)
+                                    unlockViewModel.checkVaultStatus()
+                                    com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
+                                    com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
+                                    app.activityLogManager.logEvent("Security", "Biometric unlock verified and activated")
+                                    app.activityLogManager.loadEvents()
+                                    onResult(true)
+                                } else {
+                                    app.preferencesRepository.setBiometricEnabled(false)
+                                    unlockViewModel.setErrorMessage("Biometric enrollment failed. Please try again.")
+                                    onResult(false)
+                                }
+                            }
                         }
                     },
                     onError = { errorCode, errString ->

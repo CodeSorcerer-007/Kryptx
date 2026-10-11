@@ -70,7 +70,7 @@ class VaultAuthRepositoryImpl(
 
     override fun isBiometricsConfigured(): Boolean {
         val hasWrappedKey = !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank()
-        return hasWrappedKey && keystoreManager.hasBiometricKey() && !keystoreManager.isBiometricKeyPermanentlyInvalidated()
+        return hasWrappedKey && keystoreManager.hasBiometricKey()
     }
 
     override fun getBiometricDecryptCipher(): Cipher? {
