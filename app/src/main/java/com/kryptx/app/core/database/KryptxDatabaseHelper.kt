@@ -175,6 +175,7 @@ open class KryptxDatabaseHelper(
         const val TABLE_VAULT_METADATA = KryptxDbSchema.TABLE_VAULT_METADATA
         const val TABLE_SECURITY_HISTORY = KryptxDbSchema.TABLE_SECURITY_HISTORY
         const val TABLE_ACTIVITY_LOG = KryptxDbSchema.TABLE_ACTIVITY_LOG
+        const val TABLE_SEARCH_TOKENS = KryptxDbSchema.TABLE_SEARCH_TOKENS
 
         // Columns for vault_items
         const val COL_ID = KryptxDbSchema.COL_ID
@@ -1047,6 +1048,7 @@ open class KryptxDatabaseHelper(
                 val db = internalHelper?.writableDatabase
                 db?.beginTransaction()
                 try {
+                    db?.execSQL("DELETE FROM $TABLE_SEARCH_TOKENS")
                     db?.execSQL("DELETE FROM $TABLE_VAULT_ITEMS")
                     db?.execSQL("DELETE FROM $TABLE_VAULT_METADATA")
                     db?.execSQL("DELETE FROM $TABLE_SECURITY_HISTORY")
@@ -1063,6 +1065,9 @@ open class KryptxDatabaseHelper(
                 attachmentsDir.deleteRecursively()
             }
         } catch (_: Exception) {}
+        _itemsFlow.value = emptyList()
+        _trashFlow.value = emptyList()
+        searchIndex.clearKey()
         deleteDatabaseFile()
     }
 }

@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.vault.editor
 
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -100,7 +101,7 @@ sealed class ItemEditorState {
         val algorithm = mutableStateOf(algorithmInit)
         val privateKeyCiphertext = mutableStateOf(privateKeyCiphertextInit)
         val publicKeyCoseBase64 = mutableStateOf(publicKeyCoseBase64Init)
-        val signCount = mutableStateOf(signCountInit)
+        val signCount = mutableIntStateOf(signCountInit)
         val username = mutableStateOf(usernameInit)
     }
 
@@ -454,7 +455,7 @@ sealed class ItemEditorState {
                 passkeyAlgorithm = algorithm.value,
                 passkeyPrivateKeyCiphertext = privateKeyCiphertext.value,
                 passkeyPublicKeyCoseBase64 = publicKeyCoseBase64.value,
-                passkeySignCount = signCount.value,
+                passkeySignCount = signCount.intValue,
                 updatedAt = now
             )
             is CreditCard -> base.copy(

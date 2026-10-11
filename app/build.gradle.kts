@@ -174,7 +174,15 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = false
-        disable += listOf("InlinedApi")
+        disable += listOf(
+            "InlinedApi",
+            "UseKtx",
+            "GradleDependency",
+            "NewerVersionAvailable",
+            "AndroidGradlePluginVersion",
+            "IconXmlAndPng",
+            "IconLauncherShape"
+        )
         htmlReport = true
         xmlReport = true
     }

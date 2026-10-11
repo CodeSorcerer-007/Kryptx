@@ -101,9 +101,9 @@ import kotlinx.coroutines.launch
 fun AddEditItemScreen(
     itemId: String?,
     viewModel: VaultViewModel,
-    customAddEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel? = null,
     onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    customAddEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel? = null
 ) {
     val context = LocalContext.current
     val factory = remember(context) {

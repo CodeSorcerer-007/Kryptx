@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.os.Build
 import android.os.Bundle
 import com.kryptx.app.core.database.KryptxDatabaseHelper
 import com.kryptx.app.core.database.PreferencesRepository
@@ -134,7 +133,6 @@ class KryptxApplication : Application(), KryptxDependencies {
      * Must be called before any NotificationManager.notify() call (API 26+ requirement).
      */
     private fun createNotificationChannels() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = getSystemService(NotificationManager::class.java) ?: return
 
         // Channel: clipboard auto-clear countdown / confirmation
