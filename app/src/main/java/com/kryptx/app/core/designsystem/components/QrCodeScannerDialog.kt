@@ -129,6 +129,23 @@ fun QrCodeScannerDialog(
         permissionRequested = true
     }
 
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            val shouldShowRationale = activity?.let {
+                ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+            } ?: false
+            if (!shouldShowRationale) {
+                try {
+                    permissionRequested = true
+                    app?.sessionManager?.setPickerActive(true)
+                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                } catch (e: Throwable) {
+                    app?.sessionManager?.setPickerActive(false)
+                }
+            }
+        }
+    }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->

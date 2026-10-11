@@ -131,9 +131,14 @@ fun SetupPermissionsScreen(
     }
 
     // Track whether we've fired the OS dialog at least once (for permanent-denial detection)
+    var cameraPermissionRequested by remember { mutableStateOf(false) }
     var notificationPermissionRequested by remember { mutableStateOf(false) }
 
-    // True once the user has permanently denied notifications (system won't show dialog again)
+    // True once the user has permanently denied camera or notifications (system won't show dialog again)
+    val isCameraPermanentlyDenied = cameraPermissionRequested && activity?.let {
+        !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+    } ?: false
+
     val isNotificationPermanentlyDenied = requiresNotificationPermission &&
             notificationPermissionRequested && activity?.let {
         !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
@@ -168,6 +173,7 @@ fun SetupPermissionsScreen(
     ) { granted ->
         app?.sessionManager?.setPickerActive(false)
         hasCameraPermission = granted
+        cameraPermissionRequested = true
         if (granted) KryptxHaptics.confirm(view)
     }
 
@@ -248,12 +254,16 @@ fun SetupPermissionsScreen(
             icon = Icons.Default.CameraAlt,
             title = "Camera Access",
             description = "Kryptx uses the camera exclusively to scan 2FA QR codes and capture encrypted attachment photos. Frames are processed in volatile RAM and never written to external storage.",
-            confirmButtonText = "Grant Camera Access",
+            confirmButtonText = if (isCameraPermanentlyDenied) "Open App Settings" else "Grant Camera Access",
             dismissButtonText = "Not Now",
             onConfirm = {
                 showCameraRationale = false
-                app?.sessionManager?.setPickerActive(true)
-                cameraLauncher.launch(Manifest.permission.CAMERA)
+                if (isCameraPermanentlyDenied) {
+                    openAppSettings()
+                } else {
+                    app?.sessionManager?.setPickerActive(true)
+                    cameraLauncher.launch(Manifest.permission.CAMERA)
+                }
             },
             onDismiss = { showCameraRationale = false }
         )
@@ -357,8 +367,14 @@ fun SetupPermissionsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             KryptxPrimaryButton(
-                                text = "Grant Permission",
-                                onClick = { showCameraRationale = true },
+                                text = if (isCameraPermanentlyDenied) "Open App Settings" else "Grant Permission",
+                                onClick = {
+                                    if (isCameraPermanentlyDenied) {
+                                        openAppSettings()
+                                    } else {
+                                        showCameraRationale = true
+                                    }
+                                },
                                 height = 40.dp,
                                 modifier = Modifier
                                     .weight(1f)
@@ -500,7 +516,9 @@ fun SetupPermissionsScreen(
                     onClick = {
                         // Show rationale for first ungranted required permission
                         when {
-                            !hasCameraPermission -> showCameraRationale = true
+                            !hasCameraPermission ->
+                                if (isCameraPermanentlyDenied) openAppSettings()
+                                else showCameraRationale = true
                             requiresNotificationPermission && !hasNotificationPermission ->
                                 if (isNotificationPermanentlyDenied) openAppSettings()
                                 else showNotificationRationale = true

@@ -1,5 +1,10 @@
 package com.kryptx.app.feature.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,7 +57,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.KryptxCard
@@ -91,6 +98,17 @@ fun SecuritySettingsScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val app = remember(context) { context.applicationContext as? com.kryptx.app.KryptxApplication }
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        app?.sessionManager?.setPickerActive(false)
+        if (granted) {
+            scope.launch { snackbarHostState.showSnackbar("Clipboard-clear notifications enabled") }
+        }
+    }
 
     var showAutoLockDialog by remember { mutableStateOf(false) }
     var showClipboardDialog by remember { mutableStateOf(false) }
@@ -318,10 +336,18 @@ fun SecuritySettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            val hasNotificationPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else true
+
             // Clipboard timeout
             SettingItemCard(
                 title = "Clipboard Auto-Clear",
-                subtitle = if (clipboardTimeout > 0) "Clears copied secrets after ${clipboardTimeout}s" else "Disabled",
+                subtitle = when {
+                    clipboardTimeout <= 0 -> "Disabled"
+                    !hasNotificationPermission -> "Clears secrets after ${clipboardTimeout}s (Tap to enable notifications)"
+                    else -> "Clears copied secrets after ${clipboardTimeout}s"
+                },
                 onClick = { showClipboardDialog = true }
             )
 
@@ -762,7 +788,23 @@ fun SecuritySettingsScreen(
     if (showClipboardDialog) {
         ClipboardTimeoutDialog(
             currentTimeoutSeconds = clipboardTimeout,
-            onSelectTimeout = { viewModel.setClipboardTimeout(it) },
+            onSelectTimeout = { selectedSec ->
+                viewModel.setClipboardTimeout(selectedSec)
+                if (selectedSec > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val granted = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!granted) {
+                        try {
+                            app?.sessionManager?.setPickerActive(true)
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } catch (_: Throwable) {
+                            app?.sessionManager?.setPickerActive(false)
+                        }
+                    }
+                }
+            },
             onDismiss = { showClipboardDialog = false }
         )
     }

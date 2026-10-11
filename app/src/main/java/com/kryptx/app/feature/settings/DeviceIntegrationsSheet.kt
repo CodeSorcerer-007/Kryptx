@@ -1,6 +1,7 @@
 package com.kryptx.app.feature.settings
 
 import android.Manifest
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WifiOff
@@ -91,6 +94,27 @@ fun DeviceIntegrationsSheet(
         )
     }
 
+    var hasNotificationPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else true
+        )
+    }
+
+    val requiresNotificationPermission = remember {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    }
+
+    val alarmManager = remember(context) { context.getSystemService(AlarmManager::class.java) }
+    var canScheduleExactAlarms by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                alarmManager?.canScheduleExactAlarms() == true
+            } else true
+        )
+    }
+
     var isAutofillEnabled by remember {
         mutableStateOf(
             context.getSystemService(AutofillManager::class.java)?.hasEnabledAutofillServices() == true
@@ -99,8 +123,11 @@ fun DeviceIntegrationsSheet(
 
     // Tracks whether the OS dialog has been fired at least once so we can detect permanent denial
     var cameraPermissionRequested by remember { mutableStateOf(false) }
+    var notificationPermissionRequested by remember { mutableStateOf(false) }
+
     // Controls the in-app rationale dialog shown before the OS system dialog
     var showCameraRationale by remember { mutableStateOf(false) }
+    var showNotificationRationale by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -110,9 +137,22 @@ fun DeviceIntegrationsSheet(
         cameraPermissionRequested = true
     }
 
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        app?.sessionManager?.setPickerActive(false)
+        hasNotificationPermission = granted
+        notificationPermissionRequested = true
+    }
+
     // True when the user has permanently denied camera (system won't show dialog again)
     val isCameraPermanentlyDenied = cameraPermissionRequested && activity?.let {
         !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+    } ?: false
+
+    val isNotificationPermanentlyDenied = requiresNotificationPermission &&
+            notificationPermissionRequested && activity?.let {
+        !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
     } ?: false
 
     // Refresh state when resuming activity
@@ -123,6 +163,17 @@ fun DeviceIntegrationsSheet(
                     context,
                     Manifest.permission.CAMERA
                 ) == PackageManager.PERMISSION_GRANTED
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    hasNotificationPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    canScheduleExactAlarms = alarmManager?.canScheduleExactAlarms() == true
+                }
 
                 isAutofillEnabled = context.getSystemService(AutofillManager::class.java)?.hasEnabledAutofillServices() == true
             }
@@ -164,6 +215,23 @@ fun DeviceIntegrationsSheet(
         }
     }
 
+    val openExactAlarmSettings: () -> Unit = {
+        app?.sessionManager?.setPickerActive(true)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } else {
+                openAppSettings()
+            }
+        } catch (_: Exception) {
+            openAppSettings()
+        }
+    }
+
     // In-app rationale dialog — shown before the OS camera system dialog
     if (showCameraRationale) {
         KryptxPermissionRationaleDialog(
@@ -182,6 +250,27 @@ fun DeviceIntegrationsSheet(
                 }
             },
             onDismiss = { showCameraRationale = false }
+        )
+    }
+
+    // In-app rationale dialog — shown before the OS notification system dialog
+    if (showNotificationRationale) {
+        KryptxPermissionRationaleDialog(
+            icon = Icons.Default.Notifications,
+            title = "Clipboard Notification Access",
+            description = "Kryptx sends a local notification when sensitive credentials are auto-cleared from your clipboard in the background. Strictly on-device with zero network connectivity.",
+            confirmButtonText = "Grant Notification Access",
+            dismissButtonText = "Not Now",
+            onConfirm = {
+                showNotificationRationale = false
+                app?.sessionManager?.setPickerActive(true)
+                try {
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } catch (_: Throwable) {
+                    app?.sessionManager?.setPickerActive(false)
+                }
+            },
+            onDismiss = { showNotificationRationale = false }
         )
     }
 
@@ -329,6 +418,80 @@ fun DeviceIntegrationsSheet(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 4. Notification Permission Card (Android 13+)
+            if (requiresNotificationPermission) {
+                IntegrationStatusCard(
+                    title = "Clipboard Clear Notifications",
+                    statusText = if (hasNotificationPermission) "Granted & Active" else "Not Granted",
+                    isPositive = hasNotificationPermission,
+                    icon = Icons.Default.Notifications,
+                    description = "Android 13+ runtime permission to notify you immediately when sensitive copied secrets (passwords, TOTP tokens) are securely wiped from the device clipboard.",
+                    actions = {
+                        if (!hasNotificationPermission) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                KryptxPrimaryButton(
+                                    text = if (isNotificationPermanentlyDenied) "Open App Settings" else "Grant Permission",
+                                    onClick = {
+                                        if (isNotificationPermanentlyDenied) {
+                                            openAppSettings()
+                                        } else {
+                                            showNotificationRationale = true
+                                        }
+                                    },
+                                    height = 44.dp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedButton(
+                                    onClick = openAppSettings,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("App Info", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // 5. Exact Background Timer Card (Android 12+)
+            IntegrationStatusCard(
+                title = "Exact Background Timer (Alarms)",
+                statusText = if (canScheduleExactAlarms) "Exact Timer Authorized" else "Standard Timer (Fallback)",
+                isPositive = canScheduleExactAlarms,
+                icon = Icons.Default.Schedule,
+                description = if (canScheduleExactAlarms) {
+                    "Android 12+ exact alarm scheduling is authorized. Clipboard auto-clear executes to the exact second even when the device is in deep Doze mode."
+                } else {
+                    "Exact alarm access is currently restricted by Android. Clipboard auto-clear will execute via battery-optimized inexact alarms."
+                },
+                actions = if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    {
+                        KryptxPrimaryButton(
+                            text = "Authorize Exact Alarms in Settings",
+                            onClick = openExactAlarmSettings,
+                            height = 44.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                } else null
             )
 
             Spacer(modifier = Modifier.height(14.dp))
