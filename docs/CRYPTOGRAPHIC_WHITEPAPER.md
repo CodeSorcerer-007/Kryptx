@@ -1,7 +1,7 @@
 # Kryptx: Cryptographic Architecture & Security Whitepaper
 
 **Author:** Kryptx Security Engineering Group  
-**Document Version:** 2.2.0  
+**Document Version:** 2.2.1  
 **Specification Standards:** RFC 9106 (Argon2id), RFC 8439 / XChaCha20-Poly1305, NIST SP 800-38D (AES-GCM), NIST SP 800-132 (PBKDF2), RFC 5869 (HKDF), NIST FIPS 203 (ML-KEM-768), NIST FIPS 204 (ML-DSA-65), RFC 6238 (TOTP)
 
 ---

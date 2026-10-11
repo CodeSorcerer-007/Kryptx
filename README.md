@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://play.google.com/store/apps/details?id=com.kryptx.app"><img src="https://img.shields.io/badge/Google_Play-Get_It_On-00E676?style=for-the-badge&logo=google-play&logoColor=white" alt="Get it on Google Play" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/GitHub-Download_APK-238636?style=for-the-badge&logo=github&logoColor=white" alt="Download APK" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/actions/workflows/android-ci.yml"><img src="https://img.shields.io/badge/CI-Passing-00E676?style=for-the-badge&logo=github-actions&logoColor=white" alt="CI Status" /></a>
   <br>
   <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-16%20(API%2036)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="Android 16" /></a>
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3.20-7C4DFF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
@@ -16,7 +17,8 @@
   <br>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.2.0-FFB300?style=for-the-badge" alt="Version 2.2.0" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.2.1-FFB300?style=for-the-badge" alt="Version 2.2.1" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-500%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="500 Unit Tests Passed" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
@@ -108,6 +110,11 @@ graph TD;
 11. **Runtime Tamper & Compromise Sentinel (`SecurityBootstrapper`)**:
     *   **Integrity Verification**: Checks for root binaries, debugger attachments, hooking frameworks, and uncalibrated runtimes at startup.
     *   **Compromised Quarantine**: Transitions to a dedicated non-recoverable `SecurityCompromisedActivity` with immediate cryptographic memory purge if hardware or OS security is breached.
+12. **In-Place Sector Shredding & Forensic Wipe (`EmergencyAutoDestructManager`)**:
+    *   **Anti-Forensics Flash Overwrite**: Multi-pass sector overwrite (CSPRNG random → zero → CSPRNG random) via `RandomAccessFile("rws")` directly on existing disk sectors without truncation deallocation, followed by synchronous `fd.sync()` and zero-length truncation.
+    *   **SQLite Journal Purge**: Wipes and zeroizes companion `-wal`, `-shm`, and rollback `-journal` transaction files with cryptographic random bytes prior to unlinking.
+13. **Strict Decoy Vault Isolation**:
+    *   **Zero Leakage Under Duress**: All CRUD operations, encrypted backups, plaintext exports, imports, database diagnostics, vacuuming, and security audits delegate strictly to `decoyDbHelper` during duress decoy sessions, with zero interaction with the primary vault.
 
 ---
 

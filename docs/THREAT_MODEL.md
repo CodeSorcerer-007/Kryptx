@@ -1,6 +1,6 @@
 # Kryptx — Formal Threat Model & Security Boundaries
 
-**Document Version:** 2.2.0  
+**Document Version:** 2.2.1  
 **Classification:** Public Security Specification  
 **Target Platform:** Native Android (API 26–36)  
 
