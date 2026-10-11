@@ -1029,9 +1029,33 @@ open class KryptxDatabaseHelper(
             val dbFile = context.getDatabasePath(databaseName)
             val parentDir = dbFile.parentFile
             if (parentDir != null) {
-                File(parentDir, "$databaseName-wal").let { if (it.exists()) it.delete() }
-                File(parentDir, "$databaseName-shm").let { if (it.exists()) it.delete() }
-                File(parentDir, "$databaseName-journal").let { if (it.exists()) it.delete() }
+                listOf(
+                    File(parentDir, "$databaseName-wal"),
+                    File(parentDir, "$databaseName-shm"),
+                    File(parentDir, "$databaseName-journal")
+                ).forEach { extraFile ->
+                    if (extraFile.exists()) {
+                        try {
+                            val len = extraFile.length()
+                            if (len > 0L) {
+                                java.io.RandomAccessFile(extraFile, "rws").use { raf ->
+                                    val buf = ByteArray(4096.coerceAtMost(len.toInt().coerceAtLeast(1)))
+                                    secureRandom.nextBytes(buf)
+                                    var w = 0L
+                                    while (w < len) {
+                                        val chunk = (len - w).coerceAtMost(buf.size.toLong()).toInt()
+                                        raf.write(buf, 0, chunk)
+                                        w += chunk
+                                    }
+                                    try { raf.fd.sync() } catch (_: Throwable) {}
+                                    com.kryptx.app.core.crypto.SecureMemory.wipe(buf)
+                                    raf.setLength(0L)
+                                }
+                            }
+                        } catch (_: Throwable) {}
+                        extraFile.delete()
+                    }
+                }
             }
         } catch (_: Throwable) {}
         return deleted

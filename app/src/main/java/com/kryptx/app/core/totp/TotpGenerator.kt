@@ -96,16 +96,21 @@ object TotpGenerator {
             mac.init(SecretKeySpec(key, algorithm.hmacName))
             val hash = mac.doFinal(counterBytes)
 
-            // Dynamic truncation
-            val offset = hash[hash.size - 1].toInt() and 0x0F
-            val binary = ((hash[offset].toInt() and 0x7F) shl 24) or
-                    ((hash[offset + 1].toInt() and 0xFF) shl 16) or
-                    ((hash[offset + 2].toInt() and 0xFF) shl 8) or
-                    (hash[offset + 3].toInt() and 0xFF)
+            try {
+                // Dynamic truncation
+                val offset = hash[hash.size - 1].toInt() and 0x0F
+                val binary = ((hash[offset].toInt() and 0x7F) shl 24) or
+                        ((hash[offset + 1].toInt() and 0xFF) shl 16) or
+                        ((hash[offset + 2].toInt() and 0xFF) shl 8) or
+                        (hash[offset + 3].toInt() and 0xFF)
 
-            val divisor = if (digits in 1..8) DIGIT_MODULOS[digits] else 1_000_000
-            val otp = binary % divisor
-            otp.toString()
+                val divisor = if (digits in 1..8) DIGIT_MODULOS[digits] else 1_000_000
+                val otp = binary % divisor
+                otp.toString()
+            } finally {
+                com.kryptx.app.core.crypto.SecureMemory.wipe(hash)
+                com.kryptx.app.core.crypto.SecureMemory.wipe(counterBytes)
+            }
         } catch (_: Exception) {
             null
         }

@@ -29,7 +29,7 @@ class VaultRepositoryImpl(
         keystoreManager: KeystoreManager,
         preferencesRepository: IPreferencesRepository? = null
     ) : this(
-        auditRepo = VaultAuditRepositoryImpl(dbHelper, sessionManager),
+        auditRepo = VaultAuditRepositoryImpl(dbHelper, sessionManager, decoyDbHelper),
         dbHelper = dbHelper,
         decoyDbHelper = decoyDbHelper,
         sessionManager = sessionManager,

@@ -450,6 +450,9 @@ object CryptoEngine {
             Base64.getEncoder().encodeToString(encrypted)
         } finally {
             SecureMemory.wipe(plainBytes)
+            if (byteBuffer.hasArray()) {
+                SecureMemory.wipe(byteBuffer.array())
+            }
         }
     }
 

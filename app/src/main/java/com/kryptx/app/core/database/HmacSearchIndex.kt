@@ -221,6 +221,7 @@ class HmacSearchIndex {
 
         val queryTokens = tokenise(query.trim().lowercase())
             .filter { it.length >= MIN_TOKEN_LENGTH }
+            .distinct()
 
         if (queryTokens.isEmpty()) return null
 

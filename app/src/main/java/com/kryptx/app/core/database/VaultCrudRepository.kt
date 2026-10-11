@@ -69,6 +69,9 @@ class VaultCrudRepositoryImpl(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    private val activeDbHelper: KryptxDatabaseHelper
+        get() = if (sessionManager.isDecoy.value) decoyDbHelper else dbHelper
+
     override fun getItems(): Flow<List<VaultItem>> = sessionManager.isDecoy.flatMapLatest { isDecoy ->
         if (isDecoy) decoyDbHelper.itemsFlow else dbHelper.itemsFlow
     }
@@ -159,11 +162,11 @@ class VaultCrudRepositoryImpl(
     override suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { activeVek ->
             try {
-                val items = dbHelper.loadAllItems(activeVek)
+                val items = activeDbHelper.loadAllItems(activeVek)
                 val salt = KeyDerivation.generateSalt()
                 val encryptionKey = KeyDerivation.deriveKeyArgon2(exportPassword, salt)
 
-                val pqcPubKeyBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY)
+                val pqcPubKeyBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY)
                 val isPostQuantum = pqcPubKeyBase64 != null
 
                 val (ciphertextBase64, saltBase64, checksum, hmacBase64) = try {
@@ -216,7 +219,7 @@ class VaultCrudRepositoryImpl(
     override suspend fun exportPlaintextJson(): KryptxResult<String> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { activeVek ->
             try {
-                val items = dbHelper.loadAllItems(activeVek)
+                val items = activeDbHelper.loadAllItems(activeVek)
                 KryptxResult.Success(json.encodeToString(items))
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export vault", e)
@@ -265,7 +268,7 @@ class VaultCrudRepositoryImpl(
             // Strategy 2: Legacy PQC hybrid if same-device private key is available
             if (decryptedBytes == null && payload.header.isPostQuantum && !payload.header.pqcEncapsulationBase64.isNullOrBlank()) {
                 sessionManager.withVaultKey { activeVek ->
-                    val privKeyCiphertext = dbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT)
+                    val privKeyCiphertext = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT)
                     if (privKeyCiphertext != null) {
                         try {
                             val classicalKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
@@ -320,7 +323,7 @@ class VaultCrudRepositoryImpl(
     override suspend fun importItems(items: List<VaultItem>): KryptxResult<Int> = withContext(Dispatchers.IO) {
         sessionManager.withVaultKey { activeVek ->
             try {
-                val count = dbHelper.saveItemsBatch(items, activeVek)
+                val count = activeDbHelper.saveItemsBatch(items, activeVek)
                 onAuditInvalidated?.invoke()
                 KryptxResult.Success(count)
             } catch (e: Exception) {
@@ -330,12 +333,12 @@ class VaultCrudRepositoryImpl(
     }
 
     override fun getDatabaseDiagnostics(): KryptxDatabaseHelper.DatabaseDiagnostics {
-        return dbHelper.runDiagnostics()
+        return activeDbHelper.runDiagnostics()
     }
 
     override suspend fun vacuumDatabase(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
         try {
-            dbHelper.vacuumDatabase()
+            activeDbHelper.vacuumDatabase()
             KryptxResult.Success(Unit)
         } catch (e: Exception) {
             KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to optimize database", e)

@@ -67,7 +67,7 @@ class SearchViewModel(
             // Falls back to pure in-memory scan if the index is unavailable (locked vault,
             // index not yet built, or structured-only query with no text tokens).
             val candidateIds: Set<String>? = if (parsed.textTokens.isNotEmpty()) {
-                vaultRepository.queryByBlindIndex(q)
+                vaultRepository.queryByBlindIndex(parsed.textTokens.joinToString(" "))
             } else {
                 null  // Structured-only query — no blind index needed
             }

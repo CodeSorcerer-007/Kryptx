@@ -19,8 +19,12 @@ interface VaultAuditRepository {
 
 class VaultAuditRepositoryImpl(
     private val dbHelper: KryptxDatabaseHelper,
-    private val sessionManager: VaultSessionManager
+    private val sessionManager: VaultSessionManager,
+    private val decoyDbHelper: KryptxDatabaseHelper? = null
 ) : VaultAuditRepository {
+
+    private val activeDbHelper: KryptxDatabaseHelper
+        get() = if (sessionManager.isDecoy.value && decoyDbHelper != null) decoyDbHelper else dbHelper
 
     @Volatile
     private var cachedAuditReport: SecurityAuditReport? = null
@@ -39,7 +43,7 @@ class VaultAuditRepositoryImpl(
         }
 
         sessionManager.withVaultKey { activeVek ->
-            val items = dbHelper.loadAllItems(activeVek)
+            val items = activeDbHelper.loadAllItems(activeVek)
             val loginItems = items.filter { it.type == ItemType.LOGIN && it.password.isNotBlank() }
             val issues = mutableListOf<SecurityIssue>()
             val sixMonthsAgo = System.currentTimeMillis() - (180L * 24 * 60 * 60 * 1000L)
@@ -250,7 +254,7 @@ class VaultAuditRepositoryImpl(
                 else -> "F"
             }
 
-            val rawHistory = dbHelper.getSecurityScoreHistory()
+            val rawHistory = activeDbHelper.getSecurityScoreHistory()
             val history = rawHistory.map { SecurityScoreHistoryPoint(it.first, it.second) }
 
             val report = SecurityAuditReport(
@@ -269,7 +273,7 @@ class VaultAuditRepositoryImpl(
 
             cachedAuditReport = report
             isAuditDirty = false
-            dbHelper.recordSecurityScore(score)
+            activeDbHelper.recordSecurityScore(score)
             report
         } ?: SecurityAuditReport(
             // Vault is locked — return a neutral report rather than stale data.

@@ -223,26 +223,25 @@ class EmergencyAutoDestructManager(
             val length = file.length()
             if (length <= 0) return
 
-            // 3-pass overwrite: random -> zeros -> random
+            // 3-pass in-place overwrite: random -> zeros -> random directly on existing allocated sectors
             repeat(3) { pass ->
-                java.io.FileOutputStream(file).use { fos ->
-                    val fd = fos.fd
+                java.io.RandomAccessFile(file, "rws").use { raf ->
+                    raf.seek(0L)
                     val bufferSize = 4096.coerceAtMost(length.toInt().coerceAtLeast(1))
                     val buffer = ByteArray(bufferSize)
                     var written = 0L
                     while (written < length) {
                         if (pass == 1) buffer.fill(0) else secureRandom.nextBytes(buffer)
                         val toWrite = (length - written).coerceAtMost(bufferSize.toLong()).toInt()
-                        fos.write(buffer, 0, toWrite)
+                        raf.write(buffer, 0, toWrite)
                         written += toWrite
                     }
-                    fos.flush()
-                    try { fd.sync() } catch (_: Throwable) {}
+                    try { raf.fd.sync() } catch (_: Throwable) {}
                     SecureMemory.wipe(buffer)
                 }
             }
-            // Truncate to zero before deletion
-            java.io.FileOutputStream(file).use { it.channel.truncate(0) }
+            // Truncate to zero after multi-pass overwrite before unlinking
+            java.io.RandomAccessFile(file, "rws").use { it.setLength(0L) }
         } catch (_: Throwable) {
             // Continue best-effort wipe
         }
