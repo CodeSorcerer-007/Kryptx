@@ -58,7 +58,12 @@ android {
         ?: (project.findProperty("kryptx.key.alias") as? String)
         ?: "kryptx-release"
 
-    val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+    val isReleaseTask = gradle.startParameter.taskNames.any { taskName ->
+        val simpleName = taskName.substringAfterLast(":")
+        simpleName.equals("assembleRelease", ignoreCase = true) ||
+        simpleName.equals("bundleRelease", ignoreCase = true) ||
+        simpleName.startsWith("packageRelease", ignoreCase = true)
+    }
     val isCi = System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null
 
     signingConfigs {
@@ -107,8 +112,7 @@ android {
             // Inject the release APK signing certificate SHA-256 fingerprint into BuildConfig.
             // This fingerprint is computed from the release keystore at build time and baked into
             // the APK so SecurityBootstrapper can enforce exact-match certificate pinning at runtime.
-            val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
-            val isCi = System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null
+            val isReleaseBuild = isReleaseTask
             val releaseFp = System.getenv("KRYPTX_RELEASE_FINGERPRINT")?.takeIf { it.isNotBlank() }
                 ?: localProperties.getProperty("kryptx.release.fingerprint")
                 ?: run {

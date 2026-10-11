@@ -200,13 +200,6 @@ jobs:
             echo "Release APK: $f SHA-256: $(cat ${f}.sha256)"
           done
 
-      - name: Secure Cleanup of Keystore
-        if: always()
-        run: |
-          if [ -f app/kryptx-release-key.jks ]; then
-            shred -u app/kryptx-release-key.jks 2>/dev/null || rm -f app/kryptx-release-key.jks
-          fi
-
       - name: Generate SBOM
         run: ./gradlew :app:dependencies --configuration releaseRuntimeClasspath > sbom-dependencies.txt
 
@@ -223,6 +216,14 @@ jobs:
           path: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/release/*.sha256
+
+      - name: Secure Cleanup of Keystore
+        if: always()
+        run: |
+          if [ -f app/kryptx-release-key.jks ]; then
+            shred -u app/kryptx-release-key.jks 2>/dev/null || rm -f app/kryptx-release-key.jks
+          fi
+          rm -f sbom-dependencies.txt
 
   rust-tests:
     name: Rust Crypto Engine Tests
