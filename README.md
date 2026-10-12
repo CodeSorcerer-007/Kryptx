@@ -18,7 +18,7 @@
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.2.1-FFB300?style=for-the-badge" alt="Version 2.2.1" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-500%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="500 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-509%2B%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="509+ Unit Tests Passed" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
@@ -53,20 +53,20 @@ Every technology listed below is 100% active and running in the production app:
 
 | Category | Technology | Real-World Implementation |
 |:---|:---|:---|
-| **OS & Core** | **Android 16 (API 36) & Kotlin 2.3.20** | Modern edge-to-edge architecture with compileSdk 36 and targetSdk 36. |
-| **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, Argon2id, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`). |
-| **Interface** | **Jetpack Compose (Material 3)** | Native 120 FPS high-refresh rate lock (`preferredDisplayModeId`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
-| **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces. |
+| **OS & Core** | **Android 16 (API 36) & Kotlin 2.3.20** | Modern edge-to-edge architecture with compileSdk 36, targetSdk 36, and decoupled `DisplayConfigurator` / `NfcDispatcher`. |
+| **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, Argon2id, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) enforced by `cargo clippy -- -D warnings`. |
+| **Interface** | **Jetpack Compose (Material 3)** | 29-slot animated Material 3 color transitions (Light / Dark / AMOLED), interactive component showcase catalog (`KryptxComponentCatalog`), 120 FPS high-refresh rate lock (`DisplayConfigurator`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
+| **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces with thread-safe rollover re-randomization. |
 | **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration. |
 | **Hardware Security Keys** | **NFC IsoDep + USB OTG HID + BLE (YubiKey / FIDO2)** | Physical challenge-response via NFC, USB HID slot-2 HMAC-SHA1 protocol (instruction `0x38`), and CTAP2 BLE wireless hardware keys with device-bound HMAC fallback. |
 | **Key Derivation** | **Adaptive Argon2id & PBKDF2-HMAC-SHA256** | Hardware-calibrated memory-hard key derivation (`AdaptiveKdfCalibrator`) in bare-metal Rust with 32-byte cryptographically secure salts. Uniform KDF preservation across password changes and key rotations. |
 | **Post-Quantum** | **ML-KEM-768 (FIPS 203) & ML-DSA-65 (FIPS 204)** | Hybrid post-quantum key encapsulation and digital signature verification via BouncyCastle. |
-| **Persistence** | **Encrypted SQLite (WAL Mode)** | `KryptxDatabaseHelper` with zero plaintext rows and AES-256-GCM envelope encryption. |
-| **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; two-pass zeroization (`Arrays.fill` + Rust `zeroize`). |
-| **Resilience Shield** | **Enterprise `CrashDefense`** | Immortal main looper preventing UI thread termination during Compose recomposition/layout, thread-level sentinels, and sanitized zero-leak telemetry. |
+| **Persistence** | **Encrypted SQLite (WAL Mode)** | `KryptxDatabaseHelper` with zero plaintext rows, HMAC blind search indexing, and AES-256-GCM envelope encryption. |
+| **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; compile-time `@MustBeWiped` zeroization contracts and two-pass zeroization (`Arrays.fill` + Rust `zeroize`). |
+| **Resilience Shield** | **Enterprise `CrashDefense`** | Immortal main looper (ADR-007) preventing UI thread termination during Compose recomposition/layout, thread-level sentinels, and sanitized zero-leak telemetry. |
 | **Document Sandbox** | **Native `PdfRenderer` + `FileProvider`** | 100% offline hardware-accelerated PDF rendering with page navigation; safe read-only delegation to external viewers via secure `FileProvider`. |
 | **Scanning** | **CameraX API + ZXing** | Real-time TOTP QR code stream decoding in volatile RAM only; pre-prompt permission rationale. |
-| **Autofill** | **Phishing-Resistant Autofill** | Strict host and subdomain verification via `DomainMatcher`; dedicated `AutofillAuthActivity` protected with `FLAG_SECURE`. |
+| **Autofill** | **Phishing-Resistant Autofill** | Strict host, subdomain, and terminal-segment verification via `DomainMatcher`; dedicated `AutofillAuthActivity` protected with `FLAG_SECURE` and brute-force lockout throttle. |
 
 ---
 
@@ -115,6 +115,11 @@ graph TD;
     *   **SQLite Journal Purge**: Wipes and zeroizes companion `-wal`, `-shm`, and rollback `-journal` transaction files with cryptographic random bytes prior to unlinking.
 13. **Strict Decoy Vault Isolation**:
     *   **Zero Leakage Under Duress**: All CRUD operations, encrypted backups, plaintext exports, imports, database diagnostics, vacuuming, and security audits delegate strictly to `decoyDbHelper` during duress decoy sessions, with zero interaction with the primary vault.
+14. **Thread-Safe Atomic Lockout & Rollover Protection**:
+    *   **Atomic Throttle Counter**: `VaultSessionManager.recordFailedAttempt` guarantees race-free sequential increments via `updateAndGet`, eliminating TOCTOU vulnerabilities under concurrent touch or biometric failure callbacks.
+    *   **32-Bit IV Rollover Guard**: Monotonic invocation counters rollover safely under synchronized lock, automatically re-randomizing the 64-bit CSPRNG prefix before counter wrapping.
+15. **Enhanced Anti-Spoofing Domain Boundaries (`DomainMatcher`)**:
+    *   **Terminal-Segment Package Verification**: Hardened matching requires terminal dot-delimited segment equality and minimum length $\ge 5$, blocking middle-token package spoofing (e.g. `com.evil.paypal.stealer` is firmly rejected).
 
 ---
 
@@ -197,14 +202,14 @@ To generate the production-ready, signed `.aab` for Google Play Console:
 ```bash
 ./gradlew bundleRelease
 ```
-* **Output Bundle**: `app/build/outputs/bundle/release/app-release.aab`
+* **Output Bundle**: `app/build/outputs/bundle/release/app-release.aab` (mirrored to `apk/Kryptx-v16-release.aab`)
 * **ProGuard/R8 Mapping**: `app/build/outputs/mapping/release/mapping.txt`
 
 ### Build Standalone Signed Release APK
 ```bash
 ./gradlew assembleRelease
 ```
-* **Output APK**: `app/build/outputs/apk/release/app-release.apk`
+* **Output APK**: `app/build/outputs/apk/release/app-universal-release.apk` (mirrored to `apk/Kryptx-v16-release.apk`)
 
 ---
 
@@ -229,9 +234,11 @@ Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.g
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: End-to-end system architecture, Mermaid diagrams, delegate hierarchy, and cryptographic boundary definitions.
 - **[BUILD.md](BUILD.md)**: Step-by-step reproducible build guide, NDK targets, Rust JNI cross-compilation pipeline, and verification gates.
-- **[AUDIT.md](AUDIT.md)**: Complete security audit report tracking all 42 resolved vulnerabilities and hardenings.
+- **[ADR-007: Crash Defense & Anti-Forensics](docs/adr/007-crash-defense-architecture.md)**: Architectural Decision Record for the Immortal Looper pattern and memory wipe strategy.
 - **[Architecture Decision Records (ADRs)](docs/adr/)**: Comprehensive decision records documenting cipher choices, zero-network design, and crash defense.
-- **[Design System Catalog](app/src/main/java/com/kryptx/app/core/designsystem/README.md)**: Token specifications, typography, motion curves, and the interactive Compose component catalog.
+- **[Cryptographic Whitepaper](docs/CRYPTOGRAPHIC_WHITEPAPER.md)**: Mathematical foundations, key encapsulation mechanisms, and entropy harvesting models.
+- **[Threat Model](docs/THREAT_MODEL.md)**: Formal adversarial model, threat vectors, and mitigation matrices.
+- **[Design System Catalog](app/src/main/java/com/kryptx/app/core/designsystem/README.md)**: Token specifications, typography, 29-slot Material 3 color animations, and the interactive Compose component catalog (`KryptxComponentCatalog`).
 
 ---
 
