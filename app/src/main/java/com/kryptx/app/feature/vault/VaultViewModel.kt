@@ -385,7 +385,7 @@ class VaultViewModel(
         fileName: String,
         mimeType: String
     ): com.kryptx.app.core.model.VaultAttachment? {
-        return resolveAttachmentManager(context).saveAttachmentFromUri(uri, fileName, mimeType)
+        return resolveAttachmentManager(context).saveAttachmentFromUri(context, uri, fileName, mimeType)
     }
 
     suspend fun loadDecryptedAttachment(

@@ -235,7 +235,48 @@ class CryptoEngineTest {
 
         val enc1 = CryptoEngine.encryptString(text, key)
         val enc2 = CryptoEngine.encryptString(text, key)
-
         assertNotEquals("Two encryptString calls must not produce identical Base64 output", enc1, enc2)
+    }
+
+    @Test
+    fun `generateDeterministicIv rollover re-randomizes prefix and prevents nonce collision`() {
+        // Task 4.4 / BUG-3 verification: simulate counter reaching 32-bit rollover boundary
+        CryptoEngine.sessionNonceCounter.set(0xFFFFFFFEL)
+        val generatedIvs = mutableSetOf<String>()
+
+        // Generate IVs across the rollover threshold (0xFFFFFFFE, 0xFFFFFFFF, 0x0, 0x1, 0x2...)
+        for (i in 0..10) {
+            val iv = CryptoEngine.generateDeterministicIv()
+            val hex = iv.joinToString("") { "%02x".format(it) }
+            val added = generatedIvs.add(hex)
+            assertTrue("IV must be strictly unique across counter rollover to prevent nonce reuse", added)
+        }
+    }
+
+    @Test(expected = Exception::class)
+    fun `decrypt with corrupted cipher tag byte 0x04 throws AEADBadTagException or fails`() {
+        // Task 4.8: Verify unknown or corrupted cipher tag bytes fail authentication
+        val key = CryptoEngine.generateVaultKey()
+        val plaintext = "secure vault secret".toByteArray(Charsets.UTF_8)
+        val validCiphertext = CryptoEngine.encrypt(plaintext, key)
+
+        // Corrupt the leading tag byte to invalid tag 0x04
+        val corrupted = validCiphertext.clone()
+        corrupted[0] = 0x04.toByte()
+
+        CryptoEngine.decrypt(corrupted, key)
+    }
+
+    @Test(expected = Exception::class)
+    fun `decrypt with corrupted cipher tag byte 0xFF throws AEADBadTagException or fails`() {
+        val key = CryptoEngine.generateVaultKey()
+        val plaintext = "secure vault secret".toByteArray(Charsets.UTF_8)
+        val validCiphertext = CryptoEngine.encrypt(plaintext, key)
+
+        // Corrupt the leading tag byte to 0xFF
+        val corrupted = validCiphertext.clone()
+        corrupted[0] = 0xFF.toByte()
+
+        CryptoEngine.decrypt(corrupted, key)
     }
 }

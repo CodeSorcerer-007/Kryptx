@@ -39,7 +39,7 @@ import com.kryptx.app.core.security.VaultSessionManager
  *   SYNCHRONIZED lazy to be safe across multiple threads.
  * - `KryptxApplication` delegates interface implementation to this container.
  */
-class AppContainer(context: Context) : KryptxDependencies {
+class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
     private val appContext: Context = context.applicationContext ?: context
 
     // ── Database layer ──────────────────────────────────────────────────────
@@ -164,5 +164,16 @@ class AppContainer(context: Context) : KryptxDependencies {
     // up the IO scope until it is actually needed.
     override val activityLogManager: ActivityLogManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         ActivityLogManager(dbHelper)
+    }
+
+    /**
+     * Safely closes the container and tears down active SQLite connections,
+     * memory watchdog callbacks, and volatile sessions to prevent resource leaks.
+     */
+    override fun close() {
+        try { memoryWatchdog.unregister() } catch (_: Throwable) {}
+        try { sessionManager.lock(isTimeout = false) } catch (_: Throwable) {}
+        try { dbHelper.close() } catch (_: Throwable) {}
+        try { decoyDbHelper.close() } catch (_: Throwable) {}
     }
 }

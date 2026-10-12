@@ -53,7 +53,7 @@ class UnlockScreenComposeTest {
 
     @Test
     fun testBiometricSensorTriggerWhenAvailable() {
-        fakeVaultRepository.setupBiometrics()
+        kotlinx.coroutines.runBlocking { fakeVaultRepository.setupBiometrics() }
         fakePreferencesRepository.setBiometricEnabled(true)
         viewModel.checkVaultStatus()
 

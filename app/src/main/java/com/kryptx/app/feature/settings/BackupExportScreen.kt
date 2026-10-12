@@ -32,6 +32,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
@@ -83,6 +85,15 @@ fun BackupExportScreen(
     // Import bytes — held while the password dialog is open
     var pendingImportBytes by remember { mutableStateOf<ByteArray?>(null) }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            pendingEncryptedBytes?.let { SecureMemory.wipe(it) }
+            pendingCsvBytes?.let { SecureMemory.wipe(it) }
+            pendingHtmlBytes?.let { SecureMemory.wipe(it) }
+            pendingImportBytes?.let { SecureMemory.wipe(it) }
+        }
+    }
+
     val app = remember(context) { context.applicationContext as? com.kryptx.app.KryptxApplication }
 
     // Offline Web Vault HTML launcher
@@ -91,17 +102,18 @@ fun BackupExportScreen(
     ) { uri: Uri? ->
         app?.sessionManager?.setPickerActive(false)
         val bytes = pendingHtmlBytes
+        pendingHtmlBytes = null
         if (uri != null && bytes != null) {
             scope.launch {
                 val written = writeToUri(context, uri, bytes)
-                pendingHtmlBytes = null
+                SecureMemory.wipe(bytes)
                 snackbarHostState.showSnackbar(
                     if (written) "Offline Web Vault (.html) saved successfully!"
                     else "Failed to write HTML file."
                 )
             }
         } else {
-            pendingHtmlBytes = null
+            bytes?.let { SecureMemory.wipe(it) }
         }
     }
 
@@ -113,17 +125,18 @@ fun BackupExportScreen(
     ) { uri: Uri? ->
         app?.sessionManager?.setPickerActive(false)
         val bytes = pendingEncryptedBytes
+        pendingEncryptedBytes = null
         if (uri != null && bytes != null) {
             scope.launch {
                 val written = writeToUri(context, uri, bytes)
-                pendingEncryptedBytes = null
+                SecureMemory.wipe(bytes)
                 snackbarHostState.showSnackbar(
                     if (written) "Encrypted backup saved successfully."
                     else "Failed to write backup file."
                 )
             }
         } else {
-            pendingEncryptedBytes = null
+            bytes?.let { SecureMemory.wipe(it) }
         }
     }
 
@@ -133,17 +146,18 @@ fun BackupExportScreen(
     ) { uri: Uri? ->
         app?.sessionManager?.setPickerActive(false)
         val bytes = pendingCsvBytes
+        pendingCsvBytes = null
         if (uri != null && bytes != null) {
             scope.launch {
                 val written = writeToUri(context, uri, bytes)
-                pendingCsvBytes = null
+                SecureMemory.wipe(bytes)
                 snackbarHostState.showSnackbar(
                     if (written) "CSV exported successfully."
                     else "Failed to write CSV file."
                 )
             }
         } else {
-            pendingCsvBytes = null
+            bytes?.let { SecureMemory.wipe(it) }
         }
     }
 
@@ -166,7 +180,9 @@ fun BackupExportScreen(
                             accountIdentifier = "$activeVaultId Vault",
                             recoveryPayload = recoveryUri
                         )
-                    val written = writeToUri(context, uri, pdfFile.readBytes())
+                    val pdfBytes = pdfFile.readBytes()
+                    val written = writeToUri(context, uri, pdfBytes)
+                    SecureMemory.wipe(pdfBytes)
                     pdfFile.delete() // clean up cache file
                     snackbarHostState.showSnackbar(
                         if (written) "Emergency Kit PDF saved." else "Failed to save PDF."
@@ -631,6 +647,7 @@ fun BackupExportScreen(
         AlertDialog(
             onDismissRequest = {
                 showImportDialog = false
+                pendingImportBytes?.let { SecureMemory.wipe(it) }
                 pendingImportBytes = null
                 importPassword = ""
             },
@@ -662,6 +679,7 @@ fun BackupExportScreen(
                         importPassword = ""
                         if (bytes != null) {
                             viewModel.importFromBytes(bytes, pass.ifBlank { null }) { count ->
+                                SecureMemory.wipe(bytes)
                                 scope.launch {
                                     if (count > 0) {
                                         snackbarHostState.showSnackbar("Successfully imported $count credentials.")
@@ -679,6 +697,7 @@ fun BackupExportScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showImportDialog = false
+                    pendingImportBytes?.let { SecureMemory.wipe(it) }
                     pendingImportBytes = null
                     importPassword = ""
                 }) { Text("Cancel") }

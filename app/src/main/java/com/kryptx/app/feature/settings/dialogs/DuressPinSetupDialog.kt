@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,8 +34,21 @@ fun DuressPinSetupDialog(
     var confirmPin by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            duressPin = ""
+            confirmPin = ""
+        }
+    }
+
+    val dismissAndWipe = {
+        duressPin = ""
+        confirmPin = ""
+        onDismiss()
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = dismissAndWipe,
         title = {
             Text("Duress Decoy Vault PIN", fontWeight = FontWeight.Bold)
         },
@@ -84,7 +98,11 @@ fun DuressPinSetupDialog(
                         text = "Disable Duress Vault",
                         borderColor = MaterialTheme.colorScheme.error,
                         textColor = MaterialTheme.colorScheme.error,
-                        onClick = onRemoveDuressPin,
+                        onClick = {
+                            duressPin = ""
+                            confirmPin = ""
+                            onRemoveDuressPin()
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -111,7 +129,7 @@ fun DuressPinSetupDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = dismissAndWipe) { Text("Cancel") }
         }
     )
 }

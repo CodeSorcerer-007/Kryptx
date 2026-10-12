@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.MotionEvent
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,7 +12,14 @@ import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.kryptx.app.core.designsystem.theme.KryptxTheme
+import com.kryptx.app.core.security.BiometricAuthManager
+import com.kryptx.app.core.security.ContextualLockManager
 import com.kryptx.app.core.security.ScreenshotProtection
+import com.kryptx.app.core.security.SecurityBootstrapper
+import com.kryptx.app.core.security.SecurityLogger
+import com.kryptx.app.core.util.DisplayConfigurator
+import com.kryptx.app.feature.auth.NfcDispatcher
+import com.kryptx.app.feature.auth.SecurityCompromisedActivity
 import com.kryptx.app.feature.auth.UnlockViewModel
 import com.kryptx.app.feature.generator.GeneratorViewModel
 import com.kryptx.app.feature.navigation.KryptxNavGraph
@@ -22,13 +28,14 @@ import com.kryptx.app.feature.securitycenter.SecurityCenterViewModel
 import com.kryptx.app.feature.settings.SettingsViewModel
 import com.kryptx.app.feature.totp.TotpViewModel
 import com.kryptx.app.feature.vault.VaultViewModel
-import com.kryptx.app.core.security.ContextualLockManager
-import com.kryptx.app.core.security.SecurityBootstrapper
-import com.kryptx.app.core.security.BiometricAuthManager
-import com.kryptx.app.core.security.SecurityLogger
-import com.kryptx.app.feature.auth.SecurityCompromisedActivity
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Root host activity for the Kryptx application.
+ * Manages window-level hardware security flags, display refresh rate,
+ * contextual sensors, and coordinates authentication delegates.
+ */
 class MainActivity : FragmentActivity() {
 
     private lateinit var app: KryptxApplication
@@ -41,12 +48,11 @@ class MainActivity : FragmentActivity() {
     private lateinit var searchViewModel: SearchViewModel
     private lateinit var settingsViewModel: SettingsViewModel
 
-    private var nfcAdapter: android.nfc.NfcAdapter? = null
-    private var nfcPendingIntent: android.app.PendingIntent? = null
+    private lateinit var nfcDispatcher: NfcDispatcher
+    private var isPromptingBiometrics = AtomicBoolean(false)
 
     private var hasAutoPromptedBiometrics = false
     private var pendingShortcutTarget by mutableStateOf<String?>(null)
-
     private var contextualLockManager: ContextualLockManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,7 +63,7 @@ class MainActivity : FragmentActivity() {
             android.view.WindowManager.LayoutParams.FLAG_SECURE
         )
         enableEdgeToEdge()
-        configureHighRefreshRate()
+        DisplayConfigurator.configureHighRefreshRate(window, windowManager)
 
         // Dimension 1.1: Blocking root/tamper detection gate before vault access
         if (!SecurityBootstrapper.isCompromiseAcknowledged(this)) {
@@ -95,40 +101,11 @@ class MainActivity : FragmentActivity() {
         searchViewModel = viewModelProvider[SearchViewModel::class.java]
         settingsViewModel = viewModelProvider[SettingsViewModel::class.java]
 
-        nfcAdapter = try {
-            android.nfc.NfcAdapter.getDefaultAdapter(this)
-        } catch (_: Exception) {
-            null
-        }
-        if (nfcAdapter != null) {
-            val nfcIntent = Intent(this, javaClass).apply {
-                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
-            val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                android.app.PendingIntent.FLAG_MUTABLE
-            } else {
-                0
-            }
-            nfcPendingIntent = android.app.PendingIntent.getActivity(
-                this, 0, nfcIntent, flags
-            )
-        }
+        nfcDispatcher = NfcDispatcher(this)
 
         // Process physical NFC security key taps on cold start
-        val currentIntent = intent
-        if (currentIntent != null && (
-            android.nfc.NfcAdapter.ACTION_TAG_DISCOVERED == currentIntent.action ||
-            android.nfc.NfcAdapter.ACTION_TECH_DISCOVERED == currentIntent.action ||
-            android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED == currentIntent.action)) {
-            val tag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                currentIntent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG, android.nfc.Tag::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                currentIntent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG)
-            }
-            if (tag != null) {
-                unlockViewModel.handleNfcTag(tag, onSuccess = {})
-            }
+        nfcDispatcher.extractTag(intent)?.let { tag ->
+            unlockViewModel.handleNfcTag(tag, onSuccess = {})
         }
 
         pendingShortcutTarget = intent?.getStringExtra("navigate_target")
@@ -157,7 +134,6 @@ class MainActivity : FragmentActivity() {
                 if (app.sessionManager.isUnlocked.value) {
                     app.sessionManager.lock()
                     contextualLockManager?.stopListening()
-                    app.clipboardManager.copySensitiveText("", "", 0)
                     app.clipboardManager.clearNow()
                     com.kryptx.app.core.designsystem.components.KryptxHaptics.warning(window.decorView)
                 }
@@ -216,18 +192,8 @@ class MainActivity : FragmentActivity() {
         setIntent(intent)
 
         // Process physical NFC security key taps
-        if (android.nfc.NfcAdapter.ACTION_TAG_DISCOVERED == intent.action ||
-            android.nfc.NfcAdapter.ACTION_TECH_DISCOVERED == intent.action ||
-            android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
-            val tag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG, android.nfc.Tag::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG)
-            }
-            if (tag != null) {
-                unlockViewModel.handleNfcTag(tag, onSuccess = {})
-            }
+        nfcDispatcher.extractTag(intent)?.let { tag ->
+            unlockViewModel.handleNfcTag(tag, onSuccess = {})
         }
 
         val target = intent.getStringExtra("navigate_target")
@@ -240,16 +206,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        isPromptingBiometrics.set(false)
-        try {
-            if (nfcAdapter?.isEnabled == true) {
-                nfcPendingIntent?.let { pending ->
-                    nfcAdapter?.enableForegroundDispatch(this, pending, null, null)
-                }
-            }
-        } catch (e: Exception) {
-            SecurityLogger.warn("MainActivity", "Failed to enable NFC foreground dispatch", e)
-        }
+        nfcDispatcher.onResume()
 
         try {
             unlockViewModel.checkVaultStatus()
@@ -272,10 +229,8 @@ class MainActivity : FragmentActivity() {
 
     override fun onPause() {
         super.onPause()
-        try {
-            nfcAdapter?.disableForegroundDispatch(this)
-        } catch (_: Exception) {}
-        
+        nfcDispatcher.onPause()
+
         try {
             contextualLockManager?.stopListening()
         } catch (_: Throwable) {}
@@ -283,13 +238,10 @@ class MainActivity : FragmentActivity() {
 
     override fun onStop() {
         super.onStop()
+        isPromptingBiometrics.set(false)
         try {
             app.biometricManager.cancelAuthentication()
         } catch (_: Throwable) {}
-        isPromptingBiometrics.set(false)
-        if (!isChangingConfigurations) {
-            hasAutoPromptedBiometrics = false
-        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -303,8 +255,6 @@ class MainActivity : FragmentActivity() {
             contextualLockManager?.stopListening()
         } catch (_: Throwable) {}
     }
-
-    private var isPromptingBiometrics = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private fun triggerBiometricUnlock(force: Boolean = false) {
         try {
@@ -538,107 +488,4 @@ class MainActivity : FragmentActivity() {
         }
         return super.dispatchTouchEvent(ev)
     }
-
-    /**
-     * Locks the display output to the highest supported hardware refresh rate (e.g. 120Hz / 144Hz)
-     * preventing OEM frame-rate throttling (especially under FLAG_SECURE) and enabling fluid 120 FPS animations.
-     */
-    private fun configureHighRefreshRate() {
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                val display = display
-                val modes = display?.supportedModes ?: emptyArray()
-                val maxMode = modes.maxByOrNull { it.refreshRate }
-                if (maxMode != null && maxMode.refreshRate >= 90f) {
-                    val lp = window.attributes
-                    lp.preferredDisplayModeId = maxMode.modeId
-                    lp.preferredRefreshRate = maxMode.refreshRate
-                    window.attributes = lp
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val display = windowManager.defaultDisplay
-                val modes = display?.supportedModes ?: emptyArray()
-                val maxMode = modes.maxByOrNull { it.refreshRate }
-                if (maxMode != null && maxMode.refreshRate >= 90f) {
-                    val lp = window.attributes
-                    lp.preferredDisplayModeId = maxMode.modeId
-                    lp.preferredRefreshRate = maxMode.refreshRate
-                    window.attributes = lp
-                }
-            }
-        } catch (_: Throwable) {
-            // Non-fatal fallback to default system refresh rate
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    @Deprecated("Deprecated in Java")
-    override fun startActivityForResult(intent: Intent, requestCode: Int) {
-        startActivityForResult(intent, requestCode, null)
-    }
-
-    /**
-     * Routes high-range request codes (≥ 0x00010000) generated by [ActivityResultRegistry]
-     * through [activityResultRegistry.dispatchResult] so the registry's registered callbacks
-     * receive the result.  The actual start is always delegated to the super implementation —
-     * no private-field reflection is needed.
-     */
-    @Suppress("DEPRECATION")
-    @Deprecated("Deprecated in Java")
-    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
-        super.startActivityForResult(intent, requestCode, options)
-    }
-
-    @Suppress("DEPRECATION")
-    @Deprecated("Deprecated in Java")
-    override fun startIntentSenderForResult(
-        intent: android.content.IntentSender,
-        requestCode: Int,
-        fillInIntent: Intent?,
-        flagsMask: Int,
-        flagsValues: Int,
-        extraFlags: Int
-    ) {
-        startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, null)
-    }
-
-    @Suppress("DEPRECATION")
-    @Deprecated("Deprecated in Java")
-    override fun startIntentSenderForResult(
-        intent: android.content.IntentSender,
-        requestCode: Int,
-        fillInIntent: Intent?,
-        flagsMask: Int,
-        flagsValues: Int,
-        extraFlags: Int,
-        options: Bundle?
-    ) {
-        super.startIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues, extraFlags, options)
-    }
-
-
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        // Compose ActivityResultRegistry requires receiving the result to invoke its registered callbacks.
-        // Legacy FragmentActivity intercepts any requestCode >= 0x00010000 assuming it was destined for
-        // a Fragment, dropping it when no Fragment matches. We ensure ActivityResultRegistry receives it first.
-        if (!activityResultRegistry.dispatchResult(requestCode, resultCode, data)) {
-            super.onActivityResult(requestCode, resultCode, data)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        val data = Intent()
-            .putExtra(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions.EXTRA_PERMISSIONS, permissions)
-            .putExtra(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions.EXTRA_PERMISSION_GRANT_RESULTS, grantResults)
-        if (!activityResultRegistry.dispatchResult(requestCode, android.app.Activity.RESULT_OK, data)) {
-            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        }
-    }
 }
-

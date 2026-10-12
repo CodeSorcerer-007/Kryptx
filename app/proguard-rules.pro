@@ -17,12 +17,6 @@
 # Security & Biometrics
 -keep class * extends androidx.biometric.BiometricPrompt$AuthenticationCallback { *; }
 -keep class com.kryptx.app.core.crypto.generated.** { *; }
-# Keep FragmentActivity internal fields accessed via reflection for 16-bit requestCode bypass
--keepclassmembers class androidx.fragment.app.FragmentActivity {
-    boolean mStartedActivityFromFragment;
-    boolean mStartedIntentSenderFromFragment;
-    boolean mRequestedPermissionsFromFragment;
-}
 
 # Mozilla UniFFI & JNA Native Bindings
 -keep class uniffi.** { *; }

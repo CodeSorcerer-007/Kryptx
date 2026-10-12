@@ -21,9 +21,9 @@ class BiometricAuthManager(private val context: Context) {
     }
 
     /**
-     * Checks whether Biometrics (Fingerprint / Strong Biometrics) are enrolled and available.
+     * Checks whether Biometrics (Fingerprint / Face / Strong / Weak Biometrics) are enrolled and available.
      */
-    fun checkBiometricAvailability(requireStrong: Boolean = true): BiometricStatus {
+    fun checkBiometricAvailability(requireStrong: Boolean = false): BiometricStatus {
         val biometricManager = BiometricManager.from(context)
         val authenticators = if (requireStrong) BIOMETRIC_STRONG else (BIOMETRIC_STRONG or BIOMETRIC_WEAK)
         return when (biometricManager.canAuthenticate(authenticators)) {
@@ -34,11 +34,17 @@ class BiometricAuthManager(private val context: Context) {
         }
     }
 
-    fun canAuthenticate(requireStrong: Boolean = true): Boolean {
+    fun canAuthenticate(requireStrong: Boolean = false): Boolean {
         return checkBiometricAvailability(requireStrong) == BiometricStatus.AVAILABLE
     }
 
     private var activePrompt: BiometricPrompt? = null
+
+    /**
+     * Whether a BiometricPrompt is currently presented or awaiting user interaction.
+     */
+    val isPromptActive: Boolean
+        get() = activePrompt != null
 
     /**
      * Safely cancels any active or pending BiometricPrompt dialog.
@@ -63,7 +69,10 @@ class BiometricAuthManager(private val context: Context) {
         onError: (errorCode: Int, errString: CharSequence) -> Unit,
         onFailed: () -> Unit
     ) {
-        cancelAuthentication()
+        if (activePrompt != null) {
+            SecurityLogger.warn("BiometricAuthManager", "Biometric prompt already active, ignoring duplicate prompt request")
+            return
+        }
 
         val executor = ContextCompat.getMainExecutor(activity)
 
@@ -103,7 +112,14 @@ class BiometricAuthManager(private val context: Context) {
                     biometricPrompt.authenticate(promptInfo, cryptoObject)
                 } catch (e: IllegalArgumentException) {
                     // Fallback to biometric presence prompt if CryptoObject cipher lacks KeyStore auth handle
-                    biometricPrompt.authenticate(promptInfo)
+                    val fallbackPromptInfo = BiometricPrompt.PromptInfo.Builder()
+                        .setTitle(title)
+                        .setSubtitle(subtitle)
+                        .setConfirmationRequired(true)
+                        .setNegativeButtonText(negativeButtonText)
+                        .setAllowedAuthenticators(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+                        .build()
+                    biometricPrompt.authenticate(fallbackPromptInfo)
                 }
             } else {
                 biometricPrompt.authenticate(promptInfo)

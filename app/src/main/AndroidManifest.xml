@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Required on Android 12 and below (API <= 32) for reading user-selected files/images from storage -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <!-- Required on Android 13+ (API 33) to show the local clipboard-clear notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--

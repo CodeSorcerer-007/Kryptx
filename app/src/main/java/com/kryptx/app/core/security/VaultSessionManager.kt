@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 
 /**
@@ -238,7 +239,9 @@ class VaultSessionManager(
                 synchronized(this@VaultSessionManager) {
                     val currentJob = coroutineContext[Job]
                     if (currentJob != null && currentJob.isActive && autoLockJob === currentJob) {
-                        lock(isTimeout = true)
+                        if (!isPickerActive) {
+                            lock(isTimeout = true)
+                        }
                     }
                 }
             }
@@ -248,8 +251,18 @@ class VaultSessionManager(
     @Volatile
     private var isPickerActive: Boolean = false
 
+    @Synchronized
     fun setPickerActive(active: Boolean) {
         isPickerActive = active
+        if (active) {
+            // Suspend the auto-lock countdown while system UI / picker is active
+            autoLockJob?.cancel()
+            autoLockJob = null
+        } else {
+            // Picker finished — reset background timer and restart activity monitoring
+            backgroundTimestamp = 0L
+            recordActivity(force = true)
+        }
     }
 
     fun isPickerActive(): Boolean = isPickerActive
@@ -285,7 +298,8 @@ class VaultSessionManager(
         if (bgTime > 0L) {
             val elapsedMs = System.currentTimeMillis() - bgTime
             val shouldLock = when {
-                autoLockTimeout == AutoLockTimeout.IMMEDIATELY -> !isPickerActive
+                isPickerActive -> false
+                autoLockTimeout == AutoLockTimeout.IMMEDIATELY -> true
                 autoLockTimeout.seconds > 0L -> elapsedMs >= autoLockTimeout.seconds * 1000L
                 else -> false
             }
@@ -351,10 +365,9 @@ class VaultSessionManager(
      * force-killing the app does not reset the throttle.
      */
     fun recordFailedAttempt() {
-        // Atomic CAS update — prevents lost increments when biometric and password
-        // failure callbacks race concurrently on separate coroutines.
-        _failedAttempts.update { it + 1 }
-        val attempts = _failedAttempts.value
+        // Atomic CAS update & fetch — eliminates TOCTOU race where another thread
+        // increments past lockout threshold between separate update and value operations.
+        val attempts = _failedAttempts.updateAndGet { it + 1 }
 
         val lockoutDuration = when {
             attempts >= 20 -> 900   // 15 minutes — hard cap

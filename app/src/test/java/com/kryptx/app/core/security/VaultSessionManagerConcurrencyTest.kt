@@ -86,4 +86,21 @@ class VaultSessionManagerConcurrencyTest {
         assertTrue(manager.isUnlocked.value)
         assertNotNull(manager.getVaultKey())
     }
+
+    @Test
+    fun testConcurrentFailedAttemptsIncrement() = runBlocking {
+        val manager = VaultSessionManager()
+        val increments = 100
+        val jobs = (1..increments).map {
+            launch(Dispatchers.Default) {
+                manager.recordFailedAttempt()
+            }
+        }
+        jobs.joinAll()
+        org.junit.Assert.assertEquals(
+            "Concurrent increments must atomically reach exact total without TOCTOU loss",
+            increments,
+            manager.failedAttempts.value
+        )
+    }
 }

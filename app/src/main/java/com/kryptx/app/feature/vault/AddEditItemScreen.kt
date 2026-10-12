@@ -240,9 +240,6 @@ fun AddEditItemScreen(
     }
 
     var showAttachmentTypeDialog by remember { mutableStateOf(false) }
-    var showMediaRationaleDialog by remember { mutableStateOf(false) }
-    var hasGrantedMediaConsent by remember { mutableStateOf(false) }
-    var pendingAttachmentType by remember { mutableStateOf<AttachmentType?>(null) }
 
     val requestCameraOrOpenScanner: () -> Unit = {
         showQrScanner = true
@@ -251,7 +248,6 @@ fun AddEditItemScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
             scope.launch {
                 try {
@@ -262,19 +258,26 @@ fun AddEditItemScreen(
                     if (saved != null) {
                         newAttachments.add(saved)
                     } else {
-                        localError = "Failed to encrypt and attach file"
+                        localError = if (app?.sessionManager?.isLocked() == true) {
+                            "Vault was locked while selecting photo. Please unlock and try again."
+                        } else {
+                            "Failed to encrypt and attach photo"
+                        }
                     }
                 } catch (t: Throwable) {
                     localError = "Attachment error: ${t.localizedMessage ?: "Unable to read file"}"
+                } finally {
+                    app?.sessionManager?.setPickerActive(false)
                 }
             }
+        } else {
+            app?.sessionManager?.setPickerActive(false)
         }
     }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        app?.sessionManager?.setPickerActive(false)
         if (uri != null) {
             scope.launch {
                 try {
@@ -284,12 +287,20 @@ fun AddEditItemScreen(
                     if (saved != null) {
                         newAttachments.add(saved)
                     } else {
-                        localError = "Failed to encrypt and attach file"
+                        localError = if (app?.sessionManager?.isLocked() == true) {
+                            "Vault was locked while selecting file. Please unlock and try again."
+                        } else {
+                            "Failed to encrypt and attach file"
+                        }
                     }
                 } catch (t: Throwable) {
                     localError = "Attachment error: ${t.localizedMessage ?: "Unable to read file"}"
+                } finally {
+                    app?.sessionManager?.setPickerActive(false)
                 }
             }
+        } else {
+            app?.sessionManager?.setPickerActive(false)
         }
     }
 
@@ -300,8 +311,13 @@ fun AddEditItemScreen(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
             )
         } catch (e: Throwable) {
-            app?.sessionManager?.setPickerActive(false)
-            localError = "Unable to open photo gallery: ${e.message}"
+            try {
+                // Fallback for devices without PhotoPicker support (AOSP / non-GMS / legacy)
+                filePickerLauncher.launch("image/*")
+            } catch (e2: Throwable) {
+                app?.sessionManager?.setPickerActive(false)
+                localError = "Unable to open photo gallery: ${e2.message ?: e.message}"
+            }
         }
     }
 
@@ -678,12 +694,7 @@ fun AddEditItemScreen(
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
                             .clickable {
                                 showAttachmentTypeDialog = false
-                                if (!hasGrantedMediaConsent) {
-                                    pendingAttachmentType = AttachmentType.PHOTO
-                                    showMediaRationaleDialog = true
-                                } else {
-                                    launchPhotoPicker()
-                                }
+                                launchPhotoPicker()
                             }
                             .padding(14.dp)
                     ) {
@@ -721,12 +732,7 @@ fun AddEditItemScreen(
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
                             .clickable {
                                 showAttachmentTypeDialog = false
-                                if (!hasGrantedMediaConsent) {
-                                    pendingAttachmentType = AttachmentType.DOCUMENT
-                                    showMediaRationaleDialog = true
-                                } else {
-                                    launchDocumentPicker()
-                                }
+                                launchDocumentPicker()
                             }
                             .padding(14.dp)
                     ) {
@@ -762,37 +768,6 @@ fun AddEditItemScreen(
                 TextButton(onClick = { showAttachmentTypeDialog = false }) {
                     Text("Cancel")
                 }
-            }
-        )
-    }
-
-    if (showMediaRationaleDialog) {
-        val isDoc = pendingAttachmentType == AttachmentType.DOCUMENT
-        KryptxPermissionRationaleDialog(
-            icon = if (isDoc) Icons.Default.Description else Icons.Default.Image,
-            title = if (isDoc) "File & Document Access" else "Photo & Media Access",
-            description = if (isDoc) {
-                "To select PDFs, documents, or key files for encrypted storage inside your Kryptx vault, Kryptx will open the secure Android document selector. No files are ever shared or uploaded."
-            } else {
-                "To select photos and ID cards for encrypted storage inside your Kryptx vault, Kryptx will open the secure Android photo selector. No files are ever shared or uploaded."
-            },
-            privacyGuarantee = "100% Offline: Files are encrypted with AES-256-GCM directly into the vault database and never leave this device.",
-            confirmButtonText = "Grant Access",
-            dismissButtonText = "Not Now",
-            onConfirm = {
-                showMediaRationaleDialog = false
-                hasGrantedMediaConsent = true
-                val isPhoto = pendingAttachmentType != AttachmentType.DOCUMENT
-                pendingAttachmentType = null
-                if (isPhoto) {
-                    launchPhotoPicker()
-                } else {
-                    launchDocumentPicker()
-                }
-            },
-            onDismiss = {
-                showMediaRationaleDialog = false
-                pendingAttachmentType = null
             }
         )
     }

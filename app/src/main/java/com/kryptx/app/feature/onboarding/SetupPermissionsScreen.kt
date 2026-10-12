@@ -55,6 +55,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -130,19 +131,9 @@ fun SetupPermissionsScreen(
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     }
 
-    // Track whether we've fired the OS dialog at least once (for permanent-denial detection)
-    var cameraPermissionRequested by remember { mutableStateOf(false) }
-    var notificationPermissionRequested by remember { mutableStateOf(false) }
-
-    // True once the user has permanently denied camera or notifications (system won't show dialog again)
-    val isCameraPermanentlyDenied = cameraPermissionRequested && activity?.let {
-        !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
-    } ?: false
-
-    val isNotificationPermanentlyDenied = requiresNotificationPermission &&
-            notificationPermissionRequested && activity?.let {
-        !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
-    } ?: false
+    // Track whether we've fired the OS dialog at least once
+    var cameraPermissionRequested by rememberSaveable { mutableStateOf(false) }
+    var notificationPermissionRequested by rememberSaveable { mutableStateOf(false) }
 
     var isAutofillEnabled by remember {
         mutableStateOf(
@@ -162,28 +153,79 @@ fun SetupPermissionsScreen(
 
     var isNfcActive by remember { mutableStateOf(NfcHardwareKeyManager.isNfcEnabled(context)) }
 
-    // ── Rationale dialog state ───────────────────────────────────────────────
-    var showCameraRationale by remember { mutableStateOf(false) }
-    var showNotificationRationale by remember { mutableStateOf(false) }
+    // ── Rationale dialog state (only for system settings that require external dispatch) ──
     var showAutofillRationale by remember { mutableStateOf(false) }
+    var showCameraBlockedRationale by remember { mutableStateOf(false) }
+    var showNotificationBlockedRationale by remember { mutableStateOf(false) }
 
     // ── Permission launchers ─────────────────────────────────────────────────
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         app?.sessionManager?.setPickerActive(false)
-        hasCameraPermission = granted
+        val isGranted = granted || ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        hasCameraPermission = isGranted
         cameraPermissionRequested = true
-        if (granted) KryptxHaptics.confirm(view)
+        if (isGranted) {
+            KryptxHaptics.confirm(view)
+        } else {
+            val permanentlyDenied = activity?.let {
+                !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+            } ?: false
+            if (permanentlyDenied) {
+                showCameraBlockedRationale = true
+            }
+        }
     }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         app?.sessionManager?.setPickerActive(false)
-        hasNotificationPermission = granted
+        val isGranted = granted || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+        hasNotificationPermission = isGranted
         notificationPermissionRequested = true
-        if (granted) KryptxHaptics.confirm(view)
+        if (isGranted) {
+            KryptxHaptics.confirm(view)
+        } else {
+            val permanentlyDenied = activity?.let {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
+                } else false
+            } ?: false
+            if (permanentlyDenied) {
+                showNotificationBlockedRationale = true
+            }
+        }
+    }
+
+    val multiplePermissionsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        app?.sessionManager?.setPickerActive(false)
+        val cameraGranted = results[Manifest.permission.CAMERA] == true ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        hasCameraPermission = cameraGranted
+        cameraPermissionRequested = true
+
+        if (requiresNotificationPermission) {
+            val notifGranted = results[Manifest.permission.POST_NOTIFICATIONS] == true ||
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            hasNotificationPermission = notifGranted
+            notificationPermissionRequested = true
+        }
+
+        if (hasCameraPermission || hasNotificationPermission) {
+            KryptxHaptics.confirm(view)
+        } else {
+            val cameraPermanentlyDenied = activity?.let {
+                !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+            } ?: false
+            if (cameraPermanentlyDenied) {
+                showCameraBlockedRationale = true
+            }
+        }
     }
 
     // Refresh all states whenever the app returns from a system settings deeplink
@@ -248,48 +290,99 @@ fun SetupPermissionsScreen(
         } catch (_: Exception) {}
     }
 
-    // ── Rationale dialogs ────────────────────────────────────────────────────
-    if (showCameraRationale) {
+    val isCameraPermanentlyDenied = cameraPermissionRequested && activity?.let {
+        !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+    } ?: false
+
+    val isNotificationPermanentlyDenied = notificationPermissionRequested && activity?.let {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
+        } else false
+    } ?: false
+
+    // Direct in-app permission requests — immediately fires native Android OS prompt
+    val requestCameraPermission: () -> Unit = {
+        if (isCameraPermanentlyDenied) {
+            showCameraBlockedRationale = true
+        } else {
+            app?.sessionManager?.setPickerActive(true)
+            try {
+                cameraLauncher.launch(Manifest.permission.CAMERA)
+            } catch (_: Throwable) {
+                app?.sessionManager?.setPickerActive(false)
+                showCameraBlockedRationale = true
+            }
+        }
+    }
+
+    val requestNotificationPermission: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (isNotificationPermanentlyDenied) {
+                showNotificationBlockedRationale = true
+            } else {
+                app?.sessionManager?.setPickerActive(true)
+                try {
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } catch (_: Throwable) {
+                    app?.sessionManager?.setPickerActive(false)
+                    showNotificationBlockedRationale = true
+                }
+            }
+        }
+    }
+
+    val requestAllPermissions: () -> Unit = {
+        if (isCameraPermanentlyDenied && (!requiresNotificationPermission || isNotificationPermanentlyDenied)) {
+            openAppSettings()
+        } else {
+            val permissionsToRequest = mutableListOf<String>()
+            if (!hasCameraPermission) {
+                permissionsToRequest.add(Manifest.permission.CAMERA)
+            }
+            if (requiresNotificationPermission && !hasNotificationPermission) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            if (permissionsToRequest.isNotEmpty()) {
+                app?.sessionManager?.setPickerActive(true)
+                try {
+                    multiplePermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+                } catch (_: Throwable) {
+                    app?.sessionManager?.setPickerActive(false)
+                    openAppSettings()
+                }
+            }
+        }
+    }
+
+    if (showCameraBlockedRationale) {
         KryptxPermissionRationaleDialog(
             icon = Icons.Default.CameraAlt,
-            title = "Camera Access",
-            description = "Kryptx uses the camera exclusively to scan 2FA QR codes and capture encrypted attachment photos. Frames are processed in volatile RAM and never written to external storage.",
-            confirmButtonText = if (isCameraPermanentlyDenied) "Open App Settings" else "Grant Camera Access",
-            dismissButtonText = "Not Now",
+            title = "Camera Permission Required",
+            description = "Camera permission has been blocked by Android because it was previously declined. To scan QR codes and attach documents, please enable Camera access in App Settings.",
+            privacyGuarantee = "Kryptx works 100% offline. Zero photos or videos ever leave your device.",
+            confirmButtonText = "Open App Settings",
+            dismissButtonText = "Dismiss",
             onConfirm = {
-                showCameraRationale = false
-                if (isCameraPermanentlyDenied) {
-                    openAppSettings()
-                } else {
-                    app?.sessionManager?.setPickerActive(true)
-                    cameraLauncher.launch(Manifest.permission.CAMERA)
-                }
+                showCameraBlockedRationale = false
+                openAppSettings()
             },
-            onDismiss = { showCameraRationale = false }
+            onDismiss = { showCameraBlockedRationale = false }
         )
     }
 
-    if (showNotificationRationale) {
+    if (showNotificationBlockedRationale) {
         KryptxPermissionRationaleDialog(
             icon = Icons.Default.Notifications,
-            title = "Allow Notifications",
-            description = "Kryptx shows a local-only notification when it auto-clears your clipboard after a copy. No push servers, no remote alerts — strictly local OS notifications on this device.",
-            privacyGuarantee = "100% Offline: All notifications are generated locally. Zero network calls are ever made.",
-            confirmButtonText = "Allow Notifications",
-            dismissButtonText = "Not Now",
+            title = "Notification Permission Required",
+            description = "Notification permission has been blocked by Android. To receive local clipboard auto-clear reminders, please enable Notifications in App Settings.",
+            privacyGuarantee = "Zero remote notifications or push servers are used — all reminders are strictly local.",
+            confirmButtonText = "Open App Settings",
+            dismissButtonText = "Dismiss",
             onConfirm = {
-                showNotificationRationale = false
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    if (isNotificationPermanentlyDenied) {
-                        // OS dialog won't appear again — send user to system settings
-                        openAppSettings()
-                    } else {
-                        app?.sessionManager?.setPickerActive(true)
-                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
+                showNotificationBlockedRationale = false
+                openAppSettings()
             },
-            onDismiss = { showNotificationRationale = false }
+            onDismiss = { showNotificationBlockedRationale = false }
         )
     }
 
@@ -367,14 +460,8 @@ fun SetupPermissionsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             KryptxPrimaryButton(
-                                text = if (isCameraPermanentlyDenied) "Open App Settings" else "Grant Permission",
-                                onClick = {
-                                    if (isCameraPermanentlyDenied) {
-                                        openAppSettings()
-                                    } else {
-                                        showCameraRationale = true
-                                    }
-                                },
+                                text = "Grant Permission",
+                                onClick = requestCameraPermission,
                                 height = 40.dp,
                                 modifier = Modifier
                                     .weight(1f)
@@ -412,20 +499,34 @@ fun SetupPermissionsScreen(
                     description = "Allows Kryptx to show a local reminder when clipboard auto-clear fires. Zero remote notifications, push servers, or analytics — strictly on-device.",
                     action = {
                         if (!hasNotificationPermission) {
-                            KryptxPrimaryButton(
-                                text = if (isNotificationPermanentlyDenied) "Open App Settings" else "Allow Notifications",
-                                onClick = {
-                                    if (isNotificationPermanentlyDenied) {
-                                        openAppSettings()
-                                    } else {
-                                        showNotificationRationale = true
-                                    }
-                                },
-                                height = 40.dp,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("grant_notification_permission_button")
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                KryptxPrimaryButton(
+                                    text = "Allow Notifications",
+                                    onClick = requestNotificationPermission,
+                                    height = 40.dp,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("grant_notification_permission_button")
+                                )
+                                OutlinedButton(
+                                    onClick = openAppSettings,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                        contentDescription = "Open system settings",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Settings", fontSize = 12.sp)
+                                }
+                            }
                         }
                     }
                 )
@@ -507,23 +608,13 @@ fun SetupPermissionsScreen(
             // ── Bottom CTA ─────────────────────────────────────────────────────
             if (!allCriticalGranted) {
                 KryptxPrimaryButton(
-                    text = "Grant OS Permissions",
+                    text = "Grant In-App Permissions",
                     containerColor = KryptxBlue,
                     contentColor = Color.White,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("setup_grant_all_permissions_button"),
-                    onClick = {
-                        // Show rationale for first ungranted required permission
-                        when {
-                            !hasCameraPermission ->
-                                if (isCameraPermanentlyDenied) openAppSettings()
-                                else showCameraRationale = true
-                            requiresNotificationPermission && !hasNotificationPermission ->
-                                if (isNotificationPermanentlyDenied) openAppSettings()
-                                else showNotificationRationale = true
-                        }
-                    }
+                    onClick = requestAllPermissions
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))

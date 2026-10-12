@@ -232,6 +232,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Run Clippy Lints
+        working-directory: app/src/main/rust/kryptx_crypto
+        run: cargo clippy -- -D warnings
       - name: Run Rust Tests
         working-directory: app/src/main/rust/kryptx_crypto
         run: cargo test --verbose

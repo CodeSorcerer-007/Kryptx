@@ -51,19 +51,16 @@ class KryptxApplication : Application(), KryptxDependencies {
         // 1a. Create notification channels (required on API 26+; safe to call every launch)
         createNotificationChannels()
 
-        // 1. Run basic offline integrity checks safely
-        try {
-            SecurityBootstrapper.checkDeviceIntegrity(this)
-        } catch (t: Throwable) {
-            SecurityLogger.warn("KryptxApplication", "Device integrity check encountered non-fatal error", t)
-        }
-
         // 2. Construct the application object graph via AppContainer
         try {
             container = AppContainer(this)
         } catch (t: Throwable) {
             SecurityLogger.error("KryptxApplication", "Fatal error constructing AppContainer", t)
             com.kryptx.app.core.security.CrashDefense.recordCrash(t, "AppContainerInit")
+            // Safely tear down any partially constructed resources before fallback retry
+            if (::container.isInitialized) {
+                try { container.close() } catch (_: Throwable) {}
+            }
             // Re-attempt with safe context
             container = AppContainer(applicationContext)
         }

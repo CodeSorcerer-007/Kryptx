@@ -125,8 +125,12 @@ fun QrCodeScannerDialog(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         app?.sessionManager?.setPickerActive(false)
-        hasCameraPermission = isGranted
+        val isPermGranted = isGranted || ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        hasCameraPermission = isPermGranted
         permissionRequested = true
+        if (isPermGranted) {
+            KryptxHaptics.confirm(view)
+        }
     }
 
     LaunchedEffect(Unit) {

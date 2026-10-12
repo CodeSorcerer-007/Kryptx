@@ -163,35 +163,40 @@ object CryptoEngine {
         return decryptedFrame.copyOfRange(4 + aadLen, decryptedFrame.size)
     }
 
-    private val sessionNonceCounter = java.util.concurrent.atomic.AtomicLong(0L)
-    private val sessionIvPrefix = ByteArray(8).also { secureRandom.nextBytes(it) }
+    private val ivLock = Any()
+    @androidx.annotation.GuardedBy("ivLock")
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal val sessionNonceCounter = java.util.concurrent.atomic.AtomicLong(0L)
+    @androidx.annotation.GuardedBy("ivLock")
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal val sessionIvPrefix = ByteArray(8).also { secureRandom.nextBytes(it) }
 
     /**
      * Generates a 96-bit nonce following NIST SP 800-38D §8.2.1:
      * 64 bits of CSPRNG entropy prefix + 32-bit monotonic invocation counter.
      * Prevents nonce reuse across up to 2^32 encryptions per session.
      * If the 32-bit counter rolls over, safely re-randomizes the 64-bit prefix.
+     *
+     * The entire read-increment-copy sequence is atomically synchronized under [ivLock],
+     * ensuring counter increments never race prefix re-randomization or exceed 32-bit IV field bounds.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun generateDeterministicIv(): ByteArray {
-        val iv = ByteArray(IV_LENGTH_BYTES)
-        val ctr = sessionNonceCounter.getAndIncrement()
-        if (ctr >= 0xFFFFFFFFL) {
-            synchronized(sessionIvPrefix) {
-                if (sessionNonceCounter.get() >= 0xFFFFFFFFL) {
-                    secureRandom.nextBytes(sessionIvPrefix)
-                    sessionNonceCounter.set(0L)
-                }
+        synchronized(ivLock) {
+            val ctr = sessionNonceCounter.getAndIncrement()
+            if (ctr >= 0xFFFFFFFFL) {
+                secureRandom.nextBytes(sessionIvPrefix)
+                sessionNonceCounter.set(0L)
             }
-        }
-        synchronized(sessionIvPrefix) {
+            val safeCtr = ctr and 0xFFFFFFFFL
+            val iv = ByteArray(IV_LENGTH_BYTES)
             System.arraycopy(sessionIvPrefix, 0, iv, 0, 8)
+            iv[8] = ((safeCtr ushr 24) and 0xFFL).toByte()
+            iv[9] = ((safeCtr ushr 16) and 0xFFL).toByte()
+            iv[10] = ((safeCtr ushr 8) and 0xFFL).toByte()
+            iv[11] = (safeCtr and 0xFFL).toByte()
+            return iv
         }
-        iv[8] = ((ctr ushr 24) and 0xFFL).toByte()
-        iv[9] = ((ctr ushr 16) and 0xFFL).toByte()
-        iv[10] = ((ctr ushr 8) and 0xFFL).toByte()
-        iv[11] = (ctr and 0xFFL).toByte()
-        return iv
     }
 
     /**
@@ -203,7 +208,7 @@ object CryptoEngine {
      * @return Combined byte array containing [12-byte IV + Ciphertext with GCM Auth Tag].
      * @throws IllegalArgumentException if the key size is not 32 bytes.
      */
-    fun encryptJvm(
+    internal fun encryptJvm(
         plaintext: ByteArray,
         key: ByteArray,
         associatedData: ByteArray? = null
@@ -343,7 +348,7 @@ object CryptoEngine {
      * @throws IllegalArgumentException if key size is not 32 bytes or payload is too short.
      * @throws javax.crypto.AEADBadTagException if authentication tag is corrupted or mismatched.
      */
-    fun decryptJvm(
+    internal fun decryptJvm(
         encryptedData: ByteArray,
         key: ByteArray,
         associatedData: ByteArray? = null
@@ -457,9 +462,15 @@ object CryptoEngine {
     }
 
     /**
-     * Helper to decrypt a Base64-encoded encrypted payload string into a CharArray using UTF-8 decoding.
+     * Helper to decrypt a Base64-encoded encrypted payload string into a [CharArray] using UTF-8 decoding.
      * Minimizes String memory retention.
+     *
+     * ### Security Contract / Caller Wipe Obligation
+     * The returned [CharArray] contains sensitive decrypted plaintext residing in volatile memory.
+     * The caller is strictly obligated to wipe this array immediately after use via
+     * [com.kryptx.app.core.security.SecureMemory.wipe] or [java.util.Arrays.fill].
      */
+    @com.kryptx.app.core.security.MustBeWiped("Caller owns decrypted CharArray and must wipe it immediately after consumption")
     fun decryptToCharArray(
         encryptedBase64: String,
         key: ByteArray,

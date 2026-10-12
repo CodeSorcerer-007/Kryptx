@@ -151,4 +151,21 @@ class EmergencyAutoDestructManagerTest {
         assertTrue(manager.getState().isEnabled)
         assertEquals(3, manager.getState().maxFailedAttempts)
     }
+
+    @Test
+    fun testStandaloneModeOnFailedAttemptIncrementsAndTriggersAutoDestruct() {
+        // Task 4.7 / BUG-2: When sessionManager is null, calling onFailedAttempt() must increment localFailedAttempts and trigger wipe at threshold
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            sessionManager = null,
+            maxFailedAttempts = 3,
+            isEnabled = true
+        )
+
+        assertFalse("First failed attempt should not trigger destruct", manager.onFailedAttempt())
+        assertEquals(1, manager.getState().currentFailedAttempts)
+        assertFalse("Second failed attempt should not trigger destruct", manager.onFailedAttempt())
+        assertEquals(2, manager.getState().currentFailedAttempts)
+        assertTrue("Third failed attempt reaches threshold (3) and must trigger destruct", manager.onFailedAttempt())
+    }
 }

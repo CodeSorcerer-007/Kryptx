@@ -239,9 +239,9 @@ class VaultAuthRepositoryImpl(
                     dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, argon2Params.parallelism.toString())
                 }
 
-                // If biometric was previously configured but invalidated by enrollment changes, auto-re-enroll now that we have the active VEK!
+                // If biometric was previously configured, auto-re-enroll now that we have the active VEK to guarantee cryptographic alignment!
                 val hasBiometricWrapped = !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank()
-                if (hasBiometricWrapped && keystoreManager.isBiometricKeyPermanentlyInvalidated()) {
+                if (hasBiometricWrapped) {
                     try {
                         keystoreManager.removeBiometricKey()
                         val newWrappedVek = keystoreManager.wrapWithPublicKey(vek)
@@ -313,6 +313,7 @@ class VaultAuthRepositoryImpl(
     override suspend fun setupBiometrics(): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { activeVek ->
             try {
+                keystoreManager.removeBiometricKey()
                 val wrappedVek = keystoreManager.wrapWithPublicKey(activeVek)
                 val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
 
@@ -387,7 +388,14 @@ class VaultAuthRepositoryImpl(
             KryptxResult.Success(Unit)
         } catch (e: Exception) {
             sessionManager.recordFailedAttempt()
-            KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Biometric decryption failed", e)
+            com.kryptx.app.core.security.SecurityLogger.warn("VaultAuthRepository", "Biometric decryption failed: ${e.javaClass.name}: ${e.message}", e)
+            val isPaddingOrKeyError = e is javax.crypto.BadPaddingException || e is java.security.InvalidKeyException
+            val message = if (isPaddingOrKeyError) {
+                "Biometric key updated. Please unlock once with Master Password to re-sync biometrics."
+            } else {
+                "Biometric authentication failed. Please use master password."
+            }
+            KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, message, e)
         }
     }
 

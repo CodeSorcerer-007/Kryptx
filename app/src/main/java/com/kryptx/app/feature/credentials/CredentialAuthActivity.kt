@@ -186,7 +186,7 @@ class CredentialAuthActivity : FragmentActivity() {
     private fun onTriggerBiometrics() {
         val app = application as? KryptxApplication ?: return
         if (app.sessionManager.lockoutSecondsRemaining.value > 0) return
-        if (!app.biometricManager.canAuthenticate(requireStrong = true)) return
+        if (!app.biometricManager.canAuthenticate(requireStrong = false)) return
         val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
         if (!isConfigured) return
 

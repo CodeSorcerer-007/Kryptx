@@ -68,6 +68,15 @@ object SecurityLogger {
             throwableDetails = throwable?.let { "${it.javaClass.simpleName}: ${it.message ?: "No message"}" }
         )
 
+        try {
+            when (level) {
+                Level.TRACE, Level.DEBUG -> android.util.Log.d(tag, if (throwable != null) "$message: ${throwable.javaClass.name}: ${throwable.message}" else message, throwable)
+                Level.INFO -> android.util.Log.i(tag, if (throwable != null) "$message: ${throwable.javaClass.name}: ${throwable.message}" else message, throwable)
+                Level.WARN -> android.util.Log.w(tag, if (throwable != null) "$message: ${throwable.javaClass.name}: ${throwable.message}" else message, throwable)
+                Level.ERROR -> android.util.Log.e(tag, if (throwable != null) "$message: ${throwable.javaClass.name}: ${throwable.message}" else message, throwable)
+            }
+        } catch (_: Throwable) {}
+
         synchronized(lock) {
             if (buffer.size >= MAX_CAPACITY) {
                 buffer.removeFirst()

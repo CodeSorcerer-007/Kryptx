@@ -75,7 +75,11 @@ class EmergencyAutoDestructManager(
      */
     fun onFailedAttempt(): Boolean {
         if (!effectiveEnabled) return false
-        val current = sessionManager?.failedAttempts?.value ?: localFailedAttempts.get()
+        val current = if (sessionManager != null) {
+            sessionManager.failedAttempts.value
+        } else {
+            localFailedAttempts.incrementAndGet()
+        }
         if (current >= effectiveMaxAttempts) {
             triggerEmergencyWipe()
             return true
@@ -165,7 +169,9 @@ class EmergencyAutoDestructManager(
                         }
                     }
                 }
-            } catch (_: Throwable) {}
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to purge extra databases during wipe", t)
+            }
 
             // 3. Overwrite & delete attachments
             val attachmentsDir = File(context.filesDir, "vault_attachments")
@@ -183,15 +189,17 @@ class EmergencyAutoDestructManager(
                 val ks = keystoreManager ?: KeystoreManager()
                 ks.removeBiometricKey()
                 ks.removeEcdhKey()  // Also wipe the ECDH P-256 v2 migration key
-            } catch (_: Throwable) {
-                // Keystore might not be initialized
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "Keystore keys removal failed or Keystore uninitialized during wipe", t)
             }
 
             // 5. Purge and shred SharedPreferences metadata and app settings
             try {
                 context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
                 context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE).edit().clear().commit()
-            } catch (_: Throwable) {}
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to clear SharedPreferences during wipe", t)
+            }
 
             try {
                 val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
@@ -202,11 +210,14 @@ class EmergencyAutoDestructManager(
                     }
                     sharedPrefsDir.delete()
                 }
-            } catch (_: Throwable) {}
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to overwrite shared_prefs files during wipe", t)
+            }
 
             // 6. Reset counter - handled authoritatively by sessionManager.lock()
             localFailedAttempts.set(0)
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            SecurityLogger.error("EmergencyAutoDestruct", "Unhandled exception in triggerEmergencyWipe", t)
             // Guarantee fail-closed
         }
     }
@@ -240,9 +251,13 @@ class EmergencyAutoDestructManager(
                     SecureMemory.wipe(buffer)
                 }
             }
-            // Truncate to zero after multi-pass overwrite before unlinking
-            java.io.RandomAccessFile(file, "rws").use { it.setLength(0L) }
-        } catch (_: Throwable) {
+            // Truncate to zero after multi-pass overwrite before unlinking and flush journal
+            java.io.RandomAccessFile(file, "rws").use { raf ->
+                raf.setLength(0L)
+                try { raf.fd.sync() } catch (_: Throwable) {}
+            }
+        } catch (t: Throwable) {
+            SecurityLogger.warn("EmergencyAutoDestruct", "File overwrite failed for ${file.name}", t)
             // Continue best-effort wipe
         }
     }

@@ -622,7 +622,12 @@ private fun openAttachmentWithExternalApp(
 ): Boolean {
     return try {
         val shareDir = File(context.cacheDir, "secure_shared").apply { if (!exists()) mkdirs() }
-        val tempFile = File(shareDir, attachment.fileName)
+        val rawName = File(attachment.fileName).name
+        val safeName = rawName.replace(Regex("[^a-zA-Z0-9._-]"), "_").ifBlank { "attachment_${attachment.id}" }
+        val tempFile = File(shareDir, safeName)
+        if (!tempFile.canonicalPath.startsWith(shareDir.canonicalPath + File.separator)) {
+            return false
+        }
         tempFile.writeBytes(data)
 
         val uri = FileProvider.getUriForFile(
@@ -634,13 +639,13 @@ private fun openAttachmentWithExternalApp(
         val mime = attachment.mimeType.ifBlank { "*/*" }
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
-            clipData = android.content.ClipData.newRawUri(attachment.fileName, uri)
+            clipData = android.content.ClipData.newRawUri(safeName, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
         sessionManager?.setPickerActive(true)
-        val chooser = Intent.createChooser(intent, "Open ${attachment.fileName}").apply {
+        val chooser = Intent.createChooser(intent, "Open $safeName").apply {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }

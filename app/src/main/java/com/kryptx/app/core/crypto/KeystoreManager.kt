@@ -46,15 +46,21 @@ class KeystoreManager {
             MGF1ParameterSpec.SHA1,
             PSource.PSpecified.DEFAULT
         )
-        private val OAEP_SPEC: OAEPParameterSpec
-            get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) OAEP_SPEC_SHA256 else OAEP_SPEC_SHA1
+        // PKCS#1 v2.1 RSAES-OAEP standard default mask generation function is MGF1 based on SHA-1.
+        // Android Keystore hardware KeyMint / TEE implementations (Qualcomm Snapdragon, Exynos, MediaTek)
+        // require MGF1 with SHA-1 and reject MGF1 with SHA-256 with INCOMPATIBLE_MGF_DIGEST (-78).
+        private val OAEP_SPEC: OAEPParameterSpec = OAEP_SPEC_SHA1
 
         private fun initCipherWithOaep(cipher: Cipher, opmode: Int, key: java.security.Key) {
             try {
-                cipher.init(opmode, key, OAEP_SPEC)
-            } catch (_: java.security.InvalidAlgorithmParameterException) {
-                // Fallback for TEE implementations that restrict MGF1 to SHA-1
                 cipher.init(opmode, key, OAEP_SPEC_SHA1)
+            } catch (_: Exception) {
+                // Fallback for uncommon environments that require explicit SHA-256 or default provider params
+                try {
+                    cipher.init(opmode, key, OAEP_SPEC_SHA256)
+                } catch (_: Exception) {
+                    cipher.init(opmode, key)
+                }
             }
         }
     }
@@ -204,7 +210,8 @@ class KeystoreManager {
      * Uses getKeyStore().getKey directly to avoid creating a new key pair as a side effect when absent.
      */
     fun isBiometricKeyPermanentlyInvalidated(iv: ByteArray = ByteArray(0)): Boolean {
-        return detectBiometricInvalidation() == BiometricKeyStatus.InvalidatedByEnrollment
+        val status = detectBiometricInvalidation()
+        return status == BiometricKeyStatus.InvalidatedByEnrollment || status == BiometricKeyStatus.Corrupted
     }
 
     private fun isCauseUserNotAuthenticated(throwable: Throwable?): Boolean {
@@ -235,7 +242,8 @@ class KeystoreManager {
      * Can execute in the background with zero user prompts required.
      */
     fun wrapWithPublicKey(vek: ByteArray): ByteArray {
-        if (isBiometricKeyPermanentlyInvalidated()) {
+        val status = detectBiometricInvalidation()
+        if (status != BiometricKeyStatus.Valid) {
             removeBiometricKey()
         }
         val keyPair = getOrCreateBiometricKeyPair()
@@ -247,15 +255,32 @@ class KeystoreManager {
     /**
      * Creates an initialized decryption Cipher for BiometricPrompt.CryptoObject.
      * Cryptographically requires hardware biometric verification to authorize decryption.
+     * Returns null if key is missing, corrupted, or invalidated by enrollment (never creates a mismatched key).
      */
     fun getDecryptCipher(iv: ByteArray = ByteArray(0)): Cipher? {
         return try {
-            val keyPair = getOrCreateBiometricKeyPair()
+            val ks = getKeyStore()
+            if (!ks.containsAlias(BIOMETRIC_KEY_ALIAS)) {
+                SecurityLogger.warn("KeystoreManager", "getDecryptCipher: alias $BIOMETRIC_KEY_ALIAS not found in Keystore")
+                return null
+            }
+            val privateKey = ks.getKey(BIOMETRIC_KEY_ALIAS, null) as? PrivateKey ?: run {
+                SecurityLogger.warn("KeystoreManager", "getDecryptCipher: privateKey is null or not PrivateKey")
+                return null
+            }
+            val cert = ks.getCertificate(BIOMETRIC_KEY_ALIAS) ?: run {
+                SecurityLogger.warn("KeystoreManager", "getDecryptCipher: certificate is null")
+                return null
+            }
+            if (cert.publicKey == null) {
+                SecurityLogger.warn("KeystoreManager", "getDecryptCipher: publicKey is null")
+                return null
+            }
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            initCipherWithOaep(cipher, Cipher.DECRYPT_MODE, keyPair.private)
+            initCipherWithOaep(cipher, Cipher.DECRYPT_MODE, privateKey)
             cipher
         } catch (e: Exception) {
-            SecurityLogger.warn("KeystoreManager", "Failed to obtain biometric decrypt cipher", e)
+            SecurityLogger.warn("KeystoreManager", "Failed to obtain biometric decrypt cipher: ${e.javaClass.name}: ${e.message}", e)
             null
         }
     }

@@ -278,4 +278,27 @@ class TotpGeneratorTest {
         val decoded = Base32.decode("")
         assertEquals("Empty Base32 must decode to empty array", 0, decoded.size)
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `Base32 decode throws IllegalArgumentException on invalid characters 0 1 8 9`() {
+        // '0', '1', '8', '9' are not in RFC 4648 Base32 alphabet
+        Base32.decode("JBSWY3DPEHPK0PXP")
+    }
+
+    @Test
+    fun `Base32 decode throws on punctuation characters`() {
+        var threw = false
+        try {
+            Base32.decode("JBSW!@#")
+        } catch (_: IllegalArgumentException) {
+            threw = true
+        }
+        assertTrue("Must throw IllegalArgumentException on non-alphabet chars", threw)
+    }
+
+    @Test
+    fun `TotpGenerator returns null when secret contains invalid Base32 characters`() {
+        val result = TotpGenerator.generateCurrentTotp(secretBase32 = "INVALID0189CHARS")
+        assertNull("Invalid Base32 characters must safely return null instead of generating wrong OTP", result)
+    }
 }

@@ -64,11 +64,35 @@ class AttachmentManager(
         uri: Uri,
         fileName: String,
         mimeType: String
+    ): VaultAttachment? = saveAttachmentFromUri(context, uri, fileName, mimeType)
+
+    /**
+     * Reads, encrypts, and saves an attachment from an Android content Uri using streaming,
+     * leveraging callerContext (e.g. Activity) to avoid SecurityException on temporary SAF URI grants.
+     */
+    override suspend fun saveAttachmentFromUri(
+        callerContext: Context,
+        uri: Uri,
+        fileName: String,
+        mimeType: String
     ): VaultAttachment? = withContext(Dispatchers.IO) {
         val inputStream = try {
-            context.contentResolver.openInputStream(uri)
-        } catch (_: Exception) {
-            null
+            callerContext.contentResolver.openInputStream(uri)
+        } catch (e: Exception) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "AttachmentManager",
+                "callerContext failed to openInputStream for $uri: ${e.message}, falling back to appContext"
+            )
+            try {
+                context.contentResolver.openInputStream(uri)
+            } catch (e2: Exception) {
+                com.kryptx.app.core.security.SecurityLogger.error(
+                    "AttachmentManager",
+                    "appContext also failed to openInputStream for $uri: ${e2.message}",
+                    e2
+                )
+                null
+            }
         } ?: return@withContext null
 
         inputStream.use { stream ->

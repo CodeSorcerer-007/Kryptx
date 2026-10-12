@@ -33,15 +33,32 @@ private fun animateColorScheme(target: ColorScheme): ColorScheme {
     val onSecondaryContainer = animateColorAsState(target.onSecondaryContainer, animationSpec = spec, label = "th_onSecondaryContainer").value
     val tertiary = animateColorAsState(target.tertiary, animationSpec = spec, label = "th_tertiary").value
     val onTertiary = animateColorAsState(target.onTertiary, animationSpec = spec, label = "th_onTertiary").value
+    val tertiaryContainer = animateColorAsState(target.tertiaryContainer, animationSpec = spec, label = "th_tertiaryContainer").value
+    val onTertiaryContainer = animateColorAsState(target.onTertiaryContainer, animationSpec = spec, label = "th_onTertiaryContainer").value
     val background = animateColorAsState(target.background, animationSpec = spec, label = "th_background").value
     val onBackground = animateColorAsState(target.onBackground, animationSpec = spec, label = "th_onBackground").value
     val surface = animateColorAsState(target.surface, animationSpec = spec, label = "th_surface").value
     val onSurface = animateColorAsState(target.onSurface, animationSpec = spec, label = "th_onSurface").value
     val surfaceVariant = animateColorAsState(target.surfaceVariant, animationSpec = spec, label = "th_surfaceVariant").value
     val onSurfaceVariant = animateColorAsState(target.onSurfaceVariant, animationSpec = spec, label = "th_onSurfaceVariant").value
+    val surfaceTint = animateColorAsState(target.surfaceTint, animationSpec = spec, label = "th_surfaceTint").value
+    val surfaceContainer = animateColorAsState(target.surfaceContainer, animationSpec = spec, label = "th_surfaceContainer").value
+    val surfaceContainerHigh = animateColorAsState(target.surfaceContainerHigh, animationSpec = spec, label = "th_surfaceContainerHigh").value
+    val surfaceContainerHighest = animateColorAsState(target.surfaceContainerHighest, animationSpec = spec, label = "th_surfaceContainerHighest").value
+    val surfaceContainerLow = animateColorAsState(target.surfaceContainerLow, animationSpec = spec, label = "th_surfaceContainerLow").value
+    val surfaceContainerLowest = animateColorAsState(target.surfaceContainerLowest, animationSpec = spec, label = "th_surfaceContainerLowest").value
+    val surfaceDim = animateColorAsState(target.surfaceDim, animationSpec = spec, label = "th_surfaceDim").value
+    val surfaceBright = animateColorAsState(target.surfaceBright, animationSpec = spec, label = "th_surfaceBright").value
+    val inverseSurface = animateColorAsState(target.inverseSurface, animationSpec = spec, label = "th_inverseSurface").value
+    val inverseOnSurface = animateColorAsState(target.inverseOnSurface, animationSpec = spec, label = "th_inverseOnSurface").value
+    val inversePrimary = animateColorAsState(target.inversePrimary, animationSpec = spec, label = "th_inversePrimary").value
     val outline = animateColorAsState(target.outline, animationSpec = spec, label = "th_outline").value
+    val outlineVariant = animateColorAsState(target.outlineVariant, animationSpec = spec, label = "th_outlineVariant").value
+    val scrim = animateColorAsState(target.scrim, animationSpec = spec, label = "th_scrim").value
     val error = animateColorAsState(target.error, animationSpec = spec, label = "th_error").value
     val onError = animateColorAsState(target.onError, animationSpec = spec, label = "th_onError").value
+    val errorContainer = animateColorAsState(target.errorContainer, animationSpec = spec, label = "th_errorContainer").value
+    val onErrorContainer = animateColorAsState(target.onErrorContainer, animationSpec = spec, label = "th_onErrorContainer").value
 
     return target.copy(
         primary = primary,
@@ -54,15 +71,32 @@ private fun animateColorScheme(target: ColorScheme): ColorScheme {
         onSecondaryContainer = onSecondaryContainer,
         tertiary = tertiary,
         onTertiary = onTertiary,
+        tertiaryContainer = tertiaryContainer,
+        onTertiaryContainer = onTertiaryContainer,
         background = background,
         onBackground = onBackground,
         surface = surface,
         onSurface = onSurface,
         surfaceVariant = surfaceVariant,
         onSurfaceVariant = onSurfaceVariant,
+        surfaceTint = surfaceTint,
+        surfaceContainer = surfaceContainer,
+        surfaceContainerHigh = surfaceContainerHigh,
+        surfaceContainerHighest = surfaceContainerHighest,
+        surfaceContainerLow = surfaceContainerLow,
+        surfaceContainerLowest = surfaceContainerLowest,
+        surfaceDim = surfaceDim,
+        surfaceBright = surfaceBright,
+        inverseSurface = inverseSurface,
+        inverseOnSurface = inverseOnSurface,
+        inversePrimary = inversePrimary,
         outline = outline,
+        outlineVariant = outlineVariant,
+        scrim = scrim,
         error = error,
-        onError = onError
+        onError = onError,
+        errorContainer = errorContainer,
+        onErrorContainer = onErrorContainer
     )
 }
 

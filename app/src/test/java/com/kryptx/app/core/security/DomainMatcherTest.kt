@@ -91,4 +91,15 @@ class DomainMatcherTest {
         // Attack scenario: malicious app with package "com.attacker.unrelated"
         assertFalse(DomainMatcher.isPackageMatch("com.attacker.unrelated", "google.com", "Google"))
     }
+
+    @Test
+    fun testMiddleSegmentPackageSpoofingRejection() {
+        // BUG-5: Attacker app embedding target brand in intermediate package segment
+        assertFalse("com.evil.mail.stealer must NOT match generic title 'Mail'",
+            DomainMatcher.isPackageMatch("com.evil.mail.stealer", null, "Mail"))
+        assertFalse("com.evil.slack.stealer must NOT match title 'Slack'",
+            DomainMatcher.isPackageMatch("com.evil.slack.stealer", null, "Slack"))
+        assertFalse("com.bank.fake.trojan must NOT match title 'Bank'",
+            DomainMatcher.isPackageMatch("com.bank.fake.trojan", null, "Bank"))
+    }
 }

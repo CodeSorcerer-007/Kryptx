@@ -40,6 +40,9 @@ object TotpGenerator {
         val cleanSecret = secretBase32.replace(" ", "").replace("-", "").uppercase()
         val keyBytes = try {
             Base32.decode(cleanSecret)
+        } catch (e: IllegalArgumentException) {
+            com.kryptx.app.core.security.SecurityLogger.warn("TotpGenerator", "Invalid Base32 secret string: ${e.message}")
+            return null
         } catch (_: Exception) {
             return null
         }
@@ -111,7 +114,8 @@ object TotpGenerator {
                 com.kryptx.app.core.crypto.SecureMemory.wipe(hash)
                 com.kryptx.app.core.crypto.SecureMemory.wipe(counterBytes)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            com.kryptx.app.core.security.SecurityLogger.warn("TotpGenerator", "HOTP/TOTP computation failed: ${e.message}", e)
             null
         }
     }
@@ -119,6 +123,7 @@ object TotpGenerator {
 
 /**
  * High-performance RFC 4648 Base32 decoder with zero autoboxing.
+ * Validates character set strictly and throws IllegalArgumentException on invalid tokens.
  */
 object Base32 {
     private const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -129,7 +134,7 @@ object Base32 {
     }
 
     fun decode(base32: String): ByteArray {
-        val clean = base32.trim().replace("=", "").uppercase()
+        val clean = base32.trim().replace("=", "").replace(" ", "").replace("-", "").uppercase()
         if (clean.isEmpty()) return ByteArray(0)
 
         val maxLen = (clean.length * 5) / 8
@@ -140,9 +145,11 @@ object Base32 {
 
         for (i in clean.indices) {
             val c = clean[i]
-            if (c.code >= 128) continue
+            if (c.code >= 128 || DECODE_TABLE[c.code] < 0) {
+                out.fill(0)
+                throw IllegalArgumentException("Invalid Base32 character: '$c'")
+            }
             val valIndex = DECODE_TABLE[c.code]
-            if (valIndex < 0) continue
 
             buffer = (buffer shl 5) or valIndex
             bitsLeft += 5

@@ -122,7 +122,7 @@ class AddEditViewModel(
         fileName: String,
         mimeType: String
     ): VaultAttachment? {
-        val saved = attachmentManager.saveAttachmentFromUri(uri, fileName, mimeType) ?: return null
+        val saved = attachmentManager.saveAttachmentFromUri(context, uri, fileName, mimeType) ?: return null
         _editorState.value?.attachments?.add(saved)
         _newAttachments.add(saved)
         return saved

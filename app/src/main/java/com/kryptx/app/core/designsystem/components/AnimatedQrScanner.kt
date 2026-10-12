@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.DecodeHintType
@@ -81,6 +83,21 @@ fun AnimatedQrScanner(
         )
     }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasCameraPermission = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            app?.sessionManager?.setPickerActive(false)
+        }
+    }
+
     // Tracks whether we have already fired the OS dialog at least once this composition
     var permissionRequested by remember { mutableStateOf(false) }
     // Controls showing the in-app rationale dialog before the OS system dialog
@@ -90,7 +107,7 @@ fun AnimatedQrScanner(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         app?.sessionManager?.setPickerActive(false)
-        hasCameraPermission = isGranted
+        hasCameraPermission = isGranted || ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         permissionRequested = true
     }
 

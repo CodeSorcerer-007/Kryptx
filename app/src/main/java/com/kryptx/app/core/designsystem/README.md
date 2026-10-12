@@ -28,6 +28,7 @@ The Kryptx Design System provides a cohesive set of Jetpack Compose components, 
 | **KryptxCard** | [`KryptxCard.kt`](components/KryptxCard.kt) | Frosted glassmorphism card with elevation, blur, and press animations |
 | **KryptxBadge** | [`KryptxBadge.kt`](components/KryptxBadge.kt) | Semantic status badges (secure, warning, breached, expired) |
 | **KryptxSnackbar** | [`KryptxSnackbar.kt`](components/KryptxSnackbar.kt) | Themed snackbar with auto-dismiss and action support |
+| **KryptxComponentCatalog** | [`KryptxComponentCatalog.kt`](components/KryptxComponentCatalog.kt) | Interactive component showcase screen rendering all primitives across themes |
 
 ### Navigation & Layout
 

@@ -206,10 +206,8 @@ fun UnlockScreen(
                             .background(KryptxBlue.copy(alpha = 0.12f))
                             .border(1.5.dp, KryptxBlue.copy(alpha = 0.40f), CircleShape)
                             .clickable {
-                                if (uiState.isBiometricsAvailable) {
-                                    KryptxHaptics.tap(view)
-                                    onTriggerBiometrics()
-                                }
+                                KryptxHaptics.tap(view)
+                                onTriggerBiometrics()
                             }
                             .bounceClick(scaleDown = 0.92f),
                         contentAlignment = Alignment.Center
@@ -227,10 +225,8 @@ fun UnlockScreen(
                         isBiometricAvailable = uiState.isBiometricsAvailable,
                         size = 124.dp,
                         onClick = {
-                            if (uiState.isBiometricsAvailable) {
-                                KryptxHaptics.tap(view)
-                                onTriggerBiometrics()
-                            }
+                            KryptxHaptics.tap(view)
+                            onTriggerBiometrics()
                         }
                     )
                 }

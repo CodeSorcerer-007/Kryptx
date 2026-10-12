@@ -167,7 +167,7 @@ fun VaultItemRow(
                         onSelectToggle?.invoke()
                     },
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(48.dp)
                         .testTag("vault_item_select_${item.id}")
                 ) {
                     Icon(

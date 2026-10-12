@@ -150,12 +150,20 @@ object SecurityBootstrapper {
             val digest = md.digest(cert)
             val hex = digest.joinToString("") { "%02x".format(it) }
 
-            // If an explicit expected fingerprint is configured, verify equality
+            // If an explicit expected fingerprint is configured, verify equality in constant time
             if (!expectedSha256Hex.isNullOrBlank()) {
-                hex.equals(expectedSha256Hex.replace(":", "").lowercase(), ignoreCase = true)
+                val cleanExpected = expectedSha256Hex.replace(":", "").lowercase()
+                if (cleanExpected.length != 64) {
+                    false
+                } else {
+                    val expectedBytes = ByteArray(32) { i ->
+                        cleanExpected.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+                    }
+                    java.security.MessageDigest.isEqual(digest, expectedBytes)
+                }
             } else {
                 // Signature exists and is well-formed
-                hex.isNotEmpty()
+                digest.isNotEmpty()
             }
         } catch (_: Throwable) {
             // Fail open ONLY in non-Android mock JVM testing environments if context lacks PM

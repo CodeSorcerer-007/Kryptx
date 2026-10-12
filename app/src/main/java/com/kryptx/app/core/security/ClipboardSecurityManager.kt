@@ -192,16 +192,27 @@ class ClipboardSecurityManager(
         clearJob = null
         _remainingSeconds.value = 0
         if (clipboardManager == null) return
+
+        synchronized(hashLock) {
+            if (lastCopiedHash == null) {
+                return
+            }
+        }
+
         try {
             val currentClip = try {
                 clipboardManager.primaryClip
             } catch (_: SecurityException) {
-                // If backgrounded, clear directly without inspecting
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    clipboardManager.clearPrimaryClip()
-                } else {
-                    val emptyClip = ClipData.newPlainText("", "")
-                    clipboardManager.setPrimaryClip(emptyClip)
+                // If backgrounded and Kryptx previously copied a secret, clear directly
+                synchronized(hashLock) {
+                    if (lastCopiedHash != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            clipboardManager.clearPrimaryClip()
+                        } else {
+                            val emptyClip = ClipData.newPlainText("", "")
+                            clipboardManager.setPrimaryClip(emptyClip)
+                        }
+                    }
                 }
                 return
             }

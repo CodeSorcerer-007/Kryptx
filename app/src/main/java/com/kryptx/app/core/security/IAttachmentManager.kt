@@ -12,6 +12,7 @@ import java.io.OutputStream
 interface IAttachmentManager {
     suspend fun saveAttachment(fileName: String, mimeType: String, data: ByteArray): VaultAttachment?
     suspend fun saveAttachmentFromUri(uri: Uri, fileName: String, mimeType: String): VaultAttachment?
+    suspend fun saveAttachmentFromUri(callerContext: android.content.Context, uri: Uri, fileName: String, mimeType: String): VaultAttachment?
     suspend fun saveAttachmentStream(fileName: String, mimeType: String, inputStream: InputStream): VaultAttachment?
     suspend fun loadDecryptedAttachment(attachment: VaultAttachment): ByteArray?
     suspend fun writeDecryptedToStream(attachment: VaultAttachment, outputStream: OutputStream): Boolean

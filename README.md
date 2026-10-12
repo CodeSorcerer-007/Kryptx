@@ -225,6 +225,16 @@ Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.g
 
 ---
 
+## 📚 Architecture & Engineering Documentation
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: End-to-end system architecture, Mermaid diagrams, delegate hierarchy, and cryptographic boundary definitions.
+- **[BUILD.md](BUILD.md)**: Step-by-step reproducible build guide, NDK targets, Rust JNI cross-compilation pipeline, and verification gates.
+- **[AUDIT.md](AUDIT.md)**: Complete security audit report tracking all 42 resolved vulnerabilities and hardenings.
+- **[Architecture Decision Records (ADRs)](docs/adr/)**: Comprehensive decision records documenting cipher choices, zero-network design, and crash defense.
+- **[Design System Catalog](app/src/main/java/com/kryptx/app/core/designsystem/README.md)**: Token specifications, typography, motion curves, and the interactive Compose component catalog.
+
+---
+
 ## 📄 Open Source License
 
 ```text

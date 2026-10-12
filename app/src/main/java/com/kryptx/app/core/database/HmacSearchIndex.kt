@@ -44,6 +44,7 @@ class HmacSearchIndex {
     // ── HMAC key lifecycle ────────────────────────────────────────────────────
 
     private val keyLock = Any()
+    @androidx.annotation.GuardedBy("keyLock")
     @Volatile
     private var searchHmacKey: ByteArray? = null
 
