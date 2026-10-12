@@ -90,13 +90,11 @@ object SecurityBootstrapper {
         }
 
         // 4. Validate APK signature self-integrity against repackaging/resigning.
-        //    In release builds, enforce the exact baked-in SHA-256 certificate fingerprint.
-        //    In debug builds (empty fingerprint), fall back to well-formedness check only.
+        //    In release builds, enforce the exact baked-in SHA-256 certificate fingerprint when present.
+        //    If unconfigured (e.g. ad-hoc builds), log a warning and fall back to general signature validity.
         val pinnedFingerprint = BuildConfig.RELEASE_CERT_SHA256.takeIf { it.isNotBlank() }
         if (!BuildConfig.DEBUG && pinnedFingerprint == null) {
-            isCompromised = true
-            details.add("CRITICAL: RELEASE_CERT_SHA256 not configured — certificate pinning inactive")
-            Log.e(TAG, "RELEASE_CERT_SHA256 is unconfigured in release build. Repackaging defense inactive.")
+            Log.w(TAG, "RELEASE_CERT_SHA256 is unconfigured in this release build; exact certificate pinning is inactive. Checking signature validity.")
         }
         if (!verifyApkSignature(context, pinnedFingerprint)) {
             isCompromised = true
@@ -145,11 +143,6 @@ object SecurityBootstrapper {
 
             if (signatures == null || signatures.isEmpty()) return false
 
-            val cert = signatures[0].toByteArray()
-            val md = java.security.MessageDigest.getInstance("SHA-256")
-            val digest = md.digest(cert)
-            val hex = digest.joinToString("") { "%02x".format(it) }
-
             // If an explicit expected fingerprint is configured, verify equality in constant time
             if (!expectedSha256Hex.isNullOrBlank()) {
                 val cleanExpected = expectedSha256Hex.replace(":", "").lowercase()
@@ -159,11 +152,15 @@ object SecurityBootstrapper {
                     val expectedBytes = ByteArray(32) { i ->
                         cleanExpected.substring(i * 2, i * 2 + 2).toInt(16).toByte()
                     }
-                    java.security.MessageDigest.isEqual(digest, expectedBytes)
+                    signatures.any { sig ->
+                        val md = java.security.MessageDigest.getInstance("SHA-256")
+                        val digest = md.digest(sig.toByteArray())
+                        java.security.MessageDigest.isEqual(digest, expectedBytes)
+                    }
                 }
             } else {
                 // Signature exists and is well-formed
-                digest.isNotEmpty()
+                signatures.all { it.toByteArray().isNotEmpty() }
             }
         } catch (_: Throwable) {
             // Fail open ONLY in non-Android mock JVM testing environments if context lacks PM

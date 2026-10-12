@@ -52,4 +52,11 @@ class SecurityBootstrapperTest {
         assertTrue(report.isCompromised)
         assertTrue(report.details.isNotEmpty())
     }
+
+    @Test
+    fun testVerifyApkSignatureInJvmEnvironment() {
+        // In local JVM unit tests, PackageManager is mocked/missing, so it gracefully succeeds
+        val result = SecurityBootstrapper.verifyApkSignature(mockContext)
+        assertTrue(result)
+    }
 }

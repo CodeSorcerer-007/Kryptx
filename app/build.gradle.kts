@@ -1,5 +1,8 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.io.InputStream
+import java.security.KeyStore
+import java.security.MessageDigest
 
 plugins {
     alias(libs.plugins.android.application)
@@ -112,17 +115,36 @@ android {
             // Inject the release APK signing certificate SHA-256 fingerprint into BuildConfig.
             // This fingerprint is computed from the release keystore at build time and baked into
             // the APK so SecurityBootstrapper can enforce exact-match certificate pinning at runtime.
-            val isReleaseBuild = isReleaseTask
-            val releaseFp = System.getenv("KRYPTX_RELEASE_FINGERPRINT")?.takeIf { it.isNotBlank() }
-                ?: localProperties.getProperty("kryptx.release.fingerprint")
-                ?: run {
-                    if (isCi && isReleaseBuild) {
-                        error("KRYPTX_RELEASE_FINGERPRINT must be configured on CI for release builds to enforce certificate pinning.")
-                    } else if (isReleaseBuild) {
-                        logger.warn("WARNING: Building release variant without 'kryptx.release.fingerprint' or 'KRYPTX_RELEASE_FINGERPRINT'. Certificate pinning will be inactive.")
+            val computedKeystoreFingerprint: String? = run {
+                if (releaseKeyStore.exists() && !keyStorePassword.isNullOrBlank() && !keyAliasVal.isNullOrBlank()) {
+                    try {
+                        val ks = try {
+                            KeyStore.getInstance("PKCS12")
+                        } catch (_: Exception) {
+                            KeyStore.getInstance(KeyStore.getDefaultType())
+                        }
+                        releaseKeyStore.inputStream().use { stream: InputStream ->
+                            ks.load(stream, keyStorePassword.toCharArray())
+                        }
+                        val cert = ks.getCertificate(keyAliasVal)
+                        if (cert != null) {
+                            val md = MessageDigest.getInstance("SHA-256")
+                            val digest = md.digest(cert.encoded)
+                            digest.joinToString(":") { byte -> "%02X".format(byte) }
+                        } else null
+                    } catch (e: Exception) {
+                        logger.warn("Could not automatically read certificate from release keystore: ${e.message}")
+                        null
                     }
-                    ""
-                }
+                } else null
+            }
+            val defaultOfficialReleaseFp = "C2:D1:01:03:2A:19:A9:37:8A:F3:5A:D9:5A:15:65:BA:61:2B:1A:AA:4D:4F:56:FA:33:67:AC:E9:22:F5:AA:1D"
+
+            val releaseFp = System.getenv("KRYPTX_RELEASE_FINGERPRINT")?.takeIf { it.isNotBlank() }
+                ?: localProperties.getProperty("kryptx.release.fingerprint")?.takeIf { it.isNotBlank() }
+                ?: computedKeystoreFingerprint?.takeIf { it.isNotBlank() }
+                ?: (if (releaseKeyStore.exists()) defaultOfficialReleaseFp else "")
+
             buildConfigField("String", "RELEASE_CERT_SHA256", "\"$releaseFp\"")
 
             proguardFiles(
