@@ -732,7 +732,7 @@ class VaultAuthRepositoryImpl(
         dbHelper.clearAllData()
         decoyDbHelper.clearAllData()
         keystoreManager.removeBiometricKey()
-        sessionManager.lockVault()
+        sessionManager.lock()
     }
 
     override fun isHardwareKeyEnrolled(): Boolean {

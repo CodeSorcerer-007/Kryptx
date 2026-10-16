@@ -301,4 +301,48 @@ class TotpGeneratorTest {
         val result = TotpGenerator.generateCurrentTotp(secretBase32 = "INVALID0189CHARS")
         assertNull("Invalid Base32 characters must safely return null instead of generating wrong OTP", result)
     }
+
+    @Test
+    fun `TotpGenerator handles period 0 or negative without division by zero`() {
+        val codeZero = TotpGenerator.generateCurrentTotp(
+            secretBase32 = "JBSWY3DPEHPK3PXP",
+            periodSeconds = 0
+        )
+        assertNotNull("Period 0 must be safely handled and fallback to 30s", codeZero)
+        assertEquals(30, codeZero!!.period)
+
+        val codeNegative = TotpGenerator.generateCurrentTotp(
+            secretBase32 = "JBSWY3DPEHPK3PXP",
+            periodSeconds = -10
+        )
+        assertNotNull("Negative period must be safely handled and fallback to 30s", codeNegative)
+        assertEquals(30, codeNegative!!.period)
+    }
+
+    @Test
+    fun `TotpGenerator handles digits outside 4 to 8 without throwing`() {
+        val codeZeroDigits = TotpGenerator.generateCurrentTotp(
+            secretBase32 = "JBSWY3DPEHPK3PXP",
+            digits = 0
+        )
+        assertNotNull("Digits 0 must be coerced into safe range", codeZeroDigits)
+        assertEquals(4, codeZeroDigits!!.code.length)
+
+        val codeTenDigits = TotpGenerator.generateCurrentTotp(
+            secretBase32 = "JBSWY3DPEHPK3PXP",
+            digits = 10
+        )
+        assertNotNull("Digits 10 must be coerced into safe range", codeTenDigits)
+        assertEquals(8, codeTenDigits!!.code.length)
+    }
+
+    @Test
+    fun `TotpGenerator extracts secret and config from full otpauth URI`() {
+        val uri = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=60&digits=8"
+        val code = TotpGenerator.generateCurrentTotp(secretBase32 = uri)
+        assertNotNull("Full otpauth URI must be parsed automatically", code)
+        assertEquals(8, code!!.code.length)
+        assertEquals(60, code.period)
+    }
 }
+

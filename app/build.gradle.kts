@@ -156,6 +156,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isDebuggable = true
+            enableUnitTestCoverage = true
             // Debug builds have no pinned fingerprint — they use the debug keystore
             buildConfigField("String", "RELEASE_CERT_SHA256", "\"\"")
         }
@@ -414,7 +415,18 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         html.required.set(true)
     }
 
-    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+    val debugTree = fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") {
+        exclude(
+            "**/R.class",
+            "**/R$*.class",
+            "**/BuildConfig.*",
+            "**/Manifest*.*",
+            "**/*Test*.*",
+            "android/**/*.*",
+            "**/ui/**"
+        )
+    }
+    val javaTree = fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/compileDebugJavaWithJavac/classes") {
         exclude(
             "**/R.class",
             "**/R$*.class",
@@ -428,7 +440,7 @@ tasks.register<JacocoReport>("jacocoTestReport") {
     val mainSrc = "${project.projectDir}/src/main/java"
 
     sourceDirectories.setFrom(files(mainSrc))
-    classDirectories.setFrom(files(debugTree))
+    classDirectories.setFrom(files(debugTree, javaTree))
     executionData.setFrom(fileTree(layout.buildDirectory.get()) {
         include(
             "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
@@ -442,7 +454,20 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     description = "Verify code coverage threshold for debug unit tests"
     dependsOn("jacocoTestReport")
 
-    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+    val debugTree = fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") {
+        exclude(
+            "**/R.class",
+            "**/R$*.class",
+            "**/BuildConfig.*",
+            "**/Manifest*.*",
+            "**/*Test*.*",
+            "android/**/*.*",
+            "**/ui/**",
+            "**/components/**",
+            "**/generated/**"
+        )
+    }
+    val javaTree = fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/compileDebugJavaWithJavac/classes") {
         exclude(
             "**/R.class",
             "**/R$*.class",
@@ -458,7 +483,7 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     val mainSrc = "${project.projectDir}/src/main/java"
 
     sourceDirectories.setFrom(files(mainSrc))
-    classDirectories.setFrom(files(debugTree))
+    classDirectories.setFrom(files(debugTree, javaTree))
     executionData.setFrom(fileTree(layout.buildDirectory.get()) {
         include(
             "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",

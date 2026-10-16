@@ -100,4 +100,88 @@ class VaultMigrationTest {
         assertTrue(csv.contains("\"CRLF\rTitle\""))
         assertTrue(csv.contains("\"Line1\r\nLine2\""))
     }
+
+    @Test
+    fun testImportCsvWithUtf8Bom() {
+        val bomCsv = "\uFEFFname,url,username,password\nGitHub,https://github.com,octocat,Pass123!"
+        val items = VaultImporter.importAutoDetect(bomCsv)
+        assertEquals(1, items.size)
+        assertEquals("GitHub", items[0].title)
+        assertEquals("octocat", items[0].username)
+        assertEquals("Pass123!", items[0].password)
+    }
+
+    @Test
+    fun testImportSemicolonDelimitedCsv() {
+        val semicolonCsv = "name;url;username;password;notes\nPersonal Bank;https://bank.eu;myuser;SecretPin;European style"
+        val items = VaultImporter.importAutoDetect(semicolonCsv)
+        assertEquals(1, items.size)
+        assertEquals("Personal Bank", items[0].title)
+        assertEquals("myuser", items[0].username)
+        assertEquals("SecretPin", items[0].password)
+        assertEquals("https://bank.eu", items[0].website)
+    }
+
+    @Test
+    fun testBitwardenJsonWithNullLoginAndCardsDoesNotCrash() {
+        val bitwardenJsonWithNulls = """
+            {
+              "items": [
+                {
+                  "type": 2,
+                  "name": "Secret Server Recovery Codes",
+                  "notes": "Code1\nCode2\nCode3",
+                  "login": null,
+                  "card": null,
+                  "fields": null
+                },
+                {
+                  "type": 1,
+                  "name": "GitLab",
+                  "notes": "",
+                  "login": {
+                    "username": "gitlab_user",
+                    "password": "GitLabPassword456!",
+                    "totp": null,
+                    "uris": null
+                  },
+                  "card": null
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val items = VaultImporter.importJson(bitwardenJsonWithNulls)
+        assertEquals(2, items.size)
+        assertEquals("Secret Server Recovery Codes", items[0].title)
+        assertEquals(com.kryptx.app.core.model.ItemType.SECURE_NOTE, items[0].type)
+        assertEquals("Code1\nCode2\nCode3", items[0].notes)
+
+        assertEquals("GitLab", items[1].title)
+        assertEquals("gitlab_user", items[1].username)
+        assertEquals("GitLabPassword456!", items[1].password)
+    }
+
+    @Test
+    fun testImportGenericJsonArrayFallback() {
+        val genericArrayJson = """
+            [
+              {
+                "title": "AWS Root Account",
+                "username": "aws_admin",
+                "password": "SuperSecretAwsPassword!",
+                "website": "https://aws.amazon.com",
+                "notes": "Root credentials"
+              }
+            ]
+        """.trimIndent()
+
+        val items = VaultImporter.importAutoDetect(genericArrayJson)
+        assertEquals(1, items.size)
+        assertEquals("AWS Root Account", items[0].title)
+        assertEquals("aws_admin", items[0].username)
+        assertEquals("SuperSecretAwsPassword!", items[0].password)
+        assertEquals("https://aws.amazon.com", items[0].website)
+    }
 }
+

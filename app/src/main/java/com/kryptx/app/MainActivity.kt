@@ -18,6 +18,7 @@ import com.kryptx.app.core.security.ScreenshotProtection
 import com.kryptx.app.core.security.SecurityBootstrapper
 import com.kryptx.app.core.security.SecurityLogger
 import com.kryptx.app.core.util.DisplayConfigurator
+import com.kryptx.app.feature.auth.BiometricCoordinator
 import com.kryptx.app.feature.auth.NfcDispatcher
 import com.kryptx.app.feature.auth.SecurityCompromisedActivity
 import com.kryptx.app.feature.auth.UnlockViewModel
@@ -29,7 +30,6 @@ import com.kryptx.app.feature.settings.SettingsViewModel
 import com.kryptx.app.feature.totp.TotpViewModel
 import com.kryptx.app.feature.vault.VaultViewModel
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Root host activity for the Kryptx application.
@@ -49,7 +49,7 @@ class MainActivity : FragmentActivity() {
     private lateinit var settingsViewModel: SettingsViewModel
 
     private lateinit var nfcDispatcher: NfcDispatcher
-    private var isPromptingBiometrics = AtomicBoolean(false)
+    private lateinit var biometricCoordinator: BiometricCoordinator
 
     private var hasAutoPromptedBiometrics = false
     private var pendingShortcutTarget by mutableStateOf<String?>(null)
@@ -100,6 +100,16 @@ class MainActivity : FragmentActivity() {
         totpViewModel = viewModelProvider[TotpViewModel::class.java]
         searchViewModel = viewModelProvider[SearchViewModel::class.java]
         settingsViewModel = viewModelProvider[SettingsViewModel::class.java]
+
+        biometricCoordinator = BiometricCoordinator(
+            activity = this,
+            biometricManager = app.biometricManager,
+            sessionManager = app.sessionManager,
+            vaultRepository = app.vaultRepository,
+            preferencesRepository = app.preferencesRepository,
+            activityLogManager = app.activityLogManager,
+            unlockViewModel = unlockViewModel
+        )
 
         nfcDispatcher = NfcDispatcher(this)
 
@@ -177,10 +187,10 @@ class MainActivity : FragmentActivity() {
                     pendingShortcutTarget = pendingShortcutTarget,
                     onClearPendingShortcut = { pendingShortcutTarget = null },
                     onTriggerBiometrics = {
-                        triggerBiometricUnlock(force = true)
+                        biometricCoordinator.triggerUnlock(force = true)
                     },
                     onEnrollBiometrics = { onResult ->
-                        triggerBiometricEnrollment(onResult)
+                        biometricCoordinator.triggerEnrollment(onResult)
                     }
                 )
             }
@@ -216,7 +226,7 @@ class MainActivity : FragmentActivity() {
 
             if (hasVault && !isUnlocked && isBiometrics && !hasAutoPromptedBiometrics) {
                 hasAutoPromptedBiometrics = true
-                triggerBiometricUnlock()
+                biometricCoordinator.triggerUnlock()
             }
 
             if (app.preferencesRepository.shakeToLockEnabled.value) {
@@ -238,10 +248,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onStop() {
         super.onStop()
-        isPromptingBiometrics.set(false)
-        try {
-            app.biometricManager.cancelAuthentication()
-        } catch (_: Throwable) {}
+        biometricCoordinator.cancelAuthentication()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -254,232 +261,6 @@ class MainActivity : FragmentActivity() {
         try {
             contextualLockManager?.stopListening()
         } catch (_: Throwable) {}
-    }
-
-    private fun triggerBiometricUnlock(force: Boolean = false) {
-        try {
-            if (!isPromptingBiometrics.compareAndSet(false, true) && !force) return
-            if (!app.biometricManager.canAuthenticate(requireStrong = true)) {
-                isPromptingBiometrics.set(false)
-                if (force) {
-                    val status = app.biometricManager.checkBiometricAvailability(requireStrong = true)
-                    val msg = when (status) {
-                        BiometricAuthManager.BiometricStatus.NOT_ENROLLED ->
-                            "No biometric enrolled on device. Please add a fingerprint in Android Settings."
-                        BiometricAuthManager.BiometricStatus.NO_HARDWARE ->
-                            "Biometric hardware not available on this device."
-                        else ->
-                            "Biometrics unavailable. Please use master password."
-                    }
-                    unlockViewModel.setErrorMessage(msg)
-                }
-                return
-            }
-            if (app.sessionManager.isUnlocked.value) {
-                isPromptingBiometrics.set(false)
-                return
-            }
-            if (unlockViewModel.lockoutSecondsRemaining.value > 0) {
-                isPromptingBiometrics.set(false)
-                return
-            }
-
-            val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
-            if (!isConfigured) {
-                isPromptingBiometrics.set(false)
-                if (force) {
-                    unlockViewModel.setErrorMessage("Biometric unlock not configured. Please use your master password.")
-                }
-                return
-            }
-
-            if (force) {
-                try {
-                    app.biometricManager.cancelAuthentication()
-                } catch (_: Throwable) {}
-            }
-
-            val decryptCipher = try {
-                app.vaultRepository.getBiometricDecryptCipher()
-            } catch (t: Throwable) {
-                SecurityLogger.warn("MainActivity", "Failed to obtain biometric decrypt cipher", t)
-                null
-            }
-
-            if (decryptCipher == null) {
-                // Keystore key was invalidated by biometric enrollment change or is unavailable
-                isPromptingBiometrics.set(false)
-                unlockViewModel.setErrorMessage("Biometric key invalidated. Unlock with Master Password to re-enroll.")
-                return
-            }
-
-            val cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(decryptCipher)
-
-            app.biometricManager.promptBiometric(
-                activity = this,
-                title = getString(R.string.biometric_prompt_title),
-                subtitle = getString(R.string.biometric_prompt_subtitle),
-                cryptoObject = cryptoObject,
-                onSuccess = { result ->
-                    isPromptingBiometrics.set(false)
-                    val authenticatedCipher = result.cryptoObject?.cipher
-                    if (authenticatedCipher != null) {
-                        unlockViewModel.unlockWithBiometricCipher(authenticatedCipher, onSuccess = {
-                            com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
-                            com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
-                        })
-                    } else {
-                        unlockViewModel.setErrorMessage("Biometric authentication failed. Please use master password.")
-                    }
-                },
-                onError = { errorCode, errString ->
-                    isPromptingBiometrics.set(false)
-                    if (errorCode != androidx.biometric.BiometricPrompt.ERROR_USER_CANCELED &&
-                        errorCode != androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
-                        errorCode != androidx.biometric.BiometricPrompt.ERROR_CANCELED) {
-                        SecurityLogger.warn("MainActivity", "Biometric prompt error: $errorCode - $errString")
-                        unlockViewModel.setErrorMessage(sanitizeBiometricError(errorCode, errString))
-                    }
-                },
-                onFailed = {
-                    // Wrong finger tapped — prompt dialog is still visible, record attempt for throttling
-                    app.sessionManager.recordFailedAttempt()
-                }
-            )
-        } catch (t: Throwable) {
-            isPromptingBiometrics.set(false)
-            SecurityLogger.error("MainActivity", "Unhandled exception in triggerBiometricUnlock", t)
-        }
-    }
-
-    private fun triggerBiometricEnrollment(onResult: (Boolean) -> Unit) {
-        try {
-            if (!isPromptingBiometrics.compareAndSet(false, true)) {
-                onResult(false)
-                return
-            }
-            if (!app.biometricManager.canAuthenticate(requireStrong = true)) {
-                isPromptingBiometrics.set(false)
-                val status = app.biometricManager.checkBiometricAvailability(requireStrong = true)
-                val msg = when (status) {
-                    BiometricAuthManager.BiometricStatus.NOT_ENROLLED ->
-                        "No biometric enrolled on device. Please add a fingerprint in Android Settings."
-                    BiometricAuthManager.BiometricStatus.NO_HARDWARE ->
-                        "Biometric hardware not available on this device."
-                    else ->
-                        "Biometrics unavailable on this device."
-                }
-                unlockViewModel.setErrorMessage(msg)
-                onResult(false)
-                return
-            }
-
-            lifecycleScope.launch {
-                val setupResult = app.vaultRepository.setupBiometrics()
-                if (setupResult.isError) {
-                    isPromptingBiometrics.set(false)
-                    unlockViewModel.setErrorMessage("Biometric setup failed. Please try again.")
-                    onResult(false)
-                    return@launch
-                }
-
-                val encryptCipher = try {
-                    app.vaultRepository.getBiometricEncryptCipher()
-                } catch (t: Throwable) {
-                    SecurityLogger.warn("MainActivity", "Failed to obtain biometric encrypt cipher for enrollment", t)
-                    null
-                }
-
-                if (encryptCipher == null) {
-                    SecurityLogger.warn("MainActivity", "Failed to obtain biometric encrypt cipher")
-                    isPromptingBiometrics.set(false)
-                    unlockViewModel.setErrorMessage("Biometric setup failed. Please try again.")
-                    onResult(false)
-                    return@launch
-                }
-
-                val cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(encryptCipher)
-
-                app.biometricManager.promptBiometric(
-                    activity = this@MainActivity,
-                    title = getString(R.string.biometric_prompt_enroll_title),
-                    subtitle = getString(R.string.biometric_prompt_enroll_subtitle),
-                    negativeButtonText = getString(R.string.biometric_prompt_enroll_cancel),
-                    cryptoObject = cryptoObject,
-                    onSuccess = { result ->
-                        isPromptingBiometrics.set(false)
-                        val authenticatedCipher = result.cryptoObject?.cipher
-                        if (authenticatedCipher != null) {
-                            lifecycleScope.launch {
-                                val enrollResult = app.vaultRepository.setupBiometricsWithCipher(authenticatedCipher)
-                                if (enrollResult.isSuccess) {
-                                    app.preferencesRepository.setBiometricEnabled(true)
-                                    unlockViewModel.checkVaultStatus()
-                                    com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
-                                    com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
-                                    app.activityLogManager.logEvent("Security", "Biometric unlock verified and activated")
-                                    app.activityLogManager.loadEvents()
-                                    onResult(true)
-                                } else {
-                                    app.preferencesRepository.setBiometricEnabled(false)
-                                    unlockViewModel.setErrorMessage("Biometric enrollment failed. Please try again.")
-                                    onResult(false)
-                                }
-                            }
-                        } else {
-                            lifecycleScope.launch {
-                                val enrollResult = app.vaultRepository.setupBiometrics()
-                                if (enrollResult.isSuccess) {
-                                    app.preferencesRepository.setBiometricEnabled(true)
-                                    unlockViewModel.checkVaultStatus()
-                                    com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(window.decorView)
-                                    com.kryptx.app.core.designsystem.components.KryptxAudio.unlockChime(this@MainActivity)
-                                    app.activityLogManager.logEvent("Security", "Biometric unlock verified and activated")
-                                    app.activityLogManager.loadEvents()
-                                    onResult(true)
-                                } else {
-                                    app.preferencesRepository.setBiometricEnabled(false)
-                                    unlockViewModel.setErrorMessage("Biometric enrollment failed. Please try again.")
-                                    onResult(false)
-                                }
-                            }
-                        }
-                    },
-                    onError = { errorCode, errString ->
-                        isPromptingBiometrics.set(false)
-                        app.preferencesRepository.setBiometricEnabled(false)
-                        SecurityLogger.warn("MainActivity", "Biometric enrollment error: $errorCode - $errString")
-                        unlockViewModel.setErrorMessage("Biometric setup failed: ${sanitizeBiometricError(errorCode, errString)}")
-                        onResult(false)
-                    },
-                    onFailed = {
-                        unlockViewModel.setErrorMessage("Biometric authentication failed. Please try again.")
-                    }
-                )
-            }
-        } catch (t: Throwable) {
-            isPromptingBiometrics.set(false)
-            SecurityLogger.error("MainActivity", "Unhandled exception in triggerBiometricEnrollment", t)
-            onResult(false)
-        }
-    }
-
-    private fun sanitizeBiometricError(errorCode: Int, errString: CharSequence?): String {
-        return when (errorCode) {
-            androidx.biometric.BiometricPrompt.ERROR_HW_UNAVAILABLE,
-            androidx.biometric.BiometricPrompt.ERROR_HW_NOT_PRESENT ->
-                "Biometric authentication is unavailable on this device"
-            androidx.biometric.BiometricPrompt.ERROR_LOCKOUT,
-            androidx.biometric.BiometricPrompt.ERROR_LOCKOUT_PERMANENT ->
-                "Too many failed biometric attempts. Please wait or use master password."
-            androidx.biometric.BiometricPrompt.ERROR_NO_BIOMETRICS ->
-                "No biometrics enrolled. Add biometric credential in device settings."
-            androidx.biometric.BiometricPrompt.ERROR_SECURITY_UPDATE_REQUIRED ->
-                "Device security update required for biometric authentication"
-            androidx.biometric.BiometricPrompt.ERROR_TIMEOUT ->
-                "Biometric authentication timed out"
-            else -> if (!errString.isNullOrBlank()) errString.toString() else "Biometric authentication failed. Please try again."
-        }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {

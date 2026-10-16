@@ -185,22 +185,23 @@ object CrashDefense {
     /**
      * Returns true if [throwable] is security-critical and must NOT be swallowed by the
      * immortal looper. The following categories are treated as security-critical:
+     * - Strongly-typed [SecurityCriticalException] instances
      * - Cryptographic failures: javax.crypto.*, java.security.*
      * - SQLCipher / database key errors: net.zetetic.*
      * - Vault session failures from our own security package
      * - OutOfMemoryError (could indicate a memory exhaustion attack or key allocation failure)
      * - StackOverflowError (could indicate recursive tampering hook)
      */
-    private fun isSecurityCritical(throwable: Throwable): Boolean {
+    fun isSecurityCritical(throwable: Throwable): Boolean {
+        if (throwable is SecurityCriticalException) return true
+        if (throwable is OutOfMemoryError || throwable is StackOverflowError) return true
         val name = throwable::class.java.name
         return name.startsWith("javax.crypto.") ||
                name.startsWith("java.security.") ||
                name.startsWith("net.zetetic.") ||
                name.contains("VaultSession", ignoreCase = true) ||
                name.contains("KeyDerivation", ignoreCase = true) ||
-               name.contains("CryptoEngine", ignoreCase = true) ||
-               throwable is OutOfMemoryError ||
-               throwable is StackOverflowError
+               name.contains("CryptoEngine", ignoreCase = true)
     }
 
     /**
@@ -277,3 +278,24 @@ object CrashDefense {
         }
     }
 }
+
+/**
+ * Marker interface for exceptions that are strictly security-critical and MUST NOT
+ * be intercepted or swallowed by the immortal looper.
+ */
+sealed interface SecurityCriticalException
+
+open class SecurityCriticalRuntimeException(
+    message: String? = null,
+    cause: Throwable? = null
+) : RuntimeException(message, cause), SecurityCriticalException
+
+class VaultKeyDerivationException(message: String? = null, cause: Throwable? = null) :
+    SecurityCriticalRuntimeException(message, cause)
+
+class CipherIntegrityException(message: String? = null, cause: Throwable? = null) :
+    SecurityCriticalRuntimeException(message, cause)
+
+class VaultSessionException(message: String? = null, cause: Throwable? = null) :
+    SecurityCriticalRuntimeException(message, cause)
+

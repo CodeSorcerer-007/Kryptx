@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.PersistableBundle
+import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.database.IPreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,16 @@ class ClipboardSecurityManager(
         return java.security.MessageDigest.getInstance("SHA-256").digest(str.toByteArray(Charsets.UTF_8))
     }
 
+    private fun clearPrimaryClipInternal() {
+        if (clipboardManager == null) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            clipboardManager.clearPrimaryClip()
+        } else {
+            val emptyClip = ClipData.newPlainText("", "")
+            clipboardManager.setPrimaryClip(emptyClip)
+        }
+    }
+
     private val _remainingSeconds = MutableStateFlow(0)
     override val remainingSeconds: StateFlow<Int> = _remainingSeconds.asStateFlow()
 
@@ -74,7 +85,7 @@ class ClipboardSecurityManager(
 
             clipboardManager.setPrimaryClip(clip)
             synchronized(hashLock) {
-                lastCopiedHash?.fill(0)
+                lastCopiedHash?.let { SecureMemory.wipe(it) }
                 lastCopiedHash = hash
             }
         } catch (_: Exception) {
@@ -149,13 +160,8 @@ class ClipboardSecurityManager(
                 // Since this clear was triggered for sensitive text Kryptx copied, clear proactively.
                 synchronized(hashLock) {
                     if (lastCopiedHash != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            clipboardManager.clearPrimaryClip()
-                        } else {
-                            val emptyClip = ClipData.newPlainText("", "")
-                            clipboardManager.setPrimaryClip(emptyClip)
-                        }
-                        lastCopiedHash?.fill(0)
+                        clearPrimaryClipInternal()
+                        lastCopiedHash?.let { SecureMemory.wipe(it) }
                         lastCopiedHash = null
                     }
                 }
@@ -164,21 +170,18 @@ class ClipboardSecurityManager(
             if (currentClip != null && currentClip.itemCount > 0) {
                 val currentText = currentClip.getItemAt(0).text?.toString() ?: ""
                 val currentHash = sha256(currentText)
-                val targetHash = sha256(text)
-                synchronized(hashLock) {
-                    val savedHash = lastCopiedHash
-                    val matches = java.security.MessageDigest.isEqual(currentHash, targetHash) ||
-                            (savedHash != null && java.security.MessageDigest.isEqual(currentHash, savedHash))
-                    if (matches) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            clipboardManager.clearPrimaryClip()
-                        } else {
-                            val emptyClip = ClipData.newPlainText("", "")
-                            clipboardManager.setPrimaryClip(emptyClip)
+                try {
+                    synchronized(hashLock) {
+                        val savedHash = lastCopiedHash
+                        val matches = savedHash != null && java.security.MessageDigest.isEqual(currentHash, savedHash)
+                        if (matches) {
+                            clearPrimaryClipInternal()
+                            SecureMemory.wipe(savedHash)
+                            lastCopiedHash = null
                         }
-                        lastCopiedHash?.fill(0)
-                        lastCopiedHash = null
                     }
+                } finally {
+                    SecureMemory.wipe(currentHash)
                 }
             }
         } catch (_: Exception) {}
@@ -206,12 +209,7 @@ class ClipboardSecurityManager(
                 // If backgrounded and Kryptx previously copied a secret, clear directly
                 synchronized(hashLock) {
                     if (lastCopiedHash != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            clipboardManager.clearPrimaryClip()
-                        } else {
-                            val emptyClip = ClipData.newPlainText("", "")
-                            clipboardManager.setPrimaryClip(emptyClip)
-                        }
+                        clearPrimaryClipInternal()
                     }
                 }
                 return
@@ -219,21 +217,20 @@ class ClipboardSecurityManager(
             if (currentClip != null && currentClip.itemCount > 0) {
                 val currentText = currentClip.getItemAt(0).text?.toString() ?: ""
                 val currentHash = sha256(currentText)
-                synchronized(hashLock) {
-                    val savedHash = lastCopiedHash
-                    if (savedHash != null && java.security.MessageDigest.isEqual(currentHash, savedHash)) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            clipboardManager.clearPrimaryClip()
-                        } else {
-                            val emptyClip = ClipData.newPlainText("", "")
-                            clipboardManager.setPrimaryClip(emptyClip)
+                try {
+                    synchronized(hashLock) {
+                        val savedHash = lastCopiedHash
+                        if (savedHash != null && java.security.MessageDigest.isEqual(currentHash, savedHash)) {
+                            clearPrimaryClipInternal()
                         }
                     }
+                } finally {
+                    SecureMemory.wipe(currentHash)
                 }
             }
         } catch (_: Exception) {} finally {
             synchronized(hashLock) {
-                lastCopiedHash?.fill(0)
+                lastCopiedHash?.let { SecureMemory.wipe(it) }
                 lastCopiedHash = null
             }
         }

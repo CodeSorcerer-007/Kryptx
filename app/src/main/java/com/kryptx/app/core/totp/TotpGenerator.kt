@@ -37,7 +37,30 @@ object TotpGenerator {
         algorithm: HashAlgorithm = HashAlgorithm.SHA1,
         currentTimeMillis: Long = System.currentTimeMillis()
     ): TotpCode? {
-        val cleanSecret = secretBase32.replace(" ", "").replace("-", "").uppercase()
+        val trimmed = secretBase32.trim()
+        if (trimmed.isEmpty()) return null
+
+        var actualSecret = trimmed
+        var effectivePeriod = if (periodSeconds > 0) periodSeconds else 30
+        var effectiveDigits = digits.coerceIn(4, 8)
+        var effectiveAlgo = algorithm
+
+        if (trimmed.startsWith("otpauth://", ignoreCase = true)) {
+            val parsed = UriParser.parse(trimmed)
+            if (parsed != null) {
+                actualSecret = parsed.secret
+                effectivePeriod = parsed.period
+                effectiveDigits = parsed.digits
+                effectiveAlgo = parsed.algorithm
+            } else {
+                val secretParam = trimmed.substringAfter("secret=", "").substringBefore('&').substringBefore('#')
+                if (secretParam.isNotBlank()) {
+                    actualSecret = secretParam
+                }
+            }
+        }
+
+        val cleanSecret = actualSecret.replace(" ", "").replace("-", "").replace("=", "").uppercase()
         val keyBytes = try {
             Base32.decode(cleanSecret)
         } catch (e: IllegalArgumentException) {
@@ -50,20 +73,20 @@ object TotpGenerator {
         if (keyBytes.isEmpty()) return null
 
         val currentTimeSeconds = currentTimeMillis / 1000L
-        val counter = currentTimeSeconds / periodSeconds
-        val secondsRemaining = (periodSeconds - (currentTimeSeconds % periodSeconds)).toInt()
-        val progress = secondsRemaining.toFloat() / periodSeconds.toFloat()
+        val counter = currentTimeSeconds / effectivePeriod
+        val secondsRemaining = (effectivePeriod - (currentTimeSeconds % effectivePeriod)).toInt()
+        val progress = secondsRemaining.toFloat() / effectivePeriod.toFloat()
 
         val rawCode = try {
-            generateHotp(keyBytes, counter, digits, algorithm) ?: return null
+            generateHotp(keyBytes, counter, effectiveDigits, effectiveAlgo) ?: return null
         } finally {
             com.kryptx.app.core.crypto.SecureMemory.wipe(keyBytes)
         }
-        val paddedCode = rawCode.padStart(digits, '0')
+        val paddedCode = rawCode.padStart(effectiveDigits, '0')
 
-        val formatted = if (digits == 6 && paddedCode.length == 6) {
+        val formatted = if (effectiveDigits == 6 && paddedCode.length == 6) {
             "${paddedCode.substring(0, 3)} ${paddedCode.substring(3, 6)}"
-        } else if (digits == 8 && paddedCode.length == 8) {
+        } else if (effectiveDigits == 8 && paddedCode.length == 8) {
             "${paddedCode.substring(0, 4)} ${paddedCode.substring(4, 8)}"
         } else {
             paddedCode
@@ -74,7 +97,7 @@ object TotpGenerator {
             formattedCode = formatted,
             secondsRemaining = secondsRemaining,
             progress = progress,
-            period = periodSeconds
+            period = effectivePeriod
         )
     }
 

@@ -79,7 +79,7 @@ class CryptographicMemoryWatchdog(
             ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
                 // Severe memory constraint: lock vault defensively and zeroize everything
                 forceScrubRegisteredBuffers()
-                sessionManager.lockVault()
+                sessionManager.lock()
                 System.gc()
             }
             else -> {
@@ -93,7 +93,7 @@ class CryptographicMemoryWatchdog(
         memoryTrimsEncountered.incrementAndGet()
         lastTrimTimestamp.set(System.currentTimeMillis())
         forceScrubRegisteredBuffers()
-        sessionManager.lockVault()
+        sessionManager.lock()
         System.gc()
     }
 

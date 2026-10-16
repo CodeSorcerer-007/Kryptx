@@ -20,16 +20,20 @@ object UriParser {
 
     fun parse(uriString: String): ParsedTotp? {
         val trimmed = uriString.trim()
-        val schemePrefix = "otpauth://totp/"
-        if (!trimmed.startsWith(schemePrefix, ignoreCase = true)) return null
+        val lower = trimmed.lowercase()
+        if (!lower.startsWith("otpauth://totp")) return null
 
         return try {
-            val contentAfterScheme = trimmed.substring(schemePrefix.length)
-            val questionMarkIdx = contentAfterScheme.indexOf('?')
+            val questionMarkIdx = trimmed.indexOf('?')
             if (questionMarkIdx == -1) return null
 
-            val rawLabel = contentAfterScheme.substring(0, questionMarkIdx)
-            val queryString = contentAfterScheme.substring(questionMarkIdx + 1)
+            val labelPart = if (questionMarkIdx > "otpauth://totp".length) {
+                val afterTotp = trimmed.substring("otpauth://totp".length, questionMarkIdx)
+                afterTotp.removePrefix("/")
+            } else {
+                ""
+            }
+            val queryString = trimmed.substring(questionMarkIdx + 1)
 
             val queryParams = mutableMapOf<String, String>()
             val pairs = queryString.split("&")
@@ -44,7 +48,7 @@ object UriParser {
 
             val secret = queryParams["secret"]?.takeIf { it.isNotBlank() } ?: return null
 
-            val decodedLabel = URLDecoder.decode(rawLabel, "UTF-8")
+            val decodedLabel = URLDecoder.decode(labelPart, "UTF-8")
             var issuer = queryParams["issuer"] ?: ""
             var accountName = decodedLabel
 
@@ -54,8 +58,12 @@ object UriParser {
                 accountName = parts[1].trim()
             }
 
-            val period = queryParams["period"]?.toIntOrNull() ?: 30
-            val digits = queryParams["digits"]?.toIntOrNull() ?: 6
+            val parsedPeriod = queryParams["period"]?.toIntOrNull()
+            val period = if (parsedPeriod != null && parsedPeriod > 0) parsedPeriod else 30
+
+            val parsedDigits = queryParams["digits"]?.toIntOrNull()
+            val digits = if (parsedDigits != null && parsedDigits in 4..8) parsedDigits else 6
+
             val algoStr = queryParams["algorithm"]?.uppercase() ?: "SHA1"
 
             val algorithm = when (algoStr) {

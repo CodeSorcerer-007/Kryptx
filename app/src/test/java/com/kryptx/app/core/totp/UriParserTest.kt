@@ -58,4 +58,29 @@ class UriParserTest {
         assertEquals("Google", reparsed?.issuer)
         assertEquals("test@gmail.com", reparsed?.accountName)
     }
+
+    @Test
+    fun testParseUriWithInvalidPeriodAndDigitsDefaultsSafely() {
+        val uri = "otpauth://totp/Test:User?secret=JBSWY3DPEHPK3PXP&period=0&digits=0"
+        val parsed = UriParser.parse(uri)
+        assertNotNull(parsed)
+        assertEquals(30, parsed!!.period)
+        assertEquals(6, parsed.digits)
+
+        val uriNegative = "otpauth://totp/Test:User?secret=JBSWY3DPEHPK3PXP&period=-5&digits=99"
+        val parsedNeg = UriParser.parse(uriNegative)
+        assertNotNull(parsedNeg)
+        assertEquals(30, parsedNeg!!.period)
+        assertEquals(6, parsedNeg.digits)
+    }
+
+    @Test
+    fun testParseUriWithoutTrailingSlash() {
+        val uri = "otpauth://totp?secret=JBSWY3DPEHPK3PXP&issuer=Service"
+        val parsed = UriParser.parse(uri)
+        assertNotNull(parsed)
+        assertEquals("JBSWY3DPEHPK3PXP", parsed!!.secret)
+        assertEquals("Service", parsed.issuer)
+    }
 }
+

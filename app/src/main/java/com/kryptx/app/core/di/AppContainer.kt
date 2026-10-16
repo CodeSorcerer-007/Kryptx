@@ -173,6 +173,7 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
     override fun close() {
         try { memoryWatchdog.unregister() } catch (_: Throwable) {}
         try { sessionManager.lock(isTimeout = false) } catch (_: Throwable) {}
+        try { sessionManager.clearAllListeners() } catch (_: Throwable) {}
         try { dbHelper.close() } catch (_: Throwable) {}
         try { decoyDbHelper.close() } catch (_: Throwable) {}
     }

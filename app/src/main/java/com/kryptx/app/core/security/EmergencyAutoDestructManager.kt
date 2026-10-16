@@ -224,9 +224,13 @@ class EmergencyAutoDestructManager(
 
     /**
      * Overwrites a file on storage with random bytes before truncation and deletion.
+     *
      * Note: On modern flash memory with Wear Leveling / Flash Translation Layers (FTL),
-     * physical block overwriting is best-effort. The primary defense against physical
-     * data recovery remains full-database encryption (SQLCipher) and immediate key zeroization.
+     * physical block overwriting is best-effort (documented in ADR-010). The primary
+     * defense against physical data recovery remains full-database encryption (SQLCipher)
+     * and immediate volatile key zeroization.
+     *
+     * @param file The target [File] on local flash storage to overwrite, truncate, and sanitize.
      */
     private fun secureOverwriteFile(file: File) {
         try {

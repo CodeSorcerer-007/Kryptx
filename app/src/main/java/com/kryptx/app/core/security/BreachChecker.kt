@@ -117,6 +117,17 @@ object BreachChecker {
 
     /**
      * Internal offline pattern and dictionary inspector.
+     * Evaluates passwords against a multi-tier offline heuristics pipeline:
+     * 1. Direct dictionary matches (exact & l33t-normalized)
+     * 2. Probabilistic Bloom filter (100K+ common breaches, <0.1% false-positive rate)
+     * 3. Trivial character repetitions (e.g. 'aaaaaa')
+     * 4. Short numeric pins (1-6 digits)
+     * 5. Calendar date patterns (MMDDYYYY, DDMMYYYY, YYYYMMDD)
+     * 6. Keyboard walks (QWERTY horizontal, vertical, diagonal, and reversed)
+     * 7. Common year combinations (1950-2039 affixed to short words)
+     *
+     * @param password The candidate plaintext password string to inspect.
+     * @return [BreachStatus] indicating whether the candidate matches known compromised patterns.
      */
     fun checkOffline(password: String): BreachStatus {
         if (password.isBlank()) {

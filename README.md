@@ -18,7 +18,8 @@
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.2.1-FFB300?style=for-the-badge" alt="Version 2.2.1" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-509%2B%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="509+ Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-546%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="546 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
 
@@ -31,6 +32,10 @@
   <a href="https://play.google.com/store/apps/details?id=com.kryptx.app">
     <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="70" />
   </a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/images/hero-mockup.webp" alt="Kryptx UI Interface" width="680" />
 </p>
 
 </div>
@@ -234,8 +239,11 @@ Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.g
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: End-to-end system architecture, Mermaid diagrams, delegate hierarchy, and cryptographic boundary definitions.
 - **[BUILD.md](BUILD.md)**: Step-by-step reproducible build guide, NDK targets, Rust JNI cross-compilation pipeline, and verification gates.
-- **[ADR-007: Crash Defense & Anti-Forensics](docs/adr/007-crash-defense-architecture.md)**: Architectural Decision Record for the Immortal Looper pattern and memory wipe strategy.
-- **[Architecture Decision Records (ADRs)](docs/adr/)**: Comprehensive decision records documenting cipher choices, zero-network design, and crash defense.
+- **[ADR-007: Crash Defense & Anti-Forensics](docs/adr/007-crash-defense-architecture.md)**: Immortal Looper pattern, sealed exception classification, and volatile memory wipe strategy.
+- **[ADR-008: Incremental Multi-Module Architecture](docs/adr/008-incremental-multi-module-architecture.md)**: Package boundary encapsulation and monolithic-to-modular migration thresholds.
+- **[ADR-009: Biometric ECDH Key Agreement](docs/adr/009-biometric-ecdh-migration.md)**: StrongBox P-256 ECDH forward key agreement and migration strategy from RSA-2048.
+- **[ADR-010: Flash Storage Overwrite Boundaries](docs/adr/010-flash-storage-overwrite-boundaries.md)**: Physical wear leveling limitations and dual-layer defense (AES/SQLCipher + volatile RAM zeroization).
+- **[Architecture Decision Records (ADRs)](docs/adr/)**: Complete index of 10 architectural decisions.
 - **[Cryptographic Whitepaper](docs/CRYPTOGRAPHIC_WHITEPAPER.md)**: Mathematical foundations, key encapsulation mechanisms, and entropy harvesting models.
 - **[Threat Model](docs/THREAT_MODEL.md)**: Formal adversarial model, threat vectors, and mitigation matrices.
 - **[Design System Catalog](app/src/main/java/com/kryptx/app/core/designsystem/README.md)**: Token specifications, typography, 29-slot Material 3 color animations, and the interactive Compose component catalog (`KryptxComponentCatalog`).

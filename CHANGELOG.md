@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HMAC Blind Search Index Deduplication**: Optimized blind index candidate querying by separating structured prefix filters (`type:`, `tag:`, `is:`) from free-text tokens in `SearchViewModel`, and deduplicating tokens in `HmacSearchIndex` to eliminate redundant SQL lookups.
 - **Biometric Enrollment & Invalidation Lifecycle**: Restored automatic enrollment prompt when biometric credentials are added/changed, and hardened Keystore key invalidation auto-recovery.
 - **Runtime Permissions & Camera Auto-Prompt**: Added automatic runtime permission rationale prompting when launching the TOTP camera QR code scanner, and audited Android 13+ clipboard notification channels and Android 12+ exact alarm scheduling.
-- **Test Suite Perfection**: 500 unit tests passing with a 100% success rate (0 failures, 0 ignored), Android Lint passing with 0 errors and 0 warnings, and clean air-gapped zero-network build verification.
+- **Test Suite Perfection**: 546 unit tests passing with a 100% success rate (0 failures, 0 ignored), Android Lint passing with 0 errors and 0 warnings, and clean air-gapped zero-network build verification.
 
 ---
 

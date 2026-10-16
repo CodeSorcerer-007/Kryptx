@@ -172,7 +172,10 @@ class HardwareSecurityKeyManager(
      * Implements the YubiKey OTP HID protocol: 64-byte HID frames, frame sequence numbers,
      * and the slot-2 HMAC-SHA1 challenge-response instruction (0x38).
      *
-     * Returns the 20-byte HMAC-SHA1 response, or null if communication fails.
+     * @param connection An active [android.hardware.usb.UsbDeviceConnection] to the target USB peripheral.
+     * @param usbDevice The [UsbDevice] instance describing endpoints and HID interfaces.
+     * @param challenge The raw byte array containing challenge entropy to submit to slot 2.
+     * @return The 20-byte HMAC-SHA1 response, or null if communication fails or times out.
      */
     private fun sendYubikeyHidChallenge(
         connection: android.hardware.usb.UsbDeviceConnection,

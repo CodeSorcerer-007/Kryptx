@@ -4,9 +4,11 @@ import com.kryptx.app.core.model.CustomField
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.util.UUID
 
 /**
@@ -20,8 +22,17 @@ object VaultImporter {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    fun cleanContent(content: String): String {
+        return content.removePrefix("\uFEFF").trim()
+    }
+
+    private fun JsonElement?.asString(): String? {
+        if (this == null || this is JsonNull) return null
+        return (this as? JsonPrimitive)?.content
+    }
+
     fun importAutoDetect(content: String): List<VaultItem> {
-        val trimmed = content.trim()
+        val trimmed = cleanContent(content)
         return try {
             if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
                 importJson(trimmed)
@@ -34,29 +45,55 @@ object VaultImporter {
     }
 
     fun importJson(jsonContent: String): List<VaultItem> {
+        val cleanJson = cleanContent(jsonContent)
         val items = mutableListOf<VaultItem>()
         try {
-            val rootElement = json.parseToJsonElement(jsonContent)
+            val rootElement = json.parseToJsonElement(cleanJson)
 
-            // Case 1: Plain list of VaultItem
-            if (rootElement is kotlinx.serialization.json.JsonArray) {
-                return try {
-                    json.decodeFromString<List<VaultItem>>(jsonContent)
+            // Case 1: Plain list of VaultItem or generic list of credentials
+            if (rootElement is JsonArray) {
+                try {
+                    return json.decodeFromString<List<VaultItem>>(cleanJson)
                 } catch (_: Throwable) {
-                    emptyList()
+                    // Lenient fallback for generic JSON arrays of objects
+                    for (elem in rootElement) {
+                        val obj = elem as? JsonObject ?: continue
+                        val title = (obj["title"] ?: obj["name"]).asString() ?: "Imported Item"
+                        val username = (obj["username"] ?: obj["login"] ?: obj["email"]).asString() ?: ""
+                        val password = (obj["password"] ?: obj["pass"]).asString() ?: ""
+                        val notes = (obj["notes"] ?: obj["note"]).asString() ?: ""
+                        val website = (obj["website"] ?: obj["url"] ?: obj["uri"]).asString() ?: ""
+                        val totp = (obj["totp"] ?: obj["totpSecret"] ?: obj["2fa"]).asString() ?: ""
+
+                        if (title.isNotBlank() || username.isNotBlank() || password.isNotBlank()) {
+                            items.add(
+                                VaultItem(
+                                    id = UUID.randomUUID().toString(),
+                                    title = title,
+                                    type = ItemType.LOGIN,
+                                    username = username,
+                                    password = password,
+                                    website = website,
+                                    notes = notes,
+                                    totpSecret = totp
+                                )
+                            )
+                        }
+                    }
+                    if (items.isNotEmpty()) return items
                 }
             }
 
-            val rootObj = rootElement.jsonObject
+            val rootObj = rootElement as? JsonObject ?: return items
 
             // Case 2: Bitwarden JSON export ({ "items": [...] })
             if (rootObj.containsKey("items")) {
-                val itemsArray = rootObj["items"]?.jsonArray ?: return emptyList()
+                val itemsArray = rootObj["items"] as? JsonArray ?: return emptyList()
                 for (itemElem in itemsArray) {
-                    val itemObj = itemElem.jsonObject
-                    val name = itemObj["name"]?.jsonPrimitive?.content ?: "Untitled"
-                    val notes = itemObj["notes"]?.jsonPrimitive?.content ?: ""
-                    val typeInt = itemObj["type"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1
+                    val itemObj = itemElem as? JsonObject ?: continue
+                    val name = itemObj["name"].asString() ?: "Untitled"
+                    val notes = itemObj["notes"].asString() ?: ""
+                    val typeInt = itemObj["type"].asString()?.toIntOrNull() ?: 1
 
                     val itemType = when (typeInt) {
                         1 -> ItemType.LOGIN
@@ -71,15 +108,16 @@ object VaultImporter {
                     var website = ""
                     var totpSecret = ""
 
-                    if (itemObj.containsKey("login")) {
-                        val loginObj = itemObj["login"]?.jsonObject
-                        username = loginObj?.get("username")?.jsonPrimitive?.content ?: ""
-                        password = loginObj?.get("password")?.jsonPrimitive?.content ?: ""
-                        totpSecret = loginObj?.get("totp")?.jsonPrimitive?.content ?: ""
+                    val loginObj = itemObj["login"] as? JsonObject
+                    if (loginObj != null) {
+                        username = loginObj["username"].asString() ?: ""
+                        password = loginObj["password"].asString() ?: ""
+                        totpSecret = loginObj["totp"].asString() ?: ""
 
-                        val uris = loginObj?.get("uris")?.jsonArray
+                        val uris = loginObj["uris"] as? JsonArray
                         if (uris != null && uris.isNotEmpty()) {
-                            website = uris[0].jsonObject["uri"]?.jsonPrimitive?.content ?: ""
+                            val firstUriObj = uris[0] as? JsonObject
+                            website = firstUriObj?.get("uri").asString() ?: ""
                         }
                     }
 
@@ -88,24 +126,24 @@ object VaultImporter {
                     var cardNumber = ""
                     var cardExpiry = ""
                     var cardCvv = ""
-                    if (itemObj.containsKey("card")) {
-                        val cardObj = itemObj["card"]?.jsonObject
-                        cardholder = cardObj?.get("cardholderName")?.jsonPrimitive?.content ?: ""
-                        cardNumber = cardObj?.get("number")?.jsonPrimitive?.content ?: ""
-                        val expMonth = cardObj?.get("expMonth")?.jsonPrimitive?.content ?: ""
-                        val expYear = cardObj?.get("expYear")?.jsonPrimitive?.content ?: ""
+                    val cardObj = itemObj["card"] as? JsonObject
+                    if (cardObj != null) {
+                        cardholder = cardObj["cardholderName"].asString() ?: ""
+                        cardNumber = cardObj["number"].asString() ?: ""
+                        val expMonth = cardObj["expMonth"].asString() ?: ""
+                        val expYear = cardObj["expYear"].asString() ?: ""
                         cardExpiry = if (expMonth.isNotBlank() && expYear.isNotBlank()) "$expMonth/$expYear" else ""
-                        cardCvv = cardObj?.get("code")?.jsonPrimitive?.content ?: ""
+                        cardCvv = cardObj["code"].asString() ?: ""
                     }
 
                     val customFields = mutableListOf<CustomField>()
-                    val fieldsArray = itemObj["fields"]?.jsonArray
+                    val fieldsArray = itemObj["fields"] as? JsonArray
                     if (fieldsArray != null) {
                         for (f in fieldsArray) {
-                            val fObj = f.jsonObject
-                            val fName = fObj["name"]?.jsonPrimitive?.content ?: ""
-                            val fVal = fObj["value"]?.jsonPrimitive?.content ?: ""
-                            val fType = fObj["type"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                            val fObj = f as? JsonObject ?: continue
+                            val fName = fObj["name"].asString() ?: ""
+                            val fVal = fObj["value"].asString() ?: ""
+                            val fType = fObj["type"].asString()?.toIntOrNull() ?: 0
                             if (fName.isNotBlank()) {
                                 customFields.add(CustomField(UUID.randomUUID().toString(), fName, fVal, isSecured = fType == 1))
                             }
@@ -131,13 +169,36 @@ object VaultImporter {
                     )
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Return whatever was parsed
         }
         return items
     }
 
-    fun parseCsvRecords(csvContent: String): List<List<String>> {
+    fun detectDelimiter(csvContent: String): Char {
+        val firstLine = csvContent.removePrefix("\uFEFF").lineSequence().firstOrNull { it.isNotBlank() } ?: return ','
+        var inQuotes = false
+        var commaCount = 0
+        var semicolonCount = 0
+        var tabCount = 0
+        for (c in firstLine) {
+            if (c == '\"') inQuotes = !inQuotes
+            else if (!inQuotes) {
+                when (c) {
+                    ',' -> commaCount++
+                    ';' -> semicolonCount++
+                    '\t' -> tabCount++
+                }
+            }
+        }
+        return when {
+            semicolonCount > commaCount && semicolonCount >= tabCount -> ';'
+            tabCount > commaCount && tabCount > semicolonCount -> '\t'
+            else -> ','
+        }
+    }
+
+    fun parseCsvRecords(csvContent: String, delimiter: Char = detectDelimiter(csvContent)): List<List<String>> {
         val records = mutableListOf<List<String>>()
         val currentRecord = mutableListOf<String>()
         val sb = StringBuilder()
@@ -157,7 +218,7 @@ object VaultImporter {
                         inQuotes = !inQuotes
                     }
                 }
-                c == ',' && !inQuotes -> {
+                c == delimiter && !inQuotes -> {
                     currentRecord.add(sb.toString().trim())
                     sb.setLength(0)
                 }
@@ -188,11 +249,12 @@ object VaultImporter {
     }
 
     fun importCsv(csvContent: String): List<VaultItem> {
+        val cleanCsv = cleanContent(csvContent)
         val items = mutableListOf<VaultItem>()
-        val records = parseCsvRecords(csvContent)
+        val records = parseCsvRecords(cleanCsv)
         if (records.isEmpty()) return emptyList()
 
-        val headerCols = records.first().map { it.lowercase() }
+        val headerCols = records.first().map { it.removePrefix("\uFEFF").trim().lowercase() }
 
         // Find column indices with precise matching priority
         val typeIdx = headerCols.indexOfFirst { it == "type" }
@@ -251,7 +313,7 @@ object VaultImporter {
         return items
     }
 
-    fun parseCsvLine(line: String): List<String> {
+    fun parseCsvLine(line: String, delimiter: Char = ','): List<String> {
         val result = mutableListOf<String>()
         val sb = java.lang.StringBuilder()
         var inQuotes = false
@@ -268,7 +330,7 @@ object VaultImporter {
                         inQuotes = !inQuotes
                     }
                 }
-                c == ',' && !inQuotes -> {
+                c == delimiter && !inQuotes -> {
                     result.add(sb.toString().trim())
                     sb.setLength(0)
                 }

@@ -206,14 +206,20 @@ class MultiBugPreservationTest {
     // ─────────────────────────────────────────────────────────────────────────
     @Test
     fun testPreservation_triggerBiometricUnlock_callsDecryptCipher() {
-        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
-        assertTrue("MainActivity.kt must exist", sourceFile.exists())
+        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/feature/auth/BiometricCoordinator.kt")
+            .takeIf { it.exists() }
+            ?: resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
+        assertTrue("Biometric source file must exist", sourceFile.exists())
         val source = sourceFile.readText()
 
-        val unlockFn = source.substringAfter("private fun triggerBiometricUnlock(").substringBefore("private fun triggerBiometricEnrollment(")
+        val unlockFn = if (source.contains("fun triggerUnlock(")) {
+            source.substringAfter("fun triggerUnlock(")
+        } else {
+            source.substringAfter("private fun triggerBiometricUnlock(").substringBefore("private fun triggerBiometricEnrollment(")
+        }
         assertTrue(
             "triggerBiometricUnlock must continue calling getBiometricDecryptCipher()",
-            unlockFn.contains("app.vaultRepository.getBiometricDecryptCipher()")
+            unlockFn.contains("getBiometricDecryptCipher()")
         )
     }
 
@@ -264,11 +270,17 @@ class MultiBugPreservationTest {
     // ─────────────────────────────────────────────────────────────────────────
     @Test
     fun testPreservation_invalidationFlow_showsReEnrollPrompt() {
-        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
-        assertTrue("MainActivity.kt must exist", sourceFile.exists())
+        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/feature/auth/BiometricCoordinator.kt")
+            .takeIf { it.exists() }
+            ?: resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
+        assertTrue("Biometric source file must exist", sourceFile.exists())
         val source = sourceFile.readText()
 
-        val unlockFn = source.substringAfter("private fun triggerBiometricUnlock(").substringBefore("private fun triggerBiometricEnrollment(")
+        val unlockFn = if (source.contains("fun triggerUnlock(")) {
+            source.substringAfter("fun triggerUnlock(")
+        } else {
+            source.substringAfter("private fun triggerBiometricUnlock(").substringBefore("private fun triggerBiometricEnrollment(")
+        }
         assertTrue(
             "triggerBiometricUnlock must show invalidation re-enrollment error message",
             unlockFn.contains("unlockViewModel.setErrorMessage(\"Biometric key invalidated. Unlock with Master Password to re-enroll.\")")

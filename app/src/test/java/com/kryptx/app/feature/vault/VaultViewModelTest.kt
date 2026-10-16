@@ -481,5 +481,81 @@ class VaultViewModelTest {
         }
         assertTrue(sessionMgr.isUnlocked.value)
     }
+
+    @Test
+    fun testPermanentlyDeleteItemCleansUpAttachments() = runTest(testDispatcher) {
+        val fakeAttManager = com.kryptx.app.fake.FakeAttachmentManager()
+        val customVm = VaultViewModel(
+            vaultRepository = fakeVaultRepository,
+            sessionManager = sessionManager,
+            clipboardSecurityManager = fakeClipboard,
+            attachmentManager = fakeAttManager
+        )
+
+        val att1 = com.kryptx.app.core.model.VaultAttachment(
+            id = "att_1",
+            fileName = "passport.pdf",
+            mimeType = "application/pdf",
+            sizeBytes = 1024L,
+            encryptedFileName = "att_1.enc",
+            createdAt = 1000L
+        )
+        val item = VaultItem(
+            id = "item_with_att",
+            title = "Item with Attachment",
+            attachments = listOf(att1)
+        )
+        customVm.saveItem(item) {}
+        testScheduler.runCurrent()
+
+        var deletedCalled = false
+        customVm.permanentlyDeleteItem("item_with_att") {
+            deletedCalled = true
+        }
+        testScheduler.runCurrent()
+
+        assertTrue(deletedCalled)
+        assertEquals(1, fakeAttManager.deletedAttachments.size)
+        assertEquals("att_1", fakeAttManager.deletedAttachments[0].id)
+    }
+
+    @Test
+    fun testEmptyTrashCleansUpAttachments() = runTest(testDispatcher) {
+        val fakeAttManager = com.kryptx.app.fake.FakeAttachmentManager()
+        val customVm = VaultViewModel(
+            vaultRepository = fakeVaultRepository,
+            sessionManager = sessionManager,
+            clipboardSecurityManager = fakeClipboard,
+            attachmentManager = fakeAttManager
+        )
+
+        val att = com.kryptx.app.core.model.VaultAttachment(
+            id = "trash_att_1",
+            fileName = "id_card.png",
+            mimeType = "image/png",
+            sizeBytes = 2048L,
+            encryptedFileName = "trash_att_1.enc",
+            createdAt = 1000L
+        )
+        val item = VaultItem(
+            id = "trashed_item",
+            title = "Trashed Item",
+            attachments = listOf(att),
+            deletedAt = System.currentTimeMillis()
+        )
+        fakeVaultRepository.saveItem(item)
+        testScheduler.runCurrent()
+
+        var emptiedCount = 0
+        customVm.emptyTrash { count ->
+            emptiedCount = count
+        }
+        testScheduler.runCurrent()
+
+        assertEquals(1, emptiedCount)
+        assertEquals(1, fakeAttManager.deletedAttachments.size)
+        assertEquals("trash_att_1", fakeAttManager.deletedAttachments[0].id)
+    }
 }
+
 

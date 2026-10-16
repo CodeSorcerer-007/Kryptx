@@ -329,7 +329,15 @@ class VaultViewModel(
 
     fun permanentlyDeleteItem(itemId: String, onDeleted: (() -> Unit)? = null) {
         viewModelScope.launch {
+            val item = vaultRepository.getItemById(itemId)
             if (vaultRepository.deleteItem(itemId).isSuccess) {
+                if (item != null && item.attachments.isNotEmpty() && attachmentManager != null) {
+                    item.attachments.forEach { att ->
+                        try {
+                            attachmentManager.deleteAttachment(att)
+                        } catch (_: Throwable) {}
+                    }
+                }
                 _selectedItemIds.value = _selectedItemIds.value - itemId
                 activityLogManager?.logEvent("Security", "Item permanently deleted")
                 refreshSecurityReport()
@@ -340,8 +348,18 @@ class VaultViewModel(
 
     fun emptyTrash(onEmptied: ((Int) -> Unit)? = null) {
         viewModelScope.launch {
+            val itemsInTrash = trashItems.value
             val result = vaultRepository.emptyTrash()
             if (result is com.kryptx.app.core.model.KryptxResult.Success) {
+                if (attachmentManager != null && itemsInTrash.isNotEmpty()) {
+                    itemsInTrash.forEach { item ->
+                        item.attachments.forEach { att ->
+                            try {
+                                attachmentManager.deleteAttachment(att)
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                }
                 refreshSecurityReport()
                 onEmptied?.invoke(result.data)
             }

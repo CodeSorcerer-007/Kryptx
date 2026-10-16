@@ -306,11 +306,17 @@ class MultiBugExplorationTest {
         //     return@launch
         // }
         // Requirement 2.3: Must call unlockViewModel.setErrorMessage("Biometric setup failed. Please try again.")
-        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
-        assertTrue("MainActivity.kt must exist", sourceFile.exists())
+        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/feature/auth/BiometricCoordinator.kt")
+            .takeIf { it.exists() }
+            ?: resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
+        assertTrue("Biometric implementation file must exist", sourceFile.exists())
         val source = sourceFile.readText()
 
-        val enrollmentFn = source.substringAfter("fun triggerBiometricEnrollment").substringBefore("override fun dispatchTouchEvent")
+        val enrollmentFn = if (source.contains("fun triggerEnrollment")) {
+            source.substringAfter("fun triggerEnrollment")
+        } else {
+            source.substringAfter("fun triggerBiometricEnrollment").substringBefore("override fun dispatchTouchEvent")
+        }
         val errorBlock = enrollmentFn.substringAfter("if (setupResult.isError) {").let {
             if (it.contains("val encryptCipher")) it.substringBefore("val encryptCipher")
             else it.substringBefore("val decryptCipher")
@@ -329,29 +335,28 @@ class MultiBugExplorationTest {
     // ─────────────────────────────────────────────────────────────────────────
     @Test
     fun testBug7_triggerBiometricEnrollment_mustUseEncryptCipherAndPersistVEK() {
-        // In MainActivity.kt triggerBiometricEnrollment():
-        // Unfixed:
-        // val decryptCipher = try {
-        //     app.vaultRepository.getBiometricDecryptCipher()
-        // }
-        // and onSuccess does NOT call setupBiometricsWithCipher(authenticatedCipher)
-        // Requirement 2.4: Must call getBiometricEncryptCipher() and setupBiometricsWithCipher(authenticatedCipher)
-        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
-        assertTrue("MainActivity.kt must exist", sourceFile.exists())
+        val sourceFile = resolveSourceFile("app/src/main/java/com/kryptx/app/feature/auth/BiometricCoordinator.kt")
+            .takeIf { it.exists() }
+            ?: resolveSourceFile("app/src/main/java/com/kryptx/app/MainActivity.kt")
+        assertTrue("Biometric implementation file must exist", sourceFile.exists())
         val source = sourceFile.readText()
 
-        val enrollmentFn = source.substringAfter("fun triggerBiometricEnrollment").substringBefore("override fun dispatchTouchEvent")
+        val enrollmentFn = if (source.contains("fun triggerEnrollment")) {
+            source.substringAfter("fun triggerEnrollment")
+        } else {
+            source.substringAfter("fun triggerBiometricEnrollment").substringBefore("override fun dispatchTouchEvent")
+        }
 
         // EXPECTED TO FAIL ON UNFIXED CODE:
         // 1. Unfixed code calls getBiometricDecryptCipher()
         // 2. Unfixed code does NOT call setupBiometricsWithCipher(authenticatedCipher)
         assertFalse(
             "triggerBiometricEnrollment must NOT call getBiometricDecryptCipher()",
-            enrollmentFn.contains("app.vaultRepository.getBiometricDecryptCipher()")
+            enrollmentFn.contains("getBiometricDecryptCipher()")
         )
         assertTrue(
             "triggerBiometricEnrollment must call getBiometricEncryptCipher()",
-            enrollmentFn.contains("app.vaultRepository.getBiometricEncryptCipher()")
+            enrollmentFn.contains("getBiometricEncryptCipher()")
         )
         assertTrue(
             "triggerBiometricEnrollment must call setupBiometricsWithCipher(authenticatedCipher) on success",

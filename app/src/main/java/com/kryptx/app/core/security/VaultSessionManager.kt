@@ -146,28 +146,41 @@ class VaultSessionManager(
     private val unlockListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
     private val failedAttemptListeners = java.util.concurrent.CopyOnWriteArrayList<(Int) -> Unit>()
 
-    fun addLockListener(listener: () -> Unit) {
+    fun addLockListener(listener: () -> Unit): java.io.Closeable {
         lockListeners.add(listener)
+        return java.io.Closeable { lockListeners.remove(listener) }
     }
 
     fun removeLockListener(listener: () -> Unit) {
         lockListeners.remove(listener)
     }
 
-    fun addUnlockListener(listener: () -> Unit) {
+    fun addUnlockListener(listener: () -> Unit): java.io.Closeable {
         unlockListeners.add(listener)
+        return java.io.Closeable { unlockListeners.remove(listener) }
     }
 
     fun removeUnlockListener(listener: () -> Unit) {
         unlockListeners.remove(listener)
     }
 
-    fun addFailedAttemptListener(listener: (Int) -> Unit) {
+    fun addFailedAttemptListener(listener: (Int) -> Unit): java.io.Closeable {
         failedAttemptListeners.add(listener)
+        return java.io.Closeable { failedAttemptListeners.remove(listener) }
     }
 
     fun removeFailedAttemptListener(listener: (Int) -> Unit) {
         failedAttemptListeners.remove(listener)
+    }
+
+    /**
+     * Clears all registered session lifecycle listeners.
+     * Invoked during container teardown to eliminate listener reference leaks.
+     */
+    fun clearAllListeners() {
+        lockListeners.clear()
+        unlockListeners.clear()
+        failedAttemptListeners.clear()
     }
 
     /**
@@ -297,7 +310,9 @@ class VaultSessionManager(
 
         if (bgTime > 0L) {
             val elapsedMs = System.currentTimeMillis() - bgTime
+            val maxPickerBackgroundMs = 15 * 60 * 1000L // 15 minutes safety cap for picker backgrounding
             val shouldLock = when {
+                isPickerActive && elapsedMs >= maxPickerBackgroundMs -> true
                 isPickerActive -> false
                 autoLockTimeout == AutoLockTimeout.IMMEDIATELY -> true
                 autoLockTimeout.seconds > 0L -> elapsedMs >= autoLockTimeout.seconds * 1000L

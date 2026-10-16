@@ -294,7 +294,7 @@ class KryptxCredentialProviderService : CredentialProviderService() {
     ) {
         if (cancellationSignal.isCanceled) return
         val app = applicationContext as? KryptxApplication
-        app?.sessionManager?.lockVault()
+        app?.sessionManager?.lock()
         callback.onResult(null)
     }
 

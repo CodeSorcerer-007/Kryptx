@@ -242,6 +242,7 @@ class AttachmentManager(
             try {
                 val junk = ByteArray(encryptedFile.length().toInt().coerceAtMost(4096))
                 encryptedFile.writeBytes(junk)
+                SecureMemory.wipe(junk)
             } catch (_: Exception) {}
             encryptedFile.delete()
         } else {
