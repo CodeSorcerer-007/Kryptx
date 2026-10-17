@@ -59,4 +59,26 @@ class SecurityBootstrapperTest {
         val result = SecurityBootstrapper.verifyApkSignature(mockContext)
         assertTrue(result)
     }
+
+    @Test
+    fun testIsInstalledFromGooglePlayReturnsTrueForVending() {
+        val mockPm: android.content.pm.PackageManager = mock()
+        whenever(mockContext.packageManager).thenReturn(mockPm)
+        whenever(mockContext.packageName).thenReturn("com.kryptx.app")
+        @Suppress("DEPRECATION")
+        whenever(mockPm.getInstallerPackageName("com.kryptx.app")).thenReturn("com.android.vending")
+
+        assertTrue(SecurityBootstrapper.isInstalledFromGooglePlay(mockContext))
+    }
+
+    @Test
+    fun testIsInstalledFromGooglePlayReturnsFalseForSideloadOrOther() {
+        val mockPm: android.content.pm.PackageManager = mock()
+        whenever(mockContext.packageManager).thenReturn(mockPm)
+        whenever(mockContext.packageName).thenReturn("com.kryptx.app")
+        @Suppress("DEPRECATION")
+        whenever(mockPm.getInstallerPackageName("com.kryptx.app")).thenReturn("com.android.packageinstaller")
+
+        assertFalse(SecurityBootstrapper.isInstalledFromGooglePlay(mockContext))
+    }
 }

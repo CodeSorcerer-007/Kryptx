@@ -5,6 +5,15 @@ All notable changes to the Kryptx Android Password Manager project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] (versionCode 17) - 2026-10-17
+
+### Security & Distribution Integrity Hardening
+- **Google Play App Signing Self-Integrity Verification**: Fixed false-positive "Untrusted Environment Detected: APK signature verification failure, possible repackaging or signature tampering" security alert on initial launch of Google Play published builds. Added seamless validation of authentic Google Play Store installations (`com.android.vending`) where Google Play App Signing dynamically re-signs delivery APKs with Google-managed certificates, while maintaining strict SHA-256 certificate pinning for offline, sideloaded, and standalone distribution.
+- **Configurable Play Certificate Fingerprint**: Added `PLAY_CERT_SHA256` build-time configuration support (`kryptx.play.fingerprint` / `KRYPTX_PLAY_FINGERPRINT`) allowing explicit Google Play App Signing certificate SHA-256 pinning alongside the release upload keystore.
+- **Automated AAB Output Synchronization**: Added `copyReleaseBundle` and `copyReleaseApk` Gradle tasks to automatically export release bundles and APKs version-stamped directly into the root `apk/` directory.
+
+---
+
 ## [2.2.1] (versionCode 16) - 2026-10-11
 
 ### Security, Anti-Forensics & Citadel-Grade 10/10 Hardening

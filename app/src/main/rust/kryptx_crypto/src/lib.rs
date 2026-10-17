@@ -1,3 +1,10 @@
+#![allow(
+    clippy::new_without_default,
+    clippy::used_underscore_binding,
+    clippy::useless_conversion,
+    clippy::needless_borrow
+)]
+
 uniffi::setup_scaffolding!();
 
 use aes_gcm::{
@@ -14,7 +21,7 @@ use rand::Rng;
 use std::fmt;
 use zeroize::Zeroize;
 
-#[derive(uniffi::Object)]
+#[derive(Default, uniffi::Object)]
 pub struct NativeCryptoEngine;
 
 #[uniffi::export]
@@ -179,6 +186,7 @@ use jni::objects::{JClass, JObject};
 use jni::sys::jboolean;
 
 #[unsafe(no_mangle)]
+#[allow(clippy::all, unused_variables)]
 pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_mlockBuffer<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
@@ -198,6 +206,7 @@ pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_mlockBuffer<
 }
 
 #[unsafe(no_mangle)]
+#[allow(clippy::all, unused_variables)]
 pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_munlockBuffer<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,

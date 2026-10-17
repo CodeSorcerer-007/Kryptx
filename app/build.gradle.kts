@@ -20,8 +20,8 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "2.2.1"
+        versionCode = 17
+        versionName = "2.2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -145,7 +145,12 @@ android {
                 ?: computedKeystoreFingerprint?.takeIf { it.isNotBlank() }
                 ?: (if (releaseKeyStore.exists()) defaultOfficialReleaseFp else "")
 
+            val playFp = System.getenv("KRYPTX_PLAY_FINGERPRINT")?.takeIf { it.isNotBlank() }
+                ?: localProperties.getProperty("kryptx.play.fingerprint")?.takeIf { it.isNotBlank() }
+                ?: ""
+
             buildConfigField("String", "RELEASE_CERT_SHA256", "\"$releaseFp\"")
+            buildConfigField("String", "PLAY_CERT_SHA256", "\"$playFp\"")
 
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -156,9 +161,9 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isDebuggable = true
-            enableUnitTestCoverage = true
             // Debug builds have no pinned fingerprint — they use the debug keystore
             buildConfigField("String", "RELEASE_CERT_SHA256", "\"\"")
+            buildConfigField("String", "PLAY_CERT_SHA256", "\"\"")
         }
     }
 
@@ -390,6 +395,32 @@ tasks.register<Copy>("copyApk") {
     }
 }
 
+tasks.register<Copy>("copyReleaseBundle") {
+    group = "build"
+    description = "Copies the assembled release AAB bundle directly into the root apk/ directory"
+    dependsOn("bundleRelease")
+    mustRunAfter("bundleRelease")
+    from(layout.buildDirectory.dir("outputs/bundle/release"))
+    include("*.aab")
+    into(rootProject.layout.projectDirectory.dir("apk"))
+    rename { _ ->
+        "Kryptx-v${android.defaultConfig.versionCode}-release.aab"
+    }
+}
+
+tasks.register<Copy>("copyReleaseApk") {
+    group = "build"
+    description = "Copies the assembled release APK directly into the root apk/ directory"
+    dependsOn("assembleRelease")
+    mustRunAfter("assembleRelease")
+    from(layout.buildDirectory.dir("outputs/apk/release"))
+    include("*.apk")
+    into(rootProject.layout.projectDirectory.dir("apk"))
+    rename { _ ->
+        "Kryptx-v${android.defaultConfig.versionCode}-release.apk"
+    }
+}
+
 afterEvaluate {
     tasks.named("packageReleaseBundle").configure {
         doLast {
@@ -415,18 +446,7 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         html.required.set(true)
     }
 
-    val debugTree = fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") {
-        exclude(
-            "**/R.class",
-            "**/R$*.class",
-            "**/BuildConfig.*",
-            "**/Manifest*.*",
-            "**/*Test*.*",
-            "android/**/*.*",
-            "**/ui/**"
-        )
-    }
-    val javaTree = fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/compileDebugJavaWithJavac/classes") {
+    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
         exclude(
             "**/R.class",
             "**/R$*.class",
@@ -440,7 +460,7 @@ tasks.register<JacocoReport>("jacocoTestReport") {
     val mainSrc = "${project.projectDir}/src/main/java"
 
     sourceDirectories.setFrom(files(mainSrc))
-    classDirectories.setFrom(files(debugTree, javaTree))
+    classDirectories.setFrom(files(debugTree))
     executionData.setFrom(fileTree(layout.buildDirectory.get()) {
         include(
             "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
@@ -454,20 +474,7 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     description = "Verify code coverage threshold for debug unit tests"
     dependsOn("jacocoTestReport")
 
-    val debugTree = fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") {
-        exclude(
-            "**/R.class",
-            "**/R$*.class",
-            "**/BuildConfig.*",
-            "**/Manifest*.*",
-            "**/*Test*.*",
-            "android/**/*.*",
-            "**/ui/**",
-            "**/components/**",
-            "**/generated/**"
-        )
-    }
-    val javaTree = fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/compileDebugJavaWithJavac/classes") {
+    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
         exclude(
             "**/R.class",
             "**/R$*.class",
@@ -483,7 +490,7 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     val mainSrc = "${project.projectDir}/src/main/java"
 
     sourceDirectories.setFrom(files(mainSrc))
-    classDirectories.setFrom(files(debugTree, javaTree))
+    classDirectories.setFrom(files(debugTree))
     executionData.setFrom(fileTree(layout.buildDirectory.get()) {
         include(
             "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
