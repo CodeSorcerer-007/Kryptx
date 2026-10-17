@@ -60,7 +60,11 @@ class UnlockViewModel(
 
     fun checkVaultStatus() {
         val hasVault = vaultRepository.hasVault()
-        val isBiometricConfigured = vaultRepository.isBiometricsConfigured() && preferencesRepository.biometricEnabled.value
+        val isRepoConfigured = vaultRepository.isBiometricsConfigured()
+        if (isRepoConfigured && !preferencesRepository.biometricEnabled.value) {
+            preferencesRepository.setBiometricEnabled(true)
+        }
+        val isBiometricConfigured = isRepoConfigured && preferencesRepository.biometricEnabled.value
         val isHardwareKey = vaultRepository.isHardwareKeyEnrolled()
         val keyLabel = vaultRepository.getHardwareKeyLabel()
         _uiState.update { current ->

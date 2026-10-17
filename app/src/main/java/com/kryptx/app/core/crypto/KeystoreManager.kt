@@ -217,8 +217,31 @@ class KeystoreManager {
     private fun isCauseUserNotAuthenticated(throwable: Throwable?): Boolean {
         var current: Throwable? = throwable
         while (current != null) {
-            if (current.javaClass.name.contains("UserNotAuthenticatedException")) {
+            val className = current.javaClass.name
+            val message = current.message?.lowercase() ?: ""
+            if (className.contains("UserNotAuthenticatedException", ignoreCase = true) ||
+                message.contains("user not authenticated") ||
+                message.contains("user authentication required") ||
+                message.contains("requires user authentication") ||
+                message.contains("user authentication is required") ||
+                message.contains("key not authenticated") ||
+                message.contains("not authenticated")
+            ) {
                 return true
+            }
+            if (className.contains("KeyStoreException", ignoreCase = true)) {
+                if (message.contains("not authenticated") || message.contains("authentication") || message.contains("-26")) {
+                    return true
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    try {
+                        val method = current.javaClass.getMethod("getNumericErrorCode")
+                        val code = method.invoke(current) as? Int
+                        if (code == -26) return true
+                    } catch (_: Throwable) {
+                        // ignore reflection errors
+                    }
+                }
             }
             current = current.cause
         }
@@ -228,8 +251,13 @@ class KeystoreManager {
     private fun isCausePermanentlyInvalidated(throwable: Throwable?): Boolean {
         var current: Throwable? = throwable
         while (current != null) {
+            val className = current.javaClass.name
+            val message = current.message?.lowercase() ?: ""
             if (current is android.security.keystore.KeyPermanentlyInvalidatedException ||
-                current.javaClass.name.contains("KeyPermanentlyInvalidatedException")) {
+                className.contains("KeyPermanentlyInvalidatedException", ignoreCase = true) ||
+                message.contains("permanently invalidated") ||
+                message.contains("invalidated by biometric enrollment")
+            ) {
                 return true
             }
             current = current.cause
@@ -243,7 +271,7 @@ class KeystoreManager {
      */
     fun wrapWithPublicKey(vek: ByteArray): ByteArray {
         val status = detectBiometricInvalidation()
-        if (status != BiometricKeyStatus.Valid) {
+        if (status == BiometricKeyStatus.InvalidatedByEnrollment) {
             removeBiometricKey()
         }
         val keyPair = getOrCreateBiometricKeyPair()

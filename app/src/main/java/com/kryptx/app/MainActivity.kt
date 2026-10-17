@@ -224,6 +224,9 @@ class MainActivity : FragmentActivity() {
             unlockViewModel.checkVaultStatus()
             val isUnlocked = app.sessionManager.isUnlocked.value
             val hasVault = app.vaultRepository.hasVault()
+            if (app.vaultRepository.isBiometricsConfigured() && !app.preferencesRepository.biometricEnabled.value) {
+                app.preferencesRepository.setBiometricEnabled(true)
+            }
             val isBiometrics = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
 
             if (hasVault && !isUnlocked && isBiometrics && !hasAutoPromptedBiometrics) {

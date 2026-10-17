@@ -5,6 +5,16 @@ All notable changes to the Kryptx Android Password Manager project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.3] (versionCode 18) - 2026-10-17
+
+### Biometric Subsystem & Authentication Lifecycle Hardening
+- **Biometric UI & Prompt Synchronization**: Resolved split-brain state desynchronization between database-configured biometric keys and SharedPreferences preferences. Guaranteed that `UnlockViewModel`, `MainActivity`, `CredentialAuthActivity`, and `AutofillAuthActivity` immediately synchronize and display the biometric fingerprint sensor icon, trigger auto-prompting, and allow instant biometric unlock whenever a biometric key is configured.
+- **Robust KeyStore Invalidation & Authentication Detection**: Hardened `KeystoreManager.detectBiometricInvalidation()` and `isCauseUserNotAuthenticated()` across Android 11+ KeyStore2 and OEM ROM implementations (catching `InvalidKeyException` with "Key user not authenticated" and KeyStore error codes). Prevented premature removal of valid hardware keys during public key wrapping.
+- **Class 2 / Weak Biometrics Enrollment Compatibility**: Aligned `BiometricCoordinator.triggerEnrollment()` with `triggerUnlock()` using `requireStrong = false`, enabling under-display optical fingerprint scanners and OEM biometric sensors without failing enrollment.
+- **Cancellation Grace**: Fixed prompt error handling so user cancellation (`ERROR_USER_CANCELED`, `ERROR_NEGATIVE_BUTTON`) does not clear the user's enabled biometric preference.
+
+---
+
 ## [2.2.2] (versionCode 17) - 2026-10-17
 
 ### Security & Distribution Integrity Hardening

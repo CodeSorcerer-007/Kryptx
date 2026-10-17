@@ -187,6 +187,9 @@ class CredentialAuthActivity : FragmentActivity() {
         val app = application as? KryptxApplication ?: return
         if (app.sessionManager.lockoutSecondsRemaining.value > 0) return
         if (!app.biometricManager.canAuthenticate(requireStrong = false)) return
+        if (app.vaultRepository.isBiometricsConfigured() && !app.preferencesRepository.biometricEnabled.value) {
+            app.preferencesRepository.setBiometricEnabled(true)
+        }
         val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
         if (!isConfigured) return
 
@@ -485,6 +488,9 @@ class CredentialAuthActivity : FragmentActivity() {
         val isUnlocked by app.sessionManager.isUnlocked.collectAsState()
         val lockoutSeconds by app.sessionManager.lockoutSecondsRemaining.collectAsState()
         val isBiometricsConfigured = remember {
+            if (app.vaultRepository.isBiometricsConfigured() && !app.preferencesRepository.biometricEnabled.value) {
+                app.preferencesRepository.setBiometricEnabled(true)
+            }
             app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
         }
         val view = LocalView.current

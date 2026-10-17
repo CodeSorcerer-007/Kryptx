@@ -163,4 +163,62 @@ class BiometricCoordinatorTest {
             unlockViewModel.uiState.value.errorMessage
         )
     }
+
+    @Test
+    fun testTriggerUnlockSyncsBiometricPreferenceWhenVaultIsConfigured() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        org.mockito.kotlin.whenever(mockBiometricManager.canAuthenticate(org.mockito.kotlin.any())).thenReturn(true)
+
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        kotlinx.coroutines.runBlocking { fakeVaultRepo.setupBiometrics() }
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        fakePrefsRepo.setBiometricEnabled(false)
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        coordinator.triggerUnlock(force = false)
+        assertTrue(fakePrefsRepo.biometricEnabled.value)
+    }
+
+    @Test
+    fun testTriggerEnrollmentUsesWeakBiometrics() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        org.mockito.kotlin.whenever(mockBiometricManager.canAuthenticate(false)).thenReturn(false)
+        org.mockito.kotlin.whenever(mockBiometricManager.checkBiometricAvailability(false))
+            .thenReturn(com.kryptx.app.core.security.BiometricAuthManager.BiometricStatus.NOT_ENROLLED)
+
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        var resultValue: Boolean? = null
+        coordinator.triggerEnrollment { resultValue = it }
+        org.mockito.kotlin.verify(mockBiometricManager).canAuthenticate(false)
+        assertEquals(false, resultValue)
+    }
 }

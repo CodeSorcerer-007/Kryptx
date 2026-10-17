@@ -67,6 +67,9 @@ class BiometricCoordinator(
                 return
             }
 
+            if (vaultRepository.isBiometricsConfigured() && !preferencesRepository.biometricEnabled.value) {
+                preferencesRepository.setBiometricEnabled(true)
+            }
             val isConfigured = vaultRepository.isBiometricsConfigured() && preferencesRepository.biometricEnabled.value
             if (!isConfigured) {
                 isPromptingBiometrics.set(false)
@@ -139,9 +142,9 @@ class BiometricCoordinator(
                 onResult(false)
                 return
             }
-            if (!biometricManager.canAuthenticate(requireStrong = true)) {
+            if (!biometricManager.canAuthenticate(requireStrong = false)) {
                 isPromptingBiometrics.set(false)
-                val status = biometricManager.checkBiometricAvailability(requireStrong = true)
+                val status = biometricManager.checkBiometricAvailability(requireStrong = false)
                 val msg = when (status) {
                     BiometricAuthManager.BiometricStatus.NOT_ENROLLED ->
                         "No biometric enrolled on device. Please add a fingerprint in Android Settings."
@@ -196,9 +199,14 @@ class BiometricCoordinator(
                     },
                     onError = { errorCode, errString ->
                         isPromptingBiometrics.set(false)
-                        preferencesRepository.setBiometricEnabled(false)
-                        SecurityLogger.warn("BiometricCoordinator", "Biometric enrollment error: $errorCode - $errString")
-                        unlockViewModel.setErrorMessage("Biometric setup failed: ${sanitizeBiometricError(errorCode, errString)}")
+                        if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                            errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
+                            errorCode != BiometricPrompt.ERROR_CANCELED
+                        ) {
+                            preferencesRepository.setBiometricEnabled(false)
+                            SecurityLogger.warn("BiometricCoordinator", "Biometric enrollment error: $errorCode - $errString")
+                            unlockViewModel.setErrorMessage("Biometric setup failed: ${sanitizeBiometricError(errorCode, errString)}")
+                        }
                         onResult(false)
                     },
                     onFailed = {

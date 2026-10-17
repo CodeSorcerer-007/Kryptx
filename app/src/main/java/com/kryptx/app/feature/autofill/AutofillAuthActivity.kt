@@ -273,6 +273,9 @@ class AutofillAuthActivity : FragmentActivity() {
     private fun onTriggerBiometrics() {
         val app = application as? KryptxApplication ?: return
         if (!app.biometricManager.canAuthenticate(requireStrong = false)) return
+        if (app.vaultRepository.isBiometricsConfigured() && !app.preferencesRepository.biometricEnabled.value) {
+            app.preferencesRepository.setBiometricEnabled(true)
+        }
         val isConfigured = app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
         if (!isConfigured) return
 
@@ -337,7 +340,10 @@ class AutofillAuthActivity : FragmentActivity() {
         val biometricEnabled by app.preferencesRepository.biometricEnabled.collectAsState()
         val lockoutSeconds by app.sessionManager.lockoutSecondsRemaining.collectAsState()
         val isBiometricsConfigured = remember(biometricEnabled) {
-            biometricEnabled && app.vaultRepository.isBiometricsConfigured()
+            if (app.vaultRepository.isBiometricsConfigured() && !app.preferencesRepository.biometricEnabled.value) {
+                app.preferencesRepository.setBiometricEnabled(true)
+            }
+            app.vaultRepository.isBiometricsConfigured() && app.preferencesRepository.biometricEnabled.value
         }
         val view = LocalView.current
         val scope = rememberCoroutineScope()

@@ -151,4 +151,16 @@ class UnlockViewModelTest {
         assertTrue(unlockSuccess)
         assertFalse(sessionManager.isLockOnBackground())
     }
+
+    @Test
+    fun testCheckVaultStatusSyncsBiometricPreferenceWhenConfigured() = runTest(testDispatcher) {
+        fakeVaultRepository.setupBiometrics()
+        fakePreferencesRepository.setBiometricEnabled(false)
+
+        viewModel.checkVaultStatus()
+        testScheduler.runCurrent()
+
+        assertTrue(fakePreferencesRepository.biometricEnabled.value)
+        assertTrue(viewModel.uiState.value.isBiometricsAvailable)
+    }
 }
