@@ -78,4 +78,89 @@ class BiometricCoordinatorTest {
         )
         assertEquals("Biometric authentication failed. Please use master password.", msg)
     }
+
+    @Test
+    fun testResetClearsStateAndCancelsAuthentication() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        coordinator.reset()
+        org.mockito.kotlin.verify(mockBiometricManager).cancelAuthentication()
+    }
+
+    @Test
+    fun testTriggerUnlockForceSurfacesUnavailableMessageWhenNoHardware() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        org.mockito.kotlin.whenever(mockBiometricManager.canAuthenticate(org.mockito.kotlin.any())).thenReturn(false)
+        org.mockito.kotlin.whenever(mockBiometricManager.checkBiometricAvailability(org.mockito.kotlin.any()))
+            .thenReturn(com.kryptx.app.core.security.BiometricAuthManager.BiometricStatus.NO_HARDWARE)
+
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        coordinator.triggerUnlock(force = true)
+        assertEquals(
+            "Biometric hardware not available on this device.",
+            unlockViewModel.uiState.value.errorMessage
+        )
+    }
+
+    @Test
+    fun testTriggerUnlockForceSurfacesNotConfiguredWhenVaultNotConfigured() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        org.mockito.kotlin.whenever(mockBiometricManager.canAuthenticate(org.mockito.kotlin.any())).thenReturn(true)
+
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        fakePrefsRepo.setBiometricEnabled(true)
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        coordinator.triggerUnlock(force = true)
+        assertEquals(
+            "Biometric unlock not configured. Please use your master password.",
+            unlockViewModel.uiState.value.errorMessage
+        )
+    }
 }

@@ -70,7 +70,21 @@ class BiometricAuthManager(private val context: Context) {
         onFailed: () -> Unit
     ) {
         if (activePrompt != null) {
-            SecurityLogger.warn("BiometricAuthManager", "Biometric prompt already active, ignoring duplicate prompt request")
+            SecurityLogger.warn("BiometricAuthManager", "Biometric prompt already active, cancelling prior prompt before relaunching")
+            cancelAuthentication()
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            mainHandler.post {
+                promptBiometric(
+                    activity = activity,
+                    title = title,
+                    subtitle = subtitle,
+                    negativeButtonText = negativeButtonText,
+                    cryptoObject = cryptoObject,
+                    onSuccess = onSuccess,
+                    onError = onError,
+                    onFailed = onFailed
+                )
+            }
             return
         }
 

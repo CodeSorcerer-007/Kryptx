@@ -26,7 +26,7 @@ class BiometricCoordinator(
     private val biometricManager: BiometricAuthManager,
     private val sessionManager: VaultSessionManager,
     private val vaultRepository: VaultRepository,
-    private val preferencesRepository: PreferencesRepository,
+    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository,
     private val activityLogManager: ActivityLogManager,
     private val unlockViewModel: UnlockViewModel
 ) {
@@ -38,11 +38,14 @@ class BiometricCoordinator(
      */
     fun triggerUnlock(force: Boolean = false) {
         try {
-            if (!isPromptingBiometrics.compareAndSet(false, true) && !force) return
-            if (!biometricManager.canAuthenticate(requireStrong = true)) {
+            if (force) {
+                isPromptingBiometrics.set(false)
+            }
+            if (!isPromptingBiometrics.compareAndSet(false, true)) return
+            if (!biometricManager.canAuthenticate(requireStrong = false)) {
                 isPromptingBiometrics.set(false)
                 if (force) {
-                    val status = biometricManager.checkBiometricAvailability(requireStrong = true)
+                    val status = biometricManager.checkBiometricAvailability(requireStrong = false)
                     val msg = when (status) {
                         BiometricAuthManager.BiometricStatus.NOT_ENROLLED ->
                             "No biometric enrolled on device. Please add a fingerprint in Android Settings."
@@ -71,12 +74,6 @@ class BiometricCoordinator(
                     unlockViewModel.setErrorMessage("Biometric unlock not configured. Please use your master password.")
                 }
                 return
-            }
-
-            if (force) {
-                try {
-                    biometricManager.cancelAuthentication()
-                } catch (_: Throwable) {}
             }
 
             val decryptCipher = try {
@@ -252,6 +249,13 @@ class BiometricCoordinator(
         try {
             biometricManager.cancelAuthentication()
         } catch (_: Throwable) {}
+    }
+
+    /**
+     * Complete reset of biometric coordination state, called upon vault lock.
+     */
+    fun reset() {
+        cancelAuthentication()
     }
 
     companion object {

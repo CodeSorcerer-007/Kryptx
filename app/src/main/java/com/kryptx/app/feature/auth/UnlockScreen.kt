@@ -96,16 +96,23 @@ fun UnlockScreen(
         }
     }
 
+    val isUnlocked by viewModel.isUnlocked.collectAsState()
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val shakeOffset = remember { Animatable(0f) }
-    var hasAutoPrompted by rememberSaveable { mutableStateOf(false) }
+    var hasAutoPrompted by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isUnlocked) {
+        if (!isUnlocked) {
+            hasAutoPrompted = false
+        }
+    }
 
     // Auto-prompt biometric authentication once when screen appears and biometrics are ready
-    LaunchedEffect(uiState.isBiometricsAvailable) {
-        if (!hasAutoPrompted && uiState.isBiometricsAvailable && lockoutSeconds == 0) {
+    LaunchedEffect(isUnlocked, uiState.isBiometricsAvailable) {
+        if (!isUnlocked && !hasAutoPrompted && uiState.isBiometricsAvailable && lockoutSeconds == 0) {
             hasAutoPrompted = true
-            delay(200)
+            delay(250)
             onTriggerBiometrics()
         }
     }
@@ -205,11 +212,9 @@ fun UnlockScreen(
                             .clip(CircleShape)
                             .background(KryptxBlue.copy(alpha = 0.12f))
                             .border(1.5.dp, KryptxBlue.copy(alpha = 0.40f), CircleShape)
-                            .clickable {
-                                KryptxHaptics.tap(view)
+                            .bounceClick(scaleDown = 0.92f, onClick = {
                                 onTriggerBiometrics()
-                            }
-                            .bounceClick(scaleDown = 0.92f),
+                            }),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -225,7 +230,6 @@ fun UnlockScreen(
                         isBiometricAvailable = uiState.isBiometricsAvailable,
                         size = 124.dp,
                         onClick = {
-                            KryptxHaptics.tap(view)
                             onTriggerBiometrics()
                         }
                     )
@@ -439,11 +443,9 @@ fun UnlockScreen(
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.30f), CircleShape)
                             .testTag("secondary_biometric_button")
-                            .clickable {
-                                KryptxHaptics.tap(view)
+                            .bounceClick(scaleDown = 0.90f, onClick = {
                                 onTriggerBiometrics()
-                            }
-                            .bounceClick(scaleDown = 0.90f),
+                            }),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

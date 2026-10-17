@@ -107,8 +107,7 @@ fun VaultLockDial(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .clickable(onClick = onClick)
-            .bounceClick(scaleDown = 0.94f)
+            .bounceClick(scaleDown = 0.94f, onClick = onClick)
             .drawBehind {
                 // Outer breathing aura ring
                 drawCircle(

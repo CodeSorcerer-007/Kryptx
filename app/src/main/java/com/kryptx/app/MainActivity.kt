@@ -129,11 +129,13 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        // Reset auto prompt flag when vault locks
+        // Reset auto prompt flag and biometric state when vault locks
         lifecycleScope.launch {
             app.sessionManager.isUnlocked.collect { unlocked ->
                 if (!unlocked) {
                     hasAutoPromptedBiometrics = false
+                    biometricCoordinator.reset()
+                    unlockViewModel.checkVaultStatus()
                 }
             }
         }
