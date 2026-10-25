@@ -231,8 +231,8 @@ fun SecurityCenterScreen(
                             )
                         }
 
-                        // 1-Tap Auto-Remediate Action Banner when weak items exist
-                        if (r.weakCount > 0) {
+                        // 1-Tap Auto-Remediate Action Banner when weak or compromised items exist
+                        if (r.weakCount > 0 || r.compromisedCount > 0) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Box(
                                 modifier = Modifier

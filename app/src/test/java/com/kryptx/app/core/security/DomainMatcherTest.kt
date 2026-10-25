@@ -102,4 +102,26 @@ class DomainMatcherTest {
         assertFalse("com.bank.fake.trojan must NOT match title 'Bank'",
             DomainMatcher.isPackageMatch("com.bank.fake.trojan", null, "Bank"))
     }
+
+    @Test
+    fun testIpv6DomainMatching() {
+        assertEquals("::1", DomainMatcher.normalizeHost("http://[::1]:8080/"))
+        assertEquals("2001:db8::1", DomainMatcher.normalizeHost("https://[2001:db8::1]:8443/login"))
+        assertTrue(DomainMatcher.isDomainMatch("http://[::1]:8080", "https://[::1]:9000"))
+        assertFalse(DomainMatcher.isDomainMatch("http://[::1]:8080", "http://[::2]:8080"))
+    }
+
+    @Test
+    fun testCcTldPackageMatchingSecurity() {
+        // Legitimate app package matching domain
+        assertTrue(DomainMatcher.isPackageMatch("uk.co.amazon.app", "amazon.co.uk", "Amazon"))
+        assertTrue(DomainMatcher.isPackageMatch("uk.co.amazon.app", "login.amazon.co.uk", "Amazon"))
+
+        // Malicious app attempting to hijack via ccTLD wildcard prefix (uk.co.*)
+        assertFalse(DomainMatcher.isPackageMatch("uk.co.evil.malware", "amazon.co.uk", null))
+        assertFalse(DomainMatcher.isPackageMatch("uk.co.evil.malware", "login.amazon.co.uk", null))
+
+        // IP address literals must never match reverse-domain package names
+        assertFalse(DomainMatcher.isPackageMatch("com.app.example", "192.168.1.1", null))
+    }
 }

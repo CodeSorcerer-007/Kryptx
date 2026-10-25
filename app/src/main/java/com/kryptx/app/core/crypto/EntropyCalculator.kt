@@ -78,6 +78,38 @@ object EntropyCalculator {
             entropyBits += 10.0
         }
 
+        // Sequential characters penalty (e.g. "abc", "123", "cba", "321")
+        if (length >= 3) {
+            var hasSequential = false
+            for (i in 0 until length - 2) {
+                val c1 = password[i].lowercaseChar()
+                val c2 = password[i + 1].lowercaseChar()
+                val c3 = password[i + 2].lowercaseChar()
+                if ((c2.code == c1.code + 1 && c3.code == c2.code + 1) ||
+                    (c2.code == c1.code - 1 && c3.code == c2.code - 1)) {
+                    hasSequential = true
+                    break
+                }
+            }
+            if (hasSequential) {
+                entropyBits = (entropyBits - 10.0).coerceAtLeast(5.0)
+                suggestions.add("Avoid sequential character sequences (e.g. '123' or 'abc')")
+            }
+
+            // Repeated characters penalty (e.g. "aaa", "111")
+            var hasRepeated = false
+            for (i in 0 until length - 2) {
+                if (password[i] == password[i + 1] && password[i] == password[i + 2]) {
+                    hasRepeated = true
+                    break
+                }
+            }
+            if (hasRepeated) {
+                entropyBits = (entropyBits - 10.0).coerceAtLeast(5.0)
+                suggestions.add("Avoid repeating characters consecutively")
+            }
+        }
+
         val strength = when {
             entropyBits < 35.0 -> StrengthScore.VERY_WEAK
             entropyBits < 60.0 -> StrengthScore.WEAK
@@ -233,7 +265,7 @@ object EntropyCalculator {
      * Estimates human-readable brute force crack time at 10 billion guesses/sec.
      */
     fun estimateCrackTime(entropyBits: Double): String {
-        if (entropyBits <= 28.0) return "Instant"
+        if (entropyBits.isNaN() || entropyBits <= 28.0) return "Instant"
 
         val combinations = 2.0.pow(entropyBits)
         val seconds = (combinations / 2.0) / HASHES_PER_SECOND // Average 50% search space

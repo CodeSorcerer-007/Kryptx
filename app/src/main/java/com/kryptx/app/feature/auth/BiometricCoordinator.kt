@@ -38,6 +38,10 @@ class BiometricCoordinator(
      */
     fun triggerUnlock(force: Boolean = false) {
         try {
+            if (biometricManager.isPromptActive) {
+                SecurityLogger.info("BiometricCoordinator", "Biometric prompt is already active on screen, ignoring")
+                return
+            }
             if (force) {
                 isPromptingBiometrics.set(false)
             }
@@ -138,6 +142,11 @@ class BiometricCoordinator(
      */
     fun triggerEnrollment(onResult: (Boolean) -> Unit) {
         try {
+            if (biometricManager.isPromptActive) {
+                SecurityLogger.info("BiometricCoordinator", "Biometric prompt is already active on screen, ignoring enrollment request")
+                onResult(false)
+                return
+            }
             if (!isPromptingBiometrics.compareAndSet(false, true)) {
                 onResult(false)
                 return

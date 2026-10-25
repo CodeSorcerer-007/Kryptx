@@ -40,7 +40,7 @@ class SecurityCenterViewModel(
     suspend fun getWeakItemsList(): List<com.kryptx.app.core.model.VaultItem> {
         val report = _auditReport.value ?: vaultRepository.computeSecurityAudit()
         val weakItemIds = report.issues
-            .filter { it.type == com.kryptx.app.core.model.IssueType.WEAK_PASSWORD }
+            .filter { it.type == com.kryptx.app.core.model.IssueType.WEAK_PASSWORD || it.type == com.kryptx.app.core.model.IssueType.COMPROMISED }
             .map { it.itemId }
             .distinct()
         return weakItemIds.mapNotNull { vaultRepository.getItemById(it) }
@@ -82,7 +82,7 @@ class SecurityCenterViewModel(
             _isLoading.value = true
             val report = _auditReport.value ?: vaultRepository.computeSecurityAudit()
             val weakItemIds = report.issues
-                .filter { it.type == com.kryptx.app.core.model.IssueType.WEAK_PASSWORD }
+                .filter { it.type == com.kryptx.app.core.model.IssueType.WEAK_PASSWORD || it.type == com.kryptx.app.core.model.IssueType.COMPROMISED }
                 .map { it.itemId }
                 .distinct()
 

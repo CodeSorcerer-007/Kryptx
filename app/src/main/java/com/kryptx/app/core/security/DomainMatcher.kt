@@ -27,8 +27,13 @@ object DomainMatcher {
         // Strip path, query params, and anchors
         cleaned = cleaned.substringBefore('/').substringBefore('?').substringBefore('#')
 
-        // Strip port numbers (e.g. localhost:8080 or domain.com:443)
-        if (cleaned.contains(':')) {
+        // Handle IPv6 bracket notation (e.g. [::1]:8080 or [2001:db8::1])
+        if (cleaned.startsWith('[') && cleaned.contains(']')) {
+            val bracketEnd = cleaned.indexOf(']')
+            cleaned = cleaned.substring(1, bracketEnd)
+        } else if (cleaned.count { it == ':' } == 1) {
+            // Strip port number only for hostnames/IPv4 with single colon (e.g. localhost:8080 or domain.com:443)
+            // IPv6 addresses without brackets have multiple colons (e.g. ::1 or 2001:db8::1) and must not be cut
             cleaned = cleaned.substringBefore(':')
         }
 
@@ -118,7 +123,7 @@ object DomainMatcher {
 
         // 1. Check if the package starts with the reverse domain of the item website (e.g. com.twitter.android vs twitter.com)
         val itemHost = normalizeHost(itemWebsite)
-        if (itemHost.isNotEmpty()) {
+        if (itemHost.isNotEmpty() && !isIpAddress(itemHost)) {
             val hostParts = itemHost.split('.')
             if (hostParts.size >= 2) {
                 // e.g. "twitter.com" -> "com.twitter", "auth.github.com" -> "com.github.auth"
@@ -127,10 +132,17 @@ object DomainMatcher {
                     return true
                 }
                 // Base domain fallback for subdomains: e.g. "auth.github.com" -> base "github.com" -> "com.github"
-                val baseParts = hostParts.takeLast(2)
-                val reverseBase = baseParts.reversed().joinToString(".")
-                if (pkgClean == reverseBase || pkgClean.startsWith("$reverseBase.")) {
-                    return true
+                // Guard against 2-part ccTLDs like .co.uk, .com.au, .co.jp, .org.uk where takeLast(2) would yield "uk.co"
+                val secondToLast = hostParts.getOrNull(hostParts.size - 2)
+                val last = hostParts.last()
+                val isTwoPartCctld = last.length == 2 && secondToLast in setOf("co", "com", "org", "net", "gov", "edu", "ac", "ne", "or")
+                val basePartsCount = if (isTwoPartCctld) 3 else 2
+                if (hostParts.size > basePartsCount) {
+                    val baseParts = hostParts.takeLast(basePartsCount)
+                    val reverseBase = baseParts.reversed().joinToString(".")
+                    if (pkgClean == reverseBase || pkgClean.startsWith("$reverseBase.")) {
+                        return true
+                    }
                 }
             }
         }

@@ -29,20 +29,11 @@ object PasswordRotationHelper {
      */
     fun getChangePasswordUrl(rawUrl: String): String? {
         if (rawUrl.isBlank()) return null
-        val formattedUrl = if (!rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
-            "https://$rawUrl"
-        } else {
-            rawUrl
-        }
-
-        return try {
-            val uri = URI(formattedUrl)
-            val host = uri.host ?: return null
-            val scheme = if (uri.scheme.isNullOrBlank()) "https" else uri.scheme
-            "$scheme://$host/.well-known/change-password"
-        } catch (_: Exception) {
-            null
-        }
+        val trimmed = rawUrl.trim()
+        val scheme = if (trimmed.startsWith("http://", ignoreCase = true)) "http" else "https"
+        val host = DomainMatcher.normalizeHost(trimmed)
+        if (host.isBlank()) return null
+        return "$scheme://$host/.well-known/change-password"
     }
 
     /**

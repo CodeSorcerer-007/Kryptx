@@ -37,6 +37,9 @@ import com.kryptx.app.feature.vault.VaultViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
+import androidx.compose.runtime.DisposableEffect
+import com.kryptx.app.core.crypto.SecureMemory
+
 @Composable
 fun AttachmentsDetailSection(
     attachments: List<VaultAttachment>,
@@ -49,11 +52,21 @@ fun AttachmentsDetailSection(
 
     var activePreviewAttachment by remember { mutableStateOf<Pair<VaultAttachment, ByteArray>?>(null) }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            activePreviewAttachment?.second?.let { SecureMemory.wipe(it) }
+            activePreviewAttachment = null
+        }
+    }
+
     activePreviewAttachment?.let { (att, data) ->
         SecureAttachmentViewer(
             attachment = att,
             data = data,
-            onDismiss = { activePreviewAttachment = null }
+            onDismiss = {
+                SecureMemory.wipe(data)
+                activePreviewAttachment = null
+            }
         )
     }
 
@@ -80,6 +93,7 @@ fun AttachmentsDetailSection(
                                 try {
                                     val decryptedBytes = viewModel.loadDecryptedAttachment(context, att)
                                     if (decryptedBytes != null) {
+                                        activePreviewAttachment?.second?.let { SecureMemory.wipe(it) }
                                         activePreviewAttachment = Pair(att, decryptedBytes)
                                     } else {
                                         snackbarHostState.showSnackbar("Failed to decrypt attachment.")

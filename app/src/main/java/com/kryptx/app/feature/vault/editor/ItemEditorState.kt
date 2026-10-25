@@ -245,9 +245,9 @@ sealed class ItemEditorState {
         tagsInit: List<String> = emptyList(),
         customFieldsInit: List<CustomField> = emptyList(),
         attachmentsInit: List<VaultAttachment> = emptyList(),
-        rotationInit: Int? = null
+        rotationInit: Int? = null,
+        override val itemType: ItemType = ItemType.CUSTOM
     ) : ItemEditorState() {
-        override val itemType = ItemType.CUSTOM
         override val title = mutableStateOf(titleInit)
         override val isFavorite = mutableStateOf(isFavoriteInit)
         override val notes = mutableStateOf(notesInit)
@@ -370,7 +370,8 @@ sealed class ItemEditorState {
                 tagsInit = item.tags,
                 customFieldsInit = item.customFields,
                 attachmentsInit = item.attachments,
-                rotationInit = item.rotationIntervalDays
+                rotationInit = item.rotationIntervalDays,
+                itemType = item.type
             )
         }
 
@@ -385,10 +386,34 @@ sealed class ItemEditorState {
             ItemType.SECURE_NOTE -> SecureNote()
             ItemType.WIFI -> Wifi()
             ItemType.API_KEY -> ApiKey()
-            ItemType.BANK_ACCOUNT,
-            ItemType.CRYPTO_WALLET,
-            ItemType.SSH_KEY,
-            ItemType.CUSTOM -> Custom()
+            ItemType.BANK_ACCOUNT -> Custom(
+                customFieldsInit = listOf(
+                    CustomField(label = "Bank Name", value = ""),
+                    CustomField(label = "Account Number", value = "", isSecured = true),
+                    CustomField(label = "Routing Number", value = ""),
+                    CustomField(label = "SWIFT / BIC", value = "")
+                ),
+                itemType = ItemType.BANK_ACCOUNT
+            )
+            ItemType.CRYPTO_WALLET -> Custom(
+                customFieldsInit = listOf(
+                    CustomField(label = "Address", value = ""),
+                    CustomField(label = "Seed Phrase", value = "", isSecured = true),
+                    CustomField(label = "Network", value = "")
+                ),
+                itemType = ItemType.CRYPTO_WALLET
+            )
+            ItemType.SSH_KEY -> Custom(
+                customFieldsInit = listOf(
+                    CustomField(label = "Public Key", value = ""),
+                    CustomField(label = "Private Key", value = "", isSecured = true),
+                    CustomField(label = "Host", value = "")
+                ),
+                itemType = ItemType.SSH_KEY
+            )
+            ItemType.CUSTOM -> Custom(
+                itemType = ItemType.CUSTOM
+            )
         }
     }
 
@@ -537,7 +562,7 @@ sealed class ItemEditorState {
             )
             is Custom -> base.copy(
                 title = title.value.trim(),
-                type = ItemType.CUSTOM,
+                type = itemType,
                 isFavorite = isFavorite.value,
                 notes = notes.value,
                 tags = tags.value,
@@ -559,7 +584,7 @@ sealed class ItemEditorState {
             return title.value.isNotEmpty() ||
                 notes.value.isNotEmpty() ||
                 attachments.isNotEmpty() ||
-                customFields.isNotEmpty() ||
+                customFields.any { it.value.isNotEmpty() } ||
                 when (this) {
                     is Login -> username.value.isNotEmpty() || password.value.isNotEmpty()
                     is CreditCard -> cardNumber.value.isNotEmpty()
@@ -570,6 +595,6 @@ sealed class ItemEditorState {
                     else -> false
                 }
         }
-        return toVaultItem(original, original.expiresAt) != original
+        return toVaultItem(original, original.expiresAt).copy(updatedAt = original.updatedAt) != original
     }
 }

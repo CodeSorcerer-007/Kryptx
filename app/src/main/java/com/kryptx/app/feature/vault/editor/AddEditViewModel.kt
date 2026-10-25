@@ -105,6 +105,9 @@ class AddEditViewModel(
         newState.title.value = current.title.value
         newState.notes.value = current.notes.value
         newState.isFavorite.value = current.isFavorite.value
+        newState.tags.value = current.tags.value
+        newState.attachments.addAll(current.attachments)
+        newState.rotationIntervalDays.value = current.rotationIntervalDays.value
         _editorState.value = newState
     }
 
@@ -236,7 +239,7 @@ class AddEditViewModel(
                     _saveResult.value = SaveResult.Saved
                 }
                 is KryptxResult.Error -> {
-                    _saveResult.value = SaveResult.Error(result.message ?: "Failed to save item")
+                    _saveResult.value = SaveResult.Error(result.message)
                 }
             }
         }

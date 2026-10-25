@@ -57,6 +57,8 @@ import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxRed
+import com.kryptx.app.core.model.IssueType
 import com.kryptx.app.core.model.SecurityAuditReport
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.security.PasswordRotationHelper
@@ -246,17 +248,22 @@ fun SecurityRemediationWizard(
                                     }
                                 }
 
+                                val isBreached = viewModel.auditReport.value?.issues
+                                    ?.any { it.itemId == currentItem.id && it.type == IssueType.COMPROMISED } == true
+                                val badgeColor = if (isBreached) KryptxRed else KryptxAmber
+                                val badgeLabel = if (isBreached) "Breached" else "Weak"
+
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(KryptxAmber.copy(alpha = 0.15f))
+                                        .background(badgeColor.copy(alpha = 0.15f))
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "Weak",
+                                        text = badgeLabel,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = KryptxAmber
+                                        color = badgeColor
                                     )
                                 }
                             }

@@ -221,4 +221,68 @@ class BiometricCoordinatorTest {
         org.mockito.kotlin.verify(mockBiometricManager).canAuthenticate(false)
         assertEquals(false, resultValue)
     }
+
+    @Test
+    fun testTriggerUnlock_whenPromptAlreadyActive_doesNotPromptAgain() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        org.mockito.kotlin.whenever(mockBiometricManager.isPromptActive).thenReturn(true)
+
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        coordinator.triggerUnlock(force = true)
+        org.mockito.kotlin.verify(mockBiometricManager, org.mockito.kotlin.never()).canAuthenticate(org.mockito.kotlin.any())
+        org.mockito.kotlin.verify(mockBiometricManager, org.mockito.kotlin.never()).promptBiometric(
+            org.mockito.kotlin.any(),
+            org.mockito.kotlin.any(),
+            org.mockito.kotlin.any(),
+            org.mockito.kotlin.any(),
+            org.mockito.kotlin.any(),
+            org.mockito.kotlin.any(),
+            org.mockito.kotlin.any(),
+            org.mockito.kotlin.any()
+        )
+    }
+
+    @Test
+    fun testTriggerEnrollment_whenPromptAlreadyActive_returnsFalseImmediately() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        org.mockito.kotlin.whenever(mockBiometricManager.isPromptActive).thenReturn(true)
+
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        var enrolled: Boolean? = null
+        coordinator.triggerEnrollment { enrolled = it }
+        assertEquals(false, enrolled)
+        org.mockito.kotlin.verify(mockBiometricManager, org.mockito.kotlin.never()).canAuthenticate(org.mockito.kotlin.any())
+    }
 }

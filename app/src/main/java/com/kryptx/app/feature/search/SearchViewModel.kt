@@ -73,11 +73,11 @@ class SearchViewModel(
             }
 
             list = if (candidateIds != null) {
-                // Intersect in-memory list with DB blind index results, then apply structured filters
+                // Intersect in-memory list with DB blind index results, then apply structured and token filters
                 val idFilteredList = list.filter { it.id in candidateIds }
-                // Re-evaluate structured filters on the smaller candidate set
+                // Re-evaluate full filters on candidate set to ensure exact substring match and zero hash collision false positives
                 idFilteredList.filter { item ->
-                    SearchQueryParser.matches(item, parsed.copy(textTokens = emptyList()))
+                    SearchQueryParser.matches(item, parsed)
                 }
             } else {
                 // Pure in-memory fallback — handles structured-only queries or locked vault

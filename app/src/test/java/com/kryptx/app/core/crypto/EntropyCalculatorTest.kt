@@ -197,4 +197,23 @@ class EntropyCalculatorTest {
             assertTrue("Feedback must not be empty for '$pw'", result.feedback.isNotBlank())
         }
     }
+
+    @Test
+    fun `analyze CharArray applies sequential and repeated penalties`() {
+        val seqResult = EntropyCalculator.analyze("abc123xyz".toCharArray())
+        assertTrue("Sequential sequence must be detected in CharArray",
+            seqResult.suggestions.any { it.contains("sequential") })
+
+        val repResult = EntropyCalculator.analyze("aaa111bbb".toCharArray())
+        assertTrue("Repeated sequence must be detected in CharArray",
+            repResult.suggestions.any { it.contains("repeating") })
+    }
+
+    @Test
+    fun `estimateCrackTime handles boundary and NaN safely`() {
+        assertEquals("Instant", EntropyCalculator.estimateCrackTime(Double.NaN))
+        assertEquals("Instant", EntropyCalculator.estimateCrackTime(0.0))
+        assertEquals("Instant", EntropyCalculator.estimateCrackTime(28.0))
+        assertEquals("Centuries (Unbreakable)", EntropyCalculator.estimateCrackTime(500.0))
+    }
 }

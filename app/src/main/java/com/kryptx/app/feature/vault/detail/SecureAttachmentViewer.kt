@@ -592,7 +592,17 @@ private class PdfRendererHolder(val context: Context, val pdfBytes: ByteArray) {
     fun close() {
         try { renderer?.close() } catch (_: Throwable) {}
         try { pfd?.close() } catch (_: Throwable) {}
-        try { tempFile?.delete() } catch (_: Throwable) {}
+        try {
+            tempFile?.let { file ->
+                if (file.exists()) {
+                    val len = file.length()
+                    if (len in 1..10485760L) {
+                        file.writeBytes(ByteArray(len.toInt()))
+                    }
+                    file.delete()
+                }
+            }
+        } catch (_: Throwable) {}
         renderer = null
         pfd = null
         tempFile = null

@@ -84,17 +84,21 @@ fun LoginFormFields(
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 StrengthBadge(strength = passwordAnalysis.strength)
-                CrackTimeBadge(crackTime = passwordAnalysis.crackTimeDisplay)
                 Text(
-                    text = "${passwordAnalysis.entropyBits} bits",
+                    text = "${passwordAnalysis.entropyBits} bits entropy",
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            CrackTimeBadge(crackTime = passwordAnalysis.crackTimeDisplay)
         }
 
         Spacer(modifier = Modifier.height(14.dp))

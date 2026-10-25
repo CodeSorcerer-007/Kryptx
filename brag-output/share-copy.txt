@@ -1,0 +1,35 @@
+# Kryptx Share Copy
+
+## X / Twitter
+Zero servers. Zero cloud sync. Zero monthly subscriptions.
+
+We built Kryptx because security tools became bloated server platforms.
+Kryptx is a 100% offline, post-quantum fortified Android password companion:
+- 0 Internet Permissions (Kernel blocks network sockets)
+- Rust XChaCha20-Poly1305 + AES-256-GCM + ML-KEM-768 (FIPS 203)
+- Physical YubiKey (NFC/USB-OTG) + StrongBox TEE biometrics
+- Linux mlock() physical RAM-locked zeroization
+- Phishing-resistant autofill & 100% offline HIBP breach check
+- 570 unit tests passing (100% pass rate)
+
+Get it on Google Play or sideload standalone APKs from GitHub:
+https://github.com/CodeSorcerer-007/Kryptx
+
+---
+
+## Reddit (r/Android, r/privacy, r/netsec)
+Title: Kryptx – 100% Offline, Post-Quantum Fortified Android Password Fortress (0 Network Permissions)
+
+Most modern password managers are web services first and security tools second. When LastPass or cloud vaults get breached, users pay the price.
+
+Kryptx was built on an uncompromising principle: the safest server is no server at all.
+- Kernel-Level Air-Gap: Check AndroidManifest.xml—android.permission.INTERNET does not exist. The Linux kernel physically blocks socket creation.
+- Dual Ciphers in Bare-Metal Rust: XChaCha20-Poly1305 alongside NIST-standard AES-256-GCM.
+- Post-Quantum Shield: Hybrid ML-KEM-768 (FIPS 203) and ML-DSA-65 (FIPS 204) key encapsulation.
+- Linux mlock() RAM Locking: Keys are pinned in physical memory and excluded from core dumps (MADV_DONTDUMP).
+- Multi-Protocol Hardware Keys: Physical NFC and USB-OTG YubiKey challenge-response (HMAC-SHA1 slot 2) + FIDO2 CTAP2 BLE.
+- Anti-Coercion: Secondary Duress PIN opens a plausible decoy vault, and panic mode executes multi-pass CSPRNG flash overwrites.
+- 570 unit tests passing with zero regressions.
+
+Code, Architecture, and APKs: https://github.com/CodeSorcerer-007/Kryptx
+Google Play: https://play.google.com/store/apps/details?id=com.kryptx.app
