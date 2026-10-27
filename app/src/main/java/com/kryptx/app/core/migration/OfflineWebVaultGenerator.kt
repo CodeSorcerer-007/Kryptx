@@ -338,7 +338,9 @@ object OfflineWebVaultGenerator {
         function renderItems() {
             const query = (document.getElementById('search-box').value || '').toLowerCase();
             const container = document.getElementById('items-grid');
-            container.innerHTML = '';
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
 
             const filtered = decryptedItems.filter(item => {
                 const matchesFilter = activeFilter === 'ALL' || item.type === activeFilter;
@@ -351,7 +353,10 @@ object OfflineWebVaultGenerator {
             });
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding: 40px; color: var(--text-secondary);">No matching items found</div>';
+                const emptyMsg = document.createElement('div');
+                emptyMsg.style.cssText = 'text-align:center; padding: 40px; color: var(--text-secondary);';
+                emptyMsg.textContent = 'No matching items found';
+                container.appendChild(emptyMsg);
                 return;
             }
 
@@ -361,15 +366,23 @@ object OfflineWebVaultGenerator {
 
                 const subtext = item.username || item.cardNumber || item.website || (item.notes ? item.notes.slice(0, 30) + '...' : '');
 
-                card.innerHTML = `
-                    <div class="item-info">
-                        <h4>${'$'}{escapeHtml(item.title)}</h4>
-                        <span>${'$'}{escapeHtml(subtext)}</span>
-                    </div>
-                    <div class="item-actions"></div>
-                `;
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'item-info';
 
-                const actionsDiv = card.querySelector('.item-actions');
+                const h4 = document.createElement('h4');
+                h4.textContent = item.title || '';
+                infoDiv.appendChild(h4);
+
+                const span = document.createElement('span');
+                span.textContent = subtext || '';
+                infoDiv.appendChild(span);
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'item-actions';
+
+                card.appendChild(infoDiv);
+                card.appendChild(actionsDiv);
+
                 if (item.username) {
                     const btn = document.createElement('button');
                     btn.className = 'btn-icon';
@@ -394,13 +407,6 @@ object OfflineWebVaultGenerator {
 
                 container.appendChild(card);
             });
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.innerText = text;
-            return div.innerHTML;
         }
     </script>
 </body>

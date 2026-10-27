@@ -68,6 +68,28 @@ object DomainMatcher {
                (host.startsWith('[') && host.endsWith(']'))
     }
 
+    val MULTI_TENANT_PUBLIC_SUFFIXES = setOf(
+        // Cloud & hosting providers
+        "github.io", "gitlab.io", "pages.dev", "workers.dev",
+        "vercel.app", "netlify.app", "firebaseapp.com", "web.app",
+        "azurewebsites.net", "s3.amazonaws.com", "cloudfront.net",
+        "herokuapp.com", "myshopify.com", "000webhostapp.com",
+        "wordpress.com", "blogspot.com", "tumblr.com",
+        // Multi-part country code TLDs
+        "co.uk", "org.uk", "gov.uk", "ac.uk", "net.uk",
+        "com.au", "net.au", "org.au", "edu.au", "gov.au",
+        "co.jp", "ne.jp", "or.jp", "ac.jp", "go.jp",
+        "co.nz", "org.nz", "net.nz",
+        "com.br", "org.br", "net.br",
+        "co.in", "net.in", "org.in", "gen.in", "firm.in", "ind.in",
+        "com.sg", "edu.sg", "gov.sg", "net.sg", "org.sg",
+        "co.za", "org.za", "net.za"
+    )
+
+    fun isMultiTenantPublicSuffix(host: String): Boolean {
+        return MULTI_TENANT_PUBLIC_SUFFIXES.contains(host)
+    }
+
     /**
      * Evaluates whether a requested target web domain matches an item's website.
      * Enforces strict host equality or subdomain boundary matching.
@@ -80,8 +102,10 @@ object DomainMatcher {
      * 5. Suffix spoofing rejection: `paypal.com.attacker.org` does NOT match `paypal.com` -> REJECTED
      * 6. IP address literal strictness: `192.168.1.1` does NOT match `1.1` -> REJECTED
      * 7. Bare TLD wildcard rejection: `com` does NOT match `google.com` -> REJECTED
+     * 8. Public Suffix / Multi-tenant boundary rejection: `github.io` does NOT match `user.github.io` -> REJECTED
+     * 9. Optional strictSubdomain isolation mode: requires exact host equality.
      */
-    fun isDomainMatch(targetDomain: String?, itemWebsite: String?): Boolean {
+    fun isDomainMatch(targetDomain: String?, itemWebsite: String?, strictSubdomain: Boolean = false): Boolean {
         val targetHost = normalizeHost(targetDomain)
         val itemHost = normalizeHost(itemWebsite)
 
@@ -89,6 +113,9 @@ object DomainMatcher {
 
         // Exact match (including identical IP addresses)
         if (targetHost == itemHost) return true
+
+        // Strict subdomain isolation: require identical hostnames
+        if (strictSubdomain) return false
 
         // IP address literals must match strictly by exact equality — reject suffix spoofing like 192.168.1.1 vs 1.1
         if (isIpAddress(targetHost) || isIpAddress(itemHost)) {
@@ -98,6 +125,13 @@ object DomainMatcher {
         // Reject bare TLDs or dotless domains from matching as wildcard parent domains
         // e.g. target="com", item="google.com" -> REJECTED
         if (!targetHost.contains('.') || !itemHost.contains('.')) {
+            return false
+        }
+
+        // Multi-tenant / public suffix protection: public suffixes must never act as wildcard parent domains
+        // e.g. target="github.io", item="user.github.io" -> REJECTED
+        // e.g. target="attacker.github.io", item="github.io" -> REJECTED
+        if (isMultiTenantPublicSuffix(targetHost) || isMultiTenantPublicSuffix(itemHost)) {
             return false
         }
 
@@ -121,18 +155,16 @@ object DomainMatcher {
         if (targetPackage.isNullOrBlank()) return false
         val pkgClean = targetPackage.trim().lowercase()
 
-        // 1. Check if the package starts with the reverse domain of the item website (e.g. com.twitter.android vs twitter.com)
+        // 1. Strict Reverse-Domain Matching (e.g. twitter.com -> com.twitter)
         val itemHost = normalizeHost(itemWebsite)
         if (itemHost.isNotEmpty() && !isIpAddress(itemHost)) {
             val hostParts = itemHost.split('.')
             if (hostParts.size >= 2) {
-                // e.g. "twitter.com" -> "com.twitter", "auth.github.com" -> "com.github.auth"
                 val reverseDomain = hostParts.reversed().joinToString(".")
                 if (pkgClean == reverseDomain || pkgClean.startsWith("$reverseDomain.")) {
                     return true
                 }
                 // Base domain fallback for subdomains: e.g. "auth.github.com" -> base "github.com" -> "com.github"
-                // Guard against 2-part ccTLDs like .co.uk, .com.au, .co.jp, .org.uk where takeLast(2) would yield "uk.co"
                 val secondToLast = hostParts.getOrNull(hostParts.size - 2)
                 val last = hostParts.last()
                 val isTwoPartCctld = last.length == 2 && secondToLast in setOf("co", "com", "org", "net", "gov", "edu", "ac", "ne", "or")
@@ -145,17 +177,30 @@ object DomainMatcher {
                     }
                 }
             }
+            // Security: If itemWebsite was provided, never fall through to fuzzy title matching.
+            // A website-bound credential must strictly match the verified domain/package hierarchy.
+            return false
         }
 
-        // 2. Check title matching against package leaf token (e.g. "Authenticator" vs "com.google.android.apps.authenticator2")
-        // Requires minimum 5-character title to prevent false positives on generic titles ("Mail", "Pay", "App")
-        // and strictly matches only the terminal package segment, preventing middle-token spoofing (e.g. com.evil.mail.stealer).
+        // 2. Strict Title Matching (ONLY for standalone app credentials without an associated website):
+        // Enforces that the package identity is rooted in the entity's namespace (e.g. "com.slack",
+        // "com.google.android.apps.authenticator"), preventing attacker packages (e.g. "com.attacker.evil.authenticator")
         if (!itemTitle.isNullOrBlank()) {
             val titleClean = itemTitle.trim().lowercase().replace(" ", "").replace("-", "").replace("_", "")
+            // Requires minimum 5-character title to prevent false positives on generic titles ("Mail", "Bank", "Pay")
             if (titleClean.length >= 5) {
-                val lastSegment = pkgClean.substringAfterLast('.')
-                val segmentBase = lastSegment.trimEnd { it.isDigit() }
-                if (segmentBase == titleClean) {
+                val parts = pkgClean.split('.')
+                // Direct match: e.g. "com.slack", "org.mozilla.firefox", or "com.authenticator"
+                if (parts.size == 2 && parts[1] == titleClean) {
+                    return true
+                }
+                // Well-known trusted Android app suite prefixes: e.g. com.google.android.apps.authenticator2
+                if (pkgClean.startsWith("com.google.android.apps.") || pkgClean.startsWith("com.google.android.gm.")) {
+                    val leaf = parts.last().trimEnd { it.isDigit() }
+                    if (leaf == titleClean) return true
+                }
+                // Brand root namespace: e.g. com.slack.android, org.wikipedia.app
+                if (parts.size >= 3 && (parts[0] in setOf("com", "org", "net", "io", "app", "dev")) && parts[1] == titleClean) {
                     return true
                 }
             }

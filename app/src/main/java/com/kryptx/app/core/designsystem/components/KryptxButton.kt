@@ -41,6 +41,10 @@ import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxElectricBlueGradient
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 
@@ -79,6 +83,10 @@ fun KryptxPrimaryButton(
             modifier = modifier
                 .fillMaxWidth()
                 .height(height)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    this.contentDescription = text
+                }
                 .bounceClick(scaleDown = 0.96f, onClick = onClick)
                 .clip(shape)
                 .background(KryptxElectricBlueGradient)
@@ -125,6 +133,10 @@ fun KryptxPrimaryButton(
             modifier = modifier
                 .fillMaxWidth()
                 .height(height)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    this.contentDescription = text
+                }
                 .bounceClick(scaleDown = 0.96f, onClick = onClick),
             enabled = enabled,
             shape = shape,
@@ -175,6 +187,10 @@ fun KryptxOutlinedButton(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                this.contentDescription = text
+            }
             .bounceClick(scaleDown = 0.96f, onClick = onClick),
         enabled = enabled,
         shape = shape,

@@ -22,7 +22,7 @@ function initMobileNav() {
     hamburger.addEventListener('click', () => {
       const isOpen = mobileNav.classList.toggle('is-open');
       hamburger.setAttribute('aria-expanded', isOpen);
-      hamburger.innerHTML = isOpen ? '✕' : '☰';
+      hamburger.textContent = isOpen ? '✕' : '☰';
     });
 
     // Close menu when clicking outside or on a link
@@ -30,14 +30,14 @@ function initMobileNav() {
       if (!hamburger.contains(e.target) && !mobileNav.contains(e.target)) {
         mobileNav.classList.remove('is-open');
         hamburger.setAttribute('aria-expanded', 'false');
-        hamburger.innerHTML = '☰';
+        hamburger.textContent = '☰';
       }
     });
 
     mobileNav.querySelectorAll('.nav-link').forEach(link => {
       link.addEventListener('click', () => {
         mobileNav.classList.remove('is-open');
-        hamburger.innerHTML = '☰';
+        hamburger.textContent = '☰';
       });
     });
   }

@@ -198,4 +198,16 @@ object SecureMemory {
             munlockBuffer(buffer)
         } catch (_: Throwable) {}
     }
+
+    /**
+     * Allocates a memory-locked secure buffer, executes the block, and guarantees release/wipe in finally.
+     */
+    inline fun <R> withSecureBuffer(capacity: Int, block: (java.nio.ByteBuffer) -> R): R {
+        val buffer = allocateSecureBuffer(capacity)
+        return try {
+            block(buffer)
+        } finally {
+            releaseSecureBuffer(buffer)
+        }
+    }
 }

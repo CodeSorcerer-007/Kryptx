@@ -66,23 +66,58 @@ class CryptographicMemoryWatchdog(
         trackedBuffers.removeIf { it.get() == null }
     }
 
+    private val cachePruneHooks = CopyOnWriteArrayList<() -> Unit>()
+
+    /**
+     * Registers a non-essential cache prune hook (e.g. identicon cache, QR decode cache).
+     */
+    fun registerCachePruneHook(hook: () -> Unit) {
+        cachePruneHooks.add(hook)
+    }
+
+    fun unregisterCachePruneHook(hook: () -> Unit) {
+        cachePruneHooks.remove(hook)
+    }
+
+    /**
+     * Executes all registered cache prune hooks to free memory without disrupting the active vault session.
+     */
+    fun pruneEphemeralCaches() {
+        for (hook in cachePruneHooks) {
+            try {
+                hook()
+            } catch (t: Throwable) {
+                SecurityLogger.warn(TAG, "Cache prune hook failed", t)
+            }
+        }
+    }
+
     override fun onTrimMemory(level: Int) {
         memoryTrimsEncountered.incrementAndGet()
         lastTrimTimestamp.set(System.currentTimeMillis())
 
         when (level) {
             ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
-                // User navigated away from app; scrub registered volatile buffers
+                // User navigated away from app; scrub registered volatile buffers and prune UI caches
+                forceScrubRegisteredBuffers()
+                pruneEphemeralCaches()
+            }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
+                // Moderate memory pressure: aggressively prune UI caches and stale buffers without locking vault
+                pruneEphemeralCaches()
                 forceScrubRegisteredBuffers()
             }
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
             ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
-                // Severe memory constraint: lock vault defensively and zeroize everything
+                // Severe memory constraint: prune caches, scrub registered buffers, lock vault defensively, and GC
+                pruneEphemeralCaches()
                 forceScrubRegisteredBuffers()
                 sessionManager.lock()
                 System.gc()
             }
             else -> {
+                pruneEphemeralCaches()
                 forceScrubRegisteredBuffers()
             }
         }

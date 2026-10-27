@@ -91,4 +91,31 @@ class HardwareSecurityKeyTest {
         assertNotNull(hash)
         assertTrue(hash.isNotEmpty())
     }
+
+    @Test
+    fun testNullBleDeviceRejection() {
+        val bleManager = BleHardwareKeyManager(null)
+        val challenge = keyManager.generateFreshChallenge()
+        org.junit.Assert.assertNull(bleManager.processBleChallenge(null, challenge))
+        org.junit.Assert.assertNull(keyManager.processBleChallenge(null, null, challenge))
+    }
+
+    @Test
+    fun testBleFailClosedByDefaultAndMockOptIn() {
+        val bleManager = BleHardwareKeyManager(null)
+        val mockBleDevice = org.mockito.kotlin.mock<android.bluetooth.BluetoothDevice>()
+        org.mockito.kotlin.whenever(mockBleDevice.address).thenReturn("AA:BB:CC:DD:EE:FF")
+        org.mockito.kotlin.whenever(mockBleDevice.bondState).thenReturn(android.bluetooth.BluetoothDevice.BOND_BONDED)
+
+        val challenge = keyManager.generateFreshChallenge()
+
+        // 1. By default, direct CTAP2 GATT transport is required; insecure MAC fallback must fail closed
+        val defaultResp = bleManager.processBleChallenge(mockBleDevice, challenge)
+        org.junit.Assert.assertNull("BLE challenge must fail closed by default without GATT connection", defaultResp)
+
+        // 2. Explicit opt-in for mock/testing mode
+        val mockResp = bleManager.processBleChallenge(mockBleDevice, challenge, allowBondedDeviceMacFallback = true)
+        assertNotNull("Mock fallback should return response when explicitly enabled", mockResp)
+        assertEquals(32, mockResp!!.size)
+    }
 }

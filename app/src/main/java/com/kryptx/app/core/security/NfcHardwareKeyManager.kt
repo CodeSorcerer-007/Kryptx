@@ -41,10 +41,23 @@ object NfcHardwareKeyManager {
      *
      * @param tag Android NFC Tag detected via NFC dispatch.
      * @param challenge Raw challenge bytes to send to the token.
+     * @param allowInsecureUidFallback Whether to permit cloneable NFC tag UID fallback if YubiKey applet is unavailable.
+     *                                Defaults to false (fail-secure).
      * @return Hardware response bytes (or null if communication failed).
      */
-    fun processNfcChallenge(tag: Tag, challenge: ByteArray): ByteArray? {
-        val isoDep = IsoDep.get(tag) ?: return null
+    fun processNfcChallenge(
+        tag: Tag,
+        challenge: ByteArray,
+        allowInsecureUidFallback: Boolean = false
+    ): ByteArray? {
+        val isoDep = IsoDep.get(tag) ?: run {
+            if (allowInsecureUidFallback) {
+                SecurityLogger.warn("NfcHardwareKeyManager", "IsoDep unavailable, using insecure UID fallback per explicit setting")
+                return fallbackHardwareDigest(tag.id, challenge)
+            }
+            SecurityLogger.warn("NfcHardwareKeyManager", "Non-IsoDep NFC tag presented — rejecting unauthenticated tag")
+            return null
+        }
         return try {
             isoDep.connect()
             isoDep.timeout = 5000
@@ -62,8 +75,12 @@ object NfcHardwareKeyManager {
 
             val selectResponse = isoDep.transceive(selectCommand)
             if (selectResponse.size < 2 || selectResponse[selectResponse.size - 2] != 0x90.toByte()) {
-                // If direct YubiKey applet selection is unsupported, hash the tag ID and challenge
-                return fallbackHardwareDigest(tag.id, challenge)
+                if (allowInsecureUidFallback) {
+                    SecurityLogger.warn("NfcHardwareKeyManager", "YubiKey applet selection rejected, using insecure UID fallback per explicit setting")
+                    return fallbackHardwareDigest(tag.id, challenge)
+                }
+                SecurityLogger.warn("NfcHardwareKeyManager", "YubiKey applet selection rejected (SW != 9000) — failing closed")
+                return null
             }
 
             // Send HMAC challenge (slot 2)
@@ -80,10 +97,20 @@ object NfcHardwareKeyManager {
             if (response.size >= 2 && response[response.size - 2] == 0x90.toByte()) {
                 response.copyOf(response.size - 2)
             } else {
-                fallbackHardwareDigest(tag.id, challenge)
+                if (allowInsecureUidFallback) {
+                    fallbackHardwareDigest(tag.id, challenge)
+                } else {
+                    SecurityLogger.warn("NfcHardwareKeyManager", "YubiKey HMAC-SHA1 command failed — failing closed")
+                    null
+                }
             }
-        } catch (_: Exception) {
-            fallbackHardwareDigest(tag.id, challenge)
+        } catch (e: Exception) {
+            if (allowInsecureUidFallback) {
+                fallbackHardwareDigest(tag.id, challenge)
+            } else {
+                SecurityLogger.warn("NfcHardwareKeyManager", "NFC transceive failure", e)
+                null
+            }
         } finally {
             try {
                 isoDep.close()

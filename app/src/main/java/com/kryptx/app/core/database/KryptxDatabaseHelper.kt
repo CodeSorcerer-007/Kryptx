@@ -906,33 +906,38 @@ open class KryptxDatabaseHelper(
         val alphabet = "abcdefghijklmnopqrstuvwxyz"
         val suffix = (1..4).map { alphabet[rng.nextInt(alphabet.length)] }.joinToString("")
 
+        fun generateDecoySecret(): String {
+            val pool = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*"
+            return (1..18).map { pool[rng.nextInt(pool.length)] }.joinToString("")
+        }
+
         val sampleDecoys = listOf(
             VaultItem(
                 title = "Netflix",
                 type = ItemType.LOGIN,
                 username = "viewer_${suffix}${num}@gmail.com",
-                password = "Stream!${num}#${suffix.uppercase()}",
+                password = generateDecoySecret(),
                 website = "https://netflix.com"
             ),
             VaultItem(
                 title = "Spotify Music",
                 type = ItemType.LOGIN,
                 username = "music_fan_${suffix}",
-                password = "Tune!${num}*${suffix.uppercase()}",
+                password = generateDecoySecret(),
                 website = "https://spotify.com"
             ),
             VaultItem(
                 title = "Home Wi-Fi Network",
                 type = ItemType.WIFI,
                 wifiSsid = "Netgear_Home_${num}_5G",
-                wifiPassword = "WirelessPass_${suffix}${num}",
+                wifiPassword = generateDecoySecret(),
                 wifiSecurityType = "WPA2/WPA3 Personal"
             ),
             VaultItem(
                 title = "Amazon Shopping",
                 type = ItemType.LOGIN,
                 username = "shopper_${suffix}${num}@gmail.com",
-                password = "AmzSecure#${num}!${suffix.uppercase()}",
+                password = generateDecoySecret(),
                 website = "https://amazon.com"
             )
         )

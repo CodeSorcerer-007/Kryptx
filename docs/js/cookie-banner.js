@@ -23,20 +23,40 @@
       banner.setAttribute('role', 'region');
       banner.setAttribute('aria-label', 'Cookie and Privacy Settings');
 
-      banner.innerHTML = `
-        <div class="cookie-header">
-          <span>🛡️</span>
-          <span>Zero-Tracking Privacy Guarantee</span>
-        </div>
-        <div class="cookie-text">
-          We believe privacy is a fundamental human right. Kryptx uses <strong>zero third-party tracking cookies, zero marketing beacons, and zero cross-site telemetry</strong>. We only use local session storage for essential preferences.
-        </div>
-        <div class="cookie-actions">
-          <button type="button" class="btn btn-primary btn-sm" id="cookie-accept-all">Accept & Continue</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="cookie-essential-only">Essential Only</button>
-          <a href="privacy.html" class="btn btn-outline btn-sm">Read Policy</a>
-        </div>
-      `;
+      const header = document.createElement('div');
+      header.className = 'cookie-header';
+      const shield = document.createElement('span');
+      shield.textContent = '🛡️';
+      const title = document.createElement('span');
+      title.textContent = 'Zero-Tracking Privacy Guarantee';
+      header.append(shield, title);
+
+      const text = document.createElement('div');
+      text.className = 'cookie-text';
+      text.textContent = 'We believe privacy is a fundamental human right. Kryptx uses zero third-party tracking cookies, zero marketing beacons, and zero cross-site telemetry. We only use local session storage for essential preferences.';
+
+      const actions = document.createElement('div');
+      actions.className = 'cookie-actions';
+
+      const acceptBtn = document.createElement('button');
+      acceptBtn.type = 'button';
+      acceptBtn.className = 'btn btn-primary btn-sm';
+      acceptBtn.id = 'cookie-accept-all';
+      acceptBtn.textContent = 'Accept & Continue';
+
+      const essentialBtn = document.createElement('button');
+      essentialBtn.type = 'button';
+      essentialBtn.className = 'btn btn-secondary btn-sm';
+      essentialBtn.id = 'cookie-essential-only';
+      essentialBtn.textContent = 'Essential Only';
+
+      const policyLink = document.createElement('a');
+      policyLink.href = 'privacy.html';
+      policyLink.className = 'btn btn-outline btn-sm';
+      policyLink.textContent = 'Read Policy';
+
+      actions.append(acceptBtn, essentialBtn, policyLink);
+      banner.append(header, text, actions);
       document.body.appendChild(banner);
     }
 

@@ -20,8 +20,8 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "2.2.3"
+        versionCode = 19
+        versionName = "2.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -413,8 +413,9 @@ tasks.register<Copy>("copyReleaseApk") {
     description = "Copies the assembled release APK directly into the root apk/ directory"
     dependsOn("assembleRelease")
     mustRunAfter("assembleRelease")
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     from(layout.buildDirectory.dir("outputs/apk/release"))
-    include("*.apk")
+    include("*universal*.apk")
     into(rootProject.layout.projectDirectory.dir("apk"))
     rename { _ ->
         "Kryptx-v${android.defaultConfig.versionCode}-release.apk"

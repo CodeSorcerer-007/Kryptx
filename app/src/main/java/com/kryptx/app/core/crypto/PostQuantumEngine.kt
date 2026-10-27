@@ -315,4 +315,121 @@ object PostQuantumEngine {
             KryptxResult.Error(KryptxErrorType.DECRYPTION_FAILED, "ML-KEM hybrid decryption failed: ${e.message}", e)
         }
     }
+
+    /**
+     * Signed & Encrypted Vault Archive bundle combining Post-Quantum ML-KEM-768 confidentiality
+     * with ML-DSA-65 post-quantum digital signature non-repudiation.
+     */
+    data class SignedEncryptedVaultArchive(
+        val encapsulation: ByteArray,
+        val ciphertext: ByteArray,
+        val signature: ByteArray,
+        val signerPublicKey: ByteArray
+    ) {
+        fun toSerializedBytes(): ByteArray {
+            val buf = java.nio.ByteBuffer.allocate(
+                4 + 4 + encapsulation.size + 4 + ciphertext.size + 4 + signature.size + 4 + signerPublicKey.size
+            )
+            buf.put("KPQC".toByteArray(Charsets.US_ASCII))
+            buf.putInt(encapsulation.size)
+            buf.put(encapsulation)
+            buf.putInt(ciphertext.size)
+            buf.put(ciphertext)
+            buf.putInt(signature.size)
+            buf.put(signature)
+            buf.putInt(signerPublicKey.size)
+            buf.put(signerPublicKey)
+            return buf.array()
+        }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+            other as SignedEncryptedVaultArchive
+            return encapsulation.contentEquals(other.encapsulation) &&
+                    ciphertext.contentEquals(other.ciphertext) &&
+                    signature.contentEquals(other.signature) &&
+                    signerPublicKey.contentEquals(other.signerPublicKey)
+        }
+
+        override fun hashCode(): Int {
+            var result = encapsulation.contentHashCode()
+            result = 31 * result + ciphertext.contentHashCode()
+            result = 31 * result + signature.contentHashCode()
+            result = 31 * result + signerPublicKey.contentHashCode()
+            return result
+        }
+
+        companion object {
+            fun fromSerializedBytes(bytes: ByteArray): SignedEncryptedVaultArchive {
+                val buf = java.nio.ByteBuffer.wrap(bytes)
+                val magic = ByteArray(4)
+                buf.get(magic)
+                require(magic.contentEquals("KPQC".toByteArray(Charsets.US_ASCII))) {
+                    "Invalid magic bytes in archive"
+                }
+                val encLen = buf.getInt()
+                val enc = ByteArray(encLen)
+                buf.get(enc)
+                val cipherLen = buf.getInt()
+                val cipher = ByteArray(cipherLen)
+                buf.get(cipher)
+                val sigLen = buf.getInt()
+                val sig = ByteArray(sigLen)
+                buf.get(sig)
+                val pubLen = buf.getInt()
+                val pub = ByteArray(pubLen)
+                buf.get(pub)
+                return SignedEncryptedVaultArchive(enc, cipher, sig, pub)
+            }
+        }
+    }
+
+    /**
+     * Exports a portable, post-quantum fortified vault archive.
+     * Encapsulates a shared secret with recipient's ML-KEM-768 public key,
+     * encrypts payload with AES-256-GCM / XChaCha20, and signs the archive with sender's ML-DSA-65 private key.
+     */
+    fun exportSignedVaultArchive(
+        vaultData: ByteArray,
+        recipientMlkemPublicKey: ByteArray,
+        senderMldsaPrivateKey: ByteArray,
+        senderMldsaPublicKey: ByteArray
+    ): ByteArray {
+        val (encapsulation, ciphertext) = encryptHybrid(vaultData, recipientMlkemPublicKey)
+        val payloadToSign = encapsulation + ciphertext
+        val signature = sign(payloadToSign, senderMldsaPrivateKey)
+        val archive = SignedEncryptedVaultArchive(
+            encapsulation = encapsulation,
+            ciphertext = ciphertext,
+            signature = signature,
+            signerPublicKey = senderMldsaPublicKey
+        )
+        return archive.toSerializedBytes()
+    }
+
+    /**
+     * Imports and authenticates a post-quantum fortified vault archive.
+     * Verifies the ML-DSA-65 digital signature and decapsulates the ML-KEM-768 shared secret to decrypt the vault.
+     */
+    fun importSignedVaultArchive(
+        archiveBytes: ByteArray,
+        recipientMlkemPrivateKey: ByteArray,
+        expectedSenderMldsaPublicKey: ByteArray? = null
+    ): ByteArray {
+        val archive = SignedEncryptedVaultArchive.fromSerializedBytes(archiveBytes)
+        if (expectedSenderMldsaPublicKey != null) {
+            require(archive.signerPublicKey.contentEquals(expectedSenderMldsaPublicKey)) {
+                "Signer public key does not match trusted sender public key"
+            }
+        }
+        val payloadToVerify = archive.encapsulation + archive.ciphertext
+        val isVerified = verifySignature(payloadToVerify, archive.signature, archive.signerPublicKey)
+        require(isVerified) {
+            "Post-Quantum signature verification failed! Archive has been tampered with or sender is untrusted"
+        }
+
+        return decryptHybrid(archive.encapsulation, archive.ciphertext, recipientMlkemPrivateKey)
+    }
 }
+

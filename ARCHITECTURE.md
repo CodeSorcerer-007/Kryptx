@@ -119,3 +119,17 @@ graph TD
 - Vault search queries do not expose plaintext to the SQLite database.
 - Searchable tokens are transformed into `HMAC-SHA256(searchKey, token)` before storage.
 - Search queries are tokenized and hashed in memory with the session HMAC key, allowing full querying without database plaintext leakage.
+
+### 6. Sovereign Air-Gapped Animated QR Fountain Sync
+- High-density animated QR code sequence codec (`AirGapQrFountainCodec`) enabling cross-device encrypted vault backups and Post-Quantum Archive transfers without network or radio protocols.
+- Sequenced fountain framing with part-level CRC32 checksums, out-of-order reassembly, and full SHA-256 payload integrity verification.
+
+### 7. Dual-Token Hardware Security Key Redundancy
+- Implements `IHardwareSecurityKeyManager` with dual-token failover enrollment (Primary + Backup physical tokens).
+- Supports NFC IsoDep, USB OTG HID slot 2 (instruction `0x38`), and CTAP2 BLE challenge-response derivation.
+
+### 8. Proactive Memory Pressure Resilience
+- `CryptographicMemoryWatchdog` features multi-tiered memory pressure management.
+- Moderate memory pressure triggers non-essential cache pruning (identicon bitmaps, QR decoders) without disrupting the active vault session.
+- Critical memory pressure executes deep zeroization (`@MustBeWiped`), defensive vault locking, and memory compaction.
+

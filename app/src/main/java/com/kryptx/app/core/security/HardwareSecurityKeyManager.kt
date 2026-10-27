@@ -20,8 +20,11 @@ import java.util.Base64
  */
 class HardwareSecurityKeyManager(
     private val context: Context? = null
-) {
+) : IHardwareSecurityKeyManager {
     private val secureRandom = SecureRandom()
+
+    private var primaryKey: KeyPairingState? = null
+    private var backupKey: KeyPairingState? = null
 
     enum class KeyTransport {
         NFC,
@@ -37,10 +40,15 @@ class HardwareSecurityKeyManager(
         val transport: KeyTransport = KeyTransport.NFC
     )
 
+    override fun getPrimaryPairingState(): KeyPairingState? = primaryKey
+    override fun getBackupPairingState(): KeyPairingState? = backupKey
+    override fun isBackupKeyEnrolled(): Boolean = backupKey?.isEnrolled == true
+    override fun clearBackupKey() { backupKey = null }
+
     /**
      * Generates a fresh 32-byte cryptographically secure challenge for the hardware key.
      */
-    fun generateFreshChallenge(): ByteArray {
+    override fun generateFreshChallenge(): ByteArray {
         val challenge = ByteArray(32)
         secureRandom.nextBytes(challenge)
         return challenge
@@ -56,7 +64,7 @@ class HardwareSecurityKeyManager(
      * Info = "Kryptx-HW-Salt-v1" for domain separation.
      * Output length = 32 bytes.
      */
-    fun deriveHardwareBoundSalt(baseSalt: ByteArray, hardwareResponse: ByteArray): ByteArray {
+    override fun deriveHardwareBoundSalt(baseSalt: ByteArray, hardwareResponse: ByteArray): ByteArray {
         // HKDF-Extract: PRK = HMAC-SHA256(salt=baseSalt, ikm=hardwareResponse)
         val prk = try {
             val mac = javax.crypto.Mac.getInstance("HmacSHA256")
@@ -81,12 +89,13 @@ class HardwareSecurityKeyManager(
      * Verifies and processes an NFC tag against the enrolled hardware security key.
      * Returns the derived hardware secret bytes or null if invalid/mismatched.
      */
-    fun processTagResponse(
+    override fun processTagResponse(
         tag: Tag,
         expectedUidHash: String?,
-        challenge: ByteArray
+        challenge: ByteArray,
+        allowInsecureUidFallback: Boolean
     ): ByteArray? {
-        val rawResponse = NfcHardwareKeyManager.processNfcChallenge(tag, challenge) ?: return null
+        val rawResponse = NfcHardwareKeyManager.processNfcChallenge(tag, challenge, allowInsecureUidFallback) ?: return null
 
         if (expectedUidHash != null && expectedUidHash.isNotBlank()) {
             val tagHash = hashTagUid(tag.id)
@@ -118,10 +127,11 @@ class HardwareSecurityKeyManager(
      * @param challenge Fresh 32-byte challenge bytes generated per-session.
      * @return Hardware response bytes (HMAC-SHA1 from YubiKey, or device-bound HMAC-SHA256 fallback).
      */
-    fun processUsbChallenge(
+    override fun processUsbChallenge(
         usbDevice: UsbDevice?,
         expectedUidHash: String?,
-        challenge: ByteArray
+        challenge: ByteArray,
+        allowInsecureDescriptorFallback: Boolean
     ): ByteArray? {
         if (usbDevice == null) return null
 
@@ -151,13 +161,18 @@ class HardwareSecurityKeyManager(
                     }
                 }
             } catch (e: Exception) {
-                SecurityLogger.warn("HardwareSecurityKeyManager", "USB HID YubiKey challenge failed, using fallback", e)
+                SecurityLogger.warn("HardwareSecurityKeyManager", "USB HID YubiKey challenge failed, checking fallback policy", e)
             }
         }
 
-        // Fallback: device-bound HMAC-SHA256 using the device identifier as the HMAC key.
-        // This is non-trivially stronger than the previous plain SHA-256(challenge || deviceId)
-        // because it uses the device ID as a keyed MAC key rather than just concatenation.
+        // Fail-closed security: USB vendorId/productId/deviceName are public and spoofable descriptors.
+        // Unless explicitly allowed for mock testing, fail closed.
+        if (!allowInsecureDescriptorFallback) {
+            SecurityLogger.warn("HardwareSecurityKeyManager", "Direct USB HID challenge failed or permission missing; refusing insecure descriptor fallback (fail-closed)")
+            return null
+        }
+
+        // Fallback: device-bound HMAC-SHA256 using the device identifier as the HMAC key for testing/mock mode.
         return try {
             val mac = javax.crypto.Mac.getInstance("HmacSHA256")
             mac.init(javax.crypto.spec.SecretKeySpec(deviceIdentifier, "HmacSHA256"))
@@ -235,9 +250,13 @@ class HardwareSecurityKeyManager(
     /**
      * Enrolls a physical security key by reading its tag UID and generating an initial challenge.
      */
-    fun enrollTag(tag: Tag, label: String = "Primary Security Key"): Pair<KeyPairingState, ByteArray>? {
+    override fun enrollTag(
+        tag: Tag,
+        label: String,
+        allowInsecureUidFallback: Boolean
+    ): Pair<KeyPairingState, ByteArray>? {
         val challenge = generateFreshChallenge()
-        val response = NfcHardwareKeyManager.processNfcChallenge(tag, challenge) ?: return null
+        val response = NfcHardwareKeyManager.processNfcChallenge(tag, challenge, allowInsecureUidFallback) ?: return null
         val tagHash = hashTagUid(tag.id)
         val state = KeyPairingState(
             isEnrolled = true,
@@ -246,15 +265,36 @@ class HardwareSecurityKeyManager(
             challengeSalt = Base64.getEncoder().encodeToString(challenge),
             transport = KeyTransport.NFC
         )
+        primaryKey = state
         return Pair(state, response)
     }
 
-    /**
-     * Enrolls a physical USB-C OTG security key.
-     */
-    fun enrollUsbKey(usbDevice: UsbDevice, label: String = "Primary USB Security Key"): Pair<KeyPairingState, ByteArray>? {
+    override fun enrollBackupTag(
+        tag: Tag,
+        label: String,
+        allowInsecureUidFallback: Boolean
+    ): Pair<KeyPairingState, ByteArray>? {
         val challenge = generateFreshChallenge()
-        val response = processUsbChallenge(usbDevice, null, challenge) ?: return null
+        val response = NfcHardwareKeyManager.processNfcChallenge(tag, challenge, allowInsecureUidFallback) ?: return null
+        val tagHash = hashTagUid(tag.id)
+        val state = KeyPairingState(
+            isEnrolled = true,
+            keyLabel = label,
+            pairedKeyUidHash = tagHash,
+            challengeSalt = Base64.getEncoder().encodeToString(challenge),
+            transport = KeyTransport.NFC
+        )
+        backupKey = state
+        return Pair(state, response)
+    }
+
+    override fun enrollUsbKey(
+        usbDevice: UsbDevice,
+        label: String,
+        allowInsecureDescriptorFallback: Boolean
+    ): Pair<KeyPairingState, ByteArray>? {
+        val challenge = generateFreshChallenge()
+        val response = processUsbChallenge(usbDevice, null, challenge, allowInsecureDescriptorFallback) ?: return null
         val deviceIdentifier = "${usbDevice.vendorId}:${usbDevice.productId}:${usbDevice.deviceName}".toByteArray()
         val tagHash = Base64.getEncoder().encodeToString(
             MessageDigest.getInstance("SHA-256").digest(deviceIdentifier)
@@ -266,6 +306,29 @@ class HardwareSecurityKeyManager(
             challengeSalt = Base64.getEncoder().encodeToString(challenge),
             transport = KeyTransport.USB_OTG
         )
+        primaryKey = state
+        return Pair(state, response)
+    }
+
+    override fun enrollBackupUsbKey(
+        usbDevice: UsbDevice,
+        label: String,
+        allowInsecureDescriptorFallback: Boolean
+    ): Pair<KeyPairingState, ByteArray>? {
+        val challenge = generateFreshChallenge()
+        val response = processUsbChallenge(usbDevice, null, challenge, allowInsecureDescriptorFallback) ?: return null
+        val deviceIdentifier = "${usbDevice.vendorId}:${usbDevice.productId}:${usbDevice.deviceName}".toByteArray()
+        val tagHash = Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(deviceIdentifier)
+        )
+        val state = KeyPairingState(
+            isEnrolled = true,
+            keyLabel = label,
+            pairedKeyUidHash = tagHash,
+            challengeSalt = Base64.getEncoder().encodeToString(challenge),
+            transport = KeyTransport.USB_OTG
+        )
+        backupKey = state
         return Pair(state, response)
     }
 
@@ -283,10 +346,11 @@ class HardwareSecurityKeyManager(
     /**
      * Verifies and processes a BLE hardware security key challenge.
      */
-    fun processBleChallenge(
+    override fun processBleChallenge(
         bleDevice: android.bluetooth.BluetoothDevice?,
         expectedUidHash: String?,
-        challenge: ByteArray
+        challenge: ByteArray,
+        allowBondedDeviceMacFallback: Boolean
     ): ByteArray? {
         if (bleDevice == null) return null
 
@@ -299,18 +363,28 @@ class HardwareSecurityKeyManager(
             return null
         }
 
-        return bleKeyManager.processBleChallenge(bleDevice, challenge)
+        return bleKeyManager.processBleChallenge(bleDevice, challenge, allowBondedDeviceMacFallback)
     }
 
     /**
      * Enrolls a physical BLE security key.
      */
-    fun enrollBleKey(
+    override fun enrollBleKey(
         bleDevice: android.bluetooth.BluetoothDevice,
-        label: String = "Primary BLE Security Key"
+        label: String,
+        allowBondedDeviceMacFallback: Boolean
     ): Pair<KeyPairingState, ByteArray>? {
+        val isBonded = try {
+            bleDevice.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED
+        } catch (_: SecurityException) {
+            false
+        }
+        if (!isBonded) {
+            SecurityLogger.warn("HardwareSecurityKeyManager", "Cannot enroll unbonded BLE security key — device must be paired")
+            return null
+        }
         val challenge = generateFreshChallenge()
-        val response = processBleChallenge(bleDevice, null, challenge) ?: return null
+        val response = processBleChallenge(bleDevice, null, challenge, allowBondedDeviceMacFallback) ?: return null
         val deviceAddress = bleDevice.address ?: return null
         val tagHash = Base64.getEncoder().encodeToString(
             MessageDigest.getInstance("SHA-256").digest(deviceAddress.toByteArray(Charsets.UTF_8))
@@ -322,13 +396,52 @@ class HardwareSecurityKeyManager(
             challengeSalt = Base64.getEncoder().encodeToString(challenge),
             transport = KeyTransport.BLE
         )
+        primaryKey = state
         return Pair(state, response)
     }
 
-    /**
-     * Checks if NFC, USB, or BLE Security hardware is supported and active on the device.
-     */
-    fun isHardwareAvailable(): Boolean {
+    override fun processAnyTagResponse(
+        tag: Tag,
+        challenge: ByteArray,
+        allowInsecureUidFallback: Boolean
+    ): ByteArray? {
+        val primaryHash = primaryKey?.pairedKeyUidHash
+        val backupHash = backupKey?.pairedKeyUidHash
+
+        // Try primary key UID match first
+        val primaryResp = processTagResponse(tag, primaryHash, challenge, allowInsecureUidFallback)
+        if (primaryResp != null) return primaryResp
+
+        // Failover: if backup key enrolled, try backup key UID match
+        if (backupHash != null) {
+            val backupResp = processTagResponse(tag, backupHash, challenge, allowInsecureUidFallback)
+            if (backupResp != null) return backupResp
+        }
+
+        return null
+    }
+
+    override fun processAnyUsbChallenge(
+        usbDevice: UsbDevice?,
+        challenge: ByteArray,
+        allowInsecureDescriptorFallback: Boolean
+    ): ByteArray? {
+        if (usbDevice == null) return null
+        val primaryHash = primaryKey?.pairedKeyUidHash
+        val backupHash = backupKey?.pairedKeyUidHash
+
+        val primaryResp = processUsbChallenge(usbDevice, primaryHash, challenge, allowInsecureDescriptorFallback)
+        if (primaryResp != null) return primaryResp
+
+        if (backupHash != null) {
+            val backupResp = processUsbChallenge(usbDevice, backupHash, challenge, allowInsecureDescriptorFallback)
+            if (backupResp != null) return backupResp
+        }
+
+        return null
+    }
+
+    override fun isHardwareAvailable(): Boolean {
         if (context == null) return false
         val nfcAvailable = NfcHardwareKeyManager.hasNfc(context) && NfcHardwareKeyManager.isNfcEnabled(context)
         val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager

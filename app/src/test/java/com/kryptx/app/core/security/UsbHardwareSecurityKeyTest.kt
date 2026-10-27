@@ -45,6 +45,21 @@ class UsbHardwareSecurityKeyTest {
     }
 
     @Test
+    fun testProcessUsbChallengeFailClosedByDefault() {
+        val manager = HardwareSecurityKeyManager()
+        val mockUsbDevice = org.mockito.kotlin.mock<android.hardware.usb.UsbDevice>()
+        org.mockito.kotlin.whenever(mockUsbDevice.vendorId).thenReturn(0x1050)
+        org.mockito.kotlin.whenever(mockUsbDevice.productId).thenReturn(0x0407)
+        org.mockito.kotlin.whenever(mockUsbDevice.deviceName).thenReturn("YubiKey 5 NFC")
+
+        val challenge = manager.generateFreshChallenge()
+
+        // By default, public USB descriptors must NOT be used as secret fallback (must fail closed)
+        val response = manager.processUsbChallenge(mockUsbDevice, null, challenge)
+        org.junit.Assert.assertNull("Default call must fail closed when USB HID transport unavailable", response)
+    }
+
+    @Test
     fun testProcessUsbChallengeWithMock() {
         val manager = HardwareSecurityKeyManager()
         val mockUsbDevice = org.mockito.kotlin.mock<android.hardware.usb.UsbDevice>()
@@ -54,8 +69,13 @@ class UsbHardwareSecurityKeyTest {
 
         val challenge = manager.generateFreshChallenge()
         
-        // Process challenge (enrollment mode, expected hash is null)
-        val response = manager.processUsbChallenge(mockUsbDevice, null, challenge)
+        // Process challenge with explicit fallback enabled for mock testing
+        val response = manager.processUsbChallenge(
+            mockUsbDevice,
+            null,
+            challenge,
+            allowInsecureDescriptorFallback = true
+        )
         assertNotNull(response)
 
         // Compute expected hash to verify later
@@ -64,12 +84,22 @@ class UsbHardwareSecurityKeyTest {
         val expectedHash = java.util.Base64.getEncoder().encodeToString(md.digest(deviceIdentifier))
 
         // Process challenge again with valid expected hash
-        val validResponse = manager.processUsbChallenge(mockUsbDevice, expectedHash, challenge)
+        val validResponse = manager.processUsbChallenge(
+            mockUsbDevice,
+            expectedHash,
+            challenge,
+            allowInsecureDescriptorFallback = true
+        )
         assertNotNull(validResponse)
         assertTrue(response!!.contentEquals(validResponse!!))
 
         // Process challenge with invalid hash
-        val invalidResponse = manager.processUsbChallenge(mockUsbDevice, "invalidHash", challenge)
+        val invalidResponse = manager.processUsbChallenge(
+            mockUsbDevice,
+            "invalidHash",
+            challenge,
+            allowInsecureDescriptorFallback = true
+        )
         assertTrue(invalidResponse == null)
     }
 }

@@ -5,6 +5,18 @@ All notable changes to the Kryptx Android Password Manager project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] (versionCode 19) - 2026-10-27
+
+### 100/100 Sovereign Security & Post-Quantum Fortress Hardening
+- **Autofill Package Spoofing Defeated**: Hardened `DomainMatcher.isPackageMatch()` against leaf-token package spoofing. Enforced strict reverse-domain hierarchy validation for website-bound credentials, preventing attacker apps from hijacking autofill. Standalone credentials require root brand namespace matching and a 5-character minimum threshold.
+- **Fail-Closed Hardware Security Keys**: Eliminated fallback to public, spoofable USB descriptors (`vendorId:productId:deviceName`) and cleartext Bluetooth MAC addresses in `HardwareSecurityKeyManager`, `BleHardwareKeyManager`, and `IHardwareSecurityKeyManager`. Direct physical cryptographic challenge-response or failure closure is strictly enforced by default.
+- **Air-Gapped Animated QR Fountain Codec**: Hardened `AirGapQrFountainCodec` with strict byte-length reassembly verification and per-frame CRC32 validation, guaranteeing deterministic and tamper-evident physical vault migrations.
+- **Post-Quantum Archive Bundles**: Introduced NIST FIPS 203 (ML-KEM-768) and FIPS 204 (ML-DSA-65) hybrid encrypted and digitally signed sovereign backup archives (`SignedEncryptedVaultArchive`).
+- **Cryptographic Memory Watchdog**: Added `CryptographicMemoryWatchdog` integration with Android `ComponentCallbacks2` memory pressure events, performing multi-tier volatile RAM zeroization and cache pruning upon backgrounding.
+- **Accessibility & Design System**: Added WCAG AAA button semantics (`Role.Button`) to `KryptxButton` and sanitized offline web vault generator DOM manipulation.
+
+---
+
 ## [2.2.3] (versionCode 18) - 2026-10-17
 
 ### Biometric Subsystem & Authentication Lifecycle Hardening

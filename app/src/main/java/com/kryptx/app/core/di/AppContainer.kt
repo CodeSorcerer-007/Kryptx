@@ -166,6 +166,11 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
         ActivityLogManager(dbHelper)
     }
 
+    // ── Hardware Security Key ───────────────────────────────────────────────
+    override val hardwareKeyManager: com.kryptx.app.core.security.IHardwareSecurityKeyManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        com.kryptx.app.core.security.HardwareSecurityKeyManager(appContext)
+    }
+
     /**
      * Safely closes the container and tears down active SQLite connections,
      * memory watchdog callbacks, and volatile sessions to prevent resource leaks.

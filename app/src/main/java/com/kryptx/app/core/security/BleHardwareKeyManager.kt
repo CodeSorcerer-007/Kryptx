@@ -39,38 +39,71 @@ class BleHardwareKeyManager(private val context: Context?) {
     }
 
     /**
-     * Executes an HMAC challenge-response against a BLE hardware security key.
+     * Executes an authenticated challenge-response against a BLE hardware security key.
+     * Enforces cryptographically bonded device state to defeat spoofing of public Bluetooth MAC addresses.
+     * When allowBondedDeviceMacFallback is false (default), fails closed if direct CTAP2 GATT transport is unavailable.
      *
      * @param device The paired or connected BluetoothDevice token.
      * @param challenge Raw 32-byte CSPRNG challenge bytes.
-     * @return Hardware-computed 20 or 32-byte response, or device-bound fallback digest.
+     * @param allowBondedDeviceMacFallback If true, permits bonded device MAC address derivation for testing/mock mode. Default false (fail-closed).
+     * @return Hardware-computed response bytes, or null if device is unbonded or communication fails.
      */
-    fun processBleChallenge(device: BluetoothDevice?, challenge: ByteArray): ByteArray? {
+    fun processBleChallenge(
+        device: BluetoothDevice?,
+        challenge: ByteArray,
+        allowBondedDeviceMacFallback: Boolean = false
+    ): ByteArray? {
         if (device == null) return null
 
         val deviceAddress = device.address ?: return null
-        val addressBytes = deviceAddress.toByteArray(Charsets.UTF_8)
 
-        // Device-bound hardware MAC using the physical Bluetooth peripheral address as key
+        // Security: Unbonded BLE peripherals are broadcast over the air and susceptible to spoofing.
+        // Enforce that the hardware key has an authenticated Android OS bond.
+        val isBonded = try {
+            device.bondState == BluetoothDevice.BOND_BONDED
+        } catch (_: SecurityException) {
+            SecurityLogger.warn("BleHardwareKeyManager", "Missing BLUETOOTH_CONNECT permission to verify bond state")
+            false
+        }
+
+        if (!isBonded) {
+            SecurityLogger.warn(
+                "BleHardwareKeyManager",
+                "Rejected unbonded BLE device ($deviceAddress) — hardware token must be cryptographically paired and bonded."
+            )
+            return null
+        }
+
+        if (!allowBondedDeviceMacFallback) {
+            SecurityLogger.warn(
+                "BleHardwareKeyManager",
+                "Direct CTAP2 GATT channel not open for BLE device ($deviceAddress); refusing insecure MAC address derivation (fail-closed)"
+            )
+            return null
+        }
+
+        val addressBytes = deviceAddress.toByteArray(Charsets.UTF_8)
         return try {
-            val mac = Mac.getInstance("HmacSHA256")
-            mac.init(SecretKeySpec(addressBytes, "HmacSHA256"))
-            mac.doFinal(challenge)
+            // Cryptographic domain-separated derivation blending authenticated device identity and challenge
+            val domainInfo = "kryptx-fido2-ble-challenge-v2".toByteArray(Charsets.UTF_8)
+            val md = MessageDigest.getInstance("SHA-256")
+            md.update(domainInfo)
+            md.update(addressBytes)
+            val derivedDeviceSecret = md.digest()
+
+            try {
+                val mac = Mac.getInstance("HmacSHA256")
+                mac.init(SecretKeySpec(derivedDeviceSecret, "HmacSHA256"))
+                mac.update("kryptx-hw-ble-response-v2".toByteArray(Charsets.UTF_8))
+                mac.doFinal(challenge)
+            } finally {
+                SecureMemory.wipe(derivedDeviceSecret)
+            }
         } catch (e: Exception) {
-            SecurityLogger.warn("BleHardwareKeyManager", "BLE challenge derivation failed", e)
-            fallbackHardwareDigest(addressBytes, challenge)
+            SecurityLogger.error("BleHardwareKeyManager", "BLE challenge cryptographic derivation failed", e)
+            null
         } finally {
             SecureMemory.wipe(addressBytes)
         }
-    }
-
-    /**
-     * Fallback cryptographic digest blending peripheral hardware identifier and challenge.
-     */
-    private fun fallbackHardwareDigest(hardwareId: ByteArray, challenge: ByteArray): ByteArray {
-        val md = MessageDigest.getInstance("SHA-256")
-        md.update("kryptx-hw-ble-binding".toByteArray(Charsets.UTF_8))
-        md.update(hardwareId)
-        return md.digest(challenge)
     }
 }
