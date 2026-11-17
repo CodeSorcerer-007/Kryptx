@@ -101,7 +101,7 @@ fun VaultDashboardHeader(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Column {
+            Column(modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -115,7 +115,9 @@ fun VaultDashboardHeader(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
-                        color = KryptxEmerald
+                        color = KryptxEmerald,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
                 Text(
@@ -123,7 +125,9 @@ fun VaultDashboardHeader(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = (-0.5).sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
@@ -173,7 +177,9 @@ fun VaultDashboardHeader(
                         text = "$score%",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = pulseColor
+                        color = pulseColor,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }

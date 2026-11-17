@@ -90,26 +90,37 @@ class MultiBugPreservationTest {
 
     private fun resolveSourceFile(path: String): java.io.File {
         val cleanPath = path.removePrefix("app/")
-        val directCandidates = listOf(
-            java.io.File(path),
-            java.io.File(cleanPath),
-            java.io.File("app", cleanPath),
-            java.io.File("..", path),
-            java.io.File("../app", cleanPath),
-            java.io.File("../../app", cleanPath)
-        )
-        val found = directCandidates.firstOrNull { it.exists() }
-        if (found != null) return found
+        val variants = listOf(
+            path,
+            cleanPath,
+            path.replace("app/src/main/java/com/kryptx/app/core/security/", "core/security/src/main/java/com/kryptx/app/core/security/"),
+            path.replace("app/src/main/java/com/kryptx/app/core/crypto/", "core/crypto/src/main/java/com/kryptx/app/core/crypto/"),
+            path.replace("app/src/main/java/com/kryptx/app/core/database/", "core/database/src/main/java/com/kryptx/app/core/database/"),
+            path.replace("app/src/main/java/com/kryptx/app/core/model/", "core/model/src/main/java/com/kryptx/app/core/model/")
+        ).distinct()
 
-        var current: java.io.File? = java.io.File(System.getProperty("user.dir", "."))
-        while (current != null) {
-            val candidate1 = java.io.File(current, path)
-            if (candidate1.exists()) return candidate1
-            val candidate2 = java.io.File(current, "app/$cleanPath")
-            if (candidate2.exists()) return candidate2
-            val candidate3 = java.io.File(current, cleanPath)
-            if (candidate3.exists()) return candidate3
-            current = current.parentFile
+        for (v in variants) {
+            val vClean = v.removePrefix("app/")
+            val directCandidates = listOf(
+                java.io.File(v),
+                java.io.File(vClean),
+                java.io.File("app", vClean),
+                java.io.File("..", v),
+                java.io.File("../..", v),
+                java.io.File("../app", vClean),
+                java.io.File("../../app", vClean)
+            )
+            val found = directCandidates.firstOrNull { it.exists() }
+            if (found != null) return found
+
+            var current: java.io.File? = java.io.File(System.getProperty("user.dir", "."))
+            while (current != null) {
+                val candidate1 = java.io.File(current, v)
+                if (candidate1.exists()) return candidate1
+                val candidate2 = java.io.File(current, vClean)
+                if (candidate2.exists()) return candidate2
+                current = current.parentFile
+            }
         }
         return java.io.File(path)
     }

@@ -175,7 +175,9 @@ fun FloatingCategoryBadge(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 0.5.sp,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
@@ -184,7 +186,9 @@ fun FloatingCategoryBadge(
                     text = label,
                     fontSize = 11.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) color else MaterialTheme.colorScheme.onSurface
+                    color = if (isSelected) color else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Box(
@@ -200,7 +204,9 @@ fun FloatingCategoryBadge(
                         text = "$count",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }

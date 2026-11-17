@@ -222,7 +222,9 @@ fun VaultSearchBar(
                             Text(
                                 text = label,
                                 fontSize = 12.sp,
-                                color = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

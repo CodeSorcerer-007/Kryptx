@@ -216,7 +216,9 @@ fun VaultItemRow(
                                 text = "2FA",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
-                                color = KryptxCyan
+                                color = KryptxCyan,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -234,7 +236,9 @@ fun VaultItemRow(
                                 text = "EXPIRED",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = KryptxRed
+                                color = KryptxRed,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

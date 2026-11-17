@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.crypto.EntropyCalculator
@@ -128,32 +129,46 @@ fun PasswordDnaCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = "STRENGTH",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Text(
                         text = analysis.strength.label,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = strengthColor
+                        color = strengthColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
                     )
                 }
-                Column(horizontalAlignment = Alignment.End) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Text(
                         text = "CRACK TIME",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Text(
                         text = analysis.crackTimeDisplay,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = strengthColor
+                        color = strengthColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
                     )
                 }
             }
@@ -245,7 +260,9 @@ private fun CharTypeChip(label: String, present: Boolean) {
             text = label,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = if (present) color else MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (present) color else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }

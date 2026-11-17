@@ -1,23 +1,45 @@
-// :core:database — Encrypted persistence layer module.
-//
-// Owns: KryptxDatabaseHelper, VaultRepository, VaultRepositoryImpl,
-//       HmacSearchIndex, EncryptedSearchIndex, KryptxDbMigrations,
-//       KryptxDbSchema, IPreferencesRepository, PreferencesRepository.
-//
-// Depends on:
-//   :core:model   (domain entities)
-//   :core:crypto  (CryptoEngine for per-item AAD encryption, SecureMemory)
-//   SQLCipher 4   (net.zetetic:android-database-sqlcipher)
-//   EncryptedSharedPreferences (androidx.security.crypto)
-//
-// Migration status: source currently lives in :app.
-//   Target path: core/database/src/main/java/com/kryptx/app/core/database/
-//   Current path: app/src/main/java/com/kryptx/app/core/database/  (still in :app)
-//
-// Isolation guarantee: feature modules cannot access the SQLite layer directly.
-// All reads and writes go through VaultRepository (the only public interface).
-// This prevents N+1 query patterns from leaking into Composables.
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
+}
 
-// plugins {
-//     alias(libs.plugins.android.library) apply false  // applied when source is migrated
-// }
+android {
+    namespace = "com.kryptx.core.database"
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 26
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+dependencies {
+    api(project(":core:model"))
+    api(project(":core:crypto"))
+
+    implementation(libs.bouncycastle.bcprov)
+    implementation(libs.sqlcipher.android)
+    implementation(libs.androidx.sqlite)
+    implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.core.ktx)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+}

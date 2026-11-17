@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.roborazzi)
     id("jacoco")
 }
 
@@ -20,8 +21,8 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "2.3.0"
+        versionCode = 20
+        versionName = "2.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -187,6 +188,7 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
         unitTests.all {
             it.useJUnit()
             it.maxHeapSize = "1536m"
@@ -195,6 +197,11 @@ android {
                 showExceptions = true
                 showCauses = true
                 showStackTraces = true
+            }
+            // Robolectric Native Graphics has a known deadlock on local Windows workstations (takahirom/roborazzi#285).
+            // Screenshot tests are executed in headless Linux CI (ubuntu-latest).
+            if (org.gradle.internal.os.OperatingSystem.current().isWindows && System.getenv("CI") == null) {
+                it.exclude("**/screenshot/**")
             }
         }
     }
@@ -222,6 +229,9 @@ kotlin {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:crypto"))
+    implementation(project(":core:database"))
+    implementation(project(":core:security"))
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
@@ -281,6 +291,11 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 
     // JNA for UniFFI
     implementation(libs.jna)
@@ -310,24 +325,48 @@ dependencies {
 
 val rustSrcDir = file("src/main/rust/kryptx_crypto")
 val jniLibsDir = file("src/main/jniLibs")
-val generatedKotlinDir = file("src/main/java/com/kryptx/app/core/crypto/generated")
+val generatedKotlinDir = rootProject.file("core/crypto/src/main/java/com/kryptx/app/core/crypto/generated")
 
-tasks.register<Exec>("generateRustBindings") {
+tasks.register("generateRustBindings") {
     group = "rust"
     description = "Generates Kotlin bindings using Mozilla UniFFI from the kryptx_crypto crate"
-    workingDir = rustSrcDir
     
     val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
     val libExtension = if (isWindows) "dll" else "so"
     val libPrefix = if (isWindows) "" else "lib"
     
-    commandLine(
-        "cargo", "run", "--features=uniffi/cli", "--bin", "uniffi-bindgen", "generate", 
-        "--library", "target/debug/${libPrefix}kryptx_crypto.$libExtension", 
-        "--language", "kotlin", "--out-dir", generatedKotlinDir.absolutePath
-    )
-    
-    dependsOn("buildRustEngineDebug")
+    doLast {
+        val whichCmd = if (isWindows) "where" else "which"
+        val hasCargo = try {
+            ProcessBuilder(whichCmd, "cargo").start().waitFor() == 0
+        } catch (_: Exception) {
+            false
+        }
+        if (!hasCargo) {
+            throw GradleException("Cargo is not installed or not in PATH. Install Rust to generate UniFFI bindings.")
+        }
+
+        val buildPb = ProcessBuilder("cargo", "build")
+        buildPb.directory(rustSrcDir)
+        buildPb.inheritIO()
+        val buildExit = buildPb.start().waitFor()
+        if (buildExit != 0) {
+            throw GradleException("cargo build failed with exit code $buildExit")
+        }
+
+        val genPb = ProcessBuilder(
+            "cargo", "run", "--features=uniffi/cli", "--bin", "uniffi-bindgen", "generate",
+            "--library", "target/debug/${libPrefix}kryptx_crypto.$libExtension",
+            "--language", "kotlin", "--out-dir", generatedKotlinDir.absolutePath
+        )
+        genPb.directory(rustSrcDir)
+        genPb.inheritIO()
+        val genExit = genPb.start().waitFor()
+        if (genExit != 0) {
+            throw GradleException("uniffi-bindgen generate failed with exit code $genExit")
+        }
+        logger.lifecycle("[Kryptx UniFFI] Bindings successfully generated into: ${generatedKotlinDir.absolutePath}")
+    }
 }
 
 tasks.register<Exec>("buildRustEngineDebug") {
@@ -337,49 +376,214 @@ tasks.register<Exec>("buildRustEngineDebug") {
     commandLine("cargo", "build")
 }
 
-tasks.register<Exec>("buildRustEngine") {
+tasks.register("buildRustEngine") {
     group = "rust"
     description = "Compiles the kryptx_crypto core for Android targets using cargo-ndk"
-    workingDir = rustSrcDir
     
-    val localProperties = Properties()
-    val localPropertiesFile = project.rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localProperties.load(localPropertiesFile.inputStream())
-    }
-    val ndkDir = localProperties.getProperty("ndk.dir") ?: System.getenv("ANDROID_NDK_HOME") ?: ""
-    if (ndkDir.isNotEmpty()) {
-        environment("ANDROID_NDK_HOME", ndkDir)
-    }
+    val requiredAbis = listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
     
-    // Support Android 15's 16 KB page sizes by forcing the linker to align ELF segments and RELRO boundaries
-    environment("RUSTFLAGS", "-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=16384")
+    inputs.dir(rustSrcDir).withPropertyName("rustSrc").ignoreEmptyDirectories()
+    outputs.files(requiredAbis.map { file("$jniLibsDir/$it/libkryptx_crypto.so") })
     
-    commandLine(
-        "cargo", "ndk", "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86", "-t", "x86_64", 
-        "-o", jniLibsDir.absolutePath, "build", "--release"
-    )
-
     doLast {
-        if (ndkDir.isNotEmpty()) {
-            val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-            val exeExt = if (isWindows) ".exe" else ""
-            val stripTool = fileTree("$ndkDir/toolchains/llvm/prebuilt") {
-                include("**/llvm-strip$exeExt")
-            }.firstOrNull()
+        val localProperties = Properties()
+        val localPropertiesFile = project.rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(localPropertiesFile.inputStream())
+        }
+        
+        // Comprehensive NDK path discovery across local.properties, env vars, and Android SDK
+        val sdkDir = sequenceOf(
+            localProperties.getProperty("sdk.dir"),
+            System.getenv("ANDROID_HOME"),
+            System.getenv("ANDROID_SDK_ROOT")
+        ).filterNotNull().firstOrNull { it.isNotBlank() && file(it).exists() } ?: ""
+        val ndkVer = "27.2.12479018"
+        val discoveredNdkDir = sequenceOf(
+            localProperties.getProperty("ndk.dir"),
+            System.getenv("ANDROID_NDK_HOME"),
+            System.getenv("ANDROID_NDK_ROOT"),
+            if (sdkDir.isNotBlank()) file("$sdkDir/ndk/$ndkVer").takeIf { it.exists() }?.absolutePath else null,
+            if (sdkDir.isNotBlank()) {
+                val ndkParent = file("$sdkDir/ndk")
+                if (ndkParent.exists()) {
+                    ndkParent.listFiles()?.filter { it.isDirectory }?.maxByOrNull { it.name }?.absolutePath
+                } else null
+            } else null
+        ).filterNotNull().firstOrNull { it.isNotBlank() && file(it).exists() } ?: ""
+        
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val whichCmd = if (isWindows) "where" else "which"
+        val hasCargo = try {
+            ProcessBuilder(whichCmd, "cargo").start().waitFor() == 0
+        } catch (_: Exception) {
+            false
+        }
+        var hasCargoNdk = try {
+            if (hasCargo) {
+                ProcessBuilder("cargo", "ndk", "--version").start().waitFor() == 0
+            } else false
+        } catch (_: Exception) {
+            false
+        }
 
-            if (stripTool?.exists() == true) {
-                fileTree(jniLibsDir) {
-                    include("**/*.so")
-                }.forEach { soFile ->
-                    ProcessBuilder(stripTool.absolutePath, "--strip-unneeded", soFile.absolutePath)
-                        .redirectErrorStream(true)
-                        .start()
-                        .waitFor()
+        // Automatic cargo-ndk bootstrapping if cargo is available
+        if (hasCargo && !hasCargoNdk) {
+            logger.lifecycle("[Kryptx Rust NDK] cargo found but cargo-ndk missing. Auto-installing cargo-ndk...")
+            val installPb = ProcessBuilder("cargo", "install", "cargo-ndk")
+            installPb.inheritIO()
+            if (installPb.start().waitFor() == 0) {
+                hasCargoNdk = true
+                logger.lifecycle("[Kryptx Rust NDK] cargo-ndk installed successfully.")
+            } else {
+                logger.warn("[Kryptx Rust NDK] Could not automatically install cargo-ndk.")
+            }
+        }
+
+        if (hasCargoNdk) {
+            // Ensure Rustup targets for all 4 Android architectures are installed
+            val hasRustup = try {
+                ProcessBuilder(whichCmd, "rustup").start().waitFor() == 0
+            } catch (_: Exception) {
+                false
+            }
+            if (hasRustup) {
+                val targetList = listOf("aarch64-linux-android", "armv7-linux-androideabi", "i686-linux-android", "x86_64-linux-android")
+                val rustupPb = ProcessBuilder(listOf("rustup", "target", "add") + targetList)
+                rustupPb.inheritIO()
+                rustupPb.start().waitFor()
+            }
+
+            logger.lifecycle("[Kryptx Rust NDK] cargo-ndk detected. Cross-compiling UniFFI kryptx_crypto for Android ABIs...")
+            val pb = ProcessBuilder(
+                "cargo", "ndk",
+                "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86", "-t", "x86_64",
+                "-o", jniLibsDir.absolutePath,
+                "build", "--release"
+            )
+            pb.directory(rustSrcDir)
+            if (discoveredNdkDir.isNotEmpty()) {
+                pb.environment()["ANDROID_NDK_HOME"] = discoveredNdkDir
+            }
+            // Support Android 15's 16 KB page sizes by forcing the linker to align ELF segments and RELRO boundaries
+            pb.environment()["RUSTFLAGS"] = "-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=16384"
+            pb.inheritIO()
+            val exitCode = pb.start().waitFor()
+            if (exitCode != 0) {
+                throw GradleException("cargo-ndk compilation failed with exit code $exitCode")
+            }
+
+            if (discoveredNdkDir.isNotEmpty()) {
+                val exeExt = if (isWindows) ".exe" else ""
+                val stripTool = fileTree("$discoveredNdkDir/toolchains/llvm/prebuilt") {
+                    include("**/llvm-strip$exeExt")
+                }.firstOrNull()
+
+                if (stripTool?.exists() == true) {
+                    fileTree(jniLibsDir) {
+                        include("**/*.so")
+                    }.forEach { soFile ->
+                        ProcessBuilder(stripTool.absolutePath, "--strip-unneeded", soFile.absolutePath)
+                            .redirectErrorStream(true)
+                            .start()
+                            .waitFor()
+                    }
                 }
+            }
+            logger.lifecycle("[Kryptx Rust NDK] cargo-ndk cross-compilation completed successfully.")
+        } else {
+            val missing = requiredAbis.filter { abi -> !file("$jniLibsDir/$abi/libkryptx_crypto.so").exists() }
+            if (missing.isEmpty()) {
+                logger.lifecycle("[Kryptx Rust NDK] cargo-ndk not detected in environment. Using verified pre-compiled native binaries in src/main/jniLibs.")
+            } else {
+                throw GradleException(
+                    "Missing pre-compiled native binaries for kryptx_crypto ($missing) and cargo-ndk was not found in PATH.\n" +
+                    "To build from clean source, install Rust and cargo-ndk:\n" +
+                    "  cargo install cargo-ndk\n" +
+                    "  rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android"
+                )
             }
         }
     }
+}
+
+tasks.register("verifyRustEngine16Kb") {
+    group = "verification"
+    description = "Validates that all native .so libraries are aligned to 16 KB page sizes for Android 15/16"
+    dependsOn("buildRustEngine")
+
+    val requiredAbis = listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+
+    doLast {
+        for (abi in requiredAbis) {
+            val soFile = file("$jniLibsDir/$abi/libkryptx_crypto.so")
+            if (!soFile.exists() || soFile.length() == 0L) {
+                throw GradleException("ELF verification failed: $soFile does not exist or is empty.")
+            }
+
+            val bytes = soFile.readBytes()
+            if (bytes.size < 64 || bytes[0] != 0x7F.toByte() || bytes[1] != 'E'.code.toByte() ||
+                bytes[2] != 'L'.code.toByte() || bytes[3] != 'F'.code.toByte()) {
+                throw GradleException("ELF verification failed: $soFile is not a valid ELF binary.")
+            }
+
+            val is64Bit = bytes[4].toInt() == 2
+            val isLittleEndian = bytes[5].toInt() == 1
+            if (!isLittleEndian) {
+                throw GradleException("ELF verification failed: Unexpected big-endian ELF in $soFile")
+            }
+
+            fun readUInt16(offset: Int): Int =
+                (bytes[offset].toInt() and 0xFF) or ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+
+            fun readUInt32(offset: Int): Long =
+                ((bytes[offset].toLong() and 0xFF)) or
+                ((bytes[offset + 1].toLong() and 0xFF) shl 8) or
+                ((bytes[offset + 2].toLong() and 0xFF) shl 16) or
+                ((bytes[offset + 3].toLong() and 0xFF) shl 24)
+
+            fun readUInt64(offset: Int): Long {
+                var res = 0L
+                for (b in 0 until 8) {
+                    res = res or ((bytes[offset + b].toLong() and 0xFF) shl (b * 8))
+                }
+                return res
+            }
+
+            val (phOff, phEntSize, phNum) = if (is64Bit) {
+                Triple(readUInt64(32).toInt(), readUInt16(54), readUInt16(56))
+            } else {
+                Triple(readUInt32(28).toInt(), readUInt16(42), readUInt16(44))
+            }
+
+            var verifiedLoadSegments = 0
+            for (i in 0 until phNum) {
+                val entryOffset = phOff + i * phEntSize
+                val pType = readUInt32(entryOffset)
+                if (pType == 1L) { // PT_LOAD
+                    val pAlign = if (is64Bit) readUInt64(entryOffset + 48) else readUInt32(entryOffset + 28)
+                    if (pAlign < 16384L) {
+                        throw GradleException(
+                            "Android 15/16 16 KB Page-Size Violation in $soFile: " +
+                            "PT_LOAD segment $i alignment is $pAlign bytes (< 16384 bytes / 16 KB). " +
+                            "Ensure RUSTFLAGS='-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=16384'."
+                        )
+                    }
+                    verifiedLoadSegments++
+                }
+            }
+
+            if (verifiedLoadSegments == 0) {
+                throw GradleException("ELF verification failed: No PT_LOAD segments found in $soFile")
+            }
+            logger.lifecycle("[Kryptx 16 KB Audit] $abi: $verifiedLoadSegments PT_LOAD segment(s) verified at 16 KB (0x4000) alignment.")
+        }
+        logger.lifecycle("[Kryptx 16 KB Audit] All native architectures PASSED 16 KB page-size alignment verification.")
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("verifyRustEngine16Kb")
 }
 
 tasks.register<Copy>("copyApk") {
@@ -401,6 +605,7 @@ tasks.register<Copy>("copyReleaseBundle") {
     description = "Copies the assembled release AAB bundle directly into the root apk/ directory"
     dependsOn("bundleRelease")
     mustRunAfter("bundleRelease")
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     from(layout.buildDirectory.dir("outputs/bundle/release"))
     include("*.aab")
     into(rootProject.layout.projectDirectory.dir("apk"))
@@ -416,7 +621,7 @@ tasks.register<Copy>("copyReleaseApk") {
     mustRunAfter("assembleRelease")
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     from(layout.buildDirectory.dir("outputs/apk/release"))
-    include("*universal*.apk")
+    include("*universal*.apk", "*release*.apk")
     into(rootProject.layout.projectDirectory.dir("apk"))
     rename { _ ->
         "Kryptx-v${android.defaultConfig.versionCode}-release.apk"

@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
@@ -70,6 +71,8 @@ fun KryptxFolderCard(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
+                        .weight(1f, fill = false)
+                        .padding(end = 8.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(KryptxBlue.copy(alpha = 0.18f))
                         .border(1.dp, KryptxBlue.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
@@ -86,7 +89,10 @@ fun KryptxFolderCard(
                         text = title,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
                     )
                 }
 

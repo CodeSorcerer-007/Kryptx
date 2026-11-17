@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.theme.KryptxAmber
@@ -82,12 +83,15 @@ fun SetupPermissionItemCard(
                         text = title,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 Box(
                     modifier = Modifier
+                        .padding(start = 6.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(
                             if (isPositive) KryptxEmerald.copy(alpha = 0.15f) else KryptxAmber.copy(alpha = 0.15f)
@@ -98,7 +102,9 @@ fun SetupPermissionItemCard(
                         text = badgeText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isPositive) KryptxEmerald else KryptxAmber
+                        color = if (isPositive) KryptxEmerald else KryptxAmber,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }

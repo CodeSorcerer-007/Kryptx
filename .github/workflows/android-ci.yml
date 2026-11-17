@@ -42,15 +42,30 @@ jobs:
             git diff --exit-code gradle/verification-metadata.xml || (echo "::error::gradle/verification-metadata.xml is out of date. Run './gradlew --write-verification-metadata sha256 help' to update checksums." && exit 1)
           fi
 
-      - name: Run Unit Tests
-        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Run Unit Tests Across All Modules
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Roborazzi Screenshot Regression in CI
+        run: |
+          echo "Executing Roborazzi Compose screenshot regression in headless Linux CI..."
+          ./gradlew :app:recordRoborazziDebug --no-daemon --stacktrace
+          ./gradlew :app:verifyRoborazziDebug --no-daemon --stacktrace
+
+      - name: Upload Roborazzi Screenshot Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: roborazzi-screenshots
+          path: |
+            app/build/outputs/roborazzi/
+            app/build/reports/roborazzi/
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: unit-test-results
-          path: app/build/reports/tests/testDebugUnitTest/
+          path: "**/build/reports/tests/testDebugUnitTest/"
 
       - name: Run Android Lint
         run: ./gradlew :app:lintDebug --no-daemon --stacktrace
@@ -200,15 +215,41 @@ jobs:
             echo "KRYPTX_RELEASE_FINGERPRINT=$FP" >> $GITHUB_ENV
           fi
 
-      - name: Build Reproducible Release APK
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+      - name: Build Reproducible Release APK & AAB Bundle
+        run: ./gradlew :app:assembleRelease :app:bundleRelease :app:copyReleaseApk :app:copyReleaseBundle --no-daemon --stacktrace
 
-      - name: Generate Release SHA-256 Checksum
+      - name: Generate Release SHA-256 Checksums
         run: |
           for f in $(find app/build/outputs/apk/release/ -name "*.apk"); do
             sha256sum "$f" > "${f}.sha256"
             echo "Release APK: $f SHA-256: $(cat ${f}.sha256)"
           done
+          for f in $(find app/build/outputs/bundle/release/ -name "*.aab"); do
+            sha256sum "$f" > "${f}.sha256"
+            echo "Release AAB: $f SHA-256: $(cat ${f}.sha256)"
+          done
+
+      - name: Enforce Release Size Budgets (<= 25 MB Release APK / <= 35 MB AAB)
+        run: |
+          for f in $(find app/build/outputs/apk/release/ -name "*.apk"); do
+            SIZE_BYTES=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+            MAX_BYTES=26214400 # 25 MB budget
+            echo "Release APK: $f size: $SIZE_BYTES bytes (Budget: $MAX_BYTES bytes)"
+            if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
+              echo "ERROR: Release APK size ($SIZE_BYTES bytes) exceeds budget!"
+              exit 1
+            fi
+          done
+          for f in $(find app/build/outputs/bundle/release/ -name "*.aab"); do
+            SIZE_BYTES=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+            MAX_BYTES=36700160 # 35 MB budget
+            echo "Release AAB: $f size: $SIZE_BYTES bytes (Budget: $MAX_BYTES bytes)"
+            if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
+              echo "ERROR: Release AAB size ($SIZE_BYTES bytes) exceeds budget!"
+              exit 1
+            fi
+          done
+          echo "All release binary size budget checks passed."
 
       - name: Generate SBOM
         run: ./gradlew :app:dependencies --configuration releaseRuntimeClasspath > sbom-dependencies.txt
@@ -219,13 +260,17 @@ jobs:
           name: kryptx-sbom
           path: sbom-dependencies.txt
 
-      - name: Upload Release APK Artifact
+      - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kryptx-release-apk
+          name: kryptx-release-binaries
           path: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/release/*.sha256
+            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/bundle/release/*.sha256
+            apk/*.apk
+            apk/*.aab
 
       - name: Secure Cleanup of Keystore
         if: always()
@@ -236,19 +281,46 @@ jobs:
           rm -f sbom-dependencies.txt
 
   rust-tests:
-    name: Rust Crypto Engine Tests
+    name: Rust Crypto Engine Tests & NDK 16 KB Verification
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
       - name: Run Clippy Lints
         working-directory: app/src/main/rust/kryptx_crypto
         run: cargo clippy -- -D warnings
       - name: Run Rust Tests
         working-directory: app/src/main/rust/kryptx_crypto
         run: cargo test --verbose
+      - name: Configure Android NDK for cargo-ndk
+        run: |
+          if [ -z "$ANDROID_NDK_HOME" ]; then
+            NDK_DIR=$(find $ANDROID_HOME/ndk -maxdepth 1 -mindepth 1 2>/dev/null | sort -V | tail -n 1)
+            if [ -n "$NDK_DIR" ]; then
+              echo "ANDROID_NDK_HOME=$NDK_DIR" >> $GITHUB_ENV
+              echo "Discovered Android NDK at: $NDK_DIR"
+            else
+              echo "Installing Android NDK 27.2.12479018..."
+              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.2.12479018" || true
+              echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> $GITHUB_ENV
+            fi
+          fi
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+      - name: Build Rust Engine via Gradle cargo-ndk & Verify 16 KB Alignment
+        run: ./gradlew :app:buildRustEngine :app:verifyRustEngine16Kb --no-daemon --stacktrace
 
   sast:
     name: SAST – Semgrep & MobSFScan
@@ -287,7 +359,7 @@ jobs:
 
       - name: Run MobSFScan
         run: |
-          mobsfscan --json -o mobsfscan-results.json app/src/main/java app/src/main/AndroidManifest.xml || true
+          mobsfscan --json -o mobsfscan-results.json app/src/main/java core app/src/main/AndroidManifest.xml || true
           # Surface any CRITICAL findings as a hard-failure gate
           if python3 - <<'EOF'
           import json, sys

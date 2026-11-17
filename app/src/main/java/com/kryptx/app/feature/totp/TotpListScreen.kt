@@ -253,7 +253,9 @@ fun TotpListScreen(
                                     text = label,
                                     fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -274,10 +276,18 @@ fun TotpListScreen(
                             text = "${accounts.size} OF ${allAccounts.size} ACCOUNTS",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .padding(end = 6.dp)
                         )
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             TotpViewModel.TotpSortOrder.entries.forEach { opt ->
                                 val isOpt = sortOrder == opt
                                 Box(
@@ -292,7 +302,9 @@ fun TotpListScreen(
                                         text = opt.label,
                                         fontSize = 11.sp,
                                         fontWeight = if (isOpt) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isOpt) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isOpt) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }

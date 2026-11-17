@@ -17,7 +17,7 @@
   <br>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.3.0-FFB300?style=for-the-badge" alt="Version 2.3.0" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.4.0-FFB300?style=for-the-badge" alt="Version 2.4.0" /></a>
   <a href="https://bestpractices.coreinfrastructure.org/projects/9941"><img src="https://img.shields.io/badge/OpenSSF-Best%20Practices-green?style=for-the-badge&logo=openssf&logoColor=white" alt="OpenSSF Best Practices" /></a>
   <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
   <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
@@ -240,8 +240,8 @@ To generate the production-ready, signed `.aab` for Google Play Console and `.ap
 ./gradlew bundleRelease copyReleaseBundle
 ./gradlew assembleRelease copyReleaseApk
 ```
-* **Output Bundle**: `app/build/outputs/bundle/release/app-release.aab` (mirrored to `apk/Kryptx-v19-release.aab`)
-* **Output APK**: `app/build/outputs/apk/release/app-release.apk` (mirrored to `apk/Kryptx-v19-release.apk`)
+* **Output Bundle**: `app/build/outputs/bundle/release/app-release.aab` (mirrored to `apk/Kryptx-v20-release.aab`)
+* **Output APK**: `app/build/outputs/apk/release/app-release.apk` (mirrored to `apk/Kryptx-v20-release.apk`)
 * **ProGuard/R8 Mapping**: `app/build/outputs/mapping/release/mapping.txt`
 
 ---

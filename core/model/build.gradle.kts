@@ -17,6 +17,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 kotlin {
@@ -28,6 +32,7 @@ dependencies {
     implementation(composeBom)
     implementation(libs.androidx.compose.ui)
     implementation(libs.kotlinx.serialization.json)
+    api(libs.androidx.core.ktx)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

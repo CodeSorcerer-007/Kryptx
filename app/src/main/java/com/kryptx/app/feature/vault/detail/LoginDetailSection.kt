@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
@@ -95,7 +96,10 @@ fun LoginDetailSection(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.History,
                                 contentDescription = null,
@@ -107,14 +111,19 @@ fun LoginDetailSection(
                                 text = "View Password History (${item.passwordHistory.size})",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = KryptxBlue
+                                color = KryptxBlue,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = false
                             )
                         }
                         Text(
                             text = "Review",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = KryptxBlue
+                            color = KryptxBlue,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -131,10 +140,11 @@ fun LoginDetailSection(
                             scope.launch {
                                 snackbarHostState.showSnackbar("New high-entropy password generated & copied!")
                             }
-                            if (result.changePasswordUrl != null) {
+                            val changeUrl = result.changePasswordUrl
+                            if (changeUrl != null) {
                                 PasswordRotationHelper.openChangePasswordInBrowser(
                                     context,
-                                    result.changePasswordUrl
+                                    changeUrl
                                 )
                             }
                         }
@@ -146,7 +156,10 @@ fun LoginDetailSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = null,
@@ -158,14 +171,19 @@ fun LoginDetailSection(
                             text = "1-Tap Rotate Password",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = KryptxEmerald
+                            color = KryptxEmerald,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false
                         )
                     }
                     Text(
                         text = "Auto-Change",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = KryptxEmerald
+                        color = KryptxEmerald,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }

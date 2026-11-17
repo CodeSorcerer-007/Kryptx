@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -378,10 +379,11 @@ fun SecurityCenterScreen(
                                 onFix = { onNavigateToFixItem(issue.itemId) },
                                 onRotate = {
                                     viewModel.quickRotatePassword(issue.itemId) { rotationResult ->
-                                        if (rotationResult.changePasswordUrl != null) {
+                                        val changeUrl = rotationResult.changePasswordUrl
+                                        if (changeUrl != null) {
                                             com.kryptx.app.core.security.PasswordRotationHelper.openChangePasswordInBrowser(
                                                 context,
-                                                rotationResult.changePasswordUrl
+                                                changeUrl
                                             )
                                         }
                                     }
@@ -452,7 +454,10 @@ fun AuditStatBox(
                 text = label,
                 fontSize = 11.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -483,7 +488,13 @@ fun SecurityIssueCard(
                     text = issue.itemTitle,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    softWrap = false,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .padding(start = 8.dp)
                 )
             }
 

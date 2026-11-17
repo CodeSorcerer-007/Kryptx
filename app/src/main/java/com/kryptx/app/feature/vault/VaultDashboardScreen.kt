@@ -6,6 +6,8 @@ import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +73,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kryptx.app.core.designsystem.components.FolderStatPill
@@ -373,6 +376,7 @@ fun VaultDashboardScreen(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
+                                    .weight(1f, fill = false)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(KryptxBlue.copy(alpha = 0.18f))
                                     .border(1.dp, KryptxBlue.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
@@ -393,7 +397,10 @@ fun VaultDashboardScreen(
                                     },
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -402,6 +409,7 @@ fun VaultDashboardScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
                                 .padding(bottom = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -410,7 +418,9 @@ fun VaultDashboardScreen(
                                 text = "Sort:",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                softWrap = false
                             )
                             VaultViewModel.SortOption.entries.forEach { opt ->
                                 val isOptSelected = sortOption == opt
@@ -433,7 +443,9 @@ fun VaultDashboardScreen(
                                         text = opt.label,
                                         fontSize = 11.sp,
                                         fontWeight = if (isOptSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = optTextColor
+                                        color = optTextColor,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
