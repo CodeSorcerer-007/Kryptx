@@ -38,7 +38,12 @@ class BiometricAuthManager(private val context: Context) {
         return checkBiometricAvailability(requireStrong) == BiometricStatus.AVAILABLE
     }
 
+    @Volatile
     private var activePrompt: BiometricPrompt? = null
+    @Volatile
+    private var currentSessionId: Long = 0L
+    @Volatile
+    private var lastCancelTimestamp: Long = 0L
 
     /**
      * Whether a BiometricPrompt is currently presented or awaiting user interaction.
@@ -47,13 +52,40 @@ class BiometricAuthManager(private val context: Context) {
         get() = activePrompt != null
 
     /**
+     * Elapsed time in milliseconds since the last cancellation call.
+     */
+    fun timeSinceLastCancelMs(): Long {
+        val t = lastCancelTimestamp
+        return if (t == 0L) Long.MAX_VALUE else (System.currentTimeMillis() - t)
+    }
+
+    /**
      * Safely cancels any active or pending BiometricPrompt dialog.
      */
-    fun cancelAuthentication() {
-        try {
-            activePrompt?.cancelAuthentication()
-        } catch (_: Throwable) {}
-        activePrompt = null
+    fun cancelAuthentication(activity: FragmentActivity? = null) {
+        val prompt = activePrompt
+        currentSessionId++ // Invalidate any delayed/in-flight callbacks
+        if (prompt != null) {
+            try {
+                prompt.cancelAuthentication()
+            } catch (_: Throwable) {}
+            activePrompt = null
+            lastCancelTimestamp = System.currentTimeMillis()
+        }
+
+        // Clean up any lingering or cancelling headless BiometricFragment from FragmentManager
+        if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
+            try {
+                val fm = activity.supportFragmentManager
+                if (!fm.isStateSaved) {
+                    val fragment = fm.findFragmentByTag("androidx.biometric.BiometricFragment")
+                    if (fragment != null) {
+                        fm.beginTransaction().remove(fragment).commitAllowingStateLoss()
+                        fm.executePendingTransactions()
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
     }
 
     /**
@@ -65,33 +97,57 @@ class BiometricAuthManager(private val context: Context) {
         subtitle: String = "Touch sensor to decrypt your secure vault",
         negativeButtonText: String = "Use Master Password",
         cryptoObject: BiometricPrompt.CryptoObject? = null,
+        force: Boolean = false,
         onSuccess: (BiometricPrompt.AuthenticationResult) -> Unit,
         onError: (errorCode: Int, errString: CharSequence) -> Unit,
         onFailed: () -> Unit
     ) {
         if (activePrompt != null) {
-            SecurityLogger.info("BiometricAuthManager", "Biometric prompt is already displayed, ignoring redundant request")
+            if (force) {
+                SecurityLogger.info("BiometricAuthManager", "Force biometric requested: cancelling stale active prompt")
+                cancelAuthentication(activity)
+            } else {
+                SecurityLogger.info("BiometricAuthManager", "Biometric prompt is already displayed, ignoring redundant request")
+                return
+            }
+        }
+
+        if (activity.isFinishing || activity.isDestroyed || activity.supportFragmentManager.isStateSaved) {
+            SecurityLogger.warn("BiometricAuthManager", "Activity is not in a valid state to display BiometricPrompt")
+            activePrompt = null
+            onError(BiometricPrompt.ERROR_CANCELED, "Activity not in interactive state")
             return
         }
 
+        val sessionId = ++currentSessionId
         val executor = ContextCompat.getMainExecutor(activity)
 
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                activePrompt = null
-                super.onAuthenticationSucceeded(result)
-                onSuccess(result)
+                if (currentSessionId == sessionId) {
+                    activePrompt = null
+                    super.onAuthenticationSucceeded(result)
+                    onSuccess(result)
+                } else {
+                    SecurityLogger.info("BiometricAuthManager", "Ignoring succeeded callback from obsolete session $sessionId")
+                }
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                activePrompt = null
-                super.onAuthenticationError(errorCode, errString)
-                onError(errorCode, errString)
+                if (currentSessionId == sessionId) {
+                    activePrompt = null
+                    super.onAuthenticationError(errorCode, errString)
+                    onError(errorCode, errString)
+                } else {
+                    SecurityLogger.info("BiometricAuthManager", "Ignoring error callback ($errorCode) from obsolete session $sessionId")
+                }
             }
 
             override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
-                onFailed()
+                if (currentSessionId == sessionId) {
+                    super.onAuthenticationFailed()
+                    onFailed()
+                }
             }
         }
 
@@ -125,7 +181,9 @@ class BiometricAuthManager(private val context: Context) {
                 biometricPrompt.authenticate(promptInfo)
             }
         } catch (e: Throwable) {
-            activePrompt = null
+            if (currentSessionId == sessionId) {
+                activePrompt = null
+            }
             onError(BiometricPrompt.ERROR_UNABLE_TO_PROCESS, e.localizedMessage ?: "Biometric prompt failed to launch")
         }
     }

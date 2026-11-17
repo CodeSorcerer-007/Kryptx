@@ -100,7 +100,7 @@ class BiometricCoordinatorTest {
         )
 
         coordinator.reset()
-        org.mockito.kotlin.verify(mockBiometricManager).cancelAuthentication()
+        org.mockito.kotlin.verify(mockBiometricManager).cancelAuthentication(mockActivity)
     }
 
     @Test
@@ -244,7 +244,7 @@ class BiometricCoordinatorTest {
             unlockViewModel = unlockViewModel
         )
 
-        coordinator.triggerUnlock(force = true)
+        coordinator.triggerUnlock(force = false)
         org.mockito.kotlin.verify(mockBiometricManager, org.mockito.kotlin.never()).canAuthenticate(org.mockito.kotlin.any())
         org.mockito.kotlin.verify(mockBiometricManager, org.mockito.kotlin.never()).promptBiometric(
             org.mockito.kotlin.any(),
@@ -254,8 +254,39 @@ class BiometricCoordinatorTest {
             org.mockito.kotlin.any(),
             org.mockito.kotlin.any(),
             org.mockito.kotlin.any(),
+            org.mockito.kotlin.any(),
             org.mockito.kotlin.any()
         )
+    }
+
+    @Test
+    fun testTriggerUnlock_whenPromptAlreadyActive_forceCancelsStalePromptAndPrompts() {
+        val mockActivity = org.mockito.kotlin.mock<androidx.fragment.app.FragmentActivity>()
+        val mockBiometricManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.BiometricAuthManager>()
+        org.mockito.kotlin.whenever(mockBiometricManager.isPromptActive).thenReturn(true)
+        org.mockito.kotlin.whenever(mockBiometricManager.canAuthenticate(org.mockito.kotlin.any())).thenReturn(true)
+        org.mockito.kotlin.whenever(mockBiometricManager.timeSinceLastCancelMs()).thenReturn(500L)
+
+        val sessionManager = com.kryptx.app.core.security.VaultSessionManager()
+        val fakeVaultRepo = com.kryptx.app.fake.FakeVaultRepository()
+        kotlinx.coroutines.runBlocking { fakeVaultRepo.setupBiometrics() }
+        val fakePrefsRepo = com.kryptx.app.fake.FakePreferencesRepository()
+        fakePrefsRepo.setBiometricEnabled(true)
+        val mockLogManager = org.mockito.kotlin.mock<com.kryptx.app.core.security.ActivityLogManager>()
+        val unlockViewModel = UnlockViewModel(fakeVaultRepo, sessionManager, fakePrefsRepo)
+
+        val coordinator = BiometricCoordinator(
+            activity = mockActivity,
+            biometricManager = mockBiometricManager,
+            sessionManager = sessionManager,
+            vaultRepository = fakeVaultRepo,
+            preferencesRepository = fakePrefsRepo,
+            activityLogManager = mockLogManager,
+            unlockViewModel = unlockViewModel
+        )
+
+        coordinator.triggerUnlock(force = true)
+        org.mockito.kotlin.verify(mockBiometricManager).cancelAuthentication(org.mockito.kotlin.anyOrNull())
     }
 
     @Test

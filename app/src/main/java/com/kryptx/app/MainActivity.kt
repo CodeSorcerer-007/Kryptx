@@ -191,6 +191,9 @@ class MainActivity : FragmentActivity() {
                     onTriggerBiometrics = {
                         biometricCoordinator.triggerUnlock(force = true)
                     },
+                    onAutoPromptBiometrics = {
+                        biometricCoordinator.triggerUnlock(force = false)
+                    },
                     onEnrollBiometrics = { onResult ->
                         biometricCoordinator.triggerEnrollment(onResult)
                     }

@@ -38,14 +38,39 @@ class BiometricCoordinator(
      */
     fun triggerUnlock(force: Boolean = false) {
         try {
-            if (biometricManager.isPromptActive) {
-                SecurityLogger.info("BiometricCoordinator", "Biometric prompt is already active on screen, ignoring")
+            if (sessionManager.isUnlocked.value) {
+                isPromptingBiometrics.set(false)
                 return
             }
-            if (force) {
+            if (unlockViewModel.lockoutSecondsRemaining.value > 0) {
                 isPromptingBiometrics.set(false)
+                if (force) {
+                    unlockViewModel.setErrorMessage("Too many failed attempts. Wait ${unlockViewModel.lockoutSecondsRemaining.value}s")
+                }
+                return
             }
-            if (!isPromptingBiometrics.compareAndSet(false, true)) return
+
+            if (force) {
+                // User explicitly initiated unlock: clear stale error banner and cancel stale prompt
+                unlockViewModel.setErrorMessage(null)
+                isPromptingBiometrics.set(false)
+                if (biometricManager.isPromptActive) {
+                    SecurityLogger.info("BiometricCoordinator", "Force trigger: canceling stale/in-flight biometric prompt")
+                    biometricManager.cancelAuthentication(activity)
+                }
+            } else {
+                // Auto-prompt path: do not overlap if already active
+                if (biometricManager.isPromptActive) {
+                    SecurityLogger.info("BiometricCoordinator", "Biometric prompt is already active on screen, ignoring auto-prompt")
+                    return
+                }
+            }
+
+            if (!isPromptingBiometrics.compareAndSet(false, true)) {
+                SecurityLogger.info("BiometricCoordinator", "Biometric prompt already in-flight, skipping duplicate")
+                return
+            }
+
             if (!biometricManager.canAuthenticate(requireStrong = false)) {
                 isPromptingBiometrics.set(false)
                 if (force) {
@@ -60,14 +85,6 @@ class BiometricCoordinator(
                     }
                     unlockViewModel.setErrorMessage(msg)
                 }
-                return
-            }
-            if (sessionManager.isUnlocked.value) {
-                isPromptingBiometrics.set(false)
-                return
-            }
-            if (unlockViewModel.lockoutSecondsRemaining.value > 0) {
-                isPromptingBiometrics.set(false)
                 return
             }
 
@@ -99,42 +116,77 @@ class BiometricCoordinator(
 
             val cryptoObject = BiometricPrompt.CryptoObject(decryptCipher)
 
-            biometricManager.promptBiometric(
-                activity = activity,
-                title = activity.getString(R.string.biometric_prompt_title),
-                subtitle = activity.getString(R.string.biometric_prompt_subtitle),
-                cryptoObject = cryptoObject,
-                onSuccess = { result ->
-                    isPromptingBiometrics.set(false)
-                    val authenticatedCipher = result.cryptoObject?.cipher
-                    if (authenticatedCipher != null) {
-                        unlockViewModel.unlockWithBiometricCipher(authenticatedCipher, onSuccess = {
-                            KryptxHaptics.confirm(activity.window.decorView)
-                            KryptxAudio.unlockChime(activity)
-                        })
-                    } else {
-                        unlockViewModel.setErrorMessage("Biometric authentication failed. Please use master password.")
-                    }
-                },
-                onError = { errorCode, errString ->
-                    isPromptingBiometrics.set(false)
-                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
-                        errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
-                        errorCode != BiometricPrompt.ERROR_CANCELED
-                    ) {
-                        SecurityLogger.warn("BiometricCoordinator", "Biometric prompt error: $errorCode - $errString")
-                        unlockViewModel.setErrorMessage(sanitizeBiometricError(errorCode, errString))
-                    }
-                },
-                onFailed = {
-                    // Wrong finger tapped — prompt dialog is still visible, record attempt for throttling
-                    sessionManager.recordFailedAttempt()
+            // If a previous prompt was just canceled in the HAL, yield briefly so Fingerprint HAL unbinds cleanly
+            val timeSinceCancel = biometricManager.timeSinceLastCancelMs()
+            val cooldownNeeded = if (force && timeSinceCancel < 100L) (100L - timeSinceCancel) else 0L
+
+            if (cooldownNeeded > 0) {
+                activity.lifecycleScope.launch {
+                    kotlinx.coroutines.delay(cooldownNeeded)
+                    executeUnlockPrompt(cryptoObject, force = force)
                 }
-            )
+            } else {
+                executeUnlockPrompt(cryptoObject, force = force)
+            }
         } catch (t: Throwable) {
             isPromptingBiometrics.set(false)
             SecurityLogger.error("BiometricCoordinator", "Unhandled exception in triggerUnlock", t)
         }
+    }
+
+    private fun executeUnlockPrompt(
+        cryptoObject: BiometricPrompt.CryptoObject,
+        force: Boolean,
+        isRetry: Boolean = false
+    ) {
+        val launchTimestamp = System.currentTimeMillis()
+        biometricManager.promptBiometric(
+            activity = activity,
+            title = activity.getString(R.string.biometric_prompt_title),
+            subtitle = activity.getString(R.string.biometric_prompt_subtitle),
+            cryptoObject = cryptoObject,
+            force = force,
+            onSuccess = { result ->
+                isPromptingBiometrics.set(false)
+                val authenticatedCipher = result.cryptoObject?.cipher
+                if (authenticatedCipher != null) {
+                    unlockViewModel.unlockWithBiometricCipher(authenticatedCipher, onSuccess = {
+                        KryptxHaptics.confirm(activity.window.decorView)
+                        KryptxAudio.unlockChime(activity)
+                    })
+                } else {
+                    unlockViewModel.setErrorMessage("Biometric authentication failed. Please use master password.")
+                }
+            },
+            onError = { errorCode, errString ->
+                isPromptingBiometrics.set(false)
+                val elapsed = System.currentTimeMillis() - launchTimestamp
+
+                // On physical devices, if Android OS HAL rejects an explicit user tap with ERROR_CANCELED
+                // almost immediately (under 250ms), it indicates the previous HAL session was in mid-teardown.
+                // Auto-retry once after 150ms to ensure 100% prompt presentation reliability.
+                if (force && !isRetry && errorCode == BiometricPrompt.ERROR_CANCELED && elapsed < 250L) {
+                    SecurityLogger.info("BiometricCoordinator", "Transient HAL cancel detected ($elapsed ms), retrying prompt once")
+                    activity.lifecycleScope.launch {
+                        kotlinx.coroutines.delay(150)
+                        triggerUnlock(force = true)
+                    }
+                    return@promptBiometric
+                }
+
+                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                    errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
+                    errorCode != BiometricPrompt.ERROR_CANCELED
+                ) {
+                    SecurityLogger.warn("BiometricCoordinator", "Biometric prompt error: $errorCode - $errString")
+                    unlockViewModel.setErrorMessage(sanitizeBiometricError(errorCode, errString))
+                }
+            },
+            onFailed = {
+                // Wrong finger tapped — prompt dialog is still visible, record attempt for throttling
+                sessionManager.recordFailedAttempt()
+            }
+        )
     }
 
     /**
@@ -264,7 +316,7 @@ class BiometricCoordinator(
     fun cancelAuthentication() {
         isPromptingBiometrics.set(false)
         try {
-            biometricManager.cancelAuthentication()
+            biometricManager.cancelAuthentication(activity)
         } catch (_: Throwable) {}
     }
 

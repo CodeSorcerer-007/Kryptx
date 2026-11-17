@@ -76,7 +76,8 @@ fun UnlockScreen(
     onUnlockSuccess: () -> Unit,
     onTriggerBiometrics: () -> Unit,
     modifier: Modifier = Modifier,
-    onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null
+    onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null,
+    onAutoPromptBiometrics: () -> Unit = onTriggerBiometrics
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lockoutSeconds by viewModel.lockoutSecondsRemaining.collectAsState()
@@ -113,7 +114,7 @@ fun UnlockScreen(
         if (!isUnlocked && !hasAutoPrompted && uiState.isBiometricsAvailable && lockoutSeconds == 0) {
             hasAutoPrompted = true
             delay(250)
-            onTriggerBiometrics()
+            onAutoPromptBiometrics()
         }
     }
 

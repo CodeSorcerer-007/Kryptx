@@ -154,7 +154,8 @@ fun KryptxNavGraph(
     modifier: Modifier = Modifier,
     pendingShortcutTarget: String? = null,
     onClearPendingShortcut: () -> Unit = {},
-    onEnrollBiometrics: ((Boolean) -> Unit) -> Unit = {}
+    onEnrollBiometrics: ((Boolean) -> Unit) -> Unit = {},
+    onAutoPromptBiometrics: () -> Unit = onTriggerBiometrics
 ) {
     val isUnlocked by unlockViewModel.isUnlocked.collectAsState()
     val unlockUiState by unlockViewModel.uiState.collectAsState()
@@ -361,6 +362,7 @@ fun KryptxNavGraph(
                                 backStack.add(Screen.VaultDashboard)
                             },
                             onTriggerBiometrics = onTriggerBiometrics,
+                            onAutoPromptBiometrics = onAutoPromptBiometrics,
                             onEnrollBiometrics = onEnrollBiometrics
                         )
                     }
