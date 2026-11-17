@@ -41,7 +41,7 @@
   <img src="brag-output/kryptx-showcase.gif" alt="Kryptx 20-Second Cinematic Showcase" width="100%" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 230, 118, 0.3);" />
 </a>
 
-<p><em>⚡ <b>God-Tier Cinematic Showcase:</b> Post-Quantum ML-KEM-768, 0 Network Permissions, StrongBox TEE Biometrics & Hardware YubiKey, 1-Tap Phishing Shield, and Duress Decoy Defense</em></p>
+<p><em>⚡ <b>Cinematic Showcase:</b> Post-Quantum ML-KEM-768, 0 Network Permissions, StrongBox TEE Biometrics & Hardware YubiKey, 1-Tap Phishing Shield, and Duress Decoy Defense</em></p>
 
 </div>
 
