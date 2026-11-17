@@ -17,11 +17,11 @@
   <br>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.4.0-FFB300?style=for-the-badge" alt="Version 2.4.0" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.4.0%20(Code%2020)-FFB300?style=for-the-badge" alt="Version 2.4.0 (Code 20)" /></a>
   <a href="https://bestpractices.coreinfrastructure.org/projects/9941"><img src="https://img.shields.io/badge/OpenSSF-Best%20Practices-green?style=for-the-badge&logo=openssf&logoColor=white" alt="OpenSSF Best Practices" /></a>
   <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
   <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-587%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="587 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-603%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="603 Unit Tests Passed" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
@@ -41,7 +41,7 @@
   <img src="brag-output/kryptx-showcase.gif" alt="Kryptx 20-Second Cinematic Showcase" width="100%" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 230, 118, 0.3);" />
 </a>
 
-<p><em>⚡ <b>20-Second Showcase:</b> Post-Quantum ML-KEM-768, 0 Network Permissions, StrongBox TEE Biometrics & Hardware Security Keys</em></p>
+<p><em>⚡ <b>God-Tier Cinematic Showcase:</b> Post-Quantum ML-KEM-768, 0 Network Permissions, StrongBox TEE Biometrics & Hardware YubiKey, 1-Tap Phishing Shield, and Duress Decoy Defense</em></p>
 
 </div>
 
@@ -79,7 +79,7 @@
 | **4. Hardware Security Keys & Biometrics** | **10 / 10** | `IHardwareSecurityKeyManager` with Dual-Token failover redundancy (Primary + Backup NFC/USB), StrongBox TEE biometrics, and CTAP2 BLE. |
 | **5. Anti-Coercion & Anti-Forensics** | **10 / 10** | Duress PIN opens isolated decoy vault; panic mode runs CSPRNG multi-pass overwrites with `fd.sync()` sector shredding. |
 | **6. Fluidity & Crash Defense** | **10 / 10** | 120 FPS high-refresh rate lock; `CrashDefense` Immortal Looper and proactive multi-tiered memory pruning in `CryptographicMemoryWatchdog`. |
-| **7. Test Quality & Verification** | **10 / 10** | **587 unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo security coverage. |
+| **7. Test Quality & Verification** | **10 / 10** | **603 unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo security coverage. |
 | **8. UI/UX & Human Experience** | **10 / 10** | `AirGapQrFountainCodec` animated QR vault sync, WCAG 2.1 AA accessibility semantics (`Role.Button`), offline identicons, tactical haptics. |
 
 ---
@@ -221,7 +221,7 @@ Kryptx is officially available on the Google Play Store for seamless installatio
 
 ### Run Tests & Verification
 ```bash
-# Run all unit tests (587/587 passing, 0 failures)
+# Run all unit tests (603/603 passing, 0 failures)
 ./gradlew testDebugUnitTest
 
 # Run Android Lint static security analysis
@@ -286,11 +286,11 @@ Every official Kryptx release APK is accompanied by a SHA-256 checksum and a cry
 
 ```bash
 # 1. Verify SHA-256 Checksum
-sha256sum -c Kryptx-v2.3.0-release.apk.sha256
+sha256sum -c apk/Kryptx-v20-release.apk.sha256
 
 # 2. Verify SLSA Build Provenance using slsa-verifier
-slsa-verifier verify-artifact Kryptx-v2.3.0-release.apk \
-  --provenance-path Kryptx-v2.3.0-release.apk.intoto.jsonl \
+slsa-verifier verify-artifact apk/Kryptx-v20-release.apk \
+  --provenance-path apk/Kryptx-v20-release.apk.intoto.jsonl \
   --source-uri github.com/CodeSorcerer-007/Kryptx
 ```
 

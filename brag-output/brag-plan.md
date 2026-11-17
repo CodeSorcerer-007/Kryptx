@@ -86,7 +86,7 @@
 [17.5s - 20.0s] Scene 6: Outro & Call to Action (2.5s)
   Visual: Centered Kryptx logo with radiant emerald glow and version tags.
   Text: "KRYPTX: SIMPLE. HUMAN. SOVEREIGN."
-  Subtext: "570 Unit Tests (100% Pass) • Android 16 (API 36) Ready"
+  Subtext: "603 Unit Tests (100% Pass) • Android 16 (API 36) Native • 120 FPS Fluid"
   Badge: "GET IT ON GOOGLE PLAY • STANDALONE APK ON GITHUB"
   Audio Cue: Triumphant sonic resolve with fading shimmer.
 ```
