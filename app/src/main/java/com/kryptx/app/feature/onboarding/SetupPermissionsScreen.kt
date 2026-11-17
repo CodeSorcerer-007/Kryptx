@@ -86,6 +86,8 @@ import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxShapes
 import com.kryptx.app.core.security.NfcHardwareKeyManager
+import com.kryptx.app.feature.onboarding.components.OnboardingStepIndicator
+import com.kryptx.app.feature.onboarding.components.SetupPermissionItemCard
 
 /**
  * In-app permission onboarding screen — shows a rationale dialog (with privacy guarantees)
@@ -427,7 +429,15 @@ fun SetupPermissionsScreen(
 
             KryptxLogo(size = 72.dp, showGlow = true)
 
-            Spacer(modifier = Modifier.height(14.dp))
+            OnboardingStepIndicator(
+                currentStep = 2,
+                totalSteps = 3,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = "System Setup & Permissions",
@@ -643,91 +653,6 @@ fun SetupPermissionsScreen(
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-        }
-    }
-}
-
-@Composable
-private fun SetupPermissionItemCard(
-    title: String,
-    badgeText: String,
-    isPositive: Boolean,
-    icon: ImageVector,
-    description: String,
-    action: (@Composable () -> Unit)?,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(KryptxShapes.CardMedium)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), KryptxShapes.CardMedium)
-            .padding(14.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isPositive) KryptxEmerald.copy(alpha = 0.15f) else KryptxBlue.copy(alpha = 0.15f)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = if (isPositive) KryptxEmerald else KryptxBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (isPositive) KryptxEmerald.copy(alpha = 0.15f) else KryptxAmber.copy(alpha = 0.15f)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = badgeText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isPositive) KryptxEmerald else KryptxAmber
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = description,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 17.sp
-            )
-
-            if (action != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                action()
-            }
         }
     }
 }

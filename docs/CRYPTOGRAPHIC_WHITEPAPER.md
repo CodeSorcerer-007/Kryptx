@@ -35,8 +35,8 @@ Kryptx utilizes a multi-tier key derivation architecture to isolate the Master A
                ▼
 [ Cryptographic Salt (32 bytes via SecureRandom) ]
                │
-      PBKDF2-HMAC-SHA256 (600,000 passes)
-         or Argon2id (RFC 9106, 16 MB)
+      Argon2id (RFC 9106, 64–256 MB memory-hard baseline)
+         [Legacy backward compatibility: PBKDF2-HMAC-SHA256 (600,000 rounds)]
                │
                ▼
    [ Derived Master Key (256-bit) ]

@@ -34,7 +34,16 @@ class ClipboardClearReceiver : BroadcastReceiver() {
                                 .digest(currentText.toByteArray(Charsets.UTF_8))
                             java.security.MessageDigest.isEqual(currentHash, hashToClear)
                         }
-                        textToClear != null -> currentText == textToClear
+                        textToClear != null -> {
+                            val currentChars = currentText.toCharArray()
+                            val targetChars = textToClear.toCharArray()
+                            try {
+                                com.kryptx.app.core.crypto.SecureMemory.safeEquals(currentChars, targetChars)
+                            } finally {
+                                com.kryptx.app.core.crypto.SecureMemory.wipe(currentChars)
+                                com.kryptx.app.core.crypto.SecureMemory.wipe(targetChars)
+                            }
+                        }
                         else -> true
                     }
                 } else if (hashToClear != null || textToClear != null) {

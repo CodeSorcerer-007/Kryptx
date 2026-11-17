@@ -239,6 +239,27 @@ class VaultAuthRepositoryImpl(
                     dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, argon2Params.parallelism.toString())
                 }
 
+                // Seamlessly migrate legacy PBKDF2 vaults to memory-hard Argon2id upon successful authentication
+                if (kdfAlgorithm != KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
+                    try {
+                        val newSalt = KeyDerivation.generateSalt()
+                        val newParams = Argon2Engine.Argon2Params.forDevice()
+                        val newDerivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, newSalt, newParams)
+                        val newEncryptedVekPayload = CryptoEngine.encrypt(vek, newDerivedMasterKey)
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, Base64.encodeToString(newSalt, Base64.NO_WRAP))
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVekPayload, Base64.NO_WRAP))
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, newParams.memoryCostKb.toString())
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, newParams.iterations.toString())
+                        dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, newParams.parallelism.toString())
+                        SecureMemory.wipe(newDerivedMasterKey)
+                        SecureMemory.wipe(newSalt)
+                        SecurityLogger.info("VaultAuthRepository", "Legacy PBKDF2 vault successfully auto-migrated to Argon2id")
+                    } catch (migrationEx: Exception) {
+                        SecurityLogger.warn("VaultAuthRepository", "Failed to auto-migrate legacy vault to Argon2id", migrationEx)
+                    }
+                }
+
                 // If biometric was previously configured, auto-re-enroll now that we have the active VEK to guarantee cryptographic alignment!
                 val hasBiometricWrapped = !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank()
                 if (hasBiometricWrapped) {

@@ -23,9 +23,13 @@ object KeyDerivation {
     private val secureRandom = SecureRandom()
 
     enum class KdfAlgorithm(val displayName: String, val identifier: String) {
+        @Deprecated("Legacy only. Argon2id is the primary default KDF per OWASP guidelines.")
         PBKDF2_HMAC_SHA256("PBKDF2-HMAC-SHA256 (600,000 rounds)", "pbkdf2_sha256"),
         ARGON2ID("Argon2id (Memory-Hard RFC 9106)", "argon2id")
     }
+
+    /** Primary default KDF algorithm for all newly initialized and migrated vaults. */
+    val DEFAULT_ALGORITHM = KdfAlgorithm.ARGON2ID
 
     /**
      * Generates a cryptographically secure random salt of [lengthBytes] bytes.
@@ -116,7 +120,7 @@ object KeyDerivation {
     fun deriveKeyWithAlgorithm(
         password: CharArray,
         salt: ByteArray,
-        algorithm: KdfAlgorithm = KdfAlgorithm.PBKDF2_HMAC_SHA256,
+        algorithm: KdfAlgorithm = DEFAULT_ALGORITHM,
         iterations: Int = DEFAULT_ITERATIONS,
         argon2Params: Argon2Engine.Argon2Params = Argon2Engine.Argon2Params.DEFAULT
     ): ByteArray {

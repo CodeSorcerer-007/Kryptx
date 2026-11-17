@@ -177,6 +177,13 @@ object CryptoEngine {
      * Prevents nonce reuse across up to 2^32 encryptions per session.
      * If the 32-bit counter rolls over, safely re-randomizes the 64-bit prefix.
      *
+     * Nonce Lifecycle Specification:
+     * | Component       | Bit Width | Representation / Source | Max Invocations Before Re-seed |
+     * |-----------------|-----------|-------------------------|--------------------------------|
+     * | IV Prefix       | 64 bits   | CSPRNG (SecureRandom)   | Re-seeded every 2^32 calls     |
+     * | Counter         | 32 bits   | Monotonic AtomicLong    | 4,294,967,295 (0xFFFFFFFFL)    |
+     * | Combined IV     | 96 bits   | NIST SP 800-38D §8.2.1  | Collision probability < 2^-32  |
+     *
      * The entire read-increment-copy sequence is atomically synchronized under [ivLock],
      * ensuring counter increments never race prefix re-randomization or exceed 32-bit IV field bounds.
      */
@@ -196,6 +203,20 @@ object CryptoEngine {
             iv[10] = ((safeCtr ushr 8) and 0xFFL).toByte()
             iv[11] = (safeCtr and 0xFFL).toByte()
             return iv
+        }
+    }
+
+    /**
+     * Forces a nonce counter state for deterministic testing of the NIST SP 800-38D rollover boundary.
+     */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun setNonceCounterForTesting(counter: Long, prefix: ByteArray? = null) {
+        synchronized(ivLock) {
+            sessionNonceCounter.set(counter)
+            prefix?.let {
+                require(it.size == 8) { "Prefix must be 8 bytes" }
+                System.arraycopy(it, 0, sessionIvPrefix, 0, 8)
+            }
         }
     }
 

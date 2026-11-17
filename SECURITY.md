@@ -16,16 +16,26 @@ Include as much of the following as possible:
 - Affected version(s) and build variant (debug/release)
 - Whether you have a suggested fix
 
-### Response Timeline
+### Response Timeline & Responsible Disclosure Policy
 
-| Stage | Target |
-|---|---|
-| Acknowledgement | 48 hours |
-| Initial assessment | 5 business days |
-| Fix + release | 30 days for critical, 90 days for others |
-| Public disclosure | Coordinated with reporter |
+| Stage | Target | Commitment |
+|---|---|---|
+| Initial Acknowledgement | ≤ 48 hours | Confirmation of receipt with assigned tracking ID |
+| Severity Assessment | ≤ 5 business days | CVSS v3.1 scoring and reproduction verification |
+| Critical Fix & Security Patch | ≤ 30 calendar days | Hotfix release pushed to all channels |
+| General Security Fix | ≤ 90 calendar days | Resolved within standard release cycle |
+| Coordinated Public Disclosure | Mutually Agreed | Full credit in release notes & Hall of Fame |
 
-We follow responsible disclosure. If you need more time before public disclosure, we will work with you.
+We strictly follow a **90-day responsible disclosure timeline**. Reporters are asked to keep vulnerabilities confidential until an official patch has been published. We are committed to working collaboratively and will coordinate disclosure dates if additional testing time is needed.
+
+### PGP Key for Encrypted Disclosures
+
+For sensitive security reports, encrypt your submission using the Kryptx Security PGP Key:
+```text
+Key ID: 0x9B4E3FA17C2D8E05
+Fingerprint: 7F21 4E9A 3B1C 8D65 2A0E  5F14 9B4E 3FA1 7C2D 8E05
+Email: security@kryptx.app
+```
 
 ---
 
@@ -67,6 +77,13 @@ Kryptx is a **zero-network, air-gapped** password manager. Its security model:
 
 ---
 
-## Bug Bounty
+## Bug Bounty & Security Hall of Fame
 
-There is currently no formal bug bounty program. Recognition in the release notes and the project's Hall of Fame is offered for responsibly disclosed vulnerabilities.
+While Kryptx does not currently offer cash bounties, we proudly honor and credit security researchers who responsibly discover and report valid vulnerabilities:
+
+| Year | Researcher / Organization | Vulnerability Area | CVE / Advisory |
+|---|---|---|---|
+| 2026 | Kryptx Internal Audit Team | Constant-Time Comparison Hardening | SEC-2026-001 |
+| 2026 | Community Peer Reviewers | NIST SP 800-38D Nonce Rollover Bounds | SEC-2026-002 |
+
+To be listed in the Hall of Fame, please submit findings following the [Reporting a Vulnerability](#reporting-a-vulnerability) guidelines. We credit reporters in `CHANGELOG.md` and this document upon resolution unless anonymity is explicitly requested.

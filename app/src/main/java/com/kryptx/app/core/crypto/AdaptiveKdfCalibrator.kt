@@ -28,7 +28,15 @@ object AdaptiveKdfCalibrator {
         val recommendedArgon2Parallelism: Int,
         val benchmarkDurationMs: Long,
         val hardwareClass: HardwareClass
-    )
+    ) {
+        /** True if the device JVM heap forced a constrained memory profile below the OWASP 46 MB baseline. */
+        val isLowMemoryConstrained: Boolean
+            get() = recommendedArgon2MemoryKb < 47_104
+
+        /** Formatted memory allocation in megabytes for logging and user display. */
+        val memoryCostMb: Int
+            get() = recommendedArgon2MemoryKb / 1024
+    }
 
     enum class HardwareClass {
         STANDARD,

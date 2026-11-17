@@ -34,6 +34,7 @@ import com.kryptx.app.feature.settings.dialogs.ChangeMasterPasswordDialog
 import com.kryptx.app.feature.settings.dialogs.ClipboardTimeoutDialog
 import com.kryptx.app.feature.settings.dialogs.DuressPinSetupDialog
 import com.kryptx.app.feature.settings.dialogs.PanicPinSetupDialog
+import com.kryptx.app.feature.settings.components.SecurityToggleRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -146,103 +147,43 @@ fun SecuritySettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Biometrics Section
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Biometric Authentication",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Unlock vault with fingerprint or face recognition",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = biometricEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled && onEnrollBiometrics != null) {
-                                onEnrollBiometrics { success ->
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            if (success) "Biometric unlock verified and enabled"
-                                            else "Biometric verification cancelled"
-                                        )
-                                    }
-                                }
-                            } else {
-                                viewModel.setBiometricEnabled(enabled) { success ->
-                                    if (success) {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(
-                                                if (enabled) "Biometrics enabled" else "Biometrics disabled"
-                                            )
-                                        }
-                                    }
+            SecurityToggleRow(
+                title = "Biometric Authentication",
+                subtitle = "Unlock vault with fingerprint or face recognition",
+                checked = biometricEnabled,
+                onCheckedChange = { enabled ->
+                    if (enabled && onEnrollBiometrics != null) {
+                        onEnrollBiometrics { success ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (success) "Biometric unlock verified and enabled"
+                                    else "Biometric verification cancelled"
+                                )
+                            }
+                        }
+                    } else {
+                        viewModel.setBiometricEnabled(enabled) { success ->
+                            if (success) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (enabled) "Biometrics enabled" else "Biometrics disabled"
+                                    )
                                 }
                             }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = KryptxBlue
-                        )
-                    )
+                        }
+                    }
                 }
-            }
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // Quick Unlock Mode
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Quick Unlock Mode",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Bypass the mechanical vault dial animation for instant decryption",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = quickUnlockEnabled,
-                        onCheckedChange = { enabled ->
-                            viewModel.setQuickUnlockEnabled(enabled)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = KryptxBlue
-                        )
-                    )
-                }
-            }
+            SecurityToggleRow(
+                title = "Quick Unlock Mode",
+                subtitle = "Bypass the mechanical vault dial animation for instant decryption",
+                checked = quickUnlockEnabled,
+                onCheckedChange = { viewModel.setQuickUnlockEnabled(it) }
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -723,41 +664,12 @@ fun SecuritySettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Accessible Standard Keypad toggle
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Standard Keypad Layout",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Disable randomized PIN keys for improved motor accessibility and muscle memory",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = scrambledPinDisabled,
-                        onCheckedChange = { viewModel.setScrambledPinDisabled(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = KryptxBlue
-                        )
-                    )
-                }
-            }
+            SecurityToggleRow(
+                title = "Standard Keypad Layout",
+                subtitle = "Disable randomized PIN keys for improved motor accessibility and muscle memory",
+                checked = scrambledPinDisabled,
+                onCheckedChange = { viewModel.setScrambledPinDisabled(it) }
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 

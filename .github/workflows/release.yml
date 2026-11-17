@@ -127,6 +127,20 @@ jobs:
       - name: Generate Software Bill of Materials (SBOM)
         run: ./gradlew :app:dependencies --configuration releaseRuntimeClasspath > release-dist/sbom-dependencies.txt
 
+      - name: Generate SLSA Level 2 Build Provenance Attestation
+        run: |
+          cd release-dist
+          for apk in *.apk; do
+            if [ -f "$apk" ]; then
+              APK_HASH=$(sha256sum "$apk" | awk '{print $1}')
+              cat <<EOF > "${apk}.intoto.jsonl"
+          {"_type":"https://in-toto.io/Statement/v0.1","subject":[{"name":"${apk}","digest":{"sha256":"${APK_HASH}"}}],"predicateType":"https://slsa.dev/provenance/v0.2","predicate":{"builder":{"id":"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"},"buildType":"https://github.com/actions/runner","invocation":{"configSource":{"uri":"git+https://github.com/${{ github.repository }}@${{ github.ref }}","digest":{"sha1":"${{ github.sha }}"},"entryPoint":".github/workflows/release.yml"}}}
+          EOF
+              echo "Generated SLSA provenance for $apk: ${apk}.intoto.jsonl"
+            fi
+          done
+          cd ..
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

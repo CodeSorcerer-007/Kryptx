@@ -77,6 +77,7 @@ import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.security.DomainMatcher
 import com.kryptx.app.core.security.SecurityLogger
+import com.kryptx.app.feature.credentials.components.CredentialItemCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -867,78 +868,6 @@ class CredentialAuthActivity : FragmentActivity() {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    @Composable
-    private fun CredentialItemCard(
-        item: VaultItem,
-        onClick: () -> Unit
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .frostedGlass()
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                .clickable { onClick() }
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(KryptxBlue.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (item.type == ItemType.PASSKEY) Icons.Default.Fingerprint else Icons.Default.Key,
-                            contentDescription = null,
-                            tint = KryptxBlue,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    Column {
-                        Text(
-                            text = item.title,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        val subtitle = if (item.type == ItemType.PASSKEY) {
-                            "Passkey • ${item.username.ifBlank { item.passkeyRpId }}"
-                        } else {
-                            item.username.ifBlank { "Password credential" }
-                        }
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Select",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = KryptxBlue,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(KryptxBlue.copy(alpha = 0.15f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                )
             }
         }
     }

@@ -109,6 +109,15 @@ docs(adr): Document deterministic nonce construction decision
 | Database schema | Migration tests + rollback tests |
 | Autofill/Domain matching | Unit tests with phishing domain corpus |
 
+### Dependency Verification Metadata
+
+Kryptx uses strict Gradle SHA-256 dependency verification (`gradle/verification-metadata.xml`) to prevent supply chain tampering. When upgrading or adding external dependencies in `gradle/libs.versions.toml`:
+```bash
+# Re-generate cryptographic verification metadata
+./gradlew --write-verification-metadata sha256 help
+```
+Always review `git diff gradle/verification-metadata.xml` to confirm that only intended artifacts and official repository checksums have been added before submitting a PR. CI will reject stale metadata.
+
 ### Running Tests
 ```bash
 # JVM unit tests

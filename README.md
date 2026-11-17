@@ -18,6 +18,9 @@
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.3.0-FFB300?style=for-the-badge" alt="Version 2.3.0" /></a>
+  <a href="https://bestpractices.coreinfrastructure.org/projects/9941"><img src="https://img.shields.io/badge/OpenSSF-Best%20Practices-green?style=for-the-badge&logo=openssf&logoColor=white" alt="OpenSSF Best Practices" /></a>
+  <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
+  <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-587%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="587 Unit Tests Passed" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
@@ -268,10 +271,28 @@ Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.g
 - **[ADR-008: Incremental Multi-Module Architecture](docs/adr/008-incremental-multi-module-architecture.md)**: Package boundary encapsulation and monolithic-to-modular migration thresholds.
 - **[ADR-009: Biometric ECDH Key Agreement](docs/adr/009-biometric-ecdh-migration.md)**: StrongBox P-256 ECDH forward key agreement and migration strategy from RSA-2048.
 - **[ADR-010: Flash Storage Overwrite Boundaries](docs/adr/010-flash-storage-overwrite-boundaries.md)**: Physical wear leveling limitations and dual-layer defense (AES/SQLCipher + volatile RAM zeroization).
-- **[Architecture Decision Records (ADRs)](docs/adr/)**: Complete index of 10 architectural decisions.
+- **[Architecture Decision Records (ADRs)](docs/adr/README.md)**: Complete index of 10 architectural decisions with status, scope, and trade-off matrices.
+- **[Accessibility & WCAG 2.1 Guide](docs/ACCESSIBILITY.md)**: Full WCAG 2.1 AA/AAA compliance documentation, TalkBack semantics, and touch target standards.
 - **[Cryptographic Whitepaper](docs/CRYPTOGRAPHIC_WHITEPAPER.md)**: Mathematical foundations, key encapsulation mechanisms, and entropy harvesting models.
 - **[Threat Model](docs/THREAT_MODEL.md)**: Formal adversarial model, threat vectors, and mitigation matrices.
+- **[Multi-Module Architecture Guide](core/README.md)**: Module graph, Rust UniFFI pipeline sequence, and boundary isolation rules.
 - **[Design System Catalog](app/src/main/java/com/kryptx/app/core/designsystem/README.md)**: Token specifications, typography, 29-slot Material 3 color animations, and the interactive Compose component catalog (`KryptxComponentCatalog`).
+
+---
+
+## 🔒 Verifying Release Builds & SLSA Provenance
+
+Every official Kryptx release APK is accompanied by a SHA-256 checksum and a cryptographically verifiable **SLSA Level 2 Build Provenance** attestation:
+
+```bash
+# 1. Verify SHA-256 Checksum
+sha256sum -c Kryptx-v2.3.0-release.apk.sha256
+
+# 2. Verify SLSA Build Provenance using slsa-verifier
+slsa-verifier verify-artifact Kryptx-v2.3.0-release.apk \
+  --provenance-path Kryptx-v2.3.0-release.apk.intoto.jsonl \
+  --source-uri github.com/CodeSorcerer-007/Kryptx
+```
 
 ---
 

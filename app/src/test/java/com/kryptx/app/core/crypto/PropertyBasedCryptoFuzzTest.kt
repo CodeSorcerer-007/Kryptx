@@ -187,4 +187,73 @@ class PropertyBasedCryptoFuzzTest {
         assertFalse(SecureMemory.safeEquals(null, b))
         assertTrue(SecureMemory.safeEquals(null as String?, null as String?))
     }
+
+    @Test
+    fun testDefaultKdfIsArgon2idAndDerivationConsistency() {
+        assertEquals("DEFAULT_ALGORITHM must be ARGON2ID per OWASP recommendation", KeyDerivation.KdfAlgorithm.ARGON2ID, KeyDerivation.DEFAULT_ALGORITHM)
+
+        val password = "StrongMasterPassword123!".toCharArray()
+        val salt = KeyDerivation.generateSalt()
+        try {
+            val keyDefault = KeyDerivation.deriveKeyWithAlgorithm(password, salt)
+            val keyExplicitArgon2 = KeyDerivation.deriveKeyArgon2(password, salt, Argon2Engine.Argon2Params.DEFAULT)
+            assertTrue("Default derivation must produce identical key to explicit Argon2id default profile", SecureMemory.safeEquals(keyDefault, keyExplicitArgon2))
+            assertEquals(32, keyDefault.size)
+        } finally {
+            SecureMemory.wipe(password)
+            SecureMemory.wipe(salt)
+        }
+    }
+
+    @Test
+    fun testNistNonceDeterministicRolloverBoundaries() {
+        // Test near-boundary counter (0xFFFFFFFFL - 5)
+        CryptoEngine.setNonceCounterForTesting(0xFFFFFFFFL - 2L)
+        val iv1 = CryptoEngine.generateDeterministicIv()
+        val iv2 = CryptoEngine.generateDeterministicIv()
+        // This invocation crosses the rollover boundary and re-seeds prefix
+        val iv3 = CryptoEngine.generateDeterministicIv()
+
+        assertEquals(12, iv1.size)
+        assertEquals(12, iv2.size)
+        assertEquals(12, iv3.size)
+        assertFalse("IVs before and after rollover boundary must not collide", iv1.contentEquals(iv2))
+        assertFalse("IV before and after re-randomization must not collide", iv2.contentEquals(iv3))
+    }
+
+    @Test
+    fun testConcurrentDeterministicIvGenerationUniqueness() {
+        val count = 2000
+        val nonces = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+        val threads = (0 until 8).map {
+            Thread {
+                repeat(count / 8) {
+                    val iv = CryptoEngine.generateDeterministicIv()
+                    val hex = iv.joinToString("") { "%02x".format(it) }
+                    val duplicate = nonces.putIfAbsent(hex, true)
+                    if (duplicate != null) {
+                        fail("Duplicate IV encountered under concurrent generation: $hex")
+                    }
+                }
+            }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+        assertEquals("All $count generated nonces must be globally unique across threads", count, nonces.size)
+    }
+
+    @Test
+    fun testLargePayloadRoundtrip() {
+        val key = CryptoEngine.generateVaultKey()
+        val largePlaintext = ByteArray(512 * 1024) // 512 KB
+        secureRandom.nextBytes(largePlaintext)
+
+        val ciphertext = CryptoEngine.encrypt(largePlaintext, key)
+        assertNotNull(ciphertext)
+        val decrypted = CryptoEngine.decrypt(ciphertext, key)
+        assertArrayEquals(largePlaintext, decrypted)
+        SecureMemory.wipe(largePlaintext)
+        SecureMemory.wipe(decrypted)
+        SecureMemory.wipe(key)
+    }
 }
