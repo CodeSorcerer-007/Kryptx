@@ -621,7 +621,7 @@ tasks.register<Copy>("copyReleaseApk") {
     mustRunAfter("assembleRelease")
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     from(layout.buildDirectory.dir("outputs/apk/release"))
-    include("*universal*.apk", "*release*.apk")
+    include("*universal*.apk")
     into(rootProject.layout.projectDirectory.dir("apk"))
     rename { _ ->
         "Kryptx-v${android.defaultConfig.versionCode}-release.apk"

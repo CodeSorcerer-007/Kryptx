@@ -19,6 +19,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -413,36 +415,96 @@ fun SetupPermissionsScreen(
             .fillMaxSize()
             .testTag("setup_permissions_screen")
             .atmosphericTopGlow(),
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                    )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (!allCriticalGranted) {
+                        KryptxPrimaryButton(
+                            text = "Grant In-App Permissions",
+                            containerColor = KryptxBlue,
+                            contentColor = Color.White,
+                            height = 46.dp,
+                            fontSize = 15.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("setup_grant_all_permissions_button"),
+                            onClick = requestAllPermissions
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        TextButton(
+                            onClick = onContinue,
+                            modifier = Modifier.testTag("skip_permissions_button")
+                        ) {
+                            Text(
+                                text = "Skip for Now & Continue to Master Key →",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        KryptxPrimaryButton(
+                            text = "Continue to Master Key →",
+                            containerColor = KryptxBlue,
+                            contentColor = Color.White,
+                            height = 46.dp,
+                            fontSize = 15.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("setup_continue_button"),
+                            onClick = onContinue
+                        )
+                    }
+                }
+            }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            KryptxLogo(size = 72.dp, showGlow = true)
+            KryptxLogo(size = 48.dp, showGlow = true)
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             OnboardingStepIndicator(
                 currentStep = 2,
                 totalSteps = 3,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = "System Setup & Permissions",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center
             )
@@ -451,15 +513,15 @@ fun SetupPermissionsScreen(
                 text = "Configure device hardware and Android integrations. Everything runs 100% offline with zero cloud telemetry.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 6.dp, bottom = 18.dp),
-                lineHeight = 18.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                lineHeight = 17.sp,
                 textAlign = TextAlign.Center
             )
 
             // ── 1. Camera ──────────────────────────────────────────────────────
             SetupPermissionItemCard(
                 title = "Camera Access",
-                badgeText = if (hasCameraPermission) "Granted & Active" else "Permission Required",
+                badgeText = if (hasCameraPermission) "Granted" else "Required",
                 isPositive = hasCameraPermission,
                 icon = Icons.Default.CameraAlt,
                 description = "Used exclusively in RAM to scan 2FA TOTP QR codes and capture encrypted document attachments. Zero unencrypted photos ever touch external storage.",
@@ -467,19 +529,24 @@ fun SetupPermissionsScreen(
                     if (!hasCameraPermission) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             KryptxPrimaryButton(
                                 text = "Grant Permission",
                                 onClick = requestCameraPermission,
-                                height = 40.dp,
+                                height = 38.dp,
+                                fontSize = 13.sp,
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                 modifier = Modifier
                                     .weight(1f)
                                     .testTag("grant_camera_permission_button")
                             )
                             OutlinedButton(
                                 onClick = openAppSettings,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(19.dp),
+                                modifier = Modifier.height(38.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.primary
                                 )
@@ -487,23 +554,23 @@ fun SetupPermissionsScreen(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                                     contentDescription = "Open system settings",
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Settings", fontSize = 12.sp)
+                                Text("Settings", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
                 }
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // ── 2. Notifications (Android 13+) ─────────────────────────────────
             if (requiresNotificationPermission) {
                 SetupPermissionItemCard(
                     title = "Local Notifications",
-                    badgeText = if (hasNotificationPermission) "Granted & Active" else "Recommended",
+                    badgeText = if (hasNotificationPermission) "Active" else "Recommended",
                     isPositive = hasNotificationPermission,
                     icon = Icons.Default.Notifications,
                     description = "Allows Kryptx to show a local reminder when clipboard auto-clear fires. Zero remote notifications, push servers, or analytics — strictly on-device.",
@@ -511,19 +578,24 @@ fun SetupPermissionsScreen(
                         if (!hasNotificationPermission) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 KryptxPrimaryButton(
                                     text = "Allow Notifications",
                                     onClick = requestNotificationPermission,
-                                    height = 40.dp,
+                                    height = 38.dp,
+                                    fontSize = 13.sp,
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("grant_notification_permission_button")
                                 )
                                 OutlinedButton(
                                     onClick = openAppSettings,
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(19.dp),
+                                    modifier = Modifier.height(38.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = MaterialTheme.colorScheme.primary
                                     )
@@ -531,35 +603,35 @@ fun SetupPermissionsScreen(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                                         contentDescription = "Open system settings",
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Settings", fontSize = 12.sp)
+                                    Text("Settings", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
                     }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // ── 3. Biometric ───────────────────────────────────────────────────
             SetupPermissionItemCard(
                 title = "Biometric Authentication",
-                badgeText = if (hasBiometrics) "Hardware Enclave Ready" else "Device Unsupported",
+                badgeText = if (hasBiometrics) "Enclave Ready" else "Unsupported",
                 isPositive = hasBiometrics,
                 icon = Icons.Default.Fingerprint,
                 description = "Protected by StrongBox / TEE hardware isolation. You will enroll fingerprint or facial unlock right after setting your master password.",
                 action = null
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // ── 4. Autofill ────────────────────────────────────────────────────
             SetupPermissionItemCard(
                 title = "1-Tap Android Autofill",
-                badgeText = if (isAutofillEnabled) "Active Provider" else "Optional Setup",
+                badgeText = if (isAutofillEnabled) "Active" else "Optional",
                 isPositive = isAutofillEnabled,
                 icon = Icons.Default.Password,
                 description = "Allows Kryptx to securely auto-fill your credentials inside Chrome, Firefox, and third-party native apps with 1 tap.",
@@ -568,7 +640,9 @@ fun SetupPermissionsScreen(
                         KryptxPrimaryButton(
                             text = "Enable Kryptx Autofill",
                             onClick = { showAutofillRationale = true },
-                            height = 40.dp,
+                            height = 38.dp,
+                            fontSize = 13.sp,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("enable_autofill_button")
@@ -577,13 +651,13 @@ fun SetupPermissionsScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // ── 5. NFC Hardware Security Keys ─────────────────────────────────
             if (hasNfcHardware) {
                 SetupPermissionItemCard(
                     title = "NFC Security Keys",
-                    badgeText = if (isNfcActive) "NFC Active" else "NFC Disabled",
+                    badgeText = if (isNfcActive) "Active" else "Disabled",
                     isPositive = isNfcActive,
                     icon = Icons.Default.VpnKey,
                     description = "Authenticate or unlock your vault by tapping physical YubiKey or FIDO2 NFC hardware tokens on your phone.",
@@ -591,68 +665,32 @@ fun SetupPermissionsScreen(
                         if (!isNfcActive) {
                             OutlinedButton(
                                 onClick = openNfcSettings,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                shape = RoundedCornerShape(19.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                             ) {
-                                Text("Turn On NFC in Settings", fontSize = 12.sp)
+                                Text("Turn On NFC in Settings", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // ── 6. Zero-Network Guarantee ─────────────────────────────────────
             SetupPermissionItemCard(
                 title = "Zero-Network Security",
-                badgeText = "100% Air-Gapped",
+                badgeText = "Air-Gapped",
                 isPositive = true,
                 icon = Icons.Default.Shield,
                 description = "Kryptx declares 0 internet permissions in its Android manifest. The OS guarantees complete network isolation with zero outbound sockets.",
                 action = null
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ── Bottom CTA ─────────────────────────────────────────────────────
-            if (!allCriticalGranted) {
-                KryptxPrimaryButton(
-                    text = "Grant In-App Permissions",
-                    containerColor = KryptxBlue,
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("setup_grant_all_permissions_button"),
-                    onClick = requestAllPermissions
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                TextButton(
-                    onClick = onContinue,
-                    modifier = Modifier.testTag("skip_permissions_button")
-                ) {
-                    Text(
-                        text = "Skip for Now & Continue to Master Key →",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                KryptxPrimaryButton(
-                    text = "Continue to Master Key →",
-                    containerColor = KryptxBlue,
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("setup_continue_button"),
-                    onClick = onContinue
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

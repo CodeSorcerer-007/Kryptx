@@ -61,8 +61,8 @@ fun KryptxPrimaryButton(
     containerColor: Color = KryptxBlue,
     contentColor: Color = Color.White,
     height: Dp = 56.dp,
-    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
-    fontSize: TextUnit = 16.sp,
+    contentPadding: PaddingValues = if (height < 48.dp) PaddingValues(horizontal = 12.dp, vertical = 0.dp) else ButtonDefaults.ContentPadding,
+    fontSize: TextUnit = if (height < 48.dp) 13.sp else 16.sp,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(28.dp)
