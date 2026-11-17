@@ -19,7 +19,7 @@ Kryptx adopts an **incremental multi-module architecture**:
    Within the `:app` module, classes adhere strictly to their designated module packages (`com.kryptx.app.core.crypto`, `com.kryptx.app.core.database`, etc.). Sibling packages follow the module dependency hierarchy:
    `:core:model` ← `:core:crypto` ← `:core:database` ← `:core:security` ← `:feature:*`.
 3. **Phase-Gated Physical Migration**:
-   Physical source tree isolation occurs incrementally, starting with `:core:model` (zero Android dependencies), verified by automated unit test suites before decoupling subsequent layers.
+   Physical source tree isolation occurs incrementally, with `:core:model` physically decoupled as an independent Gradle library module (`com.android.library`) with zero external crypto or framework coupling, wired to `:app` via `implementation(project(":core:model"))`. Subsequent layers follow this decoupled interface.
 
 ## Consequences
 ### Positive

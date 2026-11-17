@@ -232,8 +232,9 @@ class VaultCrudRepositoryImpl(
         importPassword: CharArray
     ): KryptxResult<Int> = withContext(Dispatchers.Default) {
         try {
-            if (!payload.header.checksumSha256.isNullOrBlank()) {
-                if (!VaultExporter.verifySha256Checksum(payload.ciphertextBase64, payload.header.checksumSha256)) {
+            val checksum = payload.header.checksumSha256
+            if (!checksum.isNullOrBlank()) {
+                if (!VaultExporter.verifySha256Checksum(payload.ciphertextBase64, checksum)) {
                     return@withContext KryptxResult.Error(
                         KryptxErrorType.IMPORT_PARSE_FAILED,
                         "Backup archive integrity checksum verification failed (corrupted or tampered payload)"

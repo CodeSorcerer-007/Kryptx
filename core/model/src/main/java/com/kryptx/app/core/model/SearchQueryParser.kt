@@ -1,7 +1,5 @@
 package com.kryptx.app.core.model
 
-import com.kryptx.app.core.crypto.EntropyCalculator
-
 /**
  * High-performance search query parser supporting prefix filter syntax:
  * - `tag:<name>` -> Matches items with matching tag
@@ -15,6 +13,9 @@ import com.kryptx.app.core.crypto.EntropyCalculator
  * - Free text tokens -> Matches title, username, website/domain, notes, or tags
  */
 object SearchQueryParser {
+
+    /** Optional delegate to evaluate password weakness without direct crypto coupling. */
+    var weakPasswordChecker: ((String) -> Boolean)? = null
 
     data class ParsedQuery(
         val textTokens: List<String> = emptyList(),
@@ -133,8 +134,8 @@ object SearchQueryParser {
         // Weak
         if (parsed.onlyWeak) {
             if (item.type != ItemType.LOGIN || item.password.isBlank()) return false
-            val strength = EntropyCalculator.analyze(item.password).strength
-            if (strength != EntropyCalculator.StrengthScore.VERY_WEAK && strength != EntropyCalculator.StrengthScore.WEAK) {
+            val isWeak = weakPasswordChecker?.invoke(item.password) ?: (item.password.length < 8)
+            if (!isWeak) {
                 return false
             }
         }

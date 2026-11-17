@@ -38,6 +38,13 @@ object EntropyCalculator {
     // Assumption: High-end offline GPU cracking cluster testing 10^10 hashes per second
     private const val HASHES_PER_SECOND = 10_000_000_000.0
 
+    init {
+        com.kryptx.app.core.model.SearchQueryParser.weakPasswordChecker = { pwd ->
+            val s = analyze(pwd).strength
+            s == StrengthScore.VERY_WEAK || s == StrengthScore.WEAK
+        }
+    }
+
     /**
      * Computes the entropy, strength metrics, and crack time for a given password CharArray.
      */
