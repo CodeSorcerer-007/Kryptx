@@ -17,13 +17,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -304,7 +304,7 @@ private fun getEventVisuals(type: String): Pair<ImageVector, Color> {
         "unlock" -> Pair(Icons.Default.LockOpen, KryptxEmerald)
         "lock" -> Pair(Icons.Default.Lock, KryptxAmber)
         "security" -> Pair(Icons.Default.Shield, KryptxCyan)
-        "autofill" -> Pair(Icons.Default.AutoAwesome, KryptxBlue)
+        "autofill" -> Pair(Icons.Default.Password, KryptxBlue)
         "backup" -> Pair(Icons.Default.CloudSync, KryptxViolet)
         else -> Pair(Icons.Default.Info, Color(0xFF94A3B8))
     }

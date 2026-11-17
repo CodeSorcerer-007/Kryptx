@@ -22,9 +22,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -85,7 +85,7 @@ fun OnboardingScreen(
         OnboardingPageData(
             title = "Seamless 1-Tap Auto-Fill",
             description = "Log into websites and apps effortlessly. Kryptx safely fills and remembers your credentials as you browse.",
-            icon = Icons.Default.AutoAwesome,
+            icon = Icons.Default.Password,
             accentColor = KryptxBlue
         )
     )

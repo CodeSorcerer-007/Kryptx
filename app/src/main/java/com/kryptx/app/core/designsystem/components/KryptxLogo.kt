@@ -1,7 +1,6 @@
 package com.kryptx.app.core.designsystem.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -23,7 +22,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -32,7 +30,6 @@ import com.kryptx.app.R
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxBrightBlue
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
-import com.kryptx.app.core.designsystem.theme.KryptxViolet
 
 @Composable
 fun KryptxLogo(
@@ -45,22 +42,13 @@ fun KryptxLogo(
 
     val infiniteTransition = rememberInfiniteTransition(label = "logo_anim")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.75f,
+        initialValue = 0.22f,
+        targetValue = 0.45f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2200, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 3000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "logo_pulse"
-    )
-    val rotateAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 8000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "logo_rotate"
     )
 
     Box(
@@ -70,38 +58,53 @@ fun KryptxLogo(
                 if (showGlow) {
                     Modifier
                         .drawBehind {
-                            // Dynamic holographic rotating aura
-                            rotate(degrees = rotateAngle) {
-                                drawCircle(
-                                    brush = Brush.sweepGradient(
-                                        listOf(
-                                            KryptxBlue.copy(alpha = pulseAlpha * 0.4f),
-                                            KryptxCyan.copy(alpha = pulseAlpha * 0.5f),
-                                            KryptxViolet.copy(alpha = pulseAlpha * 0.35f),
-                                            KryptxBlue.copy(alpha = pulseAlpha * 0.4f)
-                                        )
+                            // Outer atmospheric bloom fading smoothly to transparent (zero hard edges)
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        KryptxBrightBlue.copy(alpha = pulseAlpha * 0.28f),
+                                        KryptxCyan.copy(alpha = pulseAlpha * 0.14f),
+                                        KryptxBlue.copy(alpha = pulseAlpha * 0.05f),
+                                        Color.Transparent
                                     ),
-                                    radius = size.toPx() * 0.7f
-                                )
-                            }
+                                    center = center,
+                                    radius = size.toPx() * 0.90f
+                                ),
+                                center = center,
+                                radius = size.toPx() * 0.90f
+                            )
+                            // Subtle centered core illumination
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        KryptxCyan.copy(alpha = pulseAlpha * 0.20f),
+                                        KryptxBlue.copy(alpha = pulseAlpha * 0.08f),
+                                        Color.Transparent
+                                    ),
+                                    center = center,
+                                    radius = size.toPx() * 0.55f
+                                ),
+                                center = center,
+                                radius = size.toPx() * 0.55f
+                            )
                         }
                         .shadow(
-                            elevation = 20.dp,
+                            elevation = 8.dp,
                             shape = shape,
-                            ambientColor = KryptxBlue.copy(alpha = 0.45f),
-                            spotColor = KryptxCyan.copy(alpha = 0.55f)
+                            ambientColor = KryptxBlue.copy(alpha = 0.15f),
+                            spotColor = KryptxBrightBlue.copy(alpha = 0.20f)
                         )
                 } else Modifier
             )
             .clip(shape)
-            .background(Color(0xFF0C1424))
+            .background(Color(0xFF0A1120))
             .border(
-                width = 1.2.dp,
+                width = 1.dp,
                 brush = Brush.linearGradient(
                     listOf(
-                        KryptxBrightBlue.copy(alpha = 0.8f),
-                        KryptxCyan.copy(alpha = 0.4f),
-                        Color.White.copy(alpha = 0.2f),
+                        KryptxBrightBlue.copy(alpha = 0.65f),
+                        KryptxCyan.copy(alpha = 0.30f),
+                        Color.White.copy(alpha = 0.12f),
                         Color.Transparent
                     )
                 ),

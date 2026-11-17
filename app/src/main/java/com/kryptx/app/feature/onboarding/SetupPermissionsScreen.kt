@@ -36,11 +36,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.ButtonDefaults
@@ -390,7 +390,7 @@ fun SetupPermissionsScreen(
 
     if (showAutofillRationale) {
         KryptxPermissionRationaleDialog(
-            icon = Icons.Default.AutoAwesome,
+            icon = Icons.Default.Password,
             title = "1-Tap Android Autofill",
             description = "This will open Android Settings where you can set Kryptx as your autofill provider. Kryptx fills credentials inside Chrome, Firefox, and native apps. All matching happens 100% on-device.",
             privacyGuarantee = "No data leaves your device. Autofill matching is done offline in the app sandbox.",
@@ -561,7 +561,7 @@ fun SetupPermissionsScreen(
                 title = "1-Tap Android Autofill",
                 badgeText = if (isAutofillEnabled) "Active Provider" else "Optional Setup",
                 isPositive = isAutofillEnabled,
-                icon = Icons.Default.AutoAwesome,
+                icon = Icons.Default.Password,
                 description = "Allows Kryptx to securely auto-fill your credentials inside Chrome, Firefox, and third-party native apps with 1 tap.",
                 action = {
                     if (!isAutofillEnabled) {

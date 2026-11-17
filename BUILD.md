@@ -50,28 +50,35 @@ The native cryptographic core (`kryptx_crypto`) is written in Rust and compiled 
 
 The native crate resides at `app/src/main/rust/kryptx_crypto`.
 
-### Running Rust Tests & Clippy
+### Automated Single-Command Build via Gradle
+You do **not** need to manually run `cargo-ndk`. Gradle automates the entire lifecycle:
+```bash
+./gradlew :app:buildRustEngine :app:verifyRustEngine16Kb
+```
+- **Auto-Bootstrapping**: If `cargo-ndk` is missing, Gradle automatically installs it via `cargo install cargo-ndk`.
+- **Target Installation**: Missing rustup targets (`aarch64-linux-android`, `armv7-linux-androideabi`, `i686-linux-android`, `x86_64-linux-android`) are automatically installed.
+- **16 KB Page-Size Enforcement**: Compiles with `-C link-arg=-Wl,-z,max-page-size=16384` for Android 15/16 compliance.
+- **Pre-compiled Fallback**: On environments without a local Rust toolchain, verified 16 KB ELF binaries in `app/src/main/jniLibs` are verified by `:app:verifyRustEngine16Kb` during pre-build.
+
+### Running Rust Tests & Clippy Directly
 ```bash
 cd app/src/main/rust/kryptx_crypto
 cargo test --verbose
 cargo clippy -- -D warnings
 ```
 
-### Cross-Compiling for Android ABIs
-To compile the shared libraries and place them into `app/src/main/jniLibs/`:
-```bash
-cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -t x86 \
-  -o ../../jniLibs \
-  build --release
-```
-
-All binaries are automatically stripped of debug symbols and compiled with link-time optimization (`lto = true`).
-
 ---
 
-## 🤖 Building the Android App
+## 🤖 Building the Android App & Multi-Module Architecture
 
-### Running Unit Tests
+Kryptx uses an air-gapped multi-module architecture:
+- `:core:model`: Immutable domain models, vault payloads, activity events (zero dependencies).
+- `:core:crypto`: Sovereign cryptography (Argon2id, AES-256-GCM, XChaCha20-Poly1305, PQC, UniFFI).
+- `:core:database`: SQLCipher v4 encrypted persistence, HMAC search index, schema migrations.
+- `:core:security`: Biometric auth, hardware keys (YubiKey), clipboard sanitization, crash defense.
+- `:app`: Material 3 Compose UI, navigation, viewmodels, design system.
+
+### Running Unit Tests Across All Modules
 ```bash
 # Windows
 .\gradlew.bat testDebugUnitTest
@@ -80,19 +87,26 @@ All binaries are automatically stripped of debug symbols and compiled with link-
 ./gradlew testDebugUnitTest
 ```
 
-### Running Static Analysis & Lint
+### Running Automated Roborazzi Screenshot Regression (Headless CI)
 ```bash
-./gradlew lintDebug
+# Record baseline screenshots
+./gradlew :app:recordRoborazziDebug
+
+# Verify screenshots against baseline
+./gradlew :app:verifyRoborazziDebug
 ```
 
 ### Compiling Debug APK
 ```bash
 ./gradlew assembleDebug
-# Output: app/build/outputs/apk/debug/app-debug.apk
+# Output: app/build/outputs/apk/debug/Kryptx-Security-Debug.apk
 ```
 
-### Compiling Release APK
+### Compiling Release APK & Bundle
 ```bash
+./gradlew assembleRelease bundleRelease copyReleaseApk copyReleaseBundle
+# Output: apk/Kryptx-v20-release.apk, apk/Kryptx-v20-release.aab
+```
 ./gradlew assembleRelease
 # Output: app/build/outputs/apk/release/app-release-unsigned.apk (or signed if keystore configured)
 ```

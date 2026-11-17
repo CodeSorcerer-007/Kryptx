@@ -19,11 +19,15 @@ import com.kryptx.app.core.database.AppThemeMode
 import com.kryptx.app.core.designsystem.components.ItemTypeBadge
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxEmptyState
+import com.kryptx.app.core.designsystem.components.KryptxLogo
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxScoreRing
 import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.theme.KryptxTheme
 import com.kryptx.app.core.model.ItemType
+import com.kryptx.app.feature.onboarding.components.SetupPermissionItemCard
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Password
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -318,6 +322,75 @@ class DesignSystemScreenshotTest {
                         subtitle = "Initialize your air-gapped vault with post-quantum security",
                         actionButtonText = "Create First Credential",
                         onActionClick = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage()
+    }
+
+    @Test
+    fun captureLogo_subtleGlow_darkTheme() {
+        composeTestRule.setContent {
+            KryptxTheme(themeMode = AppThemeMode.DARK) {
+                Box(
+                    modifier = Modifier.padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    KryptxLogo(size = 96.dp, showGlow = true)
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage()
+    }
+
+    @Test
+    fun captureLogo_noGlow_lightTheme() {
+        composeTestRule.setContent {
+            KryptxTheme(themeMode = AppThemeMode.LIGHT) {
+                Box(
+                    modifier = Modifier.padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    KryptxLogo(size = 96.dp, showGlow = false)
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage()
+    }
+
+    @Test
+    @Config(qualifiers = "w412dp-h915dp-xxxhdpi")
+    fun captureAutofillPermissionCard_xxxhdpi() {
+        composeTestRule.setContent {
+            KryptxTheme(themeMode = AppThemeMode.DARK) {
+                Box(modifier = Modifier.padding(16.dp)) {
+                    SetupPermissionItemCard(
+                        title = "1-Tap Android Autofill",
+                        badgeText = "Optional Setup",
+                        isPositive = false,
+                        icon = Icons.Default.Password,
+                        description = "Allows Kryptx to securely auto-fill your credentials inside Chrome, Firefox, and third-party native apps with 1 tap.",
+                        action = null
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage()
+    }
+
+    @Test
+    fun captureAutofillPermissionCard_active() {
+        composeTestRule.setContent {
+            KryptxTheme(themeMode = AppThemeMode.DARK) {
+                Box(modifier = Modifier.padding(16.dp)) {
+                    SetupPermissionItemCard(
+                        title = "1-Tap Android Autofill",
+                        badgeText = "Active Provider",
+                        isPositive = true,
+                        icon = Icons.Default.Password,
+                        description = "Allows Kryptx to securely auto-fill your credentials inside Chrome, Firefox, and third-party native apps with 1 tap.",
+                        action = null
                     )
                 }
             }
