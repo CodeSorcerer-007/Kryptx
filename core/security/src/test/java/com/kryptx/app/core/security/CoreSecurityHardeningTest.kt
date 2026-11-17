@@ -33,7 +33,7 @@ import java.io.File
 import java.io.InputStream
 import java.util.Base64
 
-class GodTierSecurityImprovementsTest {
+class CoreSecurityHardeningTest {
 
     @get:Rule
     val tempFolder = TemporaryFolder()
