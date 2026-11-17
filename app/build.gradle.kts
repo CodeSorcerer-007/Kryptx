@@ -198,9 +198,11 @@ android {
                 showCauses = true
                 showStackTraces = true
             }
-            // Robolectric Native Graphics has a known deadlock on local Windows workstations (takahirom/roborazzi#285).
-            // Screenshot tests are executed in headless Linux CI (ubuntu-latest).
-            if (org.gradle.internal.os.OperatingSystem.current().isWindows && System.getenv("CI") == null) {
+            it.systemProperty("java.awt.headless", "true")
+            // Roborazzi screenshot tests use Robolectric Native Graphics. Standard unit test runs
+            // exclude them so normal builds and CI run fast without Skia graphics deadlocks.
+            // Screenshot tests are executed when roborazzi properties are passed (recordRoborazziDebug / verifyRoborazziDebug).
+            if (!project.hasProperty("roborazzi.test.record") && !project.hasProperty("roborazzi.test.verify")) {
                 it.exclude("**/screenshot/**")
             }
         }

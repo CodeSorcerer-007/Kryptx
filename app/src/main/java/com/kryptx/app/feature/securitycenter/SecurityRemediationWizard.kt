@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -85,6 +86,7 @@ fun SecurityRemediationWizard(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val view = LocalView.current
+    val auditReport by viewModel.auditReport.collectAsState()
 
     var weakItems by remember { mutableStateOf<List<VaultItem>>(emptyList()) }
     var isLoadingItems by remember { mutableStateOf(true) }
@@ -248,7 +250,7 @@ fun SecurityRemediationWizard(
                                     }
                                 }
 
-                                val isBreached = viewModel.auditReport.value?.issues
+                                val isBreached = auditReport?.issues
                                     ?.any { it.itemId == currentItem.id && it.type == IssueType.COMPROMISED } == true
                                 val badgeColor = if (isBreached) KryptxRed else KryptxAmber
                                 val badgeLabel = if (isBreached) "Breached" else "Weak"
