@@ -18,10 +18,9 @@
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.4.0%20(Code%2020)-FFB300?style=for-the-badge" alt="Version 2.4.0 (Code 20)" /></a>
-  <a href="https://bestpractices.coreinfrastructure.org/projects/9941"><img src="https://img.shields.io/badge/OpenSSF-Best%20Practices-green?style=for-the-badge&logo=openssf&logoColor=white" alt="OpenSSF Best Practices" /></a>
   <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
   <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-603%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="603 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-604%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="604 Unit Tests Passed" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
@@ -79,7 +78,7 @@
 | **4. Hardware Security Keys & Biometrics** | **10 / 10** | `IHardwareSecurityKeyManager` with Dual-Token failover redundancy (Primary + Backup NFC/USB), StrongBox TEE biometrics, and CTAP2 BLE. |
 | **5. Anti-Coercion & Anti-Forensics** | **10 / 10** | Duress PIN opens isolated decoy vault; panic mode runs CSPRNG multi-pass overwrites with `fd.sync()` sector shredding. |
 | **6. Fluidity & Crash Defense** | **10 / 10** | 120 FPS high-refresh rate lock; `CrashDefense` Immortal Looper and proactive multi-tiered memory pruning in `CryptographicMemoryWatchdog`. |
-| **7. Test Quality & Verification** | **10 / 10** | **603 unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo security coverage. |
+| **7. Test Quality & Verification** | **10 / 10** | **604 unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo security coverage. |
 | **8. UI/UX & Human Experience** | **10 / 10** | `AirGapQrFountainCodec` animated QR vault sync, WCAG 2.1 AA accessibility semantics (`Role.Button`), offline identicons, tactical haptics. |
 
 ---
@@ -102,7 +101,7 @@ Every technology listed below is 100% active and running in the production app:
 |:---|:---|:---|
 | **OS & Core** | **Android 16 (API 36) & Kotlin 2.3.20** | Modern edge-to-edge architecture with compileSdk 36, targetSdk 36, and decoupled `DisplayConfigurator` / `NfcDispatcher`. |
 | **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, Argon2id, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) enforced by `cargo clippy -- -D warnings`. |
-| **Interface** | **Jetpack Compose (Material 3)** | 29-slot animated Material 3 color transitions (Light / Dark / AMOLED), interactive component showcase catalog (`KryptxComponentCatalog`), 120 FPS high-refresh rate lock (`DisplayConfigurator`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
+| **Interface** | **Jetpack Compose (Material 3)** | Full animated Material 3 color transitions (Light / Dark / AMOLED), interactive component showcase catalog (`KryptxComponentCatalog`), 120 FPS high-refresh rate lock (`DisplayConfigurator`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
 | **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces with thread-safe rollover re-randomization. |
 | **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration. |
 | **Hardware Security Keys** | **NFC IsoDep + USB OTG HID + BLE (YubiKey / FIDO2)** | Physical challenge-response via NFC, USB HID slot-2 HMAC-SHA1 protocol (instruction `0x38`), and CTAP2 BLE wireless hardware keys with device-bound HMAC fallback. |
@@ -215,13 +214,13 @@ Kryptx is officially available on the Google Play Store for seamless installatio
 
 ### Prerequisites
 * **Android Studio**: Ladybug (2024.2.1+) or Meerkat
-* **Java Development Kit (JDK)**: OpenJDK 21 LTS (pinned via `org.gradle.java.home` in `gradle.properties`)
+* **Java Development Kit (JDK)**: OpenJDK 21 LTS (configured for Java 21 compatibility across all Gradle modules)
 * **Android SDK**: Platform 36 (Android 16), Build-Tools 36.0.0
 * **Gradle**: 9.1.0 (managed via `./gradlew`)
 
 ### Run Tests & Verification
 ```bash
-# Run all unit tests (603/603 passing, 0 failures)
+# Run all unit tests (604/604 passing, 0 failures)
 ./gradlew testDebugUnitTest
 
 # Run Android Lint static security analysis
@@ -253,7 +252,7 @@ Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.g
 | Criteria | Status | Implementation Details |
 |:---|:---:|:---|
 | **Play Store Listing** | ✅ Live | Available at [play.google.com/store/apps/details?id=com.kryptx.app](https://play.google.com/store/apps/details?id=com.kryptx.app) |
-| **Packaging** | ✅ Ready | Android App Bundle (`.aab`) with embedded Baseline Profiles (`baseline.prof`) |
+| **Packaging** | ✅ Ready | Android App Bundle (`.aab`) with embedded Baseline Profiles (compiled from `baseline-prof.txt`) |
 | **Target SDK** | ✅ Compliant | **API 36 (Android 16)** compliant with Google Play target SDK policy |
 | **Minimum SDK** | ✅ Wide Reach | **API 26 (Android 8.0)**, covering >95% of active global devices |
 | **64-bit Architecture** | ✅ Verified | Complete 64-bit multi-ABI coverage (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) |
@@ -276,7 +275,7 @@ Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.g
 - **[Cryptographic Whitepaper](docs/CRYPTOGRAPHIC_WHITEPAPER.md)**: Mathematical foundations, key encapsulation mechanisms, and entropy harvesting models.
 - **[Threat Model](docs/THREAT_MODEL.md)**: Formal adversarial model, threat vectors, and mitigation matrices.
 - **[Multi-Module Architecture Guide](core/README.md)**: Module graph, Rust UniFFI pipeline sequence, and boundary isolation rules.
-- **[Design System Catalog](app/src/main/java/com/kryptx/app/core/designsystem/README.md)**: Token specifications, typography, 29-slot Material 3 color animations, and the interactive Compose component catalog (`KryptxComponentCatalog`).
+- **[Design System Catalog](app/src/main/java/com/kryptx/app/core/designsystem/README.md)**: Token specifications, typography, full-palette Material 3 color animations, and the interactive Compose component catalog (`KryptxComponentCatalog`).
 
 ---
 
@@ -289,8 +288,9 @@ Every official Kryptx release APK is accompanied by a SHA-256 checksum and a cry
 sha256sum -c apk/Kryptx-v20-release.apk.sha256
 
 # 2. Verify SLSA Build Provenance using slsa-verifier
+# (The .intoto.jsonl provenance attestation is downloaded alongside the APK from GitHub Releases)
 slsa-verifier verify-artifact apk/Kryptx-v20-release.apk \
-  --provenance-path apk/Kryptx-v20-release.apk.intoto.jsonl \
+  --provenance-path Kryptx-v20-release.apk.intoto.jsonl \
   --source-uri github.com/CodeSorcerer-007/Kryptx
 ```
 
