@@ -38,10 +38,10 @@
 </p>
 
 <a href="brag-output/kryptx-showcase.gif">
-  <img src="brag-output/kryptx-showcase.gif" alt="Kryptx 20-Second Cinematic Showcase" width="100%" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 230, 118, 0.3);" />
+  <img src="brag-output/kryptx-showcase.gif" alt="Kryptx App UI Showcase" width="100%" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 230, 118, 0.3);" />
 </a>
 
-<p><em>⚡ <b>Cinematic Showcase:</b> Post-Quantum ML-KEM-768, 0 Network Permissions, StrongBox TEE Biometrics & Hardware YubiKey, 1-Tap Phishing Shield, and Duress Decoy Defense</em></p>
+<p align="center"><em>⚡ <b>Application UI Showcase:</b> Biometric & Hardware Key Vault Unlock, Category-Filtered Dashboard, Real-Time Password DNA & TOTP Authenticator, High-Entropy Generator, and Offline Security Audit</em></p>
 
 </div>
 
