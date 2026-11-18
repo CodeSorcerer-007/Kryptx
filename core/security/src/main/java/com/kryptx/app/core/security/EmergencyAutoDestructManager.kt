@@ -5,6 +5,7 @@ import android.content.Context
 import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.crypto.SecureMemory
 import com.kryptx.app.core.crypto.removeEcdhKey
+import com.kryptx.app.core.model.DestructionResult
 import java.io.File
 import java.security.SecureRandom
 
@@ -122,7 +123,12 @@ class EmergencyAutoDestructManager(
      * 4. Defense-in-Depth Storage Sanitization: Overwrite and unlink database files, SQLite journals, and attachments.
      */
     @SuppressLint("ApplySharedPref")
-    fun triggerEmergencyWipe() {
+    fun triggerEmergencyWipe(): DestructionResult {
+        var keystorePurged = true
+        var databasesPurged = true
+        var preferencesPurged = true
+        val errorMessages = mutableListOf<String>()
+
         try {
             // 1. Instantaneous Cryptographic Erasure: Zeroize volatile in-memory session keys
             sessionManager?.lock()
@@ -133,42 +139,57 @@ class EmergencyAutoDestructManager(
             // Rendering encrypted databases and vault metadata immediately and irreversibly undecryptable.
             try {
                 val ks = keystoreManager ?: KeystoreManager()
-                ks.wipeAllKeystoreAliases()
+                keystorePurged = ks.wipeAllKeystoreAliases()
+                if (!keystorePurged) {
+                    errorMessages.add("Hardware Keystore alias removal verification failed")
+                }
             } catch (t: Throwable) {
+                keystorePurged = false
+                errorMessages.add("Keystore wipe exception: ${t.message}")
                 SecurityLogger.warn("EmergencyAutoDestruct", "Keystore keys removal failed or Keystore uninitialized during wipe", t)
             }
 
             // 3. Purge and shred SharedPreferences metadata and app settings
             try {
-                context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
-                context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+                context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
+                context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
             } catch (t: Throwable) {
+                preferencesPurged = false
+                errorMessages.add("Failed to clear SharedPreferences: ${t.message}")
                 SecurityLogger.warn("EmergencyAutoDestruct", "Failed to clear SharedPreferences during wipe", t)
             }
 
             try {
-                val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
-                if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
-                    sharedPrefsDir.listFiles()?.forEach { file ->
-                        secureOverwriteFile(file)
-                        file.delete()
+                val dataDir = context.applicationInfo?.dataDir
+                if (dataDir != null) {
+                    val sharedPrefsDir = File(dataDir, "shared_prefs")
+                    if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
+                        sharedPrefsDir.listFiles()?.forEach { file ->
+                            secureOverwriteFile(file)
+                            file.delete()
+                        }
+                        sharedPrefsDir.delete()
                     }
-                    sharedPrefsDir.delete()
                 }
             } catch (t: Throwable) {
+                preferencesPurged = false
+                errorMessages.add("Failed to overwrite shared_prefs: ${t.message}")
                 SecurityLogger.warn("EmergencyAutoDestruct", "Failed to overwrite shared_prefs files during wipe", t)
             }
 
             // 4. Defense-in-depth overwrite & delete primary and decoy hidden volume database files
             val dbNames = listOf("kryptx_vault.db", "kryptx_sys_cache.db")
             for (dbName in dbNames) {
-                val dbFile = context.getDatabasePath(dbName)
-                if (dbFile.exists()) {
+                val dbFile = try { context.getDatabasePath(dbName) } catch (_: Throwable) { null }
+                if (dbFile != null && dbFile.exists()) {
                     secureOverwriteFile(dbFile)
-                    context.deleteDatabase(dbName)
+                    if (!context.deleteDatabase(dbName)) {
+                        databasesPurged = false
+                        errorMessages.add("Failed to delete database $dbName")
+                    }
                 }
 
-                val parentDir = dbFile.parentFile
+                val parentDir = dbFile?.parentFile
                 if (parentDir != null) {
                     val dbWal = File(parentDir, "$dbName-wal")
                     if (dbWal.exists()) {
@@ -217,9 +238,25 @@ class EmergencyAutoDestructManager(
 
             // 6. Reset counter - handled authoritatively by sessionManager.lock()
             localFailedAttempts.set(0)
+
+            return if (keystorePurged && databasesPurged && preferencesPurged) {
+                DestructionResult.Success
+            } else {
+                DestructionResult.Incomplete(
+                    keystorePurged = keystorePurged,
+                    databasesPurged = databasesPurged,
+                    preferencesPurged = preferencesPurged,
+                    errorMessage = errorMessages.joinToString("; ")
+                )
+            }
         } catch (t: Throwable) {
             SecurityLogger.error("EmergencyAutoDestruct", "Unhandled exception in triggerEmergencyWipe", t)
-            // Guarantee fail-closed
+            return DestructionResult.Incomplete(
+                keystorePurged = keystorePurged,
+                databasesPurged = databasesPurged,
+                preferencesPurged = preferencesPurged,
+                errorMessage = "Unhandled exception during emergency wipe: ${t.message}"
+            )
         }
     }
 

@@ -87,4 +87,30 @@ class SecureMemoryTest {
             }
         }
     }
+
+    @Test
+    fun testBufferMutationDoesNotBreakIdentityTracking() {
+        val buffer = SecureMemory.allocateSecureBuffer(32, requireLock = false)
+        val wasLocked = SecureMemory.isBufferLocked(buffer)
+
+        // Mutate buffer contents, advance position, change limit
+        val bytes = ByteArray(32) { (it + 5).toByte() }
+        buffer.put(bytes)
+        buffer.flip()
+        buffer.get() // advance position
+
+        // Verify that isBufferLocked maintains consistent result despite mutation
+        assertEquals(wasLocked, SecureMemory.isBufferLocked(buffer))
+
+        // Zero out bytes and rewind
+        buffer.clear()
+        buffer.put(ByteArray(32))
+        buffer.rewind()
+
+        assertEquals(wasLocked, SecureMemory.isBufferLocked(buffer))
+
+        // Release buffer and verify clean removal
+        SecureMemory.releaseSecureBuffer(buffer)
+        org.junit.Assert.assertFalse("Buffer must be removed from locked registry after release", SecureMemory.isBufferLocked(buffer))
+    }
 }

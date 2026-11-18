@@ -213,6 +213,10 @@ pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_mlockBuffer<
                     if mlock_res == 0 && madvise_res == 0 {
                         return 1;
                     }
+                    if mlock_res == 0 {
+                        // Roll back mlock if madvise failed to prevent orphaned locked pages
+                        libc::munlock(page_start as *const libc::c_void, total_len);
+                    }
                 }
             }
         }

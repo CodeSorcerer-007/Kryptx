@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 
 class EmergencyAutoDestructManagerTest {
 
@@ -172,6 +173,7 @@ class EmergencyAutoDestructManagerTest {
     @Test
     fun testEmergencyWipeTriggersCompleteKeystorePurge() {
         val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
         val manager = EmergencyAutoDestructManager(
             context = mockContext,
             sessionManager = null,
@@ -180,7 +182,27 @@ class EmergencyAutoDestructManagerTest {
             isEnabled = true
         )
 
-        manager.triggerEmergencyWipe()
+        val result = manager.triggerEmergencyWipe()
         org.mockito.Mockito.verify(mockKeystoreManager).wipeAllKeystoreAliases()
+        assertTrue("Successful Keystore wipe must yield DestructionResult.Success", result is com.kryptx.app.core.model.DestructionResult.Success)
+    }
+
+    @Test
+    fun testEmergencyWipeReportsIncompleteWhenKeystorePurgeFails() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(false)
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            sessionManager = null,
+            keystoreManager = mockKeystoreManager,
+            maxFailedAttempts = 1,
+            isEnabled = true
+        )
+
+        val result = manager.triggerEmergencyWipe()
+        org.mockito.Mockito.verify(mockKeystoreManager).wipeAllKeystoreAliases()
+        assertTrue("Failed Keystore purge must report DestructionResult.Incomplete", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+        val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
+        assertFalse("keystorePurged flag must be false", incomplete.keystorePurged)
     }
 }

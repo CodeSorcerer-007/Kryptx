@@ -110,8 +110,9 @@ class FakeVaultRepository : VaultRepository {
         this.panicPassword = null
     }
 
-    override suspend fun triggerPanicSelfDestruct() {
+    override suspend fun triggerPanicSelfDestruct(): com.kryptx.app.core.model.DestructionResult {
         resetVault()
+        return com.kryptx.app.core.model.DestructionResult.Success
     }
 
     private var hardwareKeyEnrolled = false

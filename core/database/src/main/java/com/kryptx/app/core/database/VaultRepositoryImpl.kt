@@ -28,7 +28,7 @@ class VaultRepositoryImpl(
         sessionManager: VaultSessionManager,
         keystoreManager: KeystoreManager,
         preferencesRepository: IPreferencesRepository? = null,
-        onEmergencyWipe: (() -> Unit)? = null
+        onEmergencyWipe: (() -> com.kryptx.app.core.model.DestructionResult)? = null
     ) : this(
         auditRepo = VaultAuditRepositoryImpl(dbHelper, sessionManager, decoyDbHelper),
         dbHelper = dbHelper,
@@ -46,7 +46,7 @@ class VaultRepositoryImpl(
         sessionManager: VaultSessionManager,
         keystoreManager: KeystoreManager,
         preferencesRepository: IPreferencesRepository?,
-        onEmergencyWipe: (() -> Unit)?
+        onEmergencyWipe: (() -> com.kryptx.app.core.model.DestructionResult)?
     ) : this(
         authRepo = VaultAuthRepositoryImpl(
             dbHelper = dbHelper,

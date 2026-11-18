@@ -179,4 +179,54 @@ class VaultSessionManagerTest {
         assertFalse(sessionManager.isUnlocked.value)
         assertNull(sessionManager.getVaultKey())
     }
+
+    @Test
+    fun testSessionKeyMemoryLockPolicyBestEffortSucceedsEvenWithoutNativeSupport() {
+        val sessionManager = VaultSessionManager(
+            scope = testScope,
+            memoryLockPolicy = VaultSessionManager.MemoryLockPolicy.BEST_EFFORT
+        )
+        val key = ByteArray(32) { 0x5A.toByte() }
+
+        sessionManager.unlock(key)
+        assertTrue(sessionManager.isUnlocked.value)
+        assertNotNull(sessionManager.getVaultKey())
+
+        // Under BEST_EFFORT, lock status depends on platform capabilities, but unlock never throws
+        if (com.kryptx.app.core.crypto.SecureMemory.isNativeMemoryLockSupported()) {
+            assertTrue(sessionManager.isSessionKeyMemoryLocked())
+        } else {
+            assertFalse(sessionManager.isSessionKeyMemoryLocked())
+        }
+
+        sessionManager.lock()
+        assertFalse(sessionManager.isSessionKeyMemoryLocked())
+    }
+
+    @Test
+    fun testStrictModeBehaviorMatchesNativeLockSupport() {
+        val isNativeSupported = com.kryptx.app.core.crypto.SecureMemory.isNativeMemoryLockSupported()
+        val sessionManager = VaultSessionManager(
+            scope = testScope,
+            memoryLockPolicy = VaultSessionManager.MemoryLockPolicy.STRICT
+        )
+        val key = ByteArray(32) { 0xA5.toByte() }
+
+        if (isNativeSupported) {
+            sessionManager.unlock(key)
+            assertTrue(sessionManager.isUnlocked.value)
+            assertTrue(sessionManager.isSessionKeyMemoryLocked())
+            sessionManager.lock()
+            assertFalse(sessionManager.isSessionKeyMemoryLocked())
+        } else {
+            try {
+                sessionManager.unlock(key)
+                org.junit.Assert.fail("Expected SecurityException when STRICT policy is enforced without native memory lock support")
+            } catch (expected: SecurityException) {
+                // Expected fail-closed behavior
+                assertFalse(sessionManager.isUnlocked.value)
+                assertNull(sessionManager.getVaultKey())
+            }
+        }
+    }
 }

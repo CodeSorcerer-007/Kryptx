@@ -161,9 +161,21 @@ object SecureMemory {
     @JvmStatic
     external fun munlockBuffer(buffer: java.nio.ByteBuffer): Boolean
 
-    private val lockedBuffers: MutableSet<java.nio.ByteBuffer> = java.util.Collections.newSetFromMap(
-        java.util.concurrent.ConcurrentHashMap<java.nio.ByteBuffer, Boolean>()
-    )
+    /**
+     * Identity-based wrapper for tracking DirectByteBuffers.
+     * Uses reference equality (`===`) and `System.identityHashCode()` to completely decouple
+     * map lookup and removal from the mutable contents, position, limit, or mark of the [ByteBuffer].
+     */
+    private class IdentityBufferKey(val buffer: java.nio.ByteBuffer) {
+        override fun equals(other: Any?): Boolean {
+            return other is IdentityBufferKey && other.buffer === this.buffer
+        }
+        override fun hashCode(): Int {
+            return System.identityHashCode(buffer)
+        }
+    }
+
+    private val lockedBuffers = java.util.concurrent.ConcurrentHashMap<IdentityBufferKey, Boolean>()
 
     @Volatile
     var isLastAllocationLocked: Boolean = false
@@ -174,7 +186,7 @@ object SecureMemory {
      * via native Linux `mlock()` and excluded from OS core dumps via `MADV_DONTDUMP`.
      */
     fun isBufferLocked(buffer: java.nio.ByteBuffer): Boolean {
-        return lockedBuffers.contains(buffer)
+        return lockedBuffers.containsKey(IdentityBufferKey(buffer))
     }
 
     /**
@@ -208,7 +220,7 @@ object SecureMemory {
             false
         }
         if (locked) {
-            lockedBuffers.add(buffer)
+            lockedBuffers[IdentityBufferKey(buffer)] = true
         }
         isLastAllocationLocked = locked
 
@@ -233,7 +245,7 @@ object SecureMemory {
     fun releaseSecureBuffer(buffer: java.nio.ByteBuffer?) {
         if (buffer == null) return
         try {
-            lockedBuffers.remove(buffer)
+            lockedBuffers.remove(IdentityBufferKey(buffer))
             buffer.clear()
             while (buffer.hasRemaining()) {
                 buffer.put(0.toByte())

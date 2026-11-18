@@ -41,7 +41,10 @@ class PanicDestructionUnifiedPipelineTest {
             decoyDbHelper = decoyDbHelper,
             sessionManager = sessionManager,
             keystoreManager = keystoreManager,
-            onEmergencyWipe = { emergencyWipeInvoked = true }
+            onEmergencyWipe = {
+                emergencyWipeInvoked = true
+                com.kryptx.app.core.model.DestructionResult.Success
+            }
         )
 
         // Precondition: vault is unlocked
@@ -50,7 +53,7 @@ class PanicDestructionUnifiedPipelineTest {
         assertTrue("Precondition: vault must be unlocked before panic destruct", sessionManager.isUnlocked.value)
 
         // Execute panic self-destruct
-        repository.triggerPanicSelfDestruct()
+        val result = repository.triggerPanicSelfDestruct()
 
         // Postcondition 1: In-memory session key locked and wiped
         assertFalse("Session must be locked after panic destruct", sessionManager.isUnlocked.value)
@@ -64,5 +67,25 @@ class PanicDestructionUnifiedPipelineTest {
 
         // Postcondition 4: Central emergency self-destruct wipe must be invoked
         assertTrue("Central emergency self-destruct wipe must be invoked", emergencyWipeInvoked)
+
+        // Postcondition 5: Full success reported
+        assertTrue("Panic self-destruct must report DestructionResult.Success", result is com.kryptx.app.core.model.DestructionResult.Success)
+    }
+
+    @Test
+    fun testPanicSelfDestructReportsIncompleteWhenKeystoreFails() = runTest {
+        Mockito.`when`(keystoreManager.wipeAllKeystoreAliases()).thenReturn(false)
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.triggerPanicSelfDestruct()
+        assertTrue("Must report DestructionResult.Incomplete when Keystore purge fails", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+        val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
+        assertFalse("keystorePurged must be false", incomplete.keystorePurged)
     }
 }

@@ -7,6 +7,7 @@ import com.kryptx.app.core.crypto.KeyDerivation
 import com.kryptx.app.core.crypto.PostQuantumEngine
 import com.kryptx.app.core.crypto.KeystoreManager
 import com.kryptx.app.core.crypto.SecureMemory
+import com.kryptx.app.core.model.DestructionResult
 import com.kryptx.app.core.model.KryptxErrorType
 import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.security.VaultSessionManager
@@ -40,7 +41,7 @@ interface VaultAuthRepository {
     fun hasPanicPassword(): Boolean
     suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit>
     suspend fun removePanicPassword()
-    suspend fun triggerPanicSelfDestruct()
+    suspend fun triggerPanicSelfDestruct(): DestructionResult
 
     fun isHardwareKeyEnrolled(): Boolean
     fun getHardwareKeyLabel(): String?
@@ -64,7 +65,7 @@ class VaultAuthRepositoryImpl(
     private val sessionManager: VaultSessionManager,
     private val keystoreManager: KeystoreManager,
     private val onAuditInvalidated: (() -> Unit)? = null,
-    private val onEmergencyWipe: (() -> Unit)? = null
+    private val onEmergencyWipe: (() -> DestructionResult)? = null
 ) : VaultAuthRepository {
 
     override fun hasVault(): Boolean = dbHelper.hasVaultSetup()
@@ -748,7 +749,7 @@ class VaultAuthRepositoryImpl(
         dbHelper.setMetadata("has_panic_setup", "false")
     }
 
-    override suspend fun triggerPanicSelfDestruct() = withContext(Dispatchers.Default) {
+    override suspend fun triggerPanicSelfDestruct(): DestructionResult = withContext(Dispatchers.Default) {
         // Deliberately uses Dispatchers.Default (not IO) to be consistent with all other crypto-touching
         // operations. The file deletions here are fast destructive writes, not large-file IO.
         // 1. Instantaneous zeroization of in-memory active vault key buffer
@@ -762,14 +763,28 @@ class VaultAuthRepositoryImpl(
         decoyDbHelper.clearAllData()
 
         // 4. Central emergency self-destruct pipeline execution (multi-pass file overwrite & shred)
-        onEmergencyWipe?.invoke()
+        val emergencyResult = onEmergencyWipe?.invoke()
 
-        if (!keystorePurged) {
+        val finalResult = if (emergencyResult is DestructionResult.Incomplete) {
+            emergencyResult.copy(keystorePurged = keystorePurged && emergencyResult.keystorePurged)
+        } else if (!keystorePurged) {
+            DestructionResult.Incomplete(
+                keystorePurged = false,
+                databasesPurged = true,
+                preferencesPurged = true,
+                errorMessage = "Cryptographic erasure postcondition failed: hardware keystore aliases could not be completely verified as purged during panic destruct"
+            )
+        } else {
+            DestructionResult.Success
+        }
+
+        if (finalResult is DestructionResult.Incomplete) {
             SecurityLogger.error(
                 "VaultAuthRepository",
-                "Cryptographic erasure postcondition failed: hardware keystore aliases could not be completely verified as purged during panic destruct"
+                "Panic self-destruct completed with incomplete status: ${finalResult.errorMessage}"
             )
         }
+        finalResult
     }
 
     override fun isHardwareKeyEnrolled(): Boolean {

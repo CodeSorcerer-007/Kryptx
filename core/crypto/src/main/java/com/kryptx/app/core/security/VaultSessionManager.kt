@@ -17,8 +17,29 @@ import kotlinx.coroutines.launch
  * timeout counters, background duration checks, and unlock failure throttling.
  */
 class VaultSessionManager(
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    val memoryLockPolicy: MemoryLockPolicy = if (SecureMemory.isNativeMemoryLockSupported()) {
+        MemoryLockPolicy.STRICT
+    } else {
+        MemoryLockPolicy.BEST_EFFORT
+    }
 ) {
+
+    enum class MemoryLockPolicy {
+        /**
+         * Enforces strict fail-closed kernel memory locking (`mlock` + `MADV_DONTDUMP`).
+         * If the host OS or environment does not support memory pinning or `mlock` fails,
+         * throws [SecurityException] and refuses to hold unpinned secrets in RAM.
+         */
+        STRICT,
+
+        /**
+         * Attempts native `mlock()` and `MADV_DONTDUMP`. If native memory locking is not supported
+         * on the current platform, logs an explicit [SecurityLogger.warn] security degradation audit event
+         * and holds the VEK in an off-heap DirectByteBuffer without memory locking.
+         */
+        BEST_EFFORT
+    }
 
     enum class AutoLockTimeout(val label: String, val seconds: Long) {
         IMMEDIATELY("Immediately", 0L),
@@ -87,7 +108,22 @@ class VaultSessionManager(
         activeSecureKeyBuffer?.let { SecureMemory.releaseSecureBuffer(it) }
         activeSecureKeyBuffer = null
 
-        val secBuf = SecureMemory.allocateSecureBuffer(vaultKey.size, requireLock = false)
+        val requireLock = memoryLockPolicy == MemoryLockPolicy.STRICT
+        val secBuf = try {
+            SecureMemory.allocateSecureBuffer(vaultKey.size, requireLock = requireLock)
+        } catch (secEx: SecurityException) {
+            SecurityLogger.error("VaultSessionManager", "Enforced strict memory lock policy failed during unlock", secEx)
+            throw secEx
+        }
+
+        if (!SecureMemory.isBufferLocked(secBuf)) {
+            SecurityLogger.warn(
+                "VaultSessionManager",
+                "SECURITY DEGRADATION: Vault unlocked with unpinned memory buffer. " +
+                "Host kernel does not permit mlock(). Vault encryption key is held in unpinned off-heap buffer."
+            )
+        }
+
         secBuf.clear()
         secBuf.put(vaultKey)
         secBuf.flip()
