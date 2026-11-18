@@ -46,6 +46,15 @@ class CrashDefenseClassificationTest {
     }
 
     @Test
+    fun testRecoveryActionFailureTriggersFailClosed() {
+        CrashDefense.registerRecoveryAction {
+            throw RuntimeException("Simulated vault locking failure during crash recovery")
+        }
+        val result = CrashDefense.executeRecoveryActionOrFailClosed()
+        assertFalse("Recovery action failure must return false to trigger fail-closed process termination", result)
+    }
+
+    @Test
     fun testBackgroundCriticalExceptionsClassifiedAsSecurityCritical() {
         val badTag = AEADBadTagException("Background thread AEAD auth tag failure")
         assertTrue(CrashDefense.isSecurityCritical(badTag))

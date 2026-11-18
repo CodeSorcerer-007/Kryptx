@@ -161,9 +161,21 @@ object SecureMemory {
     @JvmStatic
     external fun munlockBuffer(buffer: java.nio.ByteBuffer): Boolean
 
+    private val lockedBuffers: MutableSet<java.nio.ByteBuffer> = java.util.Collections.newSetFromMap(
+        java.util.concurrent.ConcurrentHashMap<java.nio.ByteBuffer, Boolean>()
+    )
+
     @Volatile
     var isLastAllocationLocked: Boolean = false
         private set
+
+    /**
+     * Returns true if the specified [buffer] was successfully pinned in physical RAM
+     * via native Linux `mlock()` and excluded from OS core dumps via `MADV_DONTDUMP`.
+     */
+    fun isBufferLocked(buffer: java.nio.ByteBuffer): Boolean {
+        return lockedBuffers.contains(buffer)
+    }
 
     /**
      * Returns whether native memory-locking primitives (`mlockBuffer`) are loaded and functional
@@ -195,6 +207,9 @@ object SecureMemory {
             SecurityLogger.warn("SecureMemory", "mlockBuffer JNI failed for direct buffer of size $capacity", t)
             false
         }
+        if (locked) {
+            lockedBuffers.add(buffer)
+        }
         isLastAllocationLocked = locked
 
         if (requireLock && !locked) {
@@ -218,6 +233,7 @@ object SecureMemory {
     fun releaseSecureBuffer(buffer: java.nio.ByteBuffer?) {
         if (buffer == null) return
         try {
+            lockedBuffers.remove(buffer)
             buffer.clear()
             while (buffer.hasRemaining()) {
                 buffer.put(0.toByte())

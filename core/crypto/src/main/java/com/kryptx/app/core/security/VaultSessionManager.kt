@@ -46,9 +46,6 @@ class VaultSessionManager(
     val lockoutSecondsRemaining: StateFlow<Int> = _lockoutSecondsRemaining.asStateFlow()
 
     @Volatile
-    private var activeVaultKey: ByteArray? = null
-
-    @Volatile
     private var activeSecureKeyBuffer: java.nio.ByteBuffer? = null
 
     private var autoLockTimeout: AutoLockTimeout = AutoLockTimeout.FIVE_MINUTES
@@ -85,19 +82,16 @@ class VaultSessionManager(
         autoLockJob?.cancel()
         autoLockJob = null
 
-        // Securely allocate direct buffer locked in physical RAM via Linux mlock() and MADV_DONTDUMP
+        // Securely allocate off-heap direct buffer locked in physical RAM via Linux mlock() and MADV_DONTDUMP.
+        // No persistent heap copy is maintained to prevent garbage collector relocation and heap inspection.
         activeSecureKeyBuffer?.let { SecureMemory.releaseSecureBuffer(it) }
         activeSecureKeyBuffer = null
-        activeVaultKey?.let { SecureMemory.wipe(it) }
 
         val secBuf = SecureMemory.allocateSecureBuffer(vaultKey.size, requireLock = false)
         secBuf.clear()
         secBuf.put(vaultKey)
         secBuf.flip()
         activeSecureKeyBuffer = secBuf
-
-        // Defensive copy maintained for immediate accessor operations, wiped upon lock
-        activeVaultKey = vaultKey.copyOf()
 
         _isUnlocked.value = true
         _isDecoy.value = isDecoy
@@ -120,7 +114,8 @@ class VaultSessionManager(
     }
 
     /**
-     * Retrieves a detached copy of the active vault key if currently unlocked.
+     * Retrieves a short-lived detached defensive copy of the active vault key if currently unlocked.
+     * The master VEK is read directly from the locked native DirectByteBuffer.
      * WARNING: The caller owns the returned ByteArray and MUST guarantee zeroization
      * with [SecureMemory.wipe] immediately upon completion.
      * Prefer using [withVaultKey] for scoped, guaranteed zeroization.
@@ -128,13 +123,11 @@ class VaultSessionManager(
     @Synchronized
     fun getVaultKey(): ByteArray? {
         if (!_isUnlocked.value) return null
-        activeSecureKeyBuffer?.let { buf ->
-            val copy = ByteArray(buf.remaining())
-            val duplicate = buf.duplicate()
-            duplicate.get(copy)
-            return copy
-        }
-        return activeVaultKey?.copyOf()
+        val buf = activeSecureKeyBuffer ?: return null
+        val copy = ByteArray(buf.remaining())
+        val duplicate = buf.duplicate()
+        duplicate.get(copy)
+        return copy
     }
 
     /**
@@ -142,7 +135,8 @@ class VaultSessionManager(
      * in physical RAM via Linux `mlock()` and excluded from OS core dumps via `MADV_DONTDUMP`.
      */
     fun isSessionKeyMemoryLocked(): Boolean {
-        return activeSecureKeyBuffer != null && SecureMemory.isLastAllocationLocked
+        val buf = activeSecureKeyBuffer ?: return false
+        return SecureMemory.isBufferLocked(buf)
     }
 
     /**
@@ -222,11 +216,6 @@ class VaultSessionManager(
         activeSecureKeyBuffer?.let {
             SecureMemory.releaseSecureBuffer(it)
             activeSecureKeyBuffer = null
-        }
-
-        activeVaultKey?.let {
-            SecureMemory.wipe(it)
-            activeVaultKey = null
         }
 
         _isUnlocked.value = false

@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -160,5 +161,22 @@ class VaultSessionManagerTest {
 
         sessionManager.lock()
         assertTrue(listenerInvoked)
+    }
+
+    @Test
+    fun testSessionKeyDirectBufferIsolationAndImmediateZeroization() {
+        val sessionManager = VaultSessionManager(testScope)
+        val originalKey = ByteArray(32) { (it + 7).toByte() }
+
+        sessionManager.unlock(originalKey)
+        assertTrue(sessionManager.isUnlocked.value)
+
+        val retrievedKey = sessionManager.getVaultKey()
+        assertNotNull(retrievedKey)
+        assertArrayEquals(originalKey, retrievedKey)
+
+        sessionManager.lock()
+        assertFalse(sessionManager.isUnlocked.value)
+        assertNull(sessionManager.getVaultKey())
     }
 }

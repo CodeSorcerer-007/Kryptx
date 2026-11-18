@@ -99,9 +99,28 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
     // ── Preferences ─────────────────────────────────────────────────────────
     override val preferencesRepository: PreferencesRepository = PreferencesRepository(appContext)
 
+    // ── Emergency Auto-Destruct ──────────────────────────────────────────────
+    // Eager: Listen to failed unlock attempts and trigger secure self-wipe if
+    // the threshold of failed attempts is exceeded.
+    override val emergencyAutoDestructManager: EmergencyAutoDestructManager = EmergencyAutoDestructManager(
+        context = appContext,
+        sessionManager = sessionManager,
+        keystoreManager = keystoreManager,
+        preferencesRepository = preferencesRepository
+    ).also { manager ->
+        sessionManager.addFailedAttemptListener {
+            manager.onFailedAttempt()
+        }
+    }
+
     // ── Vault repository (composed of auth, CRUD, audit, trash sub-repos) ───
     override val vaultRepository: VaultRepository = VaultRepositoryImpl(
-        dbHelper, decoyDbHelper, sessionManager, keystoreManager, preferencesRepository
+        dbHelper = dbHelper,
+        decoyDbHelper = decoyDbHelper,
+        sessionManager = sessionManager,
+        keystoreManager = keystoreManager,
+        preferencesRepository = preferencesRepository,
+        onEmergencyWipe = { emergencyAutoDestructManager.triggerEmergencyWipe() }
     )
 
     // ── Clipboard ───────────────────────────────────────────────────────────
@@ -141,20 +160,6 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
         } else {
             val fallbackApp = object : Application() {}
             CryptographicMemoryWatchdog(fallbackApp, sessionManager)
-        }
-    }
-
-    // ── Emergency Auto-Destruct ──────────────────────────────────────────────
-    // Eager: Listen to failed unlock attempts and trigger secure self-wipe if
-    // the threshold of failed attempts is exceeded.
-    override val emergencyAutoDestructManager: EmergencyAutoDestructManager = EmergencyAutoDestructManager(
-        context = appContext,
-        sessionManager = sessionManager,
-        keystoreManager = keystoreManager,
-        preferencesRepository = preferencesRepository
-    ).also { manager ->
-        sessionManager.addFailedAttemptListener {
-            manager.onFailedAttempt()
         }
     }
 

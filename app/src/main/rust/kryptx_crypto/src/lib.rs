@@ -192,14 +192,29 @@ pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_mlockBuffer<
     _class: JClass<'local>,
     buffer: JObject<'local>,
 ) -> jboolean {
-    if let Ok(_address) = env.get_direct_buffer_address((&buffer).into()) {
-        if let Ok(_capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
+    if let Ok(address) = env.get_direct_buffer_address((&buffer).into()) {
+        if let Ok(capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
             #[cfg(target_family = "unix")]
             unsafe {
-                libc::mlock(_address as *mut libc::c_void, _capacity);
-                libc::madvise(_address as *mut libc::c_void, _capacity, libc::MADV_DONTDUMP);
+                let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
+                if page_size > 0 && capacity > 0 && !address.is_null() {
+                    let addr_val = address as usize;
+                    let page_start = addr_val & !(page_size - 1);
+                    let offset = addr_val - page_start;
+                    let total_len = (offset + capacity + page_size - 1) & !(page_size - 1);
+
+                    let mlock_res = libc::mlock(page_start as *const libc::c_void, total_len);
+                    let madvise_res = libc::madvise(
+                        page_start as *mut libc::c_void,
+                        total_len,
+                        libc::MADV_DONTDUMP,
+                    );
+
+                    if mlock_res == 0 && madvise_res == 0 {
+                        return 1;
+                    }
+                }
             }
-            return 1;
         }
     }
     0
@@ -212,13 +227,22 @@ pub extern "system" fn Java_com_kryptx_app_core_crypto_SecureMemory_munlockBuffe
     _class: JClass<'local>,
     buffer: JObject<'local>,
 ) -> jboolean {
-    if let Ok(_address) = env.get_direct_buffer_address((&buffer).into()) {
-        if let Ok(_capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
+    if let Ok(address) = env.get_direct_buffer_address((&buffer).into()) {
+        if let Ok(capacity) = env.get_direct_buffer_capacity((&buffer).into()) {
             #[cfg(target_family = "unix")]
             unsafe {
-                libc::munlock(_address as *mut libc::c_void, _capacity);
+                let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
+                if page_size > 0 && capacity > 0 && !address.is_null() {
+                    let addr_val = address as usize;
+                    let page_start = addr_val & !(page_size - 1);
+                    let offset = addr_val - page_start;
+                    let total_len = (offset + capacity + page_size - 1) & !(page_size - 1);
+
+                    if libc::munlock(page_start as *const libc::c_void, total_len) == 0 {
+                        return 1;
+                    }
+                }
             }
-            return 1;
         }
     }
     0

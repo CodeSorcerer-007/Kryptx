@@ -108,13 +108,33 @@ class KeystoreManager {
      * permanently and mathematically undecryptable, guaranteeing true cryptographic erasure even
      * on wear-leveled NAND flash storage.
      */
-    fun wipeAllKeystoreAliases() {
+    /**
+     * Executes instantaneous cryptographic erasure across all Android Keystore aliases belonging to Kryptx.
+     *
+     * Specifically enumerates and purges:
+     * - Primary asymmetric biometric authentication key pair (`kryptx_biometric_v2_key`)
+     * - Forward-migrated hardware ECDH key pair (`kryptx_ecdh_v2_key`)
+     * - AndroidX Security MasterKey (`_androidx_security_master_key_`) protecting EncryptedSharedPreferences metadata.
+     *
+     * Enforces postcondition verification: asserts that critical cryptographic aliases are verified
+     * absent after deletion, returning true only if all designated hardware aliases have been purged.
+     *
+     * @return true if all critical aliases were confirmed erased; false if any alias remains or deletion encountered an error.
+     */
+    fun wipeAllKeystoreAliases(): Boolean {
+        var allSucceeded = true
+        val criticalAliases = listOf(
+            BIOMETRIC_KEY_ALIAS,
+            ECDH_KEY_ALIAS,
+            "_androidx_security_master_key_"
+        )
         try {
             val ks = getKeyStore()
             val aliases = try {
                 ks.aliases().toList()
             } catch (t: Throwable) {
                 SecurityLogger.warn("KeystoreManager", "Failed to enumerate Keystore aliases during wipe", t)
+                allSucceeded = false
                 emptyList()
             }
 
@@ -124,16 +144,12 @@ class KeystoreManager {
                     SecurityLogger.info("KeystoreManager", "Deleted Keystore alias during wipe: $alias")
                 } catch (t: Throwable) {
                     SecurityLogger.warn("KeystoreManager", "Failed to delete Keystore alias $alias during wipe", t)
+                    allSucceeded = false
                 }
             }
 
             // Explicitly ensure known critical aliases are wiped even if enumeration was restricted
-            val explicitAliases = listOf(
-                BIOMETRIC_KEY_ALIAS,
-                ECDH_KEY_ALIAS,
-                "_androidx_security_master_key_"
-            )
-            for (alias in explicitAliases) {
+            for (alias in criticalAliases) {
                 try {
                     if (ks.containsAlias(alias)) {
                         ks.deleteEntry(alias)
@@ -141,11 +157,27 @@ class KeystoreManager {
                     }
                 } catch (t: Throwable) {
                     SecurityLogger.warn("KeystoreManager", "Failed to delete explicit Keystore alias $alias", t)
+                    allSucceeded = false
+                }
+            }
+
+            // Postcondition verification: assert that critical aliases no longer exist in hardware Keystore
+            for (alias in criticalAliases) {
+                try {
+                    if (ks.containsAlias(alias)) {
+                        SecurityLogger.error("KeystoreManager", "Postcondition check failed: Keystore alias $alias still present after wipe")
+                        allSucceeded = false
+                    }
+                } catch (t: Throwable) {
+                    SecurityLogger.warn("KeystoreManager", "Postcondition verification check encountered error for $alias", t)
+                    allSucceeded = false
                 }
             }
         } catch (t: Throwable) {
             SecurityLogger.warn("KeystoreManager", "wipeAllKeystoreAliases encountered an error", t)
+            allSucceeded = false
         }
+        return allSucceeded
     }
 
     /**

@@ -27,14 +27,16 @@ class VaultRepositoryImpl(
         decoyDbHelper: KryptxDatabaseHelper,
         sessionManager: VaultSessionManager,
         keystoreManager: KeystoreManager,
-        preferencesRepository: IPreferencesRepository? = null
+        preferencesRepository: IPreferencesRepository? = null,
+        onEmergencyWipe: (() -> Unit)? = null
     ) : this(
         auditRepo = VaultAuditRepositoryImpl(dbHelper, sessionManager, decoyDbHelper),
         dbHelper = dbHelper,
         decoyDbHelper = decoyDbHelper,
         sessionManager = sessionManager,
         keystoreManager = keystoreManager,
-        preferencesRepository = preferencesRepository
+        preferencesRepository = preferencesRepository,
+        onEmergencyWipe = onEmergencyWipe
     )
 
     private constructor(
@@ -43,14 +45,16 @@ class VaultRepositoryImpl(
         decoyDbHelper: KryptxDatabaseHelper,
         sessionManager: VaultSessionManager,
         keystoreManager: KeystoreManager,
-        preferencesRepository: IPreferencesRepository?
+        preferencesRepository: IPreferencesRepository?,
+        onEmergencyWipe: (() -> Unit)?
     ) : this(
         authRepo = VaultAuthRepositoryImpl(
             dbHelper = dbHelper,
             decoyDbHelper = decoyDbHelper,
             sessionManager = sessionManager,
             keystoreManager = keystoreManager,
-            onAuditInvalidated = { auditRepo.invalidateAuditCache() }
+            onAuditInvalidated = { auditRepo.invalidateAuditCache() },
+            onEmergencyWipe = onEmergencyWipe
         ),
         crudRepo = VaultCrudRepositoryImpl(
             dbHelper = dbHelper,

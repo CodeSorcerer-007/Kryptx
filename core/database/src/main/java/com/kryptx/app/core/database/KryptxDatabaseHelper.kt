@@ -1026,6 +1026,12 @@ open class KryptxDatabaseHelper(
         close()
         try {
             getSecurePrefs().edit().clear().commit()
+            cachedPrefs = null
+            val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+            val metaFile = File(sharedPrefsDir, "kryptx_metadata_prefs.xml")
+            if (metaFile.exists()) {
+                metaFile.delete()
+            }
         } catch (_: Throwable) {}
         _itemsFlow.value = emptyList()
         _trashFlow.value = emptyList()
@@ -1071,7 +1077,7 @@ open class KryptxDatabaseHelper(
      * clears in-memory state flows, and deletes the database file.
      */
     @Synchronized
-    fun clearAllData() {
+    open fun clearAllData() {
         try {
             if (internalHelper != null) {
                 val db = internalHelper?.writableDatabase

@@ -63,7 +63,8 @@ class VaultAuthRepositoryImpl(
     private val decoyDbHelper: KryptxDatabaseHelper,
     private val sessionManager: VaultSessionManager,
     private val keystoreManager: KeystoreManager,
-    private val onAuditInvalidated: (() -> Unit)? = null
+    private val onAuditInvalidated: (() -> Unit)? = null,
+    private val onEmergencyWipe: (() -> Unit)? = null
 ) : VaultAuthRepository {
 
     override fun hasVault(): Boolean = dbHelper.hasVaultSetup()
@@ -750,10 +751,25 @@ class VaultAuthRepositoryImpl(
     override suspend fun triggerPanicSelfDestruct() = withContext(Dispatchers.Default) {
         // Deliberately uses Dispatchers.Default (not IO) to be consistent with all other crypto-touching
         // operations. The file deletions here are fast destructive writes, not large-file IO.
+        // 1. Instantaneous zeroization of in-memory active vault key buffer
+        sessionManager.lock()
+
+        // 2. Cryptographic erasure: Purge all Android Keystore aliases (biometric, ECDH, metadata MasterKey)
+        val keystorePurged = keystoreManager.wipeAllKeystoreAliases()
+
+        // 3. Clear database tables, preferences, and attachment files
         dbHelper.clearAllData()
         decoyDbHelper.clearAllData()
-        keystoreManager.removeBiometricKey()
-        sessionManager.lock()
+
+        // 4. Central emergency self-destruct pipeline execution (multi-pass file overwrite & shred)
+        onEmergencyWipe?.invoke()
+
+        if (!keystorePurged) {
+            SecurityLogger.error(
+                "VaultAuthRepository",
+                "Cryptographic erasure postcondition failed: hardware keystore aliases could not be completely verified as purged during panic destruct"
+            )
+        }
     }
 
     override fun isHardwareKeyEnrolled(): Boolean {

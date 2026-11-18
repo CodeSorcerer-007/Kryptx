@@ -5,6 +5,7 @@ on:
     tags:
       - 'v*.*.*'
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -84,8 +85,8 @@ jobs:
             echo "KRYPTX_RELEASE_FINGERPRINT=$FP" >> $GITHUB_ENV
           fi
 
-      - name: Build Release APK
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+      - name: Build Release APK & AAB Bundle
+        run: ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
 
       - name: Secure Cleanup of Keystore
         if: always()
@@ -116,8 +117,9 @@ jobs:
         run: |
           mkdir -p release-dist
           find app/build/outputs/apk/release/ -name "*.apk" -exec cp {} release-dist/ \;
+          find app/build/outputs/bundle/release/ -name "*.aab" -exec cp {} release-dist/ \;
           cd release-dist
-          for f in *.apk; do
+          for f in *.apk *.aab; do
             if [ -f "$f" ]; then
               sha256sum "$f" > "${f}.sha256"
             fi
@@ -130,13 +132,13 @@ jobs:
       - name: Generate SLSA Level 2 Build Provenance Attestation
         run: |
           cd release-dist
-          for apk in *.apk; do
-            if [ -f "$apk" ]; then
-              APK_HASH=$(sha256sum "$apk" | awk '{print $1}')
-              cat <<EOF > "${apk}.intoto.jsonl"
-          {"_type":"https://in-toto.io/Statement/v0.1","subject":[{"name":"${apk}","digest":{"sha256":"${APK_HASH}"}}],"predicateType":"https://slsa.dev/provenance/v0.2","predicate":{"builder":{"id":"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"},"buildType":"https://github.com/actions/runner","invocation":{"configSource":{"uri":"git+https://github.com/${{ github.repository }}@${{ github.ref }}","digest":{"sha1":"${{ github.sha }}"},"entryPoint":".github/workflows/release.yml"}}}
+          for pkg in *.apk *.aab; do
+            if [ -f "$pkg" ]; then
+              PKG_HASH=$(sha256sum "$pkg" | awk '{print $1}')
+              cat <<EOF > "${pkg}.intoto.jsonl"
+          {"_type":"https://in-toto.io/Statement/v0.1","subject":[{"name":"${pkg}","digest":{"sha256":"${PKG_HASH}"}}],"predicateType":"https://slsa.dev/provenance/v0.2","predicate":{"builder":{"id":"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"},"buildType":"https://github.com/actions/runner","invocation":{"configSource":{"uri":"git+https://github.com/${{ github.repository }}@${{ github.ref }}","digest":{"sha1":"${{ github.sha }}"},"entryPoint":".github/workflows/release.yml"}}}
           EOF
-              echo "Generated SLSA provenance for $apk: ${apk}.intoto.jsonl"
+              echo "Generated SLSA provenance for $pkg: ${pkg}.intoto.jsonl"
             fi
           done
           cd ..

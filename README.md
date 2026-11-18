@@ -78,7 +78,7 @@
 | **4. Hardware Security Keys & Biometrics** | **Dual-Token Redundant** | `IHardwareSecurityKeyManager` with Dual-Token failover redundancy (Primary + Backup NFC/USB), StrongBox TEE biometrics, and CTAP2 BLE. |
 | **5. Anti-Coercion & Anti-Forensics** | **Hardware Crypto-Shredding** | Duress PIN opens isolated decoy vault; panic mode executes instantaneous cryptographic erasure of session & all hardware Keystore keys (including biometric, ECDH, and AndroidX metadata MasterKey) with defense-in-depth multi-pass file overwrite. |
 | **6. Fluidity & Crash Defense** | **120 FPS Lock** | 120 FPS high-refresh rate lock; `CrashDefense` UI looper with strict fail-closed security exception propagation and pre-restart vault locking. |
-| **7. Test Quality & Verification** | **604 / 604 Passing** | **604 automated unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
+| **7. Test Quality & Verification** | **606 / 606 Passing** | **606 automated unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
 | **8. UI/UX & Human Experience** | **WCAG 2.1 AA** | `AirGapQrFountainCodec` animated QR vault sync, accessibility semantics (`Role.Button`), offline identicons, and tactile haptics. |
 
 ---
@@ -152,7 +152,7 @@ graph TD;
     *   **NFC & USB OTG**: Physical YubiKey challenge-response (HMAC-SHA1 slot-2, instruction `0x38`) with IsoDep tag detection and USB HID enumeration.
     *   **Wireless BLE Security Tokens**: Support for wireless FIDO2/CTAP2 authenticators with automated scanning, MTU negotiation, and device-bound key unwrapping.
 11. **Cryptographic Erasure & Storage Sanitization (`EmergencyAutoDestructManager`)**:
-    *   **Cryptographic Erasure (Primary Guarantee)**: Instantaneous zeroization of volatile in-memory keys followed by permanent destruction of Android Keystore biometric and ECDH hardware keys, rendering all encrypted SQLite databases mathematically irrecoverable regardless of flash wear-leveling (FTL).
+    *   **Cryptographic Erasure (Primary Guarantee)**: Instantaneous zeroization of volatile in-memory keys from DirectByteBuffer followed by permanent destruction and verified absence of all Android Keystore keys (biometric, ECDH, and AndroidX metadata MasterKey `_androidx_security_master_key_`), unified across panic PIN and auto-destruct pathways, rendering all encrypted SQLite databases and metadata mathematically irrecoverable regardless of flash wear-leveling (FTL).
     *   **Defense-in-Depth Storage Overwrite**: Multi-pass in-place overwrite (CSPRNG random → zero → CSPRNG random) via `RandomAccessFile("rws")` and `fd.sync()` before unlinking, mitigating logical file-recovery attempts.
     *   **SQLite Journal Purge**: Wipes and zeroizes companion `-wal`, `-shm`, and rollback `-journal` transaction files with cryptographic random bytes prior to unlinking.
 12. **Strict Decoy Vault Isolation**:
