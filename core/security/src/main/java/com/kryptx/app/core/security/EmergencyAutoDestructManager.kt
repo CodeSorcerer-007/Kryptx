@@ -174,16 +174,28 @@ class EmergencyAutoDestructManager(
                 val dataDir = context.applicationInfo?.dataDir
                 if (dataDir != null) {
                     val sharedPrefsDir = File(dataDir, "shared_prefs")
-                    if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
-                        sharedPrefsDir.listFiles()?.forEach { file ->
-                            val overwritten = secureOverwriteFile(file)
-                            val deleted = file.delete() || !file.exists()
-                            if (!overwritten || !deleted) {
+                    if (sharedPrefsDir.exists()) {
+                        if (sharedPrefsDir.isDirectory) {
+                            val prefFiles = sharedPrefsDir.listFiles()
+                            if (prefFiles == null) {
                                 preferencesPurged = false
-                                errorMessages.add("Failed to overwrite/delete shared preference file ${file.name}")
+                                errorMessages.add("Failed to list files in shared_prefs directory")
+                            } else {
+                                prefFiles.forEach { file ->
+                                    val overwritten = secureOverwriteFile(file)
+                                    val deleted = file.delete() || !file.exists()
+                                    if (!overwritten || !deleted) {
+                                        preferencesPurged = false
+                                        errorMessages.add("Failed to overwrite/delete shared preference file ${file.name}")
+                                    }
+                                }
                             }
                         }
-                        sharedPrefsDir.delete()
+                        val dirDeleted = sharedPrefsDir.delete() || !sharedPrefsDir.exists()
+                        if (!dirDeleted) {
+                            preferencesPurged = false
+                            errorMessages.add("Failed to delete shared_prefs directory")
+                        }
                     }
                 }
             } catch (t: Throwable) {
@@ -248,16 +260,28 @@ class EmergencyAutoDestructManager(
 
             // 5. Overwrite & delete attachments
             val attachmentsDir = File(context.filesDir, "vault_attachments")
-            if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
-                attachmentsDir.listFiles()?.forEach { file ->
-                    val overwritten = secureOverwriteFile(file)
-                    val deleted = file.delete() || !file.exists()
-                    if (!overwritten || !deleted) {
+            if (attachmentsDir.exists()) {
+                if (attachmentsDir.isDirectory) {
+                    val files = attachmentsDir.listFiles()
+                    if (files == null) {
                         databasesPurged = false
-                        errorMessages.add("Failed to delete attachment ${file.name}")
+                        errorMessages.add("Failed to list files in vault_attachments directory")
+                    } else {
+                        files.forEach { file ->
+                            val overwritten = secureOverwriteFile(file)
+                            val deleted = file.delete() || !file.exists()
+                            if (!overwritten || !deleted) {
+                                databasesPurged = false
+                                errorMessages.add("Failed to delete attachment ${file.name}")
+                            }
+                        }
                     }
                 }
-                attachmentsDir.delete()
+                val dirDeleted = attachmentsDir.delete() || !attachmentsDir.exists()
+                if (!dirDeleted) {
+                    databasesPurged = false
+                    errorMessages.add("Failed to delete vault_attachments directory")
+                }
             }
 
             // 6. Reset counter - handled authoritatively by sessionManager.lock()
@@ -315,14 +339,14 @@ class EmergencyAutoDestructManager(
                         raf.write(buffer, 0, toWrite)
                         written += toWrite
                     }
-                    try { raf.fd.sync() } catch (_: Throwable) {}
+                    raf.fd.sync()
                     SecureMemory.wipe(buffer)
                 }
             }
             // Truncate to zero after multi-pass overwrite before unlinking and flush journal
             java.io.RandomAccessFile(file, "rws").use { raf ->
                 raf.setLength(0L)
-                try { raf.fd.sync() } catch (_: Throwable) {}
+                raf.fd.sync()
             }
             return true
         } catch (t: Throwable) {

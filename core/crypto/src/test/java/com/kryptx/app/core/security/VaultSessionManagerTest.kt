@@ -1,5 +1,6 @@
 package com.kryptx.app.core.security
 
+import com.kryptx.app.core.crypto.SecureMemory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -236,10 +237,13 @@ class VaultSessionManagerTest {
             scope = testScope,
             memoryLockPolicy = VaultSessionManager.MemoryLockPolicy.BEST_EFFORT
         )
-        val initialKey = ByteArray(32) { 1 }
+        val initialKey = ByteArray(32) { 0x5A }
         sessionManager.unlock(initialKey)
         assertTrue(sessionManager.isUnlocked.value)
         assertNotNull(sessionManager.getVaultKey())
+
+        val oldBuffer = sessionManager.getActiveBufferForTesting()
+        assertNotNull("Active buffer must exist while unlocked", oldBuffer)
 
         try {
             sessionManager.unlock(ByteArray(0))
@@ -250,5 +254,20 @@ class VaultSessionManagerTest {
 
         assertFalse("Session must be explicitly locked after failed re-unlock", sessionManager.isUnlocked.value)
         assertNull("Active key buffer must be null after failed re-unlock", sessionManager.getVaultKey())
+        assertNull("Internal active buffer reference must be cleared", sessionManager.getActiveBufferForTesting())
+
+        // Verify the old buffer was zeroized and released
+        oldBuffer!!.clear()
+        while (oldBuffer.hasRemaining()) {
+            org.junit.Assert.assertEquals(
+                "Old buffer memory must be zeroized",
+                0.toByte(),
+                oldBuffer.get()
+            )
+        }
+        assertFalse(
+            "Old buffer must be unpinned and removed from locked buffers registry",
+            SecureMemory.isBufferLocked(oldBuffer)
+        )
     }
 }

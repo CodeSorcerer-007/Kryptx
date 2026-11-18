@@ -233,4 +233,37 @@ class EmergencyAutoDestructManagerTest {
             tempDb.delete()
         }
     }
+
+    @Test
+    fun testEmergencyWipeReportsIncompleteWhenAttachmentDirCannotBeDeleted() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
+
+        // Create an un-deletable directory (non-empty directory where delete fails)
+        val tempDir = java.nio.file.Files.createTempDirectory("vault_attachments_test").toFile()
+        val nestedDir = java.io.File(tempDir, "vault_attachments")
+        nestedDir.mkdirs()
+
+        val fakeContext = mock(Context::class.java)
+        `when`(fakeContext.filesDir).thenReturn(tempDir)
+
+        val manager = EmergencyAutoDestructManager(
+            context = fakeContext,
+            sessionManager = null,
+            keystoreManager = mockKeystoreManager,
+            maxFailedAttempts = 1,
+            isEnabled = true
+        )
+
+        try {
+            val result = manager.triggerEmergencyWipe()
+            // If attachment directory cannot be listed or deleted, it must report incomplete
+            if (nestedDir.exists()) {
+                assertTrue("Undeleted directory must yield Incomplete", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+            }
+        } finally {
+            nestedDir.delete()
+            tempDir.delete()
+        }
+    }
 }

@@ -135,7 +135,16 @@ class VaultAuthRepositoryImpl(
             onAuditInvalidated?.invoke()
             KryptxResult.Success(Unit)
         } catch (e: Exception) {
-            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to create vault", e)
+            SecurityLogger.error("VaultAuthRepository", "Failed to setup new vault, rolling back initialization", e)
+            try {
+                sessionManager.lock()
+                dbHelper.clearAllData()
+                decoyDbHelper.clearAllData()
+                keystoreManager.wipeAllKeystoreAliases()
+            } catch (rollbackEx: Throwable) {
+                SecurityLogger.error("VaultAuthRepository", "Rollback failed during failed vault setup", rollbackEx)
+            }
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to create vault: ${e.message}", e)
         } finally {
             SecureMemory.wipe(vek)
             SecureMemory.wipe(derivedMasterKey)
@@ -157,34 +166,42 @@ class VaultAuthRepositoryImpl(
             val panicKdfAlgorithm = dbHelper.getMetadata("panic_kdf_algorithm")
             if (panicSaltBase64 != null && (!panicTokenBase64.isNullOrBlank() || !panicHashBase64.isNullOrBlank())) {
                 val panicSalt = Base64.decode(panicSaltBase64, Base64.NO_WRAP)
-                // Use Argon2id for new entries; fall back to PBKDF2 for legacy entries
-                val derivedPanicKey = if (panicKdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-                    KeyDerivation.deriveKeyArgon2(masterPassword, panicSalt)
-                } else {
-                    KeyDerivation.deriveKey(masterPassword, panicSalt)
-                }
+                var derivedPanicKey: ByteArray? = null
                 var isPanicMatch = false
-                if (!panicTokenBase64.isNullOrBlank()) {
-                    try {
-                        val tokenBytes = Base64.decode(panicTokenBase64, Base64.NO_WRAP)
-                        val decrypted = CryptoEngine.decrypt(tokenBytes, derivedPanicKey, "kryptx-panic-auth".toByteArray(Charsets.UTF_8))
-                        SecureMemory.wipe(decrypted)
-                        isPanicMatch = true
-                    } catch (_: Exception) {
-                        // Expected if password doesn't match panic PIN
+                try {
+                    // Use Argon2id for new entries; fall back to PBKDF2 for legacy entries
+                    derivedPanicKey = if (panicKdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
+                        KeyDerivation.deriveKeyArgon2(masterPassword, panicSalt)
+                    } else {
+                        KeyDerivation.deriveKey(masterPassword, panicSalt)
                     }
-                } else if (!panicHashBase64.isNullOrBlank()) {
-                    // Legacy fallback for SHA-256 hash stored passwords
-                    val expectedHash = Base64.decode(panicHashBase64, Base64.NO_WRAP)
-                    val md = java.security.MessageDigest.getInstance("SHA-256")
-                    val actualHash = md.digest(derivedPanicKey)
-                    if (SecureMemory.safeEquals(actualHash, expectedHash)) {
-                        isPanicMatch = true
-                    }
-                }
 
-                SecureMemory.wipe(derivedPanicKey)
-                SecureMemory.wipe(panicSalt)
+                    if (!panicTokenBase64.isNullOrBlank()) {
+                        try {
+                            val tokenBytes = Base64.decode(panicTokenBase64, Base64.NO_WRAP)
+                            val decrypted = CryptoEngine.decrypt(tokenBytes, derivedPanicKey, "kryptx-panic-auth".toByteArray(Charsets.UTF_8))
+                            SecureMemory.wipe(decrypted)
+                            isPanicMatch = true
+                        } catch (_: Exception) {
+                            // Expected if password doesn't match panic PIN
+                        }
+                    } else if (!panicHashBase64.isNullOrBlank()) {
+                        // Legacy fallback for SHA-256 hash stored passwords
+                        try {
+                            val expectedHash = Base64.decode(panicHashBase64, Base64.NO_WRAP)
+                            val md = java.security.MessageDigest.getInstance("SHA-256")
+                            val actualHash = md.digest(derivedPanicKey)
+                            if (SecureMemory.safeEquals(actualHash, expectedHash)) {
+                                isPanicMatch = true
+                            }
+                        } catch (_: Exception) {
+                            // Expected if hash format invalid
+                        }
+                    }
+                } finally {
+                    SecureMemory.wipe(derivedPanicKey)
+                    SecureMemory.wipe(panicSalt)
+                }
 
                 if (isPanicMatch) {
                     val destructResult = triggerPanicSelfDestruct()

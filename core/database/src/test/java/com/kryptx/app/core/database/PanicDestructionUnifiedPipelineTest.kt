@@ -104,4 +104,28 @@ class PanicDestructionUnifiedPipelineTest {
         val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
         assertFalse("databasesPurged must be false when wipe pipeline is missing", incomplete.databasesPurged)
     }
+
+    @Test
+    fun testSetupNewVaultRollsBackWhenSessionUnlockFails() = runTest {
+        val failingSessionManager = object : VaultSessionManager() {
+            override fun unlock(vaultKey: ByteArray, isDecoy: Boolean) {
+                throw SecurityException("Strict memory locking simulated failure")
+            }
+        }
+
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = failingSessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.setupNewVault("TestPassword123!".toCharArray())
+        assertTrue("Setup must return error on failed session lock", result is com.kryptx.app.core.model.KryptxResult.Error)
+        assertTrue("Database helper must clear all data during rollback", dbHelper.clearAllDataCalled)
+        assertTrue("Decoy database helper must clear all data during rollback", decoyDbHelper.clearAllDataCalled)
+        Mockito.verify(keystoreManager, Mockito.atLeastOnce()).wipeAllKeystoreAliases()
+        assertFalse("Session must remain locked", failingSessionManager.isUnlocked.value)
+    }
 }

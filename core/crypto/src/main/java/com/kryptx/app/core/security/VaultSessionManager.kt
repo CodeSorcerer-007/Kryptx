@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
  * Manages the active decrypted vault session in memory, auto-lock policies,
  * timeout counters, background duration checks, and unlock failure throttling.
  */
-class VaultSessionManager(
+open class VaultSessionManager(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
     val memoryLockPolicy: MemoryLockPolicy = if (SecureMemory.isNativeMemoryLockSupported()) {
         MemoryLockPolicy.STRICT
@@ -87,7 +87,7 @@ class VaultSessionManager(
      * where a caller unlocks the vault while the throttle countdown is still non-zero.
      */
     @Synchronized
-    fun unlock(vaultKey: ByteArray, isDecoy: Boolean = false) {
+    open fun unlock(vaultKey: ByteArray, isDecoy: Boolean = false) {
         // Session integrity guard — log if lockout was active when unlock succeeded.
         // This indicates either a genuine timing race or an attempted throttle bypass.
         if (_lockoutSecondsRemaining.value > 0) {
@@ -99,20 +99,19 @@ class VaultSessionManager(
             )
         }
 
-        // Cancel any pending lockouts or timeouts
-        autoLockJob?.cancel()
-        autoLockJob = null
-
-        // Fail-closed atomic state transition: If re-unlocking, reset unlocked state immediately
-        // so that any validation or allocation failure leaves the session unambiguously and explicitly locked.
-        _isUnlocked.value = false
+        // Fail-closed atomic state transition: If re-unlocking an active session, unconditionally
+        // lock and zeroize any existing direct buffer before validating the new key or attempting reallocation.
+        // This guarantees that any key validation failure (e.g. empty key) or allocation failure
+        // cannot leave a stale VEK in memory or unreleased in the buffer registry.
+        if (_isUnlocked.value || activeSecureKeyBuffer != null) {
+            lock()
+        } else {
+            autoLockJob?.cancel()
+            autoLockJob = null
+            _isUnlocked.value = false
+        }
 
         require(vaultKey.isNotEmpty()) { "Vault key cannot be empty" }
-
-        // Securely allocate off-heap direct buffer locked in physical RAM via Linux mlock() and MADV_DONTDUMP.
-        // No persistent heap copy is maintained to prevent garbage collector relocation and heap inspection.
-        activeSecureKeyBuffer?.let { SecureMemory.releaseSecureBuffer(it) }
-        activeSecureKeyBuffer = null
 
         val requireLock = memoryLockPolicy == MemoryLockPolicy.STRICT
         val secBuf = try {
@@ -184,6 +183,11 @@ class VaultSessionManager(
         val buf = activeSecureKeyBuffer ?: return false
         return SecureMemory.isBufferLocked(buf)
     }
+
+    /**
+     * Visible for testing memory zeroization and buffer release semantics.
+     */
+    internal fun getActiveBufferForTesting(): java.nio.ByteBuffer? = activeSecureKeyBuffer
 
     /**
      * Scoped execution helper that passes the active vault key to a block without exposing
