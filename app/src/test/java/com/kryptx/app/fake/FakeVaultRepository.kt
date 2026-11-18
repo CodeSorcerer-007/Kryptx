@@ -308,10 +308,11 @@ class FakeVaultRepository : VaultRepository {
         return KryptxResult.Success(items.size)
     }
 
-    override suspend fun resetVault() {
+    override suspend fun resetVault(): KryptxResult<Unit> {
         hasVaultSetup = false
         biometricsConfigured = false
         _itemsFlow.value = emptyList()
+        return KryptxResult.Success(Unit)
     }
 
     override fun getDatabaseDiagnostics(): com.kryptx.app.core.database.KryptxDatabaseHelper.DatabaseDiagnostics {

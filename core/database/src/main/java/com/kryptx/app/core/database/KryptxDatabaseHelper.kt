@@ -1018,58 +1018,111 @@ open class KryptxDatabaseHelper(
         db.execSQL("VACUUM")
     }
 
-    /**
-     * Deletes the underlying encrypted database file and its WAL logs directly.
-     */
-    @SuppressLint("ApplySharedPref")
-    fun deleteDatabaseFile(): Boolean {
-        close()
+    data class DatabaseCleanupResult(
+        val mainDbDeleted: Boolean,
+        val walDeleted: Boolean,
+        val shmDeleted: Boolean,
+        val journalDeleted: Boolean,
+        val securePrefsCleared: Boolean,
+        val metadataFileDeleted: Boolean
+    ) {
+        val isSuccess: Boolean
+            get() = mainDbDeleted && walDeleted && shmDeleted && journalDeleted && securePrefsCleared && metadataFileDeleted
+    }
+
+    private fun secureOverwriteAndDeleteFile(file: File): Boolean {
+        if (!file.exists()) return true
+        var overwritten = false
         try {
-            getSecurePrefs().edit().clear().commit()
-            cachedPrefs = null
-            val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
-            val metaFile = File(sharedPrefsDir, "kryptx_metadata_prefs.xml")
-            if (metaFile.exists()) {
-                metaFile.delete()
-            }
-        } catch (_: Throwable) {}
-        _itemsFlow.value = emptyList()
-        _trashFlow.value = emptyList()
-        val deleted = context.deleteDatabase(databaseName)
-        try {
-            val dbFile = context.getDatabasePath(databaseName)
-            val parentDir = dbFile.parentFile
-            if (parentDir != null) {
-                listOf(
-                    File(parentDir, "$databaseName-wal"),
-                    File(parentDir, "$databaseName-shm"),
-                    File(parentDir, "$databaseName-journal")
-                ).forEach { extraFile ->
-                    if (extraFile.exists()) {
-                        try {
-                            val len = extraFile.length()
-                            if (len > 0L) {
-                                java.io.RandomAccessFile(extraFile, "rws").use { raf ->
-                                    val buf = ByteArray(4096.coerceAtMost(len.toInt().coerceAtLeast(1)))
-                                    secureRandom.nextBytes(buf)
-                                    var w = 0L
-                                    while (w < len) {
-                                        val chunk = (len - w).coerceAtMost(buf.size.toLong()).toInt()
-                                        raf.write(buf, 0, chunk)
-                                        w += chunk
-                                    }
-                                    try { raf.fd.sync() } catch (_: Throwable) {}
-                                    com.kryptx.app.core.crypto.SecureMemory.wipe(buf)
-                                    raf.setLength(0L)
-                                }
-                            }
-                        } catch (_: Throwable) {}
-                        extraFile.delete()
+            val len = file.length()
+            if (len > 0L) {
+                java.io.RandomAccessFile(file, "rws").use { raf ->
+                    val buf = ByteArray(4096.coerceAtMost(len.toInt().coerceAtLeast(1)))
+                    secureRandom.nextBytes(buf)
+                    var w = 0L
+                    while (w < len) {
+                        val chunk = (len - w).coerceAtMost(buf.size.toLong()).toInt()
+                        raf.write(buf, 0, chunk)
+                        w += chunk
                     }
+                    try { raf.fd.sync() } catch (_: Throwable) {}
+                    com.kryptx.app.core.crypto.SecureMemory.wipe(buf)
+                    raf.setLength(0L)
                 }
             }
-        } catch (_: Throwable) {}
-        return deleted
+            overwritten = true
+        } catch (_: Throwable) {
+            overwritten = false
+        }
+        val deleted = file.delete() || !file.exists()
+        return overwritten && deleted
+    }
+
+    /**
+     * Deletes the underlying encrypted database file, secure preferences, metadata XML,
+     * and companion WAL, SHM, and journal files.
+     * Returns a structured [DatabaseCleanupResult] detailing individual operation outcomes.
+     */
+    @SuppressLint("ApplySharedPref")
+    fun deleteDatabaseFile(): DatabaseCleanupResult {
+        close()
+        var securePrefsCleared = false
+        try {
+            val prefs = getSecurePrefs()
+            securePrefsCleared = prefs.edit().clear().commit()
+            cachedPrefs = null
+        } catch (_: Throwable) {
+            securePrefsCleared = false
+        }
+
+        var metadataFileDeleted = false
+        try {
+            val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+            val metaFile = File(sharedPrefsDir, "kryptx_metadata_prefs.xml")
+            metadataFileDeleted = if (metaFile.exists()) {
+                metaFile.delete() || !metaFile.exists()
+            } else {
+                true
+            }
+        } catch (_: Throwable) {
+            metadataFileDeleted = false
+        }
+
+        _itemsFlow.value = emptyList()
+        _trashFlow.value = emptyList()
+
+        val dbFile = try { context.getDatabasePath(databaseName) } catch (_: Throwable) { null }
+        val mainDbDeleted = try {
+            val deleted = context.deleteDatabase(databaseName)
+            deleted || (dbFile != null && !dbFile.exists())
+        } catch (_: Throwable) {
+            dbFile != null && !dbFile.exists()
+        }
+
+        var walDeleted = true
+        var shmDeleted = true
+        var journalDeleted = true
+
+        val parentDir = dbFile?.parentFile
+        if (parentDir != null) {
+            val walFile = File(parentDir, "$databaseName-wal")
+            walDeleted = secureOverwriteAndDeleteFile(walFile)
+
+            val shmFile = File(parentDir, "$databaseName-shm")
+            shmDeleted = secureOverwriteAndDeleteFile(shmFile)
+
+            val journalFile = File(parentDir, "$databaseName-journal")
+            journalDeleted = secureOverwriteAndDeleteFile(journalFile)
+        }
+
+        return DatabaseCleanupResult(
+            mainDbDeleted = mainDbDeleted,
+            walDeleted = walDeleted,
+            shmDeleted = shmDeleted,
+            journalDeleted = journalDeleted,
+            securePrefsCleared = securePrefsCleared,
+            metadataFileDeleted = metadataFileDeleted
+        )
     }
 
     /**
@@ -1110,7 +1163,7 @@ open class KryptxDatabaseHelper(
         _itemsFlow.value = emptyList()
         _trashFlow.value = emptyList()
         searchIndex.clearKey()
-        val dbDeleted = deleteDatabaseFile()
-        return tablesCleared && attachmentsCleared && dbDeleted
+        val cleanupResult = deleteDatabaseFile()
+        return tablesCleared && attachmentsCleared && cleanupResult.isSuccess
     }
 }

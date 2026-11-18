@@ -188,4 +188,90 @@ class PanicDestructionUnifiedPipelineTest {
         assertTrue("Error message must report incomplete rollback", error.message.contains("Rollback incomplete"))
         assertTrue("Error message must indicate keystore wipe failed", error.message.contains("keystore wipe failed"))
     }
+
+    @Test
+    fun testResetVaultReturnsSuccessWhenAllCleanupsSucceed() = runTest {
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.resetVault()
+        assertTrue("resetVault must return Success when all cleanups succeed", result is com.kryptx.app.core.model.KryptxResult.Success)
+        assertTrue("dbHelper.clearAllData must be called", dbHelper.clearAllDataCalled)
+        assertTrue("decoyDbHelper.clearAllData must be called", decoyDbHelper.clearAllDataCalled)
+    }
+
+    @Test
+    fun testResetVaultReturnsErrorWhenPrimaryDbCleanupFails() = runTest {
+        dbHelper.clearAllDataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.resetVault()
+        assertTrue("resetVault must return Error when primary DB clear fails", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error message must indicate primary DB cleanup failed", error.message.contains("Primary database/storage cleanup incomplete"))
+    }
+
+    @Test
+    fun testResetVaultReturnsErrorWhenDecoyDbCleanupFails() = runTest {
+        decoyDbHelper.clearAllDataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.resetVault()
+        assertTrue("resetVault must return Error when decoy DB clear fails", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error message must indicate decoy DB cleanup failed", error.message.contains("Decoy database/storage cleanup incomplete"))
+    }
+
+    @Test
+    fun testPanicSelfDestructReportsIncompleteWhenPrimaryDbCleanupFails() = runTest {
+        dbHelper.clearAllDataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.triggerPanicSelfDestruct()
+        assertTrue("Must report Incomplete when primary DB cleanup fails", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+        val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
+        assertFalse("databasesPurged must be false", incomplete.databasesPurged)
+        assertTrue("Error message must specify primary failure", incomplete.errorMessage.contains("primary database purge failed"))
+    }
+
+    @Test
+    fun testPanicSelfDestructReportsIncompleteWhenDecoyDbCleanupFails() = runTest {
+        decoyDbHelper.clearAllDataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.triggerPanicSelfDestruct()
+        assertTrue("Must report Incomplete when decoy DB cleanup fails", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+        val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
+        assertFalse("databasesPurged must be false", incomplete.databasesPurged)
+        assertTrue("Error message must specify decoy failure", incomplete.errorMessage.contains("decoy database purge failed"))
+    }
 }

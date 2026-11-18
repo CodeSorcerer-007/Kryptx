@@ -426,7 +426,13 @@ class SettingsViewModel(
 
     fun resetVault(onResetComplete: () -> Unit) {
         viewModelScope.launch {
-            vaultRepository.resetVault()
+            val result = vaultRepository.resetVault()
+            if (result is com.kryptx.app.core.model.KryptxResult.Error) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "SettingsViewModel",
+                    "Vault reset encountered cleanup issues: ${result.message}"
+                )
+            }
             preferencesRepository.setOnboardingCompleted(false)
             onResetComplete()
         }

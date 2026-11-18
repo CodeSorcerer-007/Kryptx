@@ -55,7 +55,7 @@ interface VaultAuthRepository {
 
     fun getActiveVaultId(): String
     suspend fun switchVault(vaultId: String): KryptxResult<Unit>
-    suspend fun resetVault()
+    suspend fun resetVault(): KryptxResult<Unit>
 
     fun getPqcIdentityPublicKey(): ByteArray?
     suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit>
@@ -820,9 +820,10 @@ class VaultAuthRepositoryImpl(
         // 2. Cryptographic erasure: Purge all Android Keystore aliases (biometric, ECDH, metadata MasterKey)
         val keystorePurged = keystoreManager.wipeAllKeystoreAliases()
 
-        // 3. Clear database tables, preferences, and attachment files
-        dbHelper.clearAllData()
-        decoyDbHelper.clearAllData()
+        // 3. Clear database tables, preferences, companion sidecars (-wal, -shm, -journal), and attachment files
+        val primaryDbPurged = dbHelper.clearAllData()
+        val decoyDbPurged = decoyDbHelper.clearAllData()
+        val databasesPurged = primaryDbPurged && decoyDbPurged
 
         // 4. Central emergency self-destruct pipeline execution (multi-pass file overwrite & shred)
         val emergencyResult = onEmergencyWipe?.invoke() ?: DestructionResult.Incomplete(
@@ -833,13 +834,21 @@ class VaultAuthRepositoryImpl(
         )
 
         val finalResult = if (emergencyResult is DestructionResult.Incomplete) {
-            emergencyResult.copy(keystorePurged = keystorePurged && emergencyResult.keystorePurged)
-        } else if (!keystorePurged) {
+            emergencyResult.copy(
+                keystorePurged = keystorePurged && emergencyResult.keystorePurged,
+                databasesPurged = databasesPurged && emergencyResult.databasesPurged
+            )
+        } else if (!keystorePurged || !databasesPurged) {
+            val failureReasons = mutableListOf<String>()
+            if (!keystorePurged) failureReasons.add("keystore purge failed")
+            if (!primaryDbPurged) failureReasons.add("primary database purge failed")
+            if (!decoyDbPurged) failureReasons.add("decoy database purge failed")
+
             DestructionResult.Incomplete(
-                keystorePurged = false,
-                databasesPurged = true,
+                keystorePurged = keystorePurged,
+                databasesPurged = databasesPurged,
                 preferencesPurged = true,
-                errorMessage = "Cryptographic erasure postcondition failed: hardware keystore aliases could not be completely verified as purged during panic destruct"
+                errorMessage = "Cryptographic erasure postcondition failed: ${failureReasons.joinToString("; ")} during panic destruct"
             )
         } else {
             DestructionResult.Success
@@ -1016,12 +1025,40 @@ class VaultAuthRepositoryImpl(
         KryptxResult.Success(Unit)
     }
 
-    override suspend fun resetVault() {
-        withContext(Dispatchers.IO) {
-            sessionManager.lock()
+    override suspend fun resetVault(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        sessionManager.lock()
+        val failures = mutableListOf<String>()
+
+        try {
             keystoreManager.removeBiometricKey()
-            dbHelper.clearAllData()
-            decoyDbHelper.clearAllData()
+        } catch (e: Exception) {
+            failures.add("Biometric key removal failed: ${e.message}")
+        }
+
+        try {
+            if (!dbHelper.clearAllData()) {
+                failures.add("Primary database/storage cleanup incomplete")
+            }
+        } catch (e: Exception) {
+            failures.add("Primary database cleanup error: ${e.message}")
+        }
+
+        try {
+            if (!decoyDbHelper.clearAllData()) {
+                failures.add("Decoy database/storage cleanup incomplete")
+            }
+        } catch (e: Exception) {
+            failures.add("Decoy database cleanup error: ${e.message}")
+        }
+
+        if (failures.isNotEmpty()) {
+            SecurityLogger.warn("VaultAuthRepository", "Reset vault incomplete: ${failures.joinToString("; ")}")
+            KryptxResult.Error(
+                KryptxErrorType.UNKNOWN,
+                "Vault reset completed with errors: ${failures.joinToString("; ")}"
+            )
+        } else {
+            KryptxResult.Success(Unit)
         }
     }
 
