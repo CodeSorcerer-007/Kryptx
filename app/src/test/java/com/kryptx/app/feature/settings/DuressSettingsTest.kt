@@ -72,6 +72,33 @@ class DuressSettingsTest {
     }
 
     @Test
+    fun `test removing duress pin failure does not update state flow and triggers onError`() = runTest {
+        // Setup duress first
+        viewModel.setupDuressPassword("9876", onSuccess = {}, onError = {})
+        advanceUntilIdle()
+        assertTrue("hasDuress must be true initially", viewModel.hasDuress.value)
+
+        // Inject failure on remove
+        fakeVaultRepo.removeDuressPasswordResult = com.kryptx.app.core.model.KryptxResult.Error(
+            com.kryptx.app.core.model.KryptxErrorType.DATABASE_ERROR,
+            "Simulated remove metadata failure"
+        )
+
+        var completeCalled = false
+        var errorMsg: String? = null
+        viewModel.removeDuressPassword(
+            onComplete = { completeCalled = true },
+            onError = { errorMsg = it }
+        )
+        advanceUntilIdle()
+
+        assertFalse("onComplete must NOT be called on failure", completeCalled)
+        assertTrue("onError must be called", errorMsg != null)
+        assertTrue("hasDuress state must remain true", viewModel.hasDuress.value)
+        assertTrue("Repository state must remain configured", fakeVaultRepo.hasDuressPassword())
+    }
+
+    @Test
     fun `test short duress pin triggers validation error`() = runTest {
         var errorMsg: String? = null
 

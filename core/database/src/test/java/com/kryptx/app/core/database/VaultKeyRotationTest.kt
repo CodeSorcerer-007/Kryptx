@@ -29,6 +29,18 @@ class VaultKeyRotationTest {
             metadata[key] = value
             return true
         }
+        override fun setMetadataBatch(entries: Map<String, String>): Boolean {
+            metadata.putAll(entries)
+            return true
+        }
+        override fun removeMetadata(key: String): Boolean {
+            metadata.remove(key)
+            return true
+        }
+        override fun removeMetadataBatch(keys: Collection<String>): Boolean {
+            for (key in keys) metadata.remove(key)
+            return true
+        }
         override suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int {
             reEncryptCalls.add(Pair(oldKey.clone(), newKey.clone()))
             return 10

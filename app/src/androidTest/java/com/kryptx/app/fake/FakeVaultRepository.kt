@@ -100,8 +100,13 @@ class FakeVaultRepository : VaultRepository {
         return KryptxResult.Success(Unit)
     }
 
-    override suspend fun removeDuressPassword() {
-        this.duressPassword = null
+    var removeDuressPasswordResult: KryptxResult<Unit> = KryptxResult.Success(Unit)
+    override suspend fun removeDuressPassword(): KryptxResult<Unit> {
+        val res = removeDuressPasswordResult
+        if (res is KryptxResult.Success) {
+            this.duressPassword = null
+        }
+        return res
     }
 
     private var panicPassword: String? = null
@@ -112,8 +117,13 @@ class FakeVaultRepository : VaultRepository {
         return KryptxResult.Success(Unit)
     }
 
-    override suspend fun removePanicPassword() {
-        this.panicPassword = null
+    var removePanicPasswordResult: KryptxResult<Unit> = KryptxResult.Success(Unit)
+    override suspend fun removePanicPassword(): KryptxResult<Unit> {
+        val res = removePanicPasswordResult
+        if (res is KryptxResult.Success) {
+            this.panicPassword = null
+        }
+        return res
     }
 
     override suspend fun triggerPanicSelfDestruct(): com.kryptx.app.core.model.DestructionResult {

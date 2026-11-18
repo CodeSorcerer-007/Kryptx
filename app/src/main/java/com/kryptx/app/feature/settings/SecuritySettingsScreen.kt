@@ -741,10 +741,15 @@ fun SecuritySettingsScreen(
                 )
             },
             onRemoveDuressPin = {
-                viewModel.removeDuressPassword {
-                    showDuressDialog = false
-                    scope.launch { snackbarHostState.showSnackbar("Duress Decoy PIN disabled") }
-                }
+                viewModel.removeDuressPassword(
+                    onComplete = {
+                        showDuressDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("Duress Decoy PIN disabled") }
+                    },
+                    onError = { err ->
+                        scope.launch { snackbarHostState.showSnackbar(err) }
+                    }
+                )
             }
         )
     }
@@ -767,10 +772,15 @@ fun SecuritySettingsScreen(
                 )
             },
             onRemovePanicPin = {
-                viewModel.removePanicPassword {
-                    showPanicDialog = false
-                    scope.launch { snackbarHostState.showSnackbar("Panic PIN disabled") }
-                }
+                viewModel.removePanicPassword(
+                    onComplete = {
+                        showPanicDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("Panic PIN disabled") }
+                    },
+                    onError = { err ->
+                        scope.launch { snackbarHostState.showSnackbar(err) }
+                    }
+                )
             }
         )
     }

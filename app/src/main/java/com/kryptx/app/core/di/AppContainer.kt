@@ -74,8 +74,18 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
         setLockoutPersistence(
             save = { attempts, untilMs ->
                 try {
-                    dbHelper.setMetadata("vault_failed_attempts", attempts.toString())
-                    dbHelper.setMetadata("vault_lockout_until_ms", untilMs.toString())
+                    val committed = dbHelper.setMetadataBatch(
+                        mapOf(
+                            "vault_failed_attempts" to attempts.toString(),
+                            "vault_lockout_until_ms" to untilMs.toString()
+                        )
+                    )
+                    if (!committed) {
+                        com.kryptx.app.core.security.SecurityLogger.warn(
+                            "AppContainer",
+                            "Failed to commit lockout persistence batch"
+                        )
+                    }
                 } catch (t: Throwable) {
                     com.kryptx.app.core.security.SecurityLogger.warn("AppContainer", "Failed to persist lockout", t)
                 }

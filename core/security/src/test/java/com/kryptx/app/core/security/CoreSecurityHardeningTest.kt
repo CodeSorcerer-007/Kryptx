@@ -45,6 +45,18 @@ class CoreSecurityHardeningTest {
             metadata[key] = value
             return true
         }
+        override fun setMetadataBatch(entries: Map<String, String>): Boolean {
+            metadata.putAll(entries)
+            return true
+        }
+        override fun removeMetadata(key: String): Boolean {
+            metadata.remove(key)
+            return true
+        }
+        override fun removeMetadataBatch(keys: Collection<String>): Boolean {
+            for (key in keys) metadata.remove(key)
+            return true
+        }
     }
 
     private lateinit var dbHelper: FakeDatabaseHelper

@@ -32,6 +32,26 @@ class PanicDestructionUnifiedPipelineTest {
             metadata[key] = value
             return true
         }
+
+        override fun setMetadataBatch(entries: Map<String, String>): Boolean {
+            if (!setMetadataResult) return false
+            metadata.putAll(entries)
+            return true
+        }
+
+        override fun removeMetadata(key: String): Boolean {
+            if (!setMetadataResult) return false
+            metadata.remove(key)
+            return true
+        }
+
+        override fun removeMetadataBatch(keys: Collection<String>): Boolean {
+            if (!setMetadataResult) return false
+            for (key in keys) {
+                metadata.remove(key)
+            }
+            return true
+        }
     }
 
     private class FakeFailingSessionManager(
@@ -352,5 +372,88 @@ class PanicDestructionUnifiedPipelineTest {
         val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
         assertFalse("databasesPurged must be false", incomplete.databasesPurged)
         assertTrue("Error message must specify decoy failure", incomplete.errorMessage.contains("decoy database purge failed"))
+    }
+
+    @Test
+    fun testSetupNewVaultRollsBackWhenMetadataBatchCommitFails() = runTest {
+        dbHelper.setMetadataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager
+        )
+
+        val result = repository.setupNewVault("StrongMasterPassword123!".toCharArray())
+        assertTrue("setupNewVault must return Error when metadata batch commit fails", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error message must indicate rollback or commit failure", error.message.contains("Failed to commit vault setup metadata"))
+        assertTrue("Primary clearAllData must be called as part of rollback", dbHelper.clearAllDataCalled)
+        assertTrue("Decoy clearAllData must be called as part of rollback", decoyDbHelper.clearAllDataCalled)
+        assertFalse("Session must not be left unlocked", sessionManager.isUnlocked.value)
+    }
+
+    @Test
+    fun testSetupDuressPasswordFailsWhenBatchCommitFails() = runTest {
+        dbHelper.setMetadataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager
+        )
+
+        val result = repository.setupDuressPassword("5678".toCharArray())
+        assertTrue("setupDuressPassword must return Error on metadata commit failure", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error must explain duress failure", error.message.contains("duress"))
+    }
+
+    @Test
+    fun testRemoveDuressPasswordFailsWhenBatchCommitFails() = runTest {
+        dbHelper.setMetadataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager
+        )
+
+        val result = repository.removeDuressPassword()
+        assertTrue("removeDuressPassword must return Error on metadata commit failure", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error must explain duress removal failure", error.message.contains("duress"))
+    }
+
+    @Test
+    fun testSetupPanicPasswordFailsWhenBatchCommitFails() = runTest {
+        dbHelper.setMetadataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager
+        )
+
+        val result = repository.setupPanicPassword("9999".toCharArray())
+        assertTrue("setupPanicPassword must return Error on metadata commit failure", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error must explain panic failure", error.message.contains("panic"))
+    }
+
+    @Test
+    fun testRemovePanicPasswordFailsWhenBatchCommitFails() = runTest {
+        dbHelper.setMetadataResult = false
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager
+        )
+
+        val result = repository.removePanicPassword()
+        assertTrue("removePanicPassword must return Error on metadata commit failure", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error must explain panic removal failure", error.message.contains("panic"))
     }
 }

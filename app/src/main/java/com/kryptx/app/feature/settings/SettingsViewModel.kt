@@ -217,11 +217,25 @@ class SettingsViewModel(
     }
 
     fun removeDuressPassword(onComplete: () -> Unit) {
+        removeDuressPassword(onComplete = onComplete, onError = null)
+    }
+
+    fun removeDuressPassword(onComplete: () -> Unit, onError: ((String) -> Unit)?) {
         viewModelScope.launch {
-            vaultRepository.removeDuressPassword()
-            _hasDuress.value = false
-            activityLogManager?.logEvent("Security", "Removed Duress Vault")
-            onComplete()
+            when (val result = vaultRepository.removeDuressPassword()) {
+                is com.kryptx.app.core.model.KryptxResult.Success -> {
+                    _hasDuress.value = false
+                    activityLogManager?.logEvent("Security", "Removed Duress Vault")
+                    onComplete()
+                }
+                is com.kryptx.app.core.model.KryptxResult.Error -> {
+                    com.kryptx.app.core.security.SecurityLogger.warn(
+                        "SettingsViewModel",
+                        "Failed to remove duress password: ${result.message}"
+                    )
+                    onError?.invoke(if (result.message.isNotBlank()) result.message else "Failed to remove Duress Vault")
+                }
+            }
         }
     }
 
@@ -259,10 +273,25 @@ class SettingsViewModel(
     }
 
     fun removePanicPassword(onComplete: () -> Unit) {
+        removePanicPassword(onComplete = onComplete, onError = null)
+    }
+
+    fun removePanicPassword(onComplete: () -> Unit, onError: ((String) -> Unit)?) {
         viewModelScope.launch {
-            vaultRepository.removePanicPassword()
-            _hasPanic.value = false
-            onComplete()
+            when (val result = vaultRepository.removePanicPassword()) {
+                is com.kryptx.app.core.model.KryptxResult.Success -> {
+                    _hasPanic.value = false
+                    activityLogManager?.logEvent("Security", "Removed Panic Vault")
+                    onComplete()
+                }
+                is com.kryptx.app.core.model.KryptxResult.Error -> {
+                    com.kryptx.app.core.security.SecurityLogger.warn(
+                        "SettingsViewModel",
+                        "Failed to remove panic password: ${result.message}"
+                    )
+                    onError?.invoke(if (result.message.isNotBlank()) result.message else "Failed to remove Panic Vault")
+                }
+            }
         }
     }
 

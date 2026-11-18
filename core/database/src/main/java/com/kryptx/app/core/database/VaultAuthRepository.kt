@@ -38,11 +38,11 @@ interface VaultAuthRepository {
 
     fun hasDuressPassword(): Boolean
     suspend fun setupDuressPassword(duressPassword: CharArray): KryptxResult<Unit>
-    suspend fun removeDuressPassword()
+    suspend fun removeDuressPassword(): KryptxResult<Unit>
 
     fun hasPanicPassword(): Boolean
     suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit>
-    suspend fun removePanicPassword()
+    suspend fun removePanicPassword(): KryptxResult<Unit>
     suspend fun triggerPanicSelfDestruct(): DestructionResult
 
     fun isHardwareKeyEnrolled(): Boolean
@@ -121,13 +121,18 @@ class VaultAuthRepositoryImpl(
             decoyDbHelper.setDatabaseKey(dbKey)
             SecureMemory.wipe(dbKey)
 
-            dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, saltBase64)
-            dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
-            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, argon2Params.memoryCostKb.toString())
-            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, argon2Params.iterations.toString())
-            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, argon2Params.parallelism.toString())
-            dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, tokenBase64)
-            dbHelper.setMetadata(KryptxDbSchema.KEY_HAS_SETUP, "true")
+            val setupMetadata = mapOf(
+                KryptxDbSchema.KEY_SALT to saltBase64,
+                KryptxDbSchema.KEY_KDF_ALGORITHM to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier,
+                KryptxDbSchema.KEY_ARGON2_MEMORY_KB to argon2Params.memoryCostKb.toString(),
+                KryptxDbSchema.KEY_ARGON2_ITERATIONS to argon2Params.iterations.toString(),
+                KryptxDbSchema.KEY_ARGON2_PARALLELISM to argon2Params.parallelism.toString(),
+                KryptxDbSchema.KEY_VERIFICATION_TOKEN to tokenBase64,
+                KryptxDbSchema.KEY_HAS_SETUP to "true"
+            )
+            if (!dbHelper.setMetadataBatch(setupMetadata)) {
+                throw IllegalStateException("Failed to commit vault setup metadata to secure storage")
+            }
 
             generateAndStorePqcIdentityKeyPair(vek)
 
@@ -293,9 +298,13 @@ class VaultAuthRepositoryImpl(
                 }
                 success = true
                 if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier && memoryKb == null) {
-                    dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, argon2Params.memoryCostKb.toString())
-                    dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, argon2Params.iterations.toString())
-                    dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, argon2Params.parallelism.toString())
+                    dbHelper.setMetadataBatch(
+                        mapOf(
+                            KryptxDbSchema.KEY_ARGON2_MEMORY_KB to argon2Params.memoryCostKb.toString(),
+                            KryptxDbSchema.KEY_ARGON2_ITERATIONS to argon2Params.iterations.toString(),
+                            KryptxDbSchema.KEY_ARGON2_PARALLELISM to argon2Params.parallelism.toString()
+                        )
+                    )
                 }
 
                 // Seamlessly migrate legacy PBKDF2 vaults to memory-hard Argon2id upon successful authentication
@@ -305,15 +314,22 @@ class VaultAuthRepositoryImpl(
                         val newParams = Argon2Engine.Argon2Params.forDevice()
                         val newDerivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, newSalt, newParams)
                         val newEncryptedVekPayload = CryptoEngine.encrypt(vek, newDerivedMasterKey)
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, Base64.encodeToString(newSalt, Base64.NO_WRAP))
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVekPayload, Base64.NO_WRAP))
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, newParams.memoryCostKb.toString())
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, newParams.iterations.toString())
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, newParams.parallelism.toString())
+                        val migrationBatch = mapOf(
+                            KryptxDbSchema.KEY_SALT to Base64.encodeToString(newSalt, Base64.NO_WRAP),
+                            KryptxDbSchema.KEY_VERIFICATION_TOKEN to Base64.encodeToString(newEncryptedVekPayload, Base64.NO_WRAP),
+                            KryptxDbSchema.KEY_KDF_ALGORITHM to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier,
+                            KryptxDbSchema.KEY_ARGON2_MEMORY_KB to newParams.memoryCostKb.toString(),
+                            KryptxDbSchema.KEY_ARGON2_ITERATIONS to newParams.iterations.toString(),
+                            KryptxDbSchema.KEY_ARGON2_PARALLELISM to newParams.parallelism.toString()
+                        )
+                        val migrated = dbHelper.setMetadataBatch(migrationBatch)
                         SecureMemory.wipe(newDerivedMasterKey)
                         SecureMemory.wipe(newSalt)
-                        SecurityLogger.info("VaultAuthRepository", "Legacy PBKDF2 vault successfully auto-migrated to Argon2id")
+                        if (migrated) {
+                            SecurityLogger.info("VaultAuthRepository", "Legacy PBKDF2 vault successfully auto-migrated to Argon2id")
+                        } else {
+                            SecurityLogger.warn("VaultAuthRepository", "Failed to commit Argon2id migration metadata batch; retaining existing PBKDF2 configuration")
+                        }
                     } catch (migrationEx: Exception) {
                         SecurityLogger.warn("VaultAuthRepository", "Failed to auto-migrate legacy vault to Argon2id", migrationEx)
                     }
@@ -323,11 +339,22 @@ class VaultAuthRepositoryImpl(
                 val hasBiometricWrapped = !dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK).isNullOrBlank()
                 if (hasBiometricWrapped) {
                     try {
-                        keystoreManager.removeBiometricKey()
-                        val newWrappedVek = keystoreManager.wrapWithPublicKey(vek)
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, Base64.encodeToString(newWrappedVek, Base64.NO_WRAP))
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
-                        SecurityLogger.info("VaultAuthRepository", "Biometric key auto-re-enrolled following master password unlock")
+                        val oldKeyRemoved = keystoreManager.removeBiometricKey()
+                        if (!oldKeyRemoved) {
+                            SecurityLogger.warn("VaultAuthRepository", "Failed to remove old biometric key during auto-re-enrollment; aborting biometric refresh")
+                        } else {
+                            val newWrappedVek = keystoreManager.wrapWithPublicKey(vek)
+                            val bioBatch = mapOf(
+                                KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK to Base64.encodeToString(newWrappedVek, Base64.NO_WRAP),
+                                KryptxDbSchema.KEY_BIOMETRIC_IV to "rsa_oaep"
+                            )
+                            val committed = dbHelper.setMetadataBatch(bioBatch)
+                            if (committed) {
+                                SecurityLogger.info("VaultAuthRepository", "Biometric key auto-re-enrolled following master password unlock")
+                            } else {
+                                SecurityLogger.warn("VaultAuthRepository", "Failed to commit auto-re-enrolled biometric metadata")
+                            }
+                        }
                     } catch (e: Exception) {
                         SecurityLogger.warn("VaultAuthRepository", "Failed to auto-re-enroll biometric key", e)
                     }
@@ -564,12 +591,19 @@ class VaultAuthRepositoryImpl(
             val newDerivedKey = KeyDerivation.deriveKeyArgon2(newPassword, newSalt, newParams)
             val newEncryptedVek = CryptoEngine.encrypt(activeVek, newDerivedKey)
 
-            dbHelper.setMetadata(KryptxDbSchema.KEY_SALT, Base64.encodeToString(newSalt, Base64.NO_WRAP))
-            dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP))
-            dbHelper.setMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM, KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
-            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_MEMORY_KB, newParams.memoryCostKb.toString())
-            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_ITERATIONS, newParams.iterations.toString())
-            dbHelper.setMetadata(KryptxDbSchema.KEY_ARGON2_PARALLELISM, newParams.parallelism.toString())
+            val newMetadataBatch = mapOf(
+                KryptxDbSchema.KEY_SALT to Base64.encodeToString(newSalt, Base64.NO_WRAP),
+                KryptxDbSchema.KEY_VERIFICATION_TOKEN to Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP),
+                KryptxDbSchema.KEY_KDF_ALGORITHM to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier,
+                KryptxDbSchema.KEY_ARGON2_MEMORY_KB to newParams.memoryCostKb.toString(),
+                KryptxDbSchema.KEY_ARGON2_ITERATIONS to newParams.iterations.toString(),
+                KryptxDbSchema.KEY_ARGON2_PARALLELISM to newParams.parallelism.toString()
+            )
+            if (!dbHelper.setMetadataBatch(newMetadataBatch)) {
+                SecureMemory.wipe(newDerivedKey)
+                SecureMemory.wipe(newSalt)
+                return@withVaultKey KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to commit changed master password metadata")
+            }
 
             if (isBiometricsConfigured()) {
                 setupBiometrics()
@@ -613,7 +647,10 @@ class VaultAuthRepositoryImpl(
 
                 // Step 2: Encrypt new VEK under master password and update verification token
                 val newEncryptedVek = CryptoEngine.encrypt(newVek, currentDerivedKey)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, base64Encode(newEncryptedVek))
+                val tokenSaved = dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, base64Encode(newEncryptedVek))
+                if (!tokenSaved) {
+                    throw IllegalStateException("Failed to commit rotated verification token to secure storage")
+                }
                 tokenUpdated = true
 
                 // Step 3: Rekey SQLCipher database file encryption to match new VEK (non-transactional PRAGMA rekey, last)
@@ -738,9 +775,14 @@ class VaultAuthRepositoryImpl(
             val tokenBase64 = Base64.encodeToString(encryptedDecoyPayload, Base64.NO_WRAP)
             val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
 
-            dbHelper.setMetadata(KryptxDbSchema.KEY_DURESS_SALT, saltBase64)
-            dbHelper.setMetadata(KryptxDbSchema.KEY_DURESS_TOKEN, tokenBase64)
-            dbHelper.setMetadata(KryptxDbSchema.KEY_HAS_DURESS, "true")
+            val duressBatch = mapOf(
+                KryptxDbSchema.KEY_DURESS_SALT to saltBase64,
+                KryptxDbSchema.KEY_DURESS_TOKEN to tokenBase64,
+                KryptxDbSchema.KEY_HAS_DURESS to "true"
+            )
+            if (!dbHelper.setMetadataBatch(duressBatch)) {
+                throw IllegalStateException("Failed to commit duress vault metadata to secure storage")
+            }
 
             val decoyDbKey = deriveSqlCipherKey(decoyVek)
             decoyDbHelper.setDatabaseKey(decoyDbKey)
@@ -757,11 +799,18 @@ class VaultAuthRepositoryImpl(
         }
     }
 
-    override suspend fun removeDuressPassword(): Unit = withContext(Dispatchers.IO) {
-        dbHelper.setMetadata(KryptxDbSchema.KEY_DURESS_SALT, "")
-        dbHelper.setMetadata(KryptxDbSchema.KEY_DURESS_TOKEN, "")
-        dbHelper.setMetadata(KryptxDbSchema.KEY_HAS_DURESS, "false")
-        Unit
+    override suspend fun removeDuressPassword(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val duressBatch = mapOf(
+            KryptxDbSchema.KEY_DURESS_SALT to "",
+            KryptxDbSchema.KEY_DURESS_TOKEN to "",
+            KryptxDbSchema.KEY_HAS_DURESS to "false"
+        )
+        if (!dbHelper.setMetadataBatch(duressBatch)) {
+            SecurityLogger.warn("VaultAuthRepository", "Failed to commit duress password removal metadata")
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove duress password from secure storage")
+        } else {
+            KryptxResult.Success(Unit)
+        }
     }
 
     override fun hasPanicPassword(): Boolean = dbHelper.getMetadata("has_panic_setup") == "true"
@@ -833,13 +882,16 @@ class VaultAuthRepositoryImpl(
                 SecureMemory.wipe(panicVerificationToken)
             }
 
-            dbHelper.setMetadata("panic_salt", Base64.encodeToString(salt, Base64.NO_WRAP))
-            dbHelper.setMetadata("panic_token", Base64.encodeToString(encryptedToken, Base64.NO_WRAP))
-            // Clear legacy hash
-            dbHelper.setMetadata("panic_hash", "")
-            dbHelper.setMetadata("has_panic_setup", "true")
-            // Store KDF algorithm used so future versions can maintain backward compatibility
-            dbHelper.setMetadata("panic_kdf_algorithm", KeyDerivation.KdfAlgorithm.ARGON2ID.identifier)
+            val panicBatch = mapOf(
+                "panic_salt" to Base64.encodeToString(salt, Base64.NO_WRAP),
+                "panic_token" to Base64.encodeToString(encryptedToken, Base64.NO_WRAP),
+                "panic_hash" to "",
+                "has_panic_setup" to "true",
+                "panic_kdf_algorithm" to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier
+            )
+            if (!dbHelper.setMetadataBatch(panicBatch)) {
+                throw IllegalStateException("Failed to commit panic password metadata to secure storage")
+            }
 
             SecureMemory.wipe(derivedKey)
             SecureMemory.wipe(salt)
@@ -849,12 +901,19 @@ class VaultAuthRepositoryImpl(
         }
     }
 
-    override suspend fun removePanicPassword(): Unit = withContext(Dispatchers.IO) {
-        dbHelper.setMetadata("panic_salt", "")
-        dbHelper.setMetadata("panic_token", "")
-        dbHelper.setMetadata("panic_hash", "")
-        dbHelper.setMetadata("has_panic_setup", "false")
-        Unit
+    override suspend fun removePanicPassword(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val panicBatch = mapOf(
+            "panic_salt" to "",
+            "panic_token" to "",
+            "panic_hash" to "",
+            "has_panic_setup" to "false"
+        )
+        if (!dbHelper.setMetadataBatch(panicBatch)) {
+            SecurityLogger.warn("VaultAuthRepository", "Failed to commit panic password removal metadata")
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove panic password from secure storage")
+        } else {
+            KryptxResult.Success(Unit)
+        }
     }
 
     override suspend fun triggerPanicSelfDestruct(): DestructionResult = withContext(Dispatchers.Default) {

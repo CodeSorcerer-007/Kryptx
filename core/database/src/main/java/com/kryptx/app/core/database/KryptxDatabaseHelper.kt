@@ -333,6 +333,74 @@ open class KryptxDatabaseHelper(
         }
     }
 
+    @SuppressLint("ApplySharedPref")
+    open fun setMetadataBatch(entries: Map<String, String>): Boolean {
+        if (entries.isEmpty()) return true
+        return try {
+            val prefs = getSecurePrefs()
+            if (prefs == null) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences unavailable; failed to write secure metadata batch of size ${entries.size}"
+                )
+                return false
+            }
+            val editor = prefs.edit()
+            for ((key, value) in entries) {
+                editor.putString(key, value)
+            }
+            val committed = editor.commit()
+            if (!committed) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences.commit() returned false for secure metadata batch of size ${entries.size}"
+                )
+            }
+            committed
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "KryptxDatabaseHelper",
+                "Failed to write secure metadata batch",
+                t
+            )
+            false
+        }
+    }
+
+    @SuppressLint("ApplySharedPref")
+    open fun removeMetadataBatch(keys: Collection<String>): Boolean {
+        if (keys.isEmpty()) return true
+        return try {
+            val prefs = getSecurePrefs()
+            if (prefs == null) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences unavailable; failed to remove secure metadata keys: $keys"
+                )
+                return false
+            }
+            val editor = prefs.edit()
+            for (key in keys) {
+                editor.remove(key)
+            }
+            val committed = editor.commit()
+            if (!committed) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences.commit() returned false when removing secure metadata keys: $keys"
+                )
+            }
+            committed
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "KryptxDatabaseHelper",
+                "Failed to remove secure metadata keys: $keys",
+                t
+            )
+            false
+        }
+    }
+
     open fun hasVaultSetup(): Boolean {
         return getMetadata(KEY_HAS_SETUP) == "true" && getMetadata(KEY_VERIFICATION_TOKEN) != null
     }
