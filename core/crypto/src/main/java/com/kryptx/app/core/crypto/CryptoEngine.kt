@@ -320,14 +320,9 @@ object CryptoEngine {
             }
             CIPHER_TAG_AES_GCM -> {
                 val payload = encryptedData.copyOfRange(1, encryptedData.size)
-                try {
-                    decryptJvm(payload, key, associatedData)
-                } catch (e: Exception) {
-                    // Authentication tag failure must never fall through to legacy paths.
-                    if (e is javax.crypto.AEADBadTagException) throw e
-                    SecurityLogger.warn("CryptoEngine", "AES-GCM tagged decryption failed (non-auth), falling back to legacy: ${e.javaClass.simpleName}", e)
-                    decryptLegacy(encryptedData, key, associatedData)
-                }
+                // Tagged AES-GCM payloads are explicitly versioned; any failure (auth tag, key error,
+                // or corrupted payload) must fail closed immediately without falling through to legacy untagged paths.
+                decryptJvm(payload, key, associatedData)
             }
             else -> {
                 decryptLegacy(encryptedData, key, associatedData)

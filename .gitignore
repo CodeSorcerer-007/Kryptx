@@ -79,3 +79,7 @@ release-artifacts/
 target/
 **/target/
 
+# Local MCP temporary files
+.playwright-mcp/
+
+

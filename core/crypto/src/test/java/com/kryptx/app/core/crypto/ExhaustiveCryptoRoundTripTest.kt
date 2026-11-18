@@ -354,6 +354,24 @@ class ExhaustiveCryptoRoundTripTest {
         } catch (e: Exception) { /* expected */ }
     }
 
+    @Test
+    fun `cipher-tag - tagged AES-GCM fails closed on corrupted payload and never falls back to legacy`() {
+        val key = randomKey()
+        val plaintext = randomBytes(64)
+        val jvmCiphertext = CryptoEngine.encryptJvm(plaintext, key, null)
+        val taggedAesGcm = byteArrayOf(CryptoEngine.CIPHER_TAG_AES_GCM) + jvmCiphertext
+
+        // Corrupt the ciphertext payload
+        taggedAesGcm[taggedAesGcm.size - 1] = (taggedAesGcm[taggedAesGcm.size - 1].toInt() xor 0x01).toByte()
+
+        try {
+            CryptoEngine.decrypt(taggedAesGcm, key, null)
+            org.junit.Assert.fail("Tagged AES-GCM with corrupted payload must throw and fail closed")
+        } catch (_: Exception) {
+            // Expected - must fail closed
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // 7. PQC HYBRID ROUND-TRIP
     // ─────────────────────────────────────────────────────────────────────────

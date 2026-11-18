@@ -182,26 +182,45 @@ object CrashDefense {
         }
     }
 
+    @Volatile
+    private var recoveryAction: (() -> Unit)? = null
+
+    /**
+     * Registers a callback (such as locking the vault session and zeroizing volatile keys)
+     * to be invoked immediately prior to any application recovery restart.
+     */
+    fun registerRecoveryAction(action: () -> Unit) {
+        recoveryAction = action
+    }
+
     /**
      * Returns true if [throwable] is security-critical and must NOT be swallowed by the
      * immortal looper. The following categories are treated as security-critical:
      * - Strongly-typed [SecurityCriticalException] instances
+     * - Standard [SecurityException] instances
      * - Cryptographic failures: javax.crypto.*, java.security.*
-     * - SQLCipher / database key errors: net.zetetic.*
-     * - Vault session failures from our own security package
+     * - SQLCipher / database corruption & key errors: net.zetetic.*, SQLiteDatabaseCorruptException
+     * - Biometric hardware & framework failures: androidx.biometric.*, android.hardware.biometrics.*
+     * - Vault session, Key derivation, Keystore, and Argon2 failures
      * - OutOfMemoryError (could indicate a memory exhaustion attack or key allocation failure)
      * - StackOverflowError (could indicate recursive tampering hook)
      */
     fun isSecurityCritical(throwable: Throwable): Boolean {
         if (throwable is SecurityCriticalException) return true
+        if (throwable is SecurityException) return true
         if (throwable is OutOfMemoryError || throwable is StackOverflowError) return true
         val name = throwable::class.java.name
         return name.startsWith("javax.crypto.") ||
                name.startsWith("java.security.") ||
                name.startsWith("net.zetetic.") ||
+               name.startsWith("androidx.biometric.") ||
+               name.startsWith("android.hardware.biometrics.") ||
+               name.contains("SQLiteDatabaseCorrupt", ignoreCase = true) ||
                name.contains("VaultSession", ignoreCase = true) ||
                name.contains("KeyDerivation", ignoreCase = true) ||
-               name.contains("CryptoEngine", ignoreCase = true)
+               name.contains("CryptoEngine", ignoreCase = true) ||
+               name.contains("Argon2", ignoreCase = true) ||
+               name.contains("Keystore", ignoreCase = true)
     }
 
     /**
@@ -258,9 +277,18 @@ object CrashDefense {
 
     /**
      * Attempts a clean recovery when a fatal main-thread crash occurs before the UI is stable.
+     * Guarantees that registered security recovery actions (locking the vault session and zeroizing
+     * volatile keys) are executed before the launcher Activity is restarted.
      */
     private fun recoverApplicationGracefully() {
         try {
+            // Guarantee fail-safe vault locking prior to restarting UI
+            try {
+                recoveryAction?.invoke()
+            } catch (t: Throwable) {
+                SecurityLogger.error(TAG, "Failed executing security recovery action prior to restart", t)
+            }
+
             val app = applicationContextRef?.get() ?: return
             val activity = currentActivityRef?.get()
 

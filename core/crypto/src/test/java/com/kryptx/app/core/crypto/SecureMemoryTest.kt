@@ -54,4 +54,37 @@ class SecureMemoryTest {
         SecureMemory.wipe(null as ByteArray?)
         SecureMemory.wipe(null as CharArray?)
     }
+
+    @Test
+    fun testAllocateSecureBufferBasicLifecycle() {
+        val buffer = SecureMemory.allocateSecureBuffer(64, requireLock = false)
+        assertEquals(64, buffer.capacity())
+        buffer.put(0, 0x42.toByte())
+        assertEquals(0x42.toByte(), buffer.get(0))
+        SecureMemory.releaseSecureBuffer(buffer)
+        assertEquals(0.toByte(), buffer.get(0))
+    }
+
+    @Test
+    fun testWithSecureBufferExecutesAndWipes() {
+        var observedByte: Byte = 0
+        SecureMemory.withSecureBuffer(32) { buf ->
+            buf.put(0, 0xFF.toByte())
+            observedByte = buf.get(0)
+        }
+        assertEquals(0xFF.toByte(), observedByte)
+    }
+
+    @Test
+    fun testRequireLockThrowsWhenMlockUnavailable() {
+        // In JVM unit tests without native lib loaded, mlockBuffer returns false or throws
+        if (!SecureMemory.isNativeMemoryLockSupported()) {
+            try {
+                SecureMemory.allocateMandatorySecureBuffer(32)
+                org.junit.Assert.fail("Expected SecurityException when requireLock=true and mlock is unsupported")
+            } catch (e: SecurityException) {
+                assertTrue(e.message?.contains("fail-closed") == true)
+            }
+        }
+    }
 }

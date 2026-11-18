@@ -166,22 +166,50 @@ object SecureMemory {
         private set
 
     /**
-     * Allocates a memory-locked, page-aligned DirectByteBuffer that cannot be swapped to disk
-     * and is excluded from OS core dumps. Ultimate military-grade memory protection.
+     * Returns whether native memory-locking primitives (`mlockBuffer`) are loaded and functional
+     * on the current host architecture.
      */
-    fun allocateSecureBuffer(capacity: Int): java.nio.ByteBuffer {
+    @JvmStatic
+    fun isNativeMemoryLockSupported(): Boolean {
+        return NativeCryptoEngineWrapper.isNativeAvailable
+    }
+
+    /**
+     * Allocates a DirectByteBuffer, optionally locked in physical RAM via native Linux `mlock()`
+     * and excluded from OS core dumps via `MADV_DONTDUMP`.
+     *
+     * @param capacity Size in bytes of the direct buffer.
+     * @param requireLock When true, enforces a strict fail-closed policy by throwing [SecurityException]
+     *                    if memory pinning fails or is unsupported in the current OS environment.
+     * @throws SecurityException if [requireLock] is true and `mlock` cannot lock the buffer.
+     */
+    fun allocateSecureBuffer(capacity: Int, requireLock: Boolean = false): java.nio.ByteBuffer {
         val buffer = java.nio.ByteBuffer.allocateDirect(capacity)
-        isLastAllocationLocked = try {
-            val locked = mlockBuffer(buffer)
-            if (!locked) {
+        val locked = try {
+            val res = mlockBuffer(buffer)
+            if (!res) {
                 SecurityLogger.warn("SecureMemory", "mlockBuffer returned false for direct buffer of size $capacity")
             }
-            locked
+            res
         } catch (t: Throwable) {
             SecurityLogger.warn("SecureMemory", "mlockBuffer JNI failed for direct buffer of size $capacity", t)
             false
         }
+        isLastAllocationLocked = locked
+
+        if (requireLock && !locked) {
+            releaseSecureBuffer(buffer)
+            throw SecurityException("Memory locking (mlock) failed for direct buffer of size $capacity bytes: fail-closed policy enforced.")
+        }
         return buffer
+    }
+
+    /**
+     * Allocates a strictly memory-locked DirectByteBuffer. Enforces a fail-closed policy:
+     * throws [SecurityException] immediately if native `mlock` is unavailable or fails.
+     */
+    fun allocateMandatorySecureBuffer(capacity: Int): java.nio.ByteBuffer {
+        return allocateSecureBuffer(capacity, requireLock = true)
     }
 
     /**
@@ -200,10 +228,17 @@ object SecureMemory {
     }
 
     /**
-     * Allocates a memory-locked secure buffer, executes the block, and guarantees release/wipe in finally.
+     * Allocates a secure direct buffer, executes [block], and guarantees release and zeroization in `finally`.
+     *
+     * @param capacity Size in bytes of the direct buffer.
+     * @param requireLock When true, enforces a strict fail-closed policy if memory locking fails.
      */
-    inline fun <R> withSecureBuffer(capacity: Int, block: (java.nio.ByteBuffer) -> R): R {
-        val buffer = allocateSecureBuffer(capacity)
+    inline fun <R> withSecureBuffer(
+        capacity: Int,
+        requireLock: Boolean = false,
+        block: (java.nio.ByteBuffer) -> R
+    ): R {
+        val buffer = allocateSecureBuffer(capacity, requireLock = requireLock)
         return try {
             block(buffer)
         } finally {

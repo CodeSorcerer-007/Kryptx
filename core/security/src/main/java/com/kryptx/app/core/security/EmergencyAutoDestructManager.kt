@@ -115,19 +115,50 @@ class EmergencyAutoDestructManager(
     }
 
     /**
-     * Executes the emergency zeroization and purge sequence:
-     * 1. Zeroize in-memory keys via VaultSessionManager
-     * 2. Overwrite and delete SQLite database files with random bytes
-     * 3. Overwrite and delete encrypted attachments
-     * 4. Clear Android Keystore biometric keys
+     * Executes the emergency cryptographic erasure and defense-in-depth sanitization sequence:
+     * 1. Cryptographic Erasure (Volatile): Zeroize in-memory keys and lock session via [VaultSessionManager].
+     * 2. Cryptographic Erasure (Hardware): Invalidate hardware-backed Android Keystore biometric and ECDH keys.
+     * 3. Metadata Purge: Clear SharedPreferences, salts, and lockout counters.
+     * 4. Defense-in-Depth Storage Sanitization: Overwrite and unlink database files, SQLite journals, and attachments.
      */
     @SuppressLint("ApplySharedPref")
     fun triggerEmergencyWipe() {
         try {
-            // 1. Wipe in-memory session
+            // 1. Instantaneous Cryptographic Erasure: Zeroize volatile in-memory session keys
             sessionManager?.lock()
 
-            // 2. Overwrite & delete primary and decoy hidden volume database files
+            // 2. Instantaneous Cryptographic Erasure: Invalidate hardware Keystore keys.
+            // Rendering encrypted databases immediately unreadable on flash even before physical file deletion.
+            try {
+                val ks = keystoreManager ?: KeystoreManager()
+                ks.removeBiometricKey()
+                ks.removeEcdhKey()  // Also wipe the ECDH P-256 v2 migration key
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "Keystore keys removal failed or Keystore uninitialized during wipe", t)
+            }
+
+            // 3. Purge and shred SharedPreferences metadata and app settings
+            try {
+                context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+                context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to clear SharedPreferences during wipe", t)
+            }
+
+            try {
+                val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+                if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
+                    sharedPrefsDir.listFiles()?.forEach { file ->
+                        secureOverwriteFile(file)
+                        file.delete()
+                    }
+                    sharedPrefsDir.delete()
+                }
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to overwrite shared_prefs files during wipe", t)
+            }
+
+            // 4. Defense-in-depth overwrite & delete primary and decoy hidden volume database files
             val dbNames = listOf("kryptx_vault.db", "kryptx_sys_cache.db")
             for (dbName in dbNames) {
                 val dbFile = context.getDatabasePath(dbName)
@@ -173,7 +204,7 @@ class EmergencyAutoDestructManager(
                 SecurityLogger.warn("EmergencyAutoDestruct", "Failed to purge extra databases during wipe", t)
             }
 
-            // 3. Overwrite & delete attachments
+            // 5. Overwrite & delete attachments
             val attachmentsDir = File(context.filesDir, "vault_attachments")
             if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
                 attachmentsDir.listFiles()?.forEach { file ->
@@ -181,37 +212,6 @@ class EmergencyAutoDestructManager(
                     file.delete()
                 }
                 attachmentsDir.delete()
-            }
-
-            // 4. Invalidate Keystore keys (use injected instance; fall back to a fresh one
-            //    only when running in standalone/test mode without a container reference).
-            try {
-                val ks = keystoreManager ?: KeystoreManager()
-                ks.removeBiometricKey()
-                ks.removeEcdhKey()  // Also wipe the ECDH P-256 v2 migration key
-            } catch (t: Throwable) {
-                SecurityLogger.warn("EmergencyAutoDestruct", "Keystore keys removal failed or Keystore uninitialized during wipe", t)
-            }
-
-            // 5. Purge and shred SharedPreferences metadata and app settings
-            try {
-                context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
-                context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE).edit().clear().commit()
-            } catch (t: Throwable) {
-                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to clear SharedPreferences during wipe", t)
-            }
-
-            try {
-                val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
-                if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
-                    sharedPrefsDir.listFiles()?.forEach { file ->
-                        secureOverwriteFile(file)
-                        file.delete()
-                    }
-                    sharedPrefsDir.delete()
-                }
-            } catch (t: Throwable) {
-                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to overwrite shared_prefs files during wipe", t)
             }
 
             // 6. Reset counter - handled authoritatively by sessionManager.lock()
@@ -225,10 +225,11 @@ class EmergencyAutoDestructManager(
     /**
      * Overwrites a file on storage with random bytes before truncation and deletion.
      *
-     * Note: On modern flash memory with Wear Leveling / Flash Translation Layers (FTL),
-     * physical block overwriting is best-effort (documented in ADR-010). The primary
-     * defense against physical data recovery remains full-database encryption (SQLCipher)
-     * and immediate volatile key zeroization.
+     * Note: On modern flash storage with Wear Leveling / Flash Translation Layers (FTL),
+     * physical block-level overwriting cannot be guaranteed from user-space (documented in ADR-010).
+     * The primary mathematical guarantee against physical data recovery remains Cryptographic Erasure
+     * (immediate volatile session key zeroization + hardware Keystore key destruction, rendering SQLCipher
+     * ciphertext irrecoverable). This multi-pass overwrite serves as defense-in-depth against logical recovery.
      *
      * @param file The target [File] on local flash storage to overwrite, truncate, and sanitize.
      */

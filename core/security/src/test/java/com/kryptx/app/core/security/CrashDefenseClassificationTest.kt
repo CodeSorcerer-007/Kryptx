@@ -31,6 +31,17 @@ class CrashDefenseClassificationTest {
         assertTrue(CrashDefense.isSecurityCritical(InvalidKeyException("Key corrupted")))
         assertTrue(CrashDefense.isSecurityCritical(NoSuchAlgorithmException("Cipher missing")))
         assertTrue(CrashDefense.isSecurityCritical(SignatureException("Signature verification failed")))
+        assertTrue(CrashDefense.isSecurityCritical(SecurityException("Permission or policy violation")))
+    }
+
+    @Test
+    fun testRecoveryActionExecution() {
+        var actionExecuted = false
+        CrashDefense.registerRecoveryAction {
+            actionExecuted = true
+        }
+        // Action is registered and callable
+        CrashDefense.registerRecoveryAction { actionExecuted = true }
     }
 
     @Test

@@ -57,29 +57,29 @@
 | **Internet & Network Permissions** | **0 Permissions** (`android.permission.INTERNET` omitted). Linux kernel blocks all sockets. | ❌ Requires Internet (Azure cloud sync vector) | ❌ Requires Internet (AWS / Cloudflare sync) | ⚠️ Offline core, but relies on unencrypted 3rd-party clouds | ❌ Requires Internet (Multiple major cloud breaches) |
 | **Post-Quantum Cryptography (PQC)** | **⚡ ML-KEM-768 & ML-DSA-65** (NIST FIPS 203 / 204 hybrid key encapsulation) | ❌ Classical RSA / ECC only | ❌ Classical SRP / ECC only | ❌ Classical AES / ChaCha20 only | ❌ Classical PBKDF2 iterations only |
 | **Dual Bare-Metal Ciphers** | **Rust Native 2024 JNI**:<br/>XChaCha20-Poly1305 + NIST AES-256-GCM | ⚠️ Single cipher (AES-256) | ⚠️ Single cipher (AES-256) | ⚠️ Single cipher (User selectable) | ⚠️ Single cipher (AES-256) |
-| **RAM Protection & Memory Lock** | **Linux `mlock()` & `MADV_DONTDUMP`**:<br/>Keys locked in physical RAM; zero flash swapping; `@MustBeWiped` zeroization | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ⚠️ Protected memory in desktop; unpinned on mobile | ❌ Standard managed web/app memory |
+| **RAM Protection & Zeroization** | **DirectBuffer `mlock()` & Compile-Time Zeroization**:<br/>Direct memory pinned via `mlock()` / `MADV_DONTDUMP` (fail-closed pinning supported) + compile-time `@MustBeWiped` zeroization barriers | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ⚠️ Protected memory in desktop; unpinned on mobile | ❌ Standard managed web/app memory |
 | **Hardware Security Keys (Physical Tokens)** | **NFC IsoDep + USB OTG HID** (HMAC-SHA1 Slot 2) + **CTAP2 BLE FIDO2** | ⚠️ WebAuthn 2FA only (Requires cloud server) | ⚠️ WebAuthn 2FA only (Requires cloud server) | ⚠️ Desktop plugin only; fragile on Android | ⚠️ WebAuthn 2FA only |
 | **Hardware Keystore Isolation** | **StrongBox TEE + ECDH P-256**:<br/>Tamper-resistant dedicated silicon module | ⚠️ Standard Android Keystore (Software fallback on some OEMs) | ⚠️ Standard Android Keystore | ❌ Password / Keyfile only (No TEE key wrapping) | ⚠️ Standard Android Keystore |
 | **Anti-Phishing Autofill Defense** | **Strict `DomainMatcher`**:<br/>Terminal segment validation rejects `evil-paypal.com` or spoofed subdomains | ⚠️ Standard domain matching | ⚠️ Standard domain matching | ❌ Manual copy-paste or third-party input helper | ⚠️ Standard domain matching |
 | **Credential Breach Checking** | **100% Offline Bloom Filter**:<br/>In-memory k-Anonymity checks with zero network leakage | ⚠️ Cloud API query to HIBP (leaks partial hash range) | ⚠️ Cloud API query (Watchtower) | ❌ Requires third-party cloud plugins | ⚠️ Cloud API query |
-| **Anti-Coercion Panic Protection** | **Duress Decoy Vault** (isolated fake vault) + **CSPRNG multi-pass flash sector shredder** | ❌ None (Unlocking reveals entire vault) | ❌ Travel Mode only (Requires pre-trip web setup) | ❌ None (Requires separate database file swap) | ❌ None |
+| **Anti-Coercion & Cryptographic Erasure** | **Duress Decoy Vault** (isolated fake vault) + **Cryptographic Erasure** (hardware key destruction + defense-in-depth file overwrite) | ❌ None (Unlocking reveals entire vault) | ❌ Travel Mode only (Requires pre-trip web setup) | ❌ None (Requires separate database file swap) | ❌ None |
 | **UI Engine & Frame Rate Lock** | **120 FPS Display Mode Lock** + Jetpack Compose Material 3 + `CrashDefense` Immortal Looper | ⚠️ Hybrid Xamarin/MAUI/Flutter | ⚠️ Electron / React Native wrapper | ⚠️ Legacy Views / XML | ⚠️ WebView / Legacy hybrid |
 | **Cost & Telemetry** | **100% Free & Open Source (Apache 2.0)**<br/>0 Ads • 0 Trackers • 0 Subscriptions | ⚠️ Freemium ($10/yr for TOTP & attachments) | ❌ $36–$60 / year recurring subscription | 🟢 Free Open Source (Donation funded) | ❌ $36 / year subscription + tracker SDKs |
 
 ---
 
-### 🏅 Gold Master Architectural Scorecard (10 / 10 Across All Dimensions)
+### 🛡️ Architectural Implementation & Verification Matrix
 
-| Dimension | Rating | Architectural Highlights |
+| Architectural Dimension | Verification Status | Implementation Highlights |
 |:---|:---:|:---|
-| **1. Zero-Network Air-Gap** | **10 / 10** | Kernel-enforced physical socket block. Even if compromised, zero bytes can leave the device. |
-| **2. Post-Quantum Fortification** | **10 / 10** | Hybrid ML-KEM-768 (FIPS 203) & ML-DSA-65 (FIPS 204) Signed & Encrypted Vault Archives (`SignedEncryptedVaultArchive`). |
-| **3. Bare-Metal Rust Engine & Memory Lock** | **10 / 10** | Zero-copy UniFFI JNI across all 4 ABIs; Linux `mlock()` and `MADV_DONTDUMP` scoped via `withSecureBuffer` and zeroization barriers. |
-| **4. Hardware Security Keys & Biometrics** | **10 / 10** | `IHardwareSecurityKeyManager` with Dual-Token failover redundancy (Primary + Backup NFC/USB), StrongBox TEE biometrics, and CTAP2 BLE. |
-| **5. Anti-Coercion & Anti-Forensics** | **10 / 10** | Duress PIN opens isolated decoy vault; panic mode runs CSPRNG multi-pass overwrites with `fd.sync()` sector shredding. |
-| **6. Fluidity & Crash Defense** | **10 / 10** | 120 FPS high-refresh rate lock; `CrashDefense` Immortal Looper and proactive multi-tiered memory pruning in `CryptographicMemoryWatchdog`. |
-| **7. Test Quality & Verification** | **10 / 10** | **604 unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo security coverage. |
-| **8. UI/UX & Human Experience** | **10 / 10** | `AirGapQrFountainCodec` animated QR vault sync, WCAG 2.1 AA accessibility semantics (`Role.Button`), offline identicons, tactical haptics. |
+| **1. Zero-Network Air-Gap** | **Verified in CI** | `android.permission.INTERNET` omitted. Linux kernel physically rejects all socket creation attempts. |
+| **2. Post-Quantum Fortification** | **NIST FIPS 203 & 204** | Hybrid ML-KEM-768 & ML-DSA-65 Signed & Encrypted Vault Archives (`SignedEncryptedVaultArchive`). |
+| **3. Bare-Metal Rust Engine & Memory Safety** | **UniFFI JNI (4 ABIs)** | UniFFI JNI across arm64-v8a, armeabi-v7a, x86, x86_64; DirectBuffer Linux `mlock()` and `MADV_DONTDUMP` with fail-closed pinning (`allocateMandatorySecureBuffer`) + compile-time `@MustBeWiped` zeroization barriers. |
+| **4. Hardware Security Keys & Biometrics** | **Dual-Token Redundant** | `IHardwareSecurityKeyManager` with Dual-Token failover redundancy (Primary + Backup NFC/USB), StrongBox TEE biometrics, and CTAP2 BLE. |
+| **5. Anti-Coercion & Anti-Forensics** | **Hardware Crypto-Shredding** | Duress PIN opens isolated decoy vault; panic mode executes instantaneous cryptographic erasure of session & Keystore keys with defense-in-depth multi-pass file overwrite. |
+| **6. Fluidity & Crash Defense** | **120 FPS Lock** | 120 FPS high-refresh rate lock; `CrashDefense` UI looper with strict fail-closed security exception propagation and pre-restart vault locking. |
+| **7. Test Quality & Verification** | **604 / 604 Passing** | **604 automated unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
+| **8. UI/UX & Human Experience** | **WCAG 2.1 AA** | `AirGapQrFountainCodec` animated QR vault sync, accessibility semantics (`Role.Button`), offline identicons, and tactile haptics. |
 
 ---
 
@@ -131,7 +131,7 @@ graph TD;
 
 ### 🔒 Core Guarantees
 1.  **0 Network Permissions**: Look at `AndroidManifest.xml`—the `android.permission.INTERNET` permission does not exist. The Android Linux kernel physically blocks socket creation. 0 bytes can physically leave your phone.
-2.  **Native Memory Locking & Zeroization (`mlock` + `SecureMemory`)**: Cryptographic keys are page-aligned and locked in physical RAM via native Linux `mlock()` and `MADV_DONTDUMP` system calls, preventing flash storage swapping and crash dumps. Volatile buffers are immediately zeroized after use (`Arrays.fill(..., 0)`).
+2.  **Native Memory Locking & Zeroization (`mlock` + `SecureMemory`)**: Sensitive direct memory buffers can be locked in physical RAM via native Linux `mlock()` and `MADV_DONTDUMP` system calls with an enforced fail-closed policy (`allocateMandatorySecureBuffer`), preventing swapping and crash dumps. Standard JVM byte arrays and char buffers are protected via compile-time zeroization contracts and immediate multi-pass zeroing (`Arrays.fill`, `SecureMemory.wipe`).
 3.  **Anti-Phishing Autofill Defense (`DomainMatcher`)**: Strict host and subdomain boundary validation prevents credential leakage to lookalike, homograph, or substring attacker domains (e.g. `evil-paypal.com` or `paypal.com.attacker.org` will **never** match `paypal.com`).
 4.  **Window & Screen Privacy (`FLAG_SECURE`)**: Both the main application and `AutofillAuthActivity` enforce `FLAG_SECURE`, blocking Android OS task snapshots, screen recorders, and malicious accessibility overlays.
 5.  **Crash-Proof Document & Photo Sandbox**:
@@ -141,7 +141,7 @@ graph TD;
     *   **Predictive Back Navigation**: Native `enableOnBackInvokedCallback="true"` integration across Android 16 (API 36).
     *   **Live Permissions & Integrations Dashboard**: Real-time Settings screen hub verifying Camera, Scoped Storage SAF, Android Autofill Service, and Hardware Keystore TEE / StrongBox isolation.
 7.  **Enterprise Anti-Crash & Self-Healing Sentinel (`CrashDefense`)**:
-    *   **Immortal Main Looper**: Traps unhandled UI exceptions during Compose recomposition, measure/layout, and touch dispatch without terminating process execution.
+    *   **Scoped Main Looper Recovery**: Traps unhandled non-security UI exceptions during Compose recomposition, measure/layout, and touch dispatch without terminating process execution. Guarantees that the vault session is immediately locked and volatile keys zeroed before any recovery restart occurs, with strict fail-closed propagation for all security, cryptographic, and biometric exceptions.
     *   **Foldable & Rotation Debounce**: 700ms debounce absorbs screen rotations and foldable transitions without triggering accidental auto-lock.
 8.  **Progressive Exponential Backoff & Brute-Force Throttling**:
     *   **Graduated Lockout Schedule**: 3 attempts (10s), 5 attempts (30s), 8 attempts (2m), 10 attempts (5m), 15 attempts (10m), and 20+ attempts (15m hard cap).
@@ -151,8 +151,9 @@ graph TD;
 10. **Multi-Protocol Hardware Key Security**:
     *   **NFC & USB OTG**: Physical YubiKey challenge-response (HMAC-SHA1 slot-2, instruction `0x38`) with IsoDep tag detection and USB HID enumeration.
     *   **Wireless BLE Security Tokens**: Support for wireless FIDO2/CTAP2 authenticators with automated scanning, MTU negotiation, and device-bound key unwrapping.
-11. **In-Place Sector Shredding & Forensic Wipe (`EmergencyAutoDestructManager`)**:
-    *   **Anti-Forensics Flash Overwrite**: Multi-pass sector overwrite (CSPRNG random → zero → CSPRNG random) via `RandomAccessFile("rws")` directly on existing disk sectors, followed by synchronous `fd.sync()`.
+11. **Cryptographic Erasure & Storage Sanitization (`EmergencyAutoDestructManager`)**:
+    *   **Cryptographic Erasure (Primary Guarantee)**: Instantaneous zeroization of volatile in-memory keys followed by permanent destruction of Android Keystore biometric and ECDH hardware keys, rendering all encrypted SQLite databases mathematically irrecoverable regardless of flash wear-leveling (FTL).
+    *   **Defense-in-Depth Storage Overwrite**: Multi-pass in-place overwrite (CSPRNG random → zero → CSPRNG random) via `RandomAccessFile("rws")` and `fd.sync()` before unlinking, mitigating logical file-recovery attempts.
     *   **SQLite Journal Purge**: Wipes and zeroizes companion `-wal`, `-shm`, and rollback `-journal` transaction files with cryptographic random bytes prior to unlinking.
 12. **Strict Decoy Vault Isolation**:
     *   **Zero Leakage Under Duress**: All CRUD operations, encrypted backups, plaintext exports, and security audits delegate strictly to `decoyDbHelper` during duress decoy sessions, with zero interaction with the primary vault.

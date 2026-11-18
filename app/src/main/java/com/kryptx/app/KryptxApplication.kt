@@ -66,6 +66,13 @@ class KryptxApplication : Application(), KryptxDependencies {
             container = AppContainer(applicationContext)
         }
 
+        // Register recovery action to guarantee vault is locked and volatile keys zeroed on any crash restart
+        com.kryptx.app.core.security.CrashDefense.registerRecoveryAction {
+            if (::container.isInitialized) {
+                container.sessionManager.lock()
+            }
+        }
+
         // 3. Load optional offline Bloom filter for breach detection
         try {
             assets.open("breach_filter.bin").use { inputStream ->
