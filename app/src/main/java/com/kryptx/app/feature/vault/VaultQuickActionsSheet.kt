@@ -23,8 +23,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -164,10 +164,10 @@ fun VaultQuickActionsSheet(
 
             // Toggle Favorite Action
             QuickActionMenuRow(
-                icon = if (item.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                icon = if (item.isFavorite) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                 iconTint = KryptxAmber,
                 title = if (item.isFavorite) "Remove from Favorites" else "Add to Favorites",
-                subtitle = if (item.isFavorite) "Starred item" else "Pin to top favorites section",
+                subtitle = if (item.isFavorite) "Bookmarked item" else "Pin to top favorites section",
                 onClick = {
                     onDismiss()
                     onToggleFavorite(item.id)

@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,7 +62,7 @@ fun VaultSelectionTopBar(
         }
         IconButton(onClick = onBatchToggleFavorite) {
             Icon(
-                imageVector = Icons.Default.Star,
+                imageVector = Icons.Default.Bookmark,
                 contentDescription = "Batch Favorite",
                 tint = KryptxAmber
             )

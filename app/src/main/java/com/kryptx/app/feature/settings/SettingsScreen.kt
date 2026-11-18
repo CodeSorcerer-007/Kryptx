@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Devices
@@ -198,7 +198,7 @@ fun SettingsScreen(
             SettingsNavRow(
                 title = "Dashboard Categories & Layout",
                 subtitle = "Customize visible category badges and smart minimalist view",
-                icon = Icons.Default.AutoAwesome,
+                icon = Icons.Default.Category,
                 onClick = { showCategorySheet = true }
             )
 

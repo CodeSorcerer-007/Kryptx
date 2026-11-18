@@ -183,7 +183,7 @@ fun VaultSearchBar(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val pills = listOf(
-                        "is:fav" to "⭐ Favorites",
+                        "is:fav" to "🔖 Favorites",
                         "is:weak" to "⚠️ Weak",
                         "has:2fa" to "🔑 2FA",
                         "expiring:30d" to "⏰ Expiring",

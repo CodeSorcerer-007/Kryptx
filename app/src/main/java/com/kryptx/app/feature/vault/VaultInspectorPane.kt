@@ -23,8 +23,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -155,7 +155,7 @@ fun VaultInspectorPane(
                         // Action Buttons: Favorite, Edit, Close
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             KryptxCircleIconButton(
-                                icon = if (selectedItem.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                icon = if (selectedItem.isFavorite) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                                 contentDescription = "Favorite",
                                 iconTint = if (selectedItem.isFavorite) KryptxAmber else MaterialTheme.colorScheme.onSurface,
                                 onClick = {

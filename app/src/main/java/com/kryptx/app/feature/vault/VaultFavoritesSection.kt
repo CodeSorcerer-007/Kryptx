@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -101,7 +101,7 @@ fun FavoriteItemCard(
             ) {
                 ItemTypeBadge(type = item.type, modifier = Modifier.size(28.dp))
                 Icon(
-                    imageVector = Icons.Default.Star,
+                    imageVector = Icons.Default.Bookmark,
                     contentDescription = "Favorite",
                     tint = KryptxAmber,
                     modifier = Modifier.size(16.dp)

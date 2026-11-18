@@ -25,8 +25,8 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import com.kryptx.app.core.model.IssueSeverity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -151,7 +151,7 @@ fun VaultItemDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     KryptxCircleIconButton(
-                        icon = if (item.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                        icon = if (item.isFavorite) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                         contentDescription = "Favorite",
                         iconTint = if (item.isFavorite) KryptxAmber else MaterialTheme.colorScheme.onSurface,
                         onClick = { viewModel.toggleFavorite(item.id) }

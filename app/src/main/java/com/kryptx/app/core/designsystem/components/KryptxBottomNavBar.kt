@@ -20,9 +20,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,7 +61,7 @@ enum class BottomNavTab(
 ) {
     VAULT("Vault", Icons.Default.Lock, FeatureGuide.VAULT),
     TOTP("2FA", Icons.Default.Key, FeatureGuide.TOTP),
-    GENERATOR("Generator", Icons.Default.AutoAwesome, FeatureGuide.GENERATOR),
+    GENERATOR("Generator", Icons.Default.Password, FeatureGuide.GENERATOR),
     SETTINGS("Settings", Icons.Default.Settings, FeatureGuide.SETTINGS)
 }
 

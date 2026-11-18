@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
@@ -83,7 +83,7 @@ enum class FeatureGuide(
         key = "generator_tab",
         title = "Credential Generator",
         subtitle = "Unbreakable Random Entropy",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Password,
         whatIsIt = "Creates cryptographically secure random passwords, passphrases, PINs, and usernames.",
         whyUseIt = "Stops credential stuffing by ensuring every single account has a unique, high-entropy secret.",
         proTip = "Try 'Passphrase' mode for 4-word passphrases that are easy to type yet mathematically uncrackable."

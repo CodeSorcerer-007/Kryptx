@@ -45,7 +45,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.VpnKey
 import com.kryptx.app.core.designsystem.components.KryptxPermissionRationaleDialog
 import androidx.compose.material3.AlertDialog
@@ -596,7 +596,7 @@ fun TotpAccountCard(
                     )
                     if (account.item.isFavorite) {
                         Spacer(modifier = Modifier.width(6.dp))
-                        Icon(Icons.Default.Star, contentDescription = "Favorite", tint = KryptxAmber, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Bookmark, contentDescription = "Favorite", tint = KryptxAmber, modifier = Modifier.size(14.dp))
                     }
                 }
                 if (account.item.username.isNotBlank()) {

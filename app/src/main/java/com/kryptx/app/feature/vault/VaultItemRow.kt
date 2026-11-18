@@ -28,9 +28,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -109,10 +109,10 @@ fun VaultItemRow(
         label = "borderColor"
     )
 
-    val starScale by animateFloatAsState(
+    val favoriteScale by animateFloatAsState(
         targetValue = if (item.isFavorite) 1.15f else 1.0f,
         animationSpec = KryptxMotion.SnappySpring,
-        label = "starScale"
+        label = "favoriteScale"
     )
 
     val copyScale by animateFloatAsState(
@@ -256,7 +256,7 @@ fun VaultItemRow(
             }
 
             if (!isSelectionMode) {
-                // Favorite star button with spring scale
+                // Favorite bookmark button with spring scale
                 IconButton(
                     onClick = {
                         KryptxHaptics.tap(view)
@@ -267,12 +267,12 @@ fun VaultItemRow(
                         .testTag("vault_item_favorite_${item.id}")
                 ) {
                     Icon(
-                        imageVector = if (item.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                        imageVector = if (item.isFavorite) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                         contentDescription = if (item.isFavorite) "Remove favorite" else "Add favorite",
                         tint = if (item.isFavorite) KryptxAmber else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                         modifier = Modifier
                             .size(19.dp)
-                            .scale(starScale)
+                            .scale(favoriteScale)
                     )
                 }
 

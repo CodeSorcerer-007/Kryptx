@@ -125,7 +125,7 @@ fun SearchScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 SearchFilterPill(
-                    label = "⭐ Favorites",
+                    label = "🔖 Favorites",
                     isSelected = selectedFilter == "FAVORITES",
                     onClick = { viewModel.selectFilter("FAVORITES") }
                 )
