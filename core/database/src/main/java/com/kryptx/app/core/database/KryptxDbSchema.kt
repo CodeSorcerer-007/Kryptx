@@ -67,6 +67,19 @@ object KryptxDbSchema {
     const val KEY_HW_SALT = "hw_kdf_salt"
     const val KEY_HW_VERIFICATION_TOKEN = "hw_verification_token"
 
+    // Panic PIN metadata keys
+    const val KEY_PANIC_SALT = "panic_salt"
+    const val KEY_PANIC_TOKEN = "panic_token"
+    const val KEY_PANIC_HASH = "panic_hash"
+    const val KEY_HAS_PANIC = "has_panic_setup"
+    const val KEY_PANIC_KDF_ALGORITHM = "panic_kdf_algorithm"
+
+    // Key Rotation Journal schema constants
+    const val KEY_ROTATION_PHASE = "key_rotation_phase"
+    const val KEY_ROTATION_OLD_TOKEN = "key_rotation_old_token"
+    const val KEY_ROTATION_TIMESTAMP = "key_rotation_timestamp"
+    const val KEY_ROTATION_RECOVERY_REQUIRED = "key_rotation_recovery_required"
+
     // Table DDL Statements
     val SQL_CREATE_TABLE_VAULT_ITEMS = """
         CREATE TABLE $TABLE_VAULT_ITEMS (

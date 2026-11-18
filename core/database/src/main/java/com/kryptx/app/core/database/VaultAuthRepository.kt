@@ -45,6 +45,11 @@ interface VaultAuthRepository {
     suspend fun removePanicPassword(): KryptxResult<Unit>
     suspend fun triggerPanicSelfDestruct(): DestructionResult
 
+    fun verifyPanicCredential(candidate: CharArray): Boolean = false
+    fun verifyDuressCredential(candidate: CharArray): Boolean = false
+    fun verifyMasterCredential(candidate: CharArray): Boolean = false
+    fun isKeyRotationRecoveryRequired(): Boolean = false
+
     fun isHardwareKeyEnrolled(): Boolean
     fun getHardwareKeyLabel(): String?
     fun getHardwareKeyChallenge(): ByteArray?
@@ -59,6 +64,15 @@ interface VaultAuthRepository {
 
     fun getPqcIdentityPublicKey(): ByteArray?
     suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit>
+}
+
+enum class RotationPhase {
+    IDLE,
+    STARTED,
+    ITEMS_RE_ENCRYPTED,
+    TOKEN_COMMITTED,
+    DATABASE_REKEYED,
+    COMPLETED
 }
 
 class VaultAuthRepositoryImpl(
@@ -89,7 +103,8 @@ class VaultAuthRepositoryImpl(
 
     private fun base64Decode(str: String): ByteArray {
         return try {
-            Base64.decode(str, Base64.NO_WRAP) ?: java.util.Base64.getDecoder().decode(str)
+            val res: ByteArray? = Base64.decode(str, Base64.NO_WRAP)
+            res ?: java.util.Base64.getDecoder().decode(str)
         } catch (_: Throwable) {
             java.util.Base64.getDecoder().decode(str)
         }
@@ -97,7 +112,8 @@ class VaultAuthRepositoryImpl(
 
     private fun base64Encode(bytes: ByteArray): String {
         return try {
-            Base64.encodeToString(bytes, Base64.NO_WRAP) ?: java.util.Base64.getEncoder().encodeToString(bytes)
+            val res: String? = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            res ?: java.util.Base64.getEncoder().encodeToString(bytes)
         } catch (_: Throwable) {
             java.util.Base64.getEncoder().encodeToString(bytes)
         }
@@ -113,8 +129,8 @@ class VaultAuthRepositoryImpl(
             vek = CryptoEngine.generateVaultKey()
 
             val encryptedVekPayload = CryptoEngine.encrypt(vek, derivedMasterKey)
-            val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
-            val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val tokenBase64 = base64Encode(encryptedVekPayload)
+            val saltBase64 = base64Encode(salt)
 
             val dbKey = deriveSqlCipherKey(vek)
             dbHelper.setDatabaseKey(dbKey)
@@ -199,59 +215,19 @@ class VaultAuthRepositoryImpl(
                 "Too many failed unlock attempts. Please wait ${sessionManager.lockoutSecondsRemaining.value}s."
             )
         }
-        if (hasPanicPassword()) {
-            val panicSaltBase64 = dbHelper.getMetadata("panic_salt")
-            val panicTokenBase64 = dbHelper.getMetadata("panic_token")
-            val panicHashBase64 = dbHelper.getMetadata("panic_hash")
-            val panicKdfAlgorithm = dbHelper.getMetadata("panic_kdf_algorithm")
-            if (panicSaltBase64 != null && (!panicTokenBase64.isNullOrBlank() || !panicHashBase64.isNullOrBlank())) {
-                val panicSalt = Base64.decode(panicSaltBase64, Base64.NO_WRAP)
-                var derivedPanicKey: ByteArray? = null
-                var isPanicMatch = false
-                try {
-                    // Use Argon2id for new entries; fall back to PBKDF2 for legacy entries
-                    derivedPanicKey = if (panicKdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-                        KeyDerivation.deriveKeyArgon2(masterPassword, panicSalt)
-                    } else {
-                        KeyDerivation.deriveKey(masterPassword, panicSalt)
-                    }
-
-                    if (!panicTokenBase64.isNullOrBlank()) {
-                        try {
-                            val tokenBytes = Base64.decode(panicTokenBase64, Base64.NO_WRAP)
-                            val decrypted = CryptoEngine.decrypt(tokenBytes, derivedPanicKey, "kryptx-panic-auth".toByteArray(Charsets.UTF_8))
-                            SecureMemory.wipe(decrypted)
-                            isPanicMatch = true
-                        } catch (_: Exception) {
-                            // Expected if password doesn't match panic PIN
-                        }
-                    } else if (!panicHashBase64.isNullOrBlank()) {
-                        // Legacy fallback for SHA-256 hash stored passwords
-                        try {
-                            val expectedHash = Base64.decode(panicHashBase64, Base64.NO_WRAP)
-                            val md = java.security.MessageDigest.getInstance("SHA-256")
-                            val actualHash = md.digest(derivedPanicKey)
-                            if (SecureMemory.safeEquals(actualHash, expectedHash)) {
-                                isPanicMatch = true
-                            }
-                        } catch (_: Exception) {
-                            // Expected if hash format invalid
-                        }
-                    }
-                } finally {
-                    SecureMemory.wipe(derivedPanicKey)
-                    SecureMemory.wipe(panicSalt)
-                }
-
-                if (isPanicMatch) {
-                    val destructResult = triggerPanicSelfDestruct()
-                    return@withContext if (destructResult is DestructionResult.Success) {
-                        KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault has been wiped via panic self-destruct.")
-                    } else {
-                        val errMsg = (destructResult as? DestructionResult.Incomplete)?.errorMessage ?: "Incomplete panic destruction"
-                        KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Panic wipe incomplete: $errMsg")
-                    }
-                }
+        if (isKeyRotationRecoveryRequired()) {
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.DATABASE_ERROR,
+                "Vault key rotation was interrupted or failed rollback. Vault recovery required."
+            )
+        }
+        if (hasPanicPassword() && verifyPanicCredential(masterPassword)) {
+            val destructResult = triggerPanicSelfDestruct()
+            return@withContext if (destructResult is DestructionResult.Success) {
+                KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault has been wiped via panic self-destruct.")
+            } else {
+                val errMsg = (destructResult as? DestructionResult.Incomplete)?.errorMessage ?: "Incomplete panic destruction"
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Panic wipe incomplete: $errMsg")
             }
         }
 
@@ -315,8 +291,8 @@ class VaultAuthRepositoryImpl(
                         val newDerivedMasterKey = KeyDerivation.deriveKeyArgon2(masterPassword, newSalt, newParams)
                         val newEncryptedVekPayload = CryptoEngine.encrypt(vek, newDerivedMasterKey)
                         val migrationBatch = mapOf(
-                            KryptxDbSchema.KEY_SALT to Base64.encodeToString(newSalt, Base64.NO_WRAP),
-                            KryptxDbSchema.KEY_VERIFICATION_TOKEN to Base64.encodeToString(newEncryptedVekPayload, Base64.NO_WRAP),
+                            KryptxDbSchema.KEY_SALT to base64Encode(newSalt),
+                            KryptxDbSchema.KEY_VERIFICATION_TOKEN to base64Encode(newEncryptedVekPayload),
                             KryptxDbSchema.KEY_KDF_ALGORITHM to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier,
                             KryptxDbSchema.KEY_ARGON2_MEMORY_KB to newParams.memoryCostKb.toString(),
                             KryptxDbSchema.KEY_ARGON2_ITERATIONS to newParams.iterations.toString(),
@@ -345,7 +321,7 @@ class VaultAuthRepositoryImpl(
                         } else {
                             val newWrappedVek = keystoreManager.wrapWithPublicKey(vek)
                             val bioBatch = mapOf(
-                                KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK to Base64.encodeToString(newWrappedVek, Base64.NO_WRAP),
+                                KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK to base64Encode(newWrappedVek),
                                 KryptxDbSchema.KEY_BIOMETRIC_IV to "rsa_oaep"
                             )
                             val committed = dbHelper.setMetadataBatch(bioBatch)
@@ -381,8 +357,8 @@ class VaultAuthRepositoryImpl(
             val duressTokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_DURESS_TOKEN)
 
             if (duressSaltBase64 != null && duressTokenBase64 != null) {
-                val duressSalt = Base64.decode(duressSaltBase64, Base64.NO_WRAP)
-                val duressTokenBytes = Base64.decode(duressTokenBase64, Base64.NO_WRAP)
+                val duressSalt = base64Decode(duressSaltBase64)
+                val duressTokenBytes = base64Decode(duressTokenBase64)
                 val derivedDuressKey = KeyDerivation.deriveKeyArgon2(masterPassword, duressSalt)
 
                 var decoyVek: ByteArray? = null
@@ -422,12 +398,14 @@ class VaultAuthRepositoryImpl(
             try {
                 keystoreManager.removeBiometricKey()
                 val wrappedVek = keystoreManager.wrapWithPublicKey(activeVek)
-                val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
+                val wrappedBase64 = base64Encode(wrappedVek)
 
-                val savedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
-                val savedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
-                if (!savedVek || !savedIv) {
-                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata to secure storage")
+                val bioBatch = mapOf(
+                    KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK to wrappedBase64,
+                    KryptxDbSchema.KEY_BIOMETRIC_IV to "rsa_oaep"
+                )
+                if (!dbHelper.setMetadataBatch(bioBatch)) {
+                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata batch to secure storage")
                     return@withVaultKey KryptxResult.Error(
                         KryptxErrorType.DATABASE_ERROR,
                         "Failed to persist biometric metadata to secure storage"
@@ -444,12 +422,14 @@ class VaultAuthRepositoryImpl(
         sessionManager.withVaultKey { activeVek ->
             try {
                 val (wrappedVek, _) = keystoreManager.wrapWithCipher(cipher, activeVek)
-                val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
+                val wrappedBase64 = base64Encode(wrappedVek)
 
-                val savedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
-                val savedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
-                if (!savedVek || !savedIv) {
-                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata to secure storage")
+                val bioBatch = mapOf(
+                    KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK to wrappedBase64,
+                    KryptxDbSchema.KEY_BIOMETRIC_IV to "rsa_oaep"
+                )
+                if (!dbHelper.setMetadataBatch(bioBatch)) {
+                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata batch to secure storage")
                     return@withVaultKey KryptxResult.Error(
                         KryptxErrorType.DATABASE_ERROR,
                         "Failed to persist biometric metadata to secure storage"
@@ -471,11 +451,13 @@ class VaultAuthRepositoryImpl(
             try {
                 keystoreManager.removeBiometricKey()
                 val wrappedVek = keystoreManager.wrapWithPublicKey(activeVek)
-                val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
-                val savedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
-                val savedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
-                if (!savedVek || !savedIv) {
-                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata to secure storage")
+                val wrappedBase64 = base64Encode(wrappedVek)
+                val bioBatch = mapOf(
+                    KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK to wrappedBase64,
+                    KryptxDbSchema.KEY_BIOMETRIC_IV to "rsa_oaep"
+                )
+                if (!dbHelper.setMetadataBatch(bioBatch)) {
+                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata batch to secure storage")
                     return@withVaultKey KryptxResult.Error(
                         KryptxErrorType.DATABASE_ERROR,
                         "Failed to persist biometric metadata to secure storage"
@@ -501,7 +483,7 @@ class VaultAuthRepositoryImpl(
             ?: return@withContext KryptxResult.Error(KryptxErrorType.BIOMETRICS_NOT_AVAILABLE, "No biometric key stored")
         var vek: ByteArray? = null
         try {
-            val wrappedBytes = Base64.decode(wrappedBase64, Base64.NO_WRAP)
+            val wrappedBytes = base64Decode(wrappedBase64)
             vek = keystoreManager.unwrapWithCipher(cipher, wrappedBytes)
 
             val dbKey = deriveSqlCipherKey(vek)
@@ -546,12 +528,14 @@ class VaultAuthRepositoryImpl(
                 "Failed to delete biometric key from Android Keystore. Biometrics cannot be safely disabled while hardware alias remains."
             )
         }
-        val clearedWrappedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, "")
-        val clearedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "")
-        if (!clearedWrappedVek || !clearedIv) {
+        val bioBatch = mapOf(
+            KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK to "",
+            KryptxDbSchema.KEY_BIOMETRIC_IV to ""
+        )
+        if (!dbHelper.setMetadataBatch(bioBatch)) {
             SecurityLogger.error(
                 "VaultAuthRepository",
-                "Failed to commit metadata clearing during disableBiometrics (clearedWrappedVek=$clearedWrappedVek, clearedIv=$clearedIv)"
+                "Failed to commit metadata clearing during disableBiometrics"
             )
             return@withContext KryptxResult.Error(
                 KryptxErrorType.DATABASE_ERROR,
@@ -571,8 +555,8 @@ class VaultAuthRepositoryImpl(
             val tokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN)
                 ?: return@withVaultKey KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault token not found")
 
-            val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
-            val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+            val salt = base64Decode(saltBase64)
+            val tokenBytes = base64Decode(tokenBase64)
             val currentDerivedKey = deriveMasterKeyForVault(currentPassword, salt)
 
             val verifiedVek = try {
@@ -586,14 +570,27 @@ class VaultAuthRepositoryImpl(
             SecureMemory.wipe(salt)
             SecureMemory.wipe(verifiedVek)
 
+            if (verifyDuressCredential(newPassword)) {
+                return@withVaultKey KryptxResult.Error(
+                    KryptxErrorType.WRONG_PASSWORD,
+                    "New master password cannot be identical to your Duress PIN"
+                )
+            }
+            if (verifyPanicCredential(newPassword)) {
+                return@withVaultKey KryptxResult.Error(
+                    KryptxErrorType.WRONG_PASSWORD,
+                    "New master password cannot be identical to your Panic PIN"
+                )
+            }
+
             val newSalt = KeyDerivation.generateSalt()
             val newParams = Argon2Engine.Argon2Params.forDevice()
             val newDerivedKey = KeyDerivation.deriveKeyArgon2(newPassword, newSalt, newParams)
             val newEncryptedVek = CryptoEngine.encrypt(activeVek, newDerivedKey)
 
             val newMetadataBatch = mapOf(
-                KryptxDbSchema.KEY_SALT to Base64.encodeToString(newSalt, Base64.NO_WRAP),
-                KryptxDbSchema.KEY_VERIFICATION_TOKEN to Base64.encodeToString(newEncryptedVek, Base64.NO_WRAP),
+                KryptxDbSchema.KEY_SALT to base64Encode(newSalt),
+                KryptxDbSchema.KEY_VERIFICATION_TOKEN to base64Encode(newEncryptedVek),
                 KryptxDbSchema.KEY_KDF_ALGORITHM to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier,
                 KryptxDbSchema.KEY_ARGON2_MEMORY_KB to newParams.memoryCostKb.toString(),
                 KryptxDbSchema.KEY_ARGON2_ITERATIONS to newParams.iterations.toString(),
@@ -636,14 +633,25 @@ class VaultAuthRepositoryImpl(
             SecureMemory.wipe(verifiedVek)
 
             val newVek = CryptoEngine.generateVaultKey()
-            var reEncrypted = false
-            var tokenUpdated = false
-            var rekeyed = false
+            var currentPhase = RotationPhase.IDLE
 
             try {
+                // Initialize durable journal before performing any irreversible mutation
+                val journalBatch = mapOf(
+                    KryptxDbSchema.KEY_ROTATION_PHASE to RotationPhase.STARTED.name,
+                    KryptxDbSchema.KEY_ROTATION_OLD_TOKEN to tokenBase64,
+                    KryptxDbSchema.KEY_ROTATION_TIMESTAMP to System.currentTimeMillis().toString(),
+                    KryptxDbSchema.KEY_ROTATION_RECOVERY_REQUIRED to "false"
+                )
+                if (!dbHelper.setMetadataBatch(journalBatch)) {
+                    throw IllegalStateException("Failed to initialize key rotation journal in secure storage")
+                }
+                currentPhase = RotationPhase.STARTED
+
                 // Step 1: Re-encrypt all vault items under new VEK (transactional SQL)
                 dbHelper.reEncryptVaultWithNewKey(activeVek, newVek)
-                reEncrypted = true
+                dbHelper.setMetadata(KryptxDbSchema.KEY_ROTATION_PHASE, RotationPhase.ITEMS_RE_ENCRYPTED.name)
+                currentPhase = RotationPhase.ITEMS_RE_ENCRYPTED
 
                 // Step 2: Encrypt new VEK under master password and update verification token
                 val newEncryptedVek = CryptoEngine.encrypt(newVek, currentDerivedKey)
@@ -651,59 +659,111 @@ class VaultAuthRepositoryImpl(
                 if (!tokenSaved) {
                     throw IllegalStateException("Failed to commit rotated verification token to secure storage")
                 }
-                tokenUpdated = true
+                dbHelper.setMetadata(KryptxDbSchema.KEY_ROTATION_PHASE, RotationPhase.TOKEN_COMMITTED.name)
+                currentPhase = RotationPhase.TOKEN_COMMITTED
 
-                // Step 3: Rekey SQLCipher database file encryption to match new VEK (non-transactional PRAGMA rekey, last)
+                // Step 3: Rekey SQLCipher database file encryption to match new VEK (PRAGMA rekey)
                 val newDbKey = deriveSqlCipherKey(newVek)
-                dbHelper.rekeyDatabase(newDbKey)
-                SecureMemory.wipe(newDbKey)
-                rekeyed = true
+                try {
+                    dbHelper.rekeyDatabase(newDbKey)
+                } finally {
+                    SecureMemory.wipe(newDbKey)
+                }
+                dbHelper.setMetadata(KryptxDbSchema.KEY_ROTATION_PHASE, RotationPhase.DATABASE_REKEYED.name)
+                currentPhase = RotationPhase.DATABASE_REKEYED
 
-                // Step 4: sessionManager.unlock(newVek)
+                // Step 4: Swap active session key
                 sessionManager.unlock(newVek, isDecoy = false)
+
+                // Re-encrypt PQC identity key under new VEK
+                try {
+                    generateAndStorePqcIdentityKeyPair(newVek)
+                } catch (pqcEx: Exception) {
+                    SecurityLogger.warn("VaultAuthRepository", "Failed to re-encrypt PQC identity key under new VEK", pqcEx)
+                }
 
                 if (isBiometricsConfigured()) {
                     setupBiometrics()
                 }
 
-                SecureMemory.wipe(newVek)
-                SecureMemory.wipe(currentDerivedKey)
-                SecureMemory.wipe(salt)
+                // Step 5: Clean up journal
+                dbHelper.removeMetadataBatch(
+                    listOf(
+                        KryptxDbSchema.KEY_ROTATION_PHASE,
+                        KryptxDbSchema.KEY_ROTATION_OLD_TOKEN,
+                        KryptxDbSchema.KEY_ROTATION_TIMESTAMP
+                    )
+                )
+
                 onAuditInvalidated?.invoke()
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
-                // Rollback partially applied rotation steps to preserve complete vault consistency
-                if (rekeyed) {
+                SecurityLogger.error("VaultAuthRepository", "Key rotation failed during phase $currentPhase, executing phase-aware rollback", e)
+                val rollbackFailures = mutableListOf<String>()
+
+                // Rollback Step 3: If database was rekeyed, revert SQLCipher page encryption
+                if (currentPhase >= RotationPhase.DATABASE_REKEYED) {
                     val oldDbKey = deriveSqlCipherKey(activeVek)
                     try {
                         dbHelper.rekeyDatabase(oldDbKey)
                     } catch (rollbackRekeyEx: Exception) {
+                        rollbackFailures.add("Database rekey rollback failed: ${rollbackRekeyEx.message}")
                         SecurityLogger.error("VaultAuthRepository", "Rollback rekeyDatabase failed", rollbackRekeyEx)
                     } finally {
                         SecureMemory.wipe(oldDbKey)
                     }
                 }
-                if (tokenUpdated) {
-                    try {
-                        dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, tokenBase64)
-                    } catch (rollbackTokenEx: Exception) {
-                        SecurityLogger.error("VaultAuthRepository", "Rollback verification token failed", rollbackTokenEx)
+
+                // Rollback Step 2: If token was committed, restore old token and verify
+                if (currentPhase >= RotationPhase.TOKEN_COMMITTED) {
+                    val tokenRestored = dbHelper.setMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN, tokenBase64)
+                    if (!tokenRestored) {
+                        rollbackFailures.add("Verification token restore failed")
+                        SecurityLogger.error("VaultAuthRepository", "Rollback verification token failed")
                     }
                 }
-                if (reEncrypted) {
+
+                // Rollback Step 1: If items were re-encrypted, re-encrypt items back to activeVek
+                if (currentPhase >= RotationPhase.ITEMS_RE_ENCRYPTED) {
                     try {
                         dbHelper.reEncryptVaultWithNewKey(newVek, activeVek)
                     } catch (rollbackReEncryptEx: Exception) {
+                        rollbackFailures.add("Item re-encryption rollback failed: ${rollbackReEncryptEx.message}")
                         SecurityLogger.error("VaultAuthRepository", "Rollback reEncryptVaultWithNewKey failed", rollbackReEncryptEx)
                     }
                 }
 
+                if (rollbackFailures.isNotEmpty()) {
+                    // Mark recovery required in metadata so future unlocks and operations fail closed safely
+                    dbHelper.setMetadata(KryptxDbSchema.KEY_ROTATION_RECOVERY_REQUIRED, "true")
+                    SecurityLogger.error(
+                        "VaultAuthRepository",
+                        "CRITICAL: Key rotation rollback failed: ${rollbackFailures.joinToString("; ")}. Recovery flag set."
+                    )
+                    KryptxResult.Error(
+                        KryptxErrorType.DATABASE_ERROR,
+                        "Key rotation failed and rollback was incomplete (${rollbackFailures.joinToString("; ")}). Vault recovery required.",
+                        e
+                    )
+                } else {
+                    // Rollback was completely clean: remove the transient journal entries
+                    dbHelper.removeMetadataBatch(
+                        listOf(
+                            KryptxDbSchema.KEY_ROTATION_PHASE,
+                            KryptxDbSchema.KEY_ROTATION_OLD_TOKEN,
+                            KryptxDbSchema.KEY_ROTATION_TIMESTAMP
+                        )
+                    )
+                    KryptxResult.Error(
+                        KryptxErrorType.DATABASE_ERROR,
+                        "Failed to rotate encryption key. All changes have been safely rolled back.",
+                        e
+                    )
+                }
+            } finally {
                 SecureMemory.wipe(newVek)
                 SecureMemory.wipe(currentDerivedKey)
                 SecureMemory.wipe(salt)
-                // Log internally but do NOT expose raw exception details to user-facing messages
-                SecurityLogger.error("VaultAuthRepository", "Encryption key rotation failed (rolled back)", e)
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to rotate encryption key. Please try again.", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
@@ -711,70 +771,40 @@ class VaultAuthRepositoryImpl(
     override fun hasDuressPassword(): Boolean = dbHelper.hasDuressSetup()
 
     override suspend fun setupDuressPassword(duressPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
-        val masterSaltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_SALT)
-        val masterTokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN)
-        if (masterSaltBase64 != null && masterTokenBase64 != null) {
-            val masterSalt = Base64.decode(masterSaltBase64, Base64.NO_WRAP)
-            val masterToken = Base64.decode(masterTokenBase64, Base64.NO_WRAP)
-            val kdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM)
-            val testDerivedKey = if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-                KeyDerivation.deriveKeyArgon2(duressPassword, masterSalt)
-            } else {
-                KeyDerivation.deriveKey(duressPassword, masterSalt)
-            }
-            var matchesMaster = false
-            try {
-                val decrypted = CryptoEngine.decrypt(masterToken, testDerivedKey)
-                SecureMemory.wipe(decrypted)
-                matchesMaster = true
-            } catch (_: Exception) {
-            } finally {
-                SecureMemory.wipe(testDerivedKey)
-                SecureMemory.wipe(masterSalt)
-            }
-            if (matchesMaster) {
-                return@withContext KryptxResult.Error(
-                    KryptxErrorType.WRONG_PASSWORD,
-                    "Duress PIN cannot be identical to your master password"
-                )
-            }
+        if (verifyMasterCredential(duressPassword)) {
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.WRONG_PASSWORD,
+                "Duress PIN cannot be identical to your master password"
+            )
         }
 
-        if (hasPanicPassword()) {
-            val panicSaltBase64 = dbHelper.getMetadata("panic_salt")
-            val panicHashBase64 = dbHelper.getMetadata("panic_hash")
-            val panicKdfAlgorithm = dbHelper.getMetadata("panic_kdf_algorithm")
-            if (panicSaltBase64 != null && panicHashBase64 != null) {
-                val pSalt = Base64.decode(panicSaltBase64, Base64.NO_WRAP)
-                val expectedHash = Base64.decode(panicHashBase64, Base64.NO_WRAP)
-                val testPanicKey = if (panicKdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-                    KeyDerivation.deriveKeyArgon2(duressPassword, pSalt)
-                } else {
-                    KeyDerivation.deriveKey(duressPassword, pSalt)
-                }
-                val md = java.security.MessageDigest.getInstance("SHA-256")
-                val actualHash = md.digest(testPanicKey)
-                val matchesPanic = SecureMemory.safeEquals(actualHash, expectedHash)
-                SecureMemory.wipe(testPanicKey)
-                SecureMemory.wipe(pSalt)
-                if (matchesPanic) {
-                    return@withContext KryptxResult.Error(
-                        KryptxErrorType.WRONG_PASSWORD,
-                        "Duress PIN cannot be identical to your Panic PIN"
-                    )
-                }
-            }
+        if (verifyPanicCredential(duressPassword)) {
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.WRONG_PASSWORD,
+                "Duress PIN cannot be identical to your Panic PIN"
+            )
         }
+
+        var salt: ByteArray? = null
+        var derivedDuressKey: ByteArray? = null
+        var decoyVek: ByteArray? = null
+        var decoyDbKey: ByteArray? = null
 
         try {
-            val salt = KeyDerivation.generateSalt()
-            val derivedDuressKey = KeyDerivation.deriveKeyArgon2(duressPassword, salt)
-            val decoyVek = CryptoEngine.generateVaultKey()
+            salt = KeyDerivation.generateSalt()
+            derivedDuressKey = KeyDerivation.deriveKeyArgon2(duressPassword, salt)
+            decoyVek = CryptoEngine.generateVaultKey()
             val encryptedDecoyPayload = CryptoEngine.encrypt(decoyVek, derivedDuressKey)
 
-            val tokenBase64 = Base64.encodeToString(encryptedDecoyPayload, Base64.NO_WRAP)
-            val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val tokenBase64 = base64Encode(encryptedDecoyPayload)
+            val saltBase64 = base64Encode(salt)
 
+            // Step 1: Stage decoy database key and provision items BEFORE committing metadata
+            decoyDbKey = deriveSqlCipherKey(decoyVek)
+            decoyDbHelper.setDatabaseKey(decoyDbKey)
+            decoyDbHelper.provisionDefaultItems(decoyVek)
+
+            // Step 2: Commit metadata batch atomically
             val duressBatch = mapOf(
                 KryptxDbSchema.KEY_DURESS_SALT to saltBase64,
                 KryptxDbSchema.KEY_DURESS_TOKEN to tokenBase64,
@@ -784,18 +814,31 @@ class VaultAuthRepositoryImpl(
                 throw IllegalStateException("Failed to commit duress vault metadata to secure storage")
             }
 
-            val decoyDbKey = deriveSqlCipherKey(decoyVek)
-            decoyDbHelper.setDatabaseKey(decoyDbKey)
+            KryptxResult.Success(Unit)
+        } catch (e: Exception) {
+            SecurityLogger.error("VaultAuthRepository", "Failed to setup duress vault, rolling back decoy database and metadata", e)
+            try {
+                decoyDbHelper.clearAllData()
+            } catch (clearEx: Exception) {
+                SecurityLogger.warn("VaultAuthRepository", "Failed to clear decoy DB during rollback", clearEx)
+            }
+            try {
+                dbHelper.removeMetadataBatch(
+                    listOf(
+                        KryptxDbSchema.KEY_DURESS_SALT,
+                        KryptxDbSchema.KEY_DURESS_TOKEN,
+                        KryptxDbSchema.KEY_HAS_DURESS
+                    )
+                )
+            } catch (metaEx: Exception) {
+                SecurityLogger.warn("VaultAuthRepository", "Failed to clear duress metadata during rollback", metaEx)
+            }
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to setup duress vault: ${e.message}", e)
+        } finally {
             SecureMemory.wipe(decoyDbKey)
-
-            decoyDbHelper.provisionDefaultItems(decoyVek)
-
             SecureMemory.wipe(decoyVek)
             SecureMemory.wipe(derivedDuressKey)
             SecureMemory.wipe(salt)
-            KryptxResult.Success(Unit)
-        } catch (e: Exception) {
-            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to setup duress vault", e)
         }
     }
 
@@ -813,106 +856,182 @@ class VaultAuthRepositoryImpl(
         }
     }
 
-    override fun hasPanicPassword(): Boolean = dbHelper.getMetadata("has_panic_setup") == "true"
+    override fun hasPanicPassword(): Boolean = dbHelper.getMetadata(KryptxDbSchema.KEY_HAS_PANIC) == "true"
 
     override suspend fun setupPanicPassword(panicPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
-        val masterSaltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_SALT)
-        val masterTokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN)
-        if (masterSaltBase64 != null && masterTokenBase64 != null) {
-            val masterSalt = Base64.decode(masterSaltBase64, Base64.NO_WRAP)
-            val masterToken = Base64.decode(masterTokenBase64, Base64.NO_WRAP)
-            val kdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM)
-            val testDerivedKey = if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-                KeyDerivation.deriveKeyArgon2(panicPassword, masterSalt)
-            } else {
-                KeyDerivation.deriveKey(panicPassword, masterSalt)
-            }
-            var matchesMaster = false
-            try {
-                val decrypted = CryptoEngine.decrypt(masterToken, testDerivedKey)
-                SecureMemory.wipe(decrypted)
-                matchesMaster = true
-            } catch (_: Exception) {
-            } finally {
-                SecureMemory.wipe(testDerivedKey)
-                SecureMemory.wipe(masterSalt)
-            }
-            if (matchesMaster) {
-                return@withContext KryptxResult.Error(
-                    KryptxErrorType.WRONG_PASSWORD,
-                    "Panic PIN cannot be identical to your master password"
-                )
-            }
+        if (verifyMasterCredential(panicPassword)) {
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.WRONG_PASSWORD,
+                "Panic PIN cannot be identical to your master password"
+            )
         }
 
-        if (hasDuressPassword()) {
-            val duressSaltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_DURESS_SALT)
-            val duressTokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_DURESS_TOKEN)
-            if (duressSaltBase64 != null && duressTokenBase64 != null) {
-                val dSalt = Base64.decode(duressSaltBase64, Base64.NO_WRAP)
-                val dToken = Base64.decode(duressTokenBase64, Base64.NO_WRAP)
-                val testDuressKey = KeyDerivation.deriveKeyArgon2(panicPassword, dSalt)
-                var matchesDuress = false
-                try {
-                    val decrypted = CryptoEngine.decrypt(dToken, testDuressKey)
-                    SecureMemory.wipe(decrypted)
-                    matchesDuress = true
-                } catch (_: Exception) {
-                } finally {
-                    SecureMemory.wipe(testDuressKey)
-                    SecureMemory.wipe(dSalt)
-                }
-                if (matchesDuress) {
-                    return@withContext KryptxResult.Error(
-                        KryptxErrorType.WRONG_PASSWORD,
-                        "Panic PIN cannot be identical to your Duress PIN"
-                    )
-                }
-            }
+        if (verifyDuressCredential(panicPassword)) {
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.WRONG_PASSWORD,
+                "Panic PIN cannot be identical to your Duress PIN"
+            )
         }
+
+        var salt: ByteArray? = null
+        var derivedKey: ByteArray? = null
+        var panicVerificationToken: ByteArray? = null
 
         try {
-            val salt = KeyDerivation.generateSalt()
-            // Use Argon2id consistently with the master password KDF for uniform security
-            val derivedKey = KeyDerivation.deriveKeyArgon2(panicPassword, salt)
-            val panicVerificationToken = CryptoEngine.generateVaultKey()
-            val encryptedToken = try {
-                CryptoEngine.encrypt(panicVerificationToken, derivedKey, "kryptx-panic-auth".toByteArray(Charsets.UTF_8))
-            } finally {
-                SecureMemory.wipe(panicVerificationToken)
-            }
+            salt = KeyDerivation.generateSalt()
+            derivedKey = KeyDerivation.deriveKeyArgon2(panicPassword, salt)
+            panicVerificationToken = CryptoEngine.generateVaultKey()
+            val encryptedToken = CryptoEngine.encrypt(
+                panicVerificationToken,
+                derivedKey,
+                "kryptx-panic-auth".toByteArray(Charsets.UTF_8)
+            )
 
             val panicBatch = mapOf(
-                "panic_salt" to Base64.encodeToString(salt, Base64.NO_WRAP),
-                "panic_token" to Base64.encodeToString(encryptedToken, Base64.NO_WRAP),
-                "panic_hash" to "",
-                "has_panic_setup" to "true",
-                "panic_kdf_algorithm" to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier
+                KryptxDbSchema.KEY_PANIC_SALT to base64Encode(salt),
+                KryptxDbSchema.KEY_PANIC_TOKEN to base64Encode(encryptedToken),
+                KryptxDbSchema.KEY_PANIC_HASH to "",
+                KryptxDbSchema.KEY_HAS_PANIC to "true",
+                KryptxDbSchema.KEY_PANIC_KDF_ALGORITHM to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier
             )
             if (!dbHelper.setMetadataBatch(panicBatch)) {
                 throw IllegalStateException("Failed to commit panic password metadata to secure storage")
             }
 
-            SecureMemory.wipe(derivedKey)
-            SecureMemory.wipe(salt)
             KryptxResult.Success(Unit)
         } catch (e: Exception) {
-            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to setup panic password", e)
+            SecurityLogger.error("VaultAuthRepository", "Failed to setup panic password, rolling back", e)
+            try {
+                dbHelper.removeMetadataBatch(
+                    listOf(
+                        KryptxDbSchema.KEY_PANIC_SALT,
+                        KryptxDbSchema.KEY_PANIC_TOKEN,
+                        KryptxDbSchema.KEY_PANIC_HASH,
+                        KryptxDbSchema.KEY_HAS_PANIC,
+                        KryptxDbSchema.KEY_PANIC_KDF_ALGORITHM
+                    )
+                )
+            } catch (metaEx: Exception) {
+                SecurityLogger.warn("VaultAuthRepository", "Failed to clear panic metadata during rollback", metaEx)
+            }
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to setup panic password: ${e.message}", e)
+        } finally {
+            SecureMemory.wipe(panicVerificationToken)
+            SecureMemory.wipe(derivedKey)
+            SecureMemory.wipe(salt)
         }
     }
 
     override suspend fun removePanicPassword(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
         val panicBatch = mapOf(
-            "panic_salt" to "",
-            "panic_token" to "",
-            "panic_hash" to "",
-            "has_panic_setup" to "false"
+            KryptxDbSchema.KEY_PANIC_SALT to "",
+            KryptxDbSchema.KEY_PANIC_TOKEN to "",
+            KryptxDbSchema.KEY_PANIC_HASH to "",
+            KryptxDbSchema.KEY_HAS_PANIC to "false",
+            KryptxDbSchema.KEY_PANIC_KDF_ALGORITHM to ""
         )
         if (!dbHelper.setMetadataBatch(panicBatch)) {
             SecurityLogger.warn("VaultAuthRepository", "Failed to commit panic password removal metadata")
             KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove panic password from secure storage")
         } else {
             KryptxResult.Success(Unit)
+        }
+    }
+
+    override fun isKeyRotationRecoveryRequired(): Boolean =
+        dbHelper.getMetadata(KryptxDbSchema.KEY_ROTATION_RECOVERY_REQUIRED) == "true"
+
+    override fun verifyPanicCredential(candidate: CharArray): Boolean {
+        if (!hasPanicPassword()) return false
+        val panicSaltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_PANIC_SALT) ?: return false
+        val panicTokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_PANIC_TOKEN)
+        val panicHashBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_PANIC_HASH)
+        val panicKdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_PANIC_KDF_ALGORITHM)
+
+        if (panicTokenBase64.isNullOrBlank() && panicHashBase64.isNullOrBlank()) return false
+
+        var panicSalt: ByteArray? = null
+        var derivedPanicKey: ByteArray? = null
+        try {
+            panicSalt = base64Decode(panicSaltBase64)
+            derivedPanicKey = if (panicKdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
+                KeyDerivation.deriveKeyArgon2(candidate, panicSalt)
+            } else {
+                KeyDerivation.deriveKey(candidate, panicSalt)
+            }
+
+            if (!panicTokenBase64.isNullOrBlank()) {
+                try {
+                    val tokenBytes = base64Decode(panicTokenBase64)
+                    val decrypted = CryptoEngine.decrypt(
+                        tokenBytes,
+                        derivedPanicKey,
+                        "kryptx-panic-auth".toByteArray(Charsets.UTF_8)
+                    )
+                    SecureMemory.wipe(decrypted)
+                    return true
+                } catch (_: Exception) {
+                    return false
+                }
+            } else if (!panicHashBase64.isNullOrBlank()) {
+                try {
+                    val expectedHash = base64Decode(panicHashBase64)
+                    val md = java.security.MessageDigest.getInstance("SHA-256")
+                    val actualHash = md.digest(derivedPanicKey)
+                    return SecureMemory.safeEquals(actualHash, expectedHash)
+                } catch (_: Exception) {
+                    return false
+                }
+            }
+            return false
+        } catch (_: Exception) {
+            return false
+        } finally {
+            SecureMemory.wipe(derivedPanicKey)
+            SecureMemory.wipe(panicSalt)
+        }
+    }
+
+    override fun verifyDuressCredential(candidate: CharArray): Boolean {
+        if (!hasDuressPassword()) return false
+        val duressSaltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_DURESS_SALT) ?: return false
+        val duressTokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_DURESS_TOKEN) ?: return false
+
+        var duressSalt: ByteArray? = null
+        var derivedDuressKey: ByteArray? = null
+        try {
+            duressSalt = base64Decode(duressSaltBase64)
+            val duressTokenBytes = base64Decode(duressTokenBase64)
+            derivedDuressKey = KeyDerivation.deriveKeyArgon2(candidate, duressSalt)
+            val decrypted = CryptoEngine.decrypt(duressTokenBytes, derivedDuressKey)
+            SecureMemory.wipe(decrypted)
+            return true
+        } catch (_: Exception) {
+            return false
+        } finally {
+            SecureMemory.wipe(derivedDuressKey)
+            SecureMemory.wipe(duressSalt)
+        }
+    }
+
+    override fun verifyMasterCredential(candidate: CharArray): Boolean {
+        val saltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_SALT) ?: return false
+        val tokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN) ?: return false
+
+        var salt: ByteArray? = null
+        var derivedMasterKey: ByteArray? = null
+        try {
+            salt = base64Decode(saltBase64)
+            val tokenBytes = base64Decode(tokenBase64)
+            derivedMasterKey = deriveMasterKeyForVault(candidate, salt)
+            val decrypted = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
+            SecureMemory.wipe(decrypted)
+            return true
+        } catch (_: Exception) {
+            return false
+        } finally {
+            SecureMemory.wipe(derivedMasterKey)
+            SecureMemory.wipe(salt)
         }
     }
 
@@ -978,7 +1097,7 @@ class VaultAuthRepositoryImpl(
     override fun getHardwareKeyChallenge(): ByteArray? {
         val challengeBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE) ?: return null
         return try {
-            Base64.decode(challengeBase64, Base64.NO_WRAP)
+            base64Decode(challengeBase64)
         } catch (_: Exception) {
             null
         }
@@ -994,62 +1113,93 @@ class VaultAuthRepositoryImpl(
         masterPassword: CharArray
     ): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { activeVek ->
+            var baseSalt: ByteArray? = null
+            var combinedSalt: ByteArray? = null
+            var argon2Salt: ByteArray? = null
+            var derivedKey: ByteArray? = null
+
             try {
-                val baseSalt = KeyDerivation.generateSalt()
+                if (!verifyMasterCredential(masterPassword)) {
+                    return@withVaultKey KryptxResult.Error(
+                        KryptxErrorType.WRONG_PASSWORD,
+                        "Incorrect master password for hardware key enrollment"
+                    )
+                }
+
+                baseSalt = KeyDerivation.generateSalt()
                 val md = java.security.MessageDigest.getInstance("SHA-256")
                 md.update(baseSalt)
                 md.update(hardwareSecret)
-                val combinedSalt = md.digest()
+                combinedSalt = md.digest()
 
                 // Extend combinedSalt to 32 bytes for Argon2id minimum salt requirement
-                val argon2Salt = combinedSalt.copyOf(32)
+                argon2Salt = combinedSalt.copyOf(32)
                 // Use Argon2id consistently with master password KDF — hardware key should
                 // have equal or greater brute-force resistance than the primary unlock path
-                val derivedKey = KeyDerivation.deriveKeyArgon2(masterPassword, argon2Salt)
+                derivedKey = KeyDerivation.deriveKeyArgon2(masterPassword, argon2Salt)
                 val encryptedVekPayload = CryptoEngine.encrypt(activeVek, derivedKey)
 
-                val tokenBase64 = Base64.encodeToString(encryptedVekPayload, Base64.NO_WRAP)
-                val saltBase64 = Base64.encodeToString(baseSalt, Base64.NO_WRAP)
-                val challengeBase64 = Base64.encodeToString(challenge, Base64.NO_WRAP)
+                val tokenBase64 = base64Encode(encryptedVekPayload)
+                val saltBase64 = base64Encode(baseSalt)
+                val challengeBase64 = base64Encode(challenge)
 
                 // Write to HW-specific keys — never overwrite the master password's KEY_SALT /
                 // KEY_VERIFICATION_TOKEN so the password-only unlock path remains intact as a
                 // permanent recovery option even after hardware key enrollment.
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HW_SALT, saltBase64)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HW_VERIFICATION_TOKEN, tokenBase64)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED, "true")
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_LABEL, label)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH, uidHash)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE, challengeBase64)
+                val hwBatch = mapOf(
+                    KryptxDbSchema.KEY_HW_SALT to saltBase64,
+                    KryptxDbSchema.KEY_HW_VERIFICATION_TOKEN to tokenBase64,
+                    KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED to "true",
+                    KryptxDbSchema.KEY_HARDWARE_KEY_LABEL to label,
+                    KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH to uidHash,
+                    KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE to challengeBase64
+                )
+                if (!dbHelper.setMetadataBatch(hwBatch)) {
+                    throw IllegalStateException("Failed to commit hardware security key metadata batch")
+                }
 
+                KryptxResult.Success(Unit)
+            } catch (e: Exception) {
+                SecurityLogger.error("VaultAuthRepository", "Failed to enroll hardware security key", e)
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to enroll hardware security key: ${e.message}", e)
+            } finally {
                 SecureMemory.wipe(derivedKey)
                 SecureMemory.wipe(baseSalt)
                 SecureMemory.wipe(combinedSalt)
                 SecureMemory.wipe(argon2Salt)
-
-                KryptxResult.Success(Unit)
-            } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to enroll hardware security key", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault must be unlocked to enroll hardware key")
     }
 
     override suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { _ ->
+            if (!verifyMasterCredential(masterPassword)) {
+                return@withVaultKey KryptxResult.Error(
+                    KryptxErrorType.WRONG_PASSWORD,
+                    "Incorrect master password to remove hardware security key"
+                )
+            }
             try {
                 // Clear the hardware-key-specific token — the master password token
                 // (KEY_SALT / KEY_VERIFICATION_TOKEN) was never overwritten during enrollment
                 // and remains valid for password-only unlock.
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HW_SALT, "")
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HW_VERIFICATION_TOKEN, "")
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED, "false")
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_LABEL, "")
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH, "")
-                dbHelper.setMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE, "")
-
+                val hwBatch = mapOf(
+                    KryptxDbSchema.KEY_HW_SALT to "",
+                    KryptxDbSchema.KEY_HW_VERIFICATION_TOKEN to "",
+                    KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED to "false",
+                    KryptxDbSchema.KEY_HARDWARE_KEY_LABEL to "",
+                    KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH to "",
+                    KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE to ""
+                )
+                if (!dbHelper.setMetadataBatch(hwBatch)) {
+                    return@withVaultKey KryptxResult.Error(
+                        KryptxErrorType.DATABASE_ERROR,
+                        "Failed to commit hardware security key removal metadata"
+                    )
+                }
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove hardware key", e)
+                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove hardware key: ${e.message}", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault must be unlocked to modify security keys")
     }
@@ -1067,8 +1217,8 @@ class VaultAuthRepositoryImpl(
         val kdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM)
 
         if (saltBase64 != null && tokenBase64 != null) {
-            val baseSalt = Base64.decode(saltBase64, Base64.NO_WRAP)
-            val tokenBytes = Base64.decode(tokenBase64, Base64.NO_WRAP)
+            val baseSalt = base64Decode(saltBase64)
+            val tokenBytes = base64Decode(tokenBase64)
 
             val md = java.security.MessageDigest.getInstance("SHA-256")
             md.update(baseSalt)
@@ -1122,7 +1272,13 @@ class VaultAuthRepositoryImpl(
     }
 
     override suspend fun switchVault(vaultId: String): KryptxResult<Unit> = withContext(Dispatchers.IO) {
-        dbHelper.setMetadata(KryptxDbSchema.KEY_ACTIVE_VAULT, vaultId)
+        val saved = dbHelper.setMetadata(KryptxDbSchema.KEY_ACTIVE_VAULT, vaultId)
+        if (!saved) {
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.DATABASE_ERROR,
+                "Failed to persist active vault selection"
+            )
+        }
         sessionManager.withVaultKey { key ->
             dbHelper.loadAllItems(key)
         }
@@ -1172,7 +1328,7 @@ class VaultAuthRepositoryImpl(
     override fun getPqcIdentityPublicKey(): ByteArray? {
         val base64 = dbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY) ?: return null
         return try {
-            Base64.decode(base64, Base64.NO_WRAP)
+            base64Decode(base64)
         } catch (_: Exception) {
             null
         }
@@ -1191,16 +1347,20 @@ class VaultAuthRepositoryImpl(
 
     private fun generateAndStorePqcIdentityKeyPair(vek: ByteArray) {
         val pqcKeyPair = PostQuantumEngine.generateKeyPair()
-        val encryptedPrivKey = CryptoEngine.encrypt(pqcKeyPair.privateKey, vek)
-        dbHelper.setMetadata(
-            KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY,
-            Base64.encodeToString(pqcKeyPair.publicKey, Base64.NO_WRAP)
-        )
-        dbHelper.setMetadata(
-            KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT,
-            Base64.encodeToString(encryptedPrivKey, Base64.NO_WRAP)
-        )
-        SecureMemory.wipe(pqcKeyPair.privateKey)
+        var encryptedPrivKey: ByteArray? = null
+        try {
+            encryptedPrivKey = CryptoEngine.encrypt(pqcKeyPair.privateKey, vek)
+            val pqcBatch = mapOf(
+                KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY to base64Encode(pqcKeyPair.publicKey),
+                KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT to base64Encode(encryptedPrivKey)
+            )
+            if (!dbHelper.setMetadataBatch(pqcBatch)) {
+                throw IllegalStateException("Failed to commit PQC identity key pair metadata batch")
+            }
+        } finally {
+            SecureMemory.wipe(pqcKeyPair.privateKey)
+            encryptedPrivKey?.let { SecureMemory.wipe(it) }
+        }
     }
 
     private fun deriveSqlCipherKey(vek: ByteArray): ByteArray {

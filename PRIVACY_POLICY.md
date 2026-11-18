@@ -56,7 +56,7 @@ Kryptx requests only the minimal, hardware-isolated permissions strictly require
 Vault export and transfer functions operate strictly via user-controlled file exports:
 * **`.kryptx` Encrypted Archives:** Protected with Argon2id and AES-256-GCM.
 * **Self-Contained HTML Companion:** Decrypted locally inside any desktop web browser using standard client-side WebCrypto (W3C API).
-* **Zero Cloud Relay:** No intermediate servers, relay brokers, or cloud sync endpoints exist. Peer-to-peer Wi-Fi transfer operates directly device-to-device with ephemeral AES-256-GCM keys.
+* **Zero Cloud Relay:** No intermediate servers, relay brokers, or cloud sync endpoints exist. Air-gapped cross-device synchronization operates optically via animated UR/QR codes with ephemeral AES-256-GCM keys and post-quantum ML-KEM encapsulation, requiring zero wireless connections or network permissions.
 
 ---
 
@@ -105,6 +105,6 @@ For the Google Play Data Safety declaration:
 | Question | Answer |
 |---|---|
 | Does the app collect or share user data? | **No** (0 bytes collected or transmitted) |
-| Is the data encrypted in transit? | **Not applicable** (Zero network permission; local P2P uses ephemeral AES-256-GCM) |
+| Is the data encrypted in transit? | **Not applicable** (Zero network permission; air-gapped optical transfer uses ephemeral AES-256-GCM and ML-KEM-768) |
 | Can users request data deletion? | **Yes** — Settings → Reset Vault (immediately deletes database and zeroes cryptographic keys) |
 | Does the app follow Google's Families Policy? | Not applicable (no child-directed content) |

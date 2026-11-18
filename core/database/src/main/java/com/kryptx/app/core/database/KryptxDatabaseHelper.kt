@@ -1006,11 +1006,11 @@ open class KryptxDatabaseHelper(
     // Decoy Vault CRUD & Realistic Provisioning
     // ==========================================
 
-    fun hasDuressSetup(): Boolean {
+    open fun hasDuressSetup(): Boolean {
         return getMetadata(KEY_HAS_DURESS) == "true" && getMetadata(KEY_DURESS_TOKEN) != null
     }
 
-    suspend fun provisionDefaultItems(vek: ByteArray) = withContext(Dispatchers.IO) {
+    open suspend fun provisionDefaultItems(vek: ByteArray) = withContext(Dispatchers.IO) {
         val existingDecoys = loadAllItems(vek)
         if (existingDecoys.isNotEmpty()) return@withContext
 

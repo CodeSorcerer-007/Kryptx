@@ -17,10 +17,10 @@
   <br>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Cryptography-ML--KEM--768%20%7C%20AES--256--GCM%20%7C%20Argon2id-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="Post-Quantum Ready" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Network-0%20Permissions%20%7C%20Air--Gapped-10B981?style=for-the-badge" alt="Zero Network" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.4.0%20(Code%2020)-FFB300?style=for-the-badge" alt="Version 2.4.0 (Code 20)" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.5.1%20(Code%2031)-FFB300?style=for-the-badge" alt="Version 2.5.1 (Code 31)" /></a>
   <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
   <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-604%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="604 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-666%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="666 Unit Tests Passed" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>

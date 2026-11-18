@@ -1,7 +1,7 @@
 # Kryptx: Cryptographic Architecture & Security Whitepaper
 
 **Author:** Kryptx Security Engineering Group  
-**Document Version:** 2.2.1  
+**Document Version:** 2.5.1  
 **Specification Standards:** RFC 9106 (Argon2id), RFC 8439 / XChaCha20-Poly1305, NIST SP 800-38D (AES-GCM), NIST SP 800-132 (PBKDF2), RFC 5869 (HKDF), NIST FIPS 203 (ML-KEM-768), NIST FIPS 204 (ML-DSA-65), RFC 6238 (TOTP)
 
 ---
@@ -125,8 +125,8 @@ Under physical coercion:
 
 ---
 
-## 7. Peer-to-Peer Zero-Cloud Sync & Offline Web Vault
+## 7. Air-Gapped Optical Sync & Offline Web Vault
 
-1. **Local Wi-Fi P2P Sync**: Sockets bind to ephemeral local ports with 6-digit PIN and 256-bit AES-GCM session keys exchanged via encrypted QR code beam (`kryptx-sync://...`).
+1. **Air-Gapped Optical Sync**: 100% camera-and-screen transmission utilizing animated Uniform Resource (UR) QR codes. Ephemeral session keys are negotiated using hybrid ECDH / ML-KEM-768 post-quantum key agreement and authenticated with 256-bit AES-GCM payloads. Requires zero RF, Wi-Fi, Bluetooth, or local socket connections.
 2. **Offline Single-File Web Vault (`.html`)**: Self-contained client-side HTML document embedding AES-256-GCM + PBKDF2-SHA256 decryption via W3C WebCrypto API. Operates 100% offline in any modern browser without network connectivity.
 3. **Emergency Recovery Kit**: Generates an offline 1-page vector PDF with Vault ID, Salt, and recovery parameters for safe-deposit box custody.

@@ -1,6 +1,6 @@
 # Kryptx — Formal Threat Model & Security Boundaries
 
-**Document Version:** 2.2.1  
+**Document Version:** 2.5.1  
 **Classification:** Public Security Specification  
 **Target Platform:** Native Android (API 26–36)  
 
@@ -24,7 +24,7 @@ The architecture adheres to three foundational tenets:
 │  Tier 5: Forensic Device Imaging Attacker                       │
 │  Tier 4: Physical Attacker (Unlocked / Locked Hardware)         │
 │  Tier 3: Device-Compromise Attacker (Root / Hooking / Kernel)   │
-│  Tier 2: Malicious Local-Network Peer (Same Wi-Fi / Hotspot)    │
+│  Tier 2: Network & Eavesdropping Attacker (Hostile Wi-Fi / LAN)  │
 │  Tier 1: Malicious Android Application (Unprivileged Sandbox)    │
 │  Tier 0: Normal User (Accidental Misuse / Recovery Posture)     │
 │  Tier -1: Accidental Process Crashes & UI Dispatch Failures     │
@@ -58,21 +58,21 @@ The architecture adheres to three foundational tenets:
 
 ---
 
-### Tier 2 — Malicious Local-Network Peer
+### Tier 2 — Network & Eavesdropping Attacker
 
-- **Threat Profile**: Attacker on the same Wi-Fi network, coffee shop LAN, or hostile router attempting packet sniffing, DNS rebinding, replay attacks, or unauthorized vault access.
+- **Threat Profile**: Hostile network environment, compromised router, or adjacent device attempting packet sniffing, DNS poisoning, interception, or unauthorized access.
 - **Kryptx Defenses**:
-  - **Local Web Companion**:
-    - Ephemeral session tokens (5-minute inactivity expiry).
-    - Rate-limiting lockout: 3 failed PIN attempts trigger complete daemon shutdown.
-    - Constant-time PIN comparison (`SecureMemory.safeEquals`).
-    - Cross-Origin Request Blocking (`Origin` / `Referer` validation against local IP and `kryptx.local`).
-    - HTTP Security Headers: `Content-Security-Policy: default-src 'self' 'unsafe-inline'; frame-ancestors 'none';`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Cache-Control: no-store, no-cache, must-revalidate`.
-  - **P2P Sync Engine**:
-    - AES-256-GCM encrypted beam using keys derived from a 6-digit one-time PIN and 16-byte random salt.
-    - Nonce and Session ID verification preventing replay attacks.
-    - Differential CRDT merge preserving bidirectional password history.
-- **Residual Risk & Platform Reality**: The Local Web Companion operates over cleartext HTTP on the local Wi-Fi interface. While protected by ephemeral session tokens, rate limiting, and origin checks, it must be used on trusted home/work networks or direct mobile hotspots.
+  - **Zero Network Permissions (`android.permission.INTERNET` omitted)**:
+    - Linux kernel physically prohibits socket creation for the Kryptx process uid.
+    - Zero bytes can leave the device over Wi-Fi, Ethernet, or Cellular interfaces.
+  - **Air-Gapped Optical Synchronization Engine**:
+    - Transmission is 100% optical via animated UR/QR code frames between camera and screen.
+    - Post-quantum ML-KEM-768 key encapsulation + ECDH hybrid key agreement with AES-256-GCM authenticated encryption.
+    - Ephemeral session keys with strict replay protection via nonces and session IDs.
+    - Completely immune to network-based packet capture, Wi-Fi eavesdropping, man-in-the-middle attacks, and rogue AP injection.
+  - **Offline Single-File Web Vault (`.html`)**:
+    - Operates entirely client-side using W3C WebCrypto API within an isolated browser context without internet connectivity.
+- **Residual Risk & Platform Reality**: None over network interfaces due to complete absence of internet and network permissions. Optical sync requires physical line of sight between device screens and cameras.
 
 ---
 
