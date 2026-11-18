@@ -245,7 +245,7 @@ open class KryptxDatabaseHelper(
      */
     fun isDegradedStorageMode(): Boolean = isDegradedStorage
 
-    private fun getSecurePrefs(): android.content.SharedPreferences {
+    private fun getSecurePrefs(): android.content.SharedPreferences? {
         cachedPrefs?.let { return it }
         return synchronized(this) {
             cachedPrefs ?: try {
@@ -265,14 +265,18 @@ open class KryptxDatabaseHelper(
                     "EncryptedSharedPreferences unavailable; activating Degraded Storage fallback mode: ${t.message}",
                     t
                 )
-                context.getSharedPreferences("kryptx_metadata_prefs_fallback", android.content.Context.MODE_PRIVATE)
+                try {
+                    context.getSharedPreferences("kryptx_metadata_prefs_fallback", android.content.Context.MODE_PRIVATE)
+                } catch (_: Throwable) {
+                    null
+                }
             }.also { cachedPrefs = it }
         }
     }
 
     open fun getMetadata(key: String): String? {
         return try {
-            getSecurePrefs().getString(key, null)
+            getSecurePrefs()?.getString(key, null)
         } catch (t: Throwable) {
             com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to read secure metadata for $key", t)
             null
@@ -280,11 +284,52 @@ open class KryptxDatabaseHelper(
     }
 
     @SuppressLint("ApplySharedPref")
-    open fun setMetadata(key: String, value: String) {
-        try {
-            getSecurePrefs().edit().putString(key, value).commit()
+    open fun setMetadata(key: String, value: String): Boolean {
+        return try {
+            val prefs = getSecurePrefs()
+            if (prefs == null) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences unavailable; failed to write secure metadata for $key"
+                )
+                return false
+            }
+            val committed = prefs.edit().putString(key, value).commit()
+            if (!committed) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences.commit() returned false for secure metadata key: $key"
+                )
+            }
+            committed
         } catch (t: Throwable) {
             com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to write secure metadata for $key", t)
+            false
+        }
+    }
+
+    @SuppressLint("ApplySharedPref")
+    open fun removeMetadata(key: String): Boolean {
+        return try {
+            val prefs = getSecurePrefs()
+            if (prefs == null) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences unavailable; failed to remove secure metadata for $key"
+                )
+                return false
+            }
+            val committed = prefs.edit().remove(key).commit()
+            if (!committed) {
+                com.kryptx.app.core.security.SecurityLogger.warn(
+                    "KryptxDatabaseHelper",
+                    "SharedPreferences.commit() returned false when removing secure metadata key: $key"
+                )
+            }
+            committed
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to remove secure metadata for $key", t)
+            false
         }
     }
 
@@ -1075,7 +1120,7 @@ open class KryptxDatabaseHelper(
         var securePrefsCleared = false
         try {
             val prefs = getSecurePrefs()
-            securePrefsCleared = prefs.edit().clear().commit()
+            securePrefsCleared = prefs?.edit()?.clear()?.commit() ?: false
             cachedPrefs = null
         } catch (_: Throwable) {
             securePrefsCleared = false

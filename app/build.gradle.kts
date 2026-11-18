@@ -21,8 +21,8 @@ android {
         applicationId = "com.kryptx.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 28
-        versionName = "2.4.8"
+        versionCode = 29
+        versionName = "2.4.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

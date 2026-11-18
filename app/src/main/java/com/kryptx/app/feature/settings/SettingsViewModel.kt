@@ -434,7 +434,7 @@ class SettingsViewModel(
 
     @Deprecated(
         message = "Use two-argument resetVault(onResetComplete, onResetError) to ensure reset failures are handled by callers",
-        replaceWith = ReplaceWith("resetVault(onResetComplete, onResetError)")
+        replaceWith = ReplaceWith("resetVault(onResetComplete, null)")
     )
     fun resetVault(onResetComplete: () -> Unit) {
         resetVault(onResetComplete) { error ->

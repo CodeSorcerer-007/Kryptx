@@ -397,8 +397,15 @@ class VaultAuthRepositoryImpl(
                 val wrappedVek = keystoreManager.wrapWithPublicKey(activeVek)
                 val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
 
-                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                val savedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
+                val savedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                if (!savedVek || !savedIv) {
+                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata to secure storage")
+                    return@withVaultKey KryptxResult.Error(
+                        KryptxErrorType.DATABASE_ERROR,
+                        "Failed to persist biometric metadata to secure storage"
+                    )
+                }
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Failed to enroll biometric key", e)
@@ -412,8 +419,15 @@ class VaultAuthRepositoryImpl(
                 val (wrappedVek, _) = keystoreManager.wrapWithCipher(cipher, activeVek)
                 val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
 
-                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                val savedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
+                val savedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                if (!savedVek || !savedIv) {
+                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata to secure storage")
+                    return@withVaultKey KryptxResult.Error(
+                        KryptxErrorType.DATABASE_ERROR,
+                        "Failed to persist biometric metadata to secure storage"
+                    )
+                }
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Failed to enroll biometric key with cipher", e)
@@ -431,8 +445,15 @@ class VaultAuthRepositoryImpl(
                 keystoreManager.removeBiometricKey()
                 val wrappedVek = keystoreManager.wrapWithPublicKey(activeVek)
                 val wrappedBase64 = Base64.encodeToString(wrappedVek, Base64.NO_WRAP)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
-                dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                val savedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, wrappedBase64)
+                val savedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "rsa_oaep")
+                if (!savedVek || !savedIv) {
+                    SecurityLogger.error("VaultAuthRepository", "Failed to persist biometric metadata to secure storage")
+                    return@withVaultKey KryptxResult.Error(
+                        KryptxErrorType.DATABASE_ERROR,
+                        "Failed to persist biometric metadata to secure storage"
+                    )
+                }
                 KryptxResult.Success(Unit)
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, "Failed to re-enroll biometric key", e)
@@ -498,8 +519,18 @@ class VaultAuthRepositoryImpl(
                 "Failed to delete biometric key from Android Keystore. Biometrics cannot be safely disabled while hardware alias remains."
             )
         }
-        dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, "")
-        dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "")
+        val clearedWrappedVek = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, "")
+        val clearedIv = dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "")
+        if (!clearedWrappedVek || !clearedIv) {
+            SecurityLogger.error(
+                "VaultAuthRepository",
+                "Failed to commit metadata clearing during disableBiometrics (clearedWrappedVek=$clearedWrappedVek, clearedIv=$clearedIv)"
+            )
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.DATABASE_ERROR,
+                "Biometric key alias deleted from Keystore, but failed to persist metadata updates to secure storage."
+            )
+        }
         KryptxResult.Success(Unit)
     }
 
@@ -726,10 +757,11 @@ class VaultAuthRepositoryImpl(
         }
     }
 
-    override suspend fun removeDuressPassword() = withContext(Dispatchers.IO) {
+    override suspend fun removeDuressPassword(): Unit = withContext(Dispatchers.IO) {
         dbHelper.setMetadata(KryptxDbSchema.KEY_DURESS_SALT, "")
         dbHelper.setMetadata(KryptxDbSchema.KEY_DURESS_TOKEN, "")
         dbHelper.setMetadata(KryptxDbSchema.KEY_HAS_DURESS, "false")
+        Unit
     }
 
     override fun hasPanicPassword(): Boolean = dbHelper.getMetadata("has_panic_setup") == "true"
@@ -817,11 +849,12 @@ class VaultAuthRepositoryImpl(
         }
     }
 
-    override suspend fun removePanicPassword() = withContext(Dispatchers.IO) {
+    override suspend fun removePanicPassword(): Unit = withContext(Dispatchers.IO) {
         dbHelper.setMetadata("panic_salt", "")
         dbHelper.setMetadata("panic_token", "")
         dbHelper.setMetadata("panic_hash", "")
         dbHelper.setMetadata("has_panic_setup", "false")
+        Unit
     }
 
     override suspend fun triggerPanicSelfDestruct(): DestructionResult = withContext(Dispatchers.Default) {

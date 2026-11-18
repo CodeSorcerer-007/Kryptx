@@ -25,8 +25,9 @@ class VaultKeyRotationTest {
         var shouldFailRekey = false
 
         override fun getMetadata(key: String): String? = metadata[key]
-        override fun setMetadata(key: String, value: String) {
+        override fun setMetadata(key: String, value: String): Boolean {
             metadata[key] = value
+            return true
         }
         override suspend fun reEncryptVaultWithNewKey(oldKey: ByteArray, newKey: ByteArray): Int {
             reEncryptCalls.add(Pair(oldKey.clone(), newKey.clone()))

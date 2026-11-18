@@ -41,8 +41,9 @@ class CoreSecurityHardeningTest {
     private class FakeDatabaseHelper : KryptxDatabaseHelper(Mockito.mock(Context::class.java)) {
         val metadata = mutableMapOf<String, String>()
         override fun getMetadata(key: String): String? = metadata[key]
-        override fun setMetadata(key: String, value: String) {
+        override fun setMetadata(key: String, value: String): Boolean {
             metadata[key] = value
+            return true
         }
     }
 

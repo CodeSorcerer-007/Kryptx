@@ -147,4 +147,52 @@ class DatabaseStorageCleanupTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun testSetMetadataReturnsTrueWhenCommitSucceeds() {
+        val mockContext = Mockito.mock(Context::class.java)
+        val mockPrefs = Mockito.mock(SharedPreferences::class.java)
+        val mockEditor = Mockito.mock(SharedPreferences.Editor::class.java)
+
+        Mockito.`when`(mockContext.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockPrefs)
+        Mockito.`when`(mockPrefs.edit()).thenReturn(mockEditor)
+        Mockito.`when`(mockEditor.putString(Mockito.anyString(), Mockito.anyString())).thenReturn(mockEditor)
+        Mockito.`when`(mockEditor.commit()).thenReturn(true)
+
+        val helper = KryptxDatabaseHelper(mockContext)
+        val result = helper.setMetadata("test_key", "test_value")
+        assertTrue("setMetadata must return true when commit() returns true", result)
+    }
+
+    @Test
+    fun testSetMetadataReturnsFalseWhenCommitFails() {
+        val mockContext = Mockito.mock(Context::class.java)
+        val mockPrefs = Mockito.mock(SharedPreferences::class.java)
+        val mockEditor = Mockito.mock(SharedPreferences.Editor::class.java)
+
+        Mockito.`when`(mockContext.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockPrefs)
+        Mockito.`when`(mockPrefs.edit()).thenReturn(mockEditor)
+        Mockito.`when`(mockEditor.putString(Mockito.anyString(), Mockito.anyString())).thenReturn(mockEditor)
+        Mockito.`when`(mockEditor.commit()).thenReturn(false)
+
+        val helper = KryptxDatabaseHelper(mockContext)
+        val result = helper.setMetadata("test_key", "test_value")
+        assertFalse("setMetadata must return false when commit() returns false", result)
+    }
+
+    @Test
+    fun testSetMetadataReturnsFalseWhenCommitThrows() {
+        val mockContext = Mockito.mock(Context::class.java)
+        val mockPrefs = Mockito.mock(SharedPreferences::class.java)
+        val mockEditor = Mockito.mock(SharedPreferences.Editor::class.java)
+
+        Mockito.`when`(mockContext.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockPrefs)
+        Mockito.`when`(mockPrefs.edit()).thenReturn(mockEditor)
+        Mockito.`when`(mockEditor.putString(Mockito.anyString(), Mockito.anyString())).thenReturn(mockEditor)
+        Mockito.`when`(mockEditor.commit()).thenThrow(RuntimeException("Disk I/O error"))
+
+        val helper = KryptxDatabaseHelper(mockContext)
+        val result = helper.setMetadata("test_key", "test_value")
+        assertFalse("setMetadata must return false when commit() throws", result)
+    }
 }
