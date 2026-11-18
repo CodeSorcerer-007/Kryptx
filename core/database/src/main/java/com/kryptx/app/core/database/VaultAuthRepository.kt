@@ -187,8 +187,13 @@ class VaultAuthRepositoryImpl(
                 SecureMemory.wipe(panicSalt)
 
                 if (isPanicMatch) {
-                    triggerPanicSelfDestruct()
-                    return@withContext KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault has been permanently wiped.")
+                    val destructResult = triggerPanicSelfDestruct()
+                    return@withContext if (destructResult is DestructionResult.Success) {
+                        KryptxResult.Error(KryptxErrorType.VAULT_NOT_FOUND, "Vault has been wiped via panic self-destruct.")
+                    } else {
+                        val errMsg = (destructResult as? DestructionResult.Incomplete)?.errorMessage ?: "Incomplete panic destruction"
+                        KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Panic wipe incomplete: $errMsg")
+                    }
                 }
             }
         }
@@ -394,19 +399,22 @@ class VaultAuthRepositoryImpl(
     override suspend fun unlockWithBiometricCipher(cipher: Cipher): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         val wrappedBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK)
             ?: return@withContext KryptxResult.Error(KryptxErrorType.BIOMETRICS_NOT_AVAILABLE, "No biometric key stored")
+        var vek: ByteArray? = null
         try {
             val wrappedBytes = Base64.decode(wrappedBase64, Base64.NO_WRAP)
-            val vek = keystoreManager.unwrapWithCipher(cipher, wrappedBytes)
+            vek = keystoreManager.unwrapWithCipher(cipher, wrappedBytes)
 
             val dbKey = deriveSqlCipherKey(vek)
-            dbHelper.setDatabaseKey(dbKey)
-            SecureMemory.wipe(dbKey)
+            try {
+                dbHelper.setDatabaseKey(dbKey)
+            } finally {
+                SecureMemory.wipe(dbKey)
+            }
 
             sessionManager.unlock(vek)
             sessionManager.withVaultKey { activeKey ->
                 dbHelper.loadAllItems(activeKey)
             }
-            SecureMemory.wipe(vek)
             onAuditInvalidated?.invoke()
             KryptxResult.Success(Unit)
         } catch (e: Exception) {
@@ -419,6 +427,8 @@ class VaultAuthRepositoryImpl(
                 "Biometric authentication failed. Please use master password."
             }
             KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, message, e)
+        } finally {
+            vek?.let { SecureMemory.wipe(it) }
         }
     }
 
@@ -763,7 +773,12 @@ class VaultAuthRepositoryImpl(
         decoyDbHelper.clearAllData()
 
         // 4. Central emergency self-destruct pipeline execution (multi-pass file overwrite & shred)
-        val emergencyResult = onEmergencyWipe?.invoke()
+        val emergencyResult = onEmergencyWipe?.invoke() ?: DestructionResult.Incomplete(
+            keystorePurged = keystorePurged,
+            databasesPurged = false,
+            preferencesPurged = false,
+            errorMessage = "Central emergency wipe pipeline callback was not configured"
+        )
 
         val finalResult = if (emergencyResult is DestructionResult.Incomplete) {
             emergencyResult.copy(keystorePurged = keystorePurged && emergencyResult.keystorePurged)
@@ -903,26 +918,28 @@ class VaultAuthRepositoryImpl(
                 KeyDerivation.deriveKey(masterPassword, combinedSalt)
             }
 
+            var vek: ByteArray? = null
             try {
-                val vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
+                vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
 
                 val dbKey = deriveSqlCipherKey(vek)
-                dbHelper.setDatabaseKey(dbKey)
-                decoyDbHelper.setDatabaseKey(dbKey)
-                SecureMemory.wipe(dbKey)
+                try {
+                    dbHelper.setDatabaseKey(dbKey)
+                    decoyDbHelper.setDatabaseKey(dbKey)
+                } finally {
+                    SecureMemory.wipe(dbKey)
+                }
 
                 sessionManager.unlock(vek, isDecoy = false)
                 sessionManager.withVaultKey { activeKey ->
                     dbHelper.loadAllItems(activeKey)
                 }
-                SecureMemory.wipe(vek)
-                SecureMemory.wipe(derivedMasterKey)
-                SecureMemory.wipe(baseSalt)
-                SecureMemory.wipe(combinedSalt)
-                SecureMemory.wipe(argon2Salt)
                 onAuditInvalidated?.invoke()
                 return@withContext KryptxResult.Success(Unit)
             } catch (_: Exception) {
+                // Handled below with failed attempt recording
+            } finally {
+                vek?.let { SecureMemory.wipe(it) }
                 SecureMemory.wipe(derivedMasterKey)
                 SecureMemory.wipe(baseSalt)
                 SecureMemory.wipe(combinedSalt)

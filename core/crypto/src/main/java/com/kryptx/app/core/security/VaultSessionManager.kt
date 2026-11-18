@@ -103,6 +103,12 @@ class VaultSessionManager(
         autoLockJob?.cancel()
         autoLockJob = null
 
+        // Fail-closed atomic state transition: If re-unlocking, reset unlocked state immediately
+        // so that any validation or allocation failure leaves the session unambiguously and explicitly locked.
+        _isUnlocked.value = false
+
+        require(vaultKey.isNotEmpty()) { "Vault key cannot be empty" }
+
         // Securely allocate off-heap direct buffer locked in physical RAM via Linux mlock() and MADV_DONTDUMP.
         // No persistent heap copy is maintained to prevent garbage collector relocation and heap inspection.
         activeSecureKeyBuffer?.let { SecureMemory.releaseSecureBuffer(it) }
@@ -113,7 +119,11 @@ class VaultSessionManager(
             SecureMemory.allocateSecureBuffer(vaultKey.size, requireLock = requireLock)
         } catch (secEx: SecurityException) {
             SecurityLogger.error("VaultSessionManager", "Enforced strict memory lock policy failed during unlock", secEx)
+            lock()
             throw secEx
+        } catch (t: Throwable) {
+            lock()
+            throw t
         }
 
         if (!SecureMemory.isBufferLocked(secBuf)) {

@@ -88,4 +88,20 @@ class PanicDestructionUnifiedPipelineTest {
         val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
         assertFalse("keystorePurged must be false", incomplete.keystorePurged)
     }
+
+    @Test
+    fun testPanicSelfDestructReportsIncompleteWhenEmergencyWipeCallbackMissing() = runTest {
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = null // Missing callback
+        )
+
+        val result = repository.triggerPanicSelfDestruct()
+        assertTrue("Must report DestructionResult.Incomplete when emergency wipe callback is missing", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+        val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
+        assertFalse("databasesPurged must be false when wipe pipeline is missing", incomplete.databasesPurged)
+    }
 }

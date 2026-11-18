@@ -7,7 +7,11 @@ sealed class DestructionResult {
     /**
      * All cryptographic keys (volatile in-memory and hardware Android Keystore aliases),
      * encrypted database files, SQLite transaction logs, attachments, and preferences
-     * were verified as permanently and irreversibly purged.
+     * were verified as cryptographically invalidated and logically deleted.
+     * Note: Due to modern flash wear-levelling and Flash Translation Layer (FTL) architectures,
+     * physical block-level erasure cannot be guaranteed from Android user space; security rests
+     * primarily on cryptographic erasure (key destruction rendering data irrecoverable) paired with
+     * multi-pass overwrite and verified logical file absence.
      */
     object Success : DestructionResult()
 

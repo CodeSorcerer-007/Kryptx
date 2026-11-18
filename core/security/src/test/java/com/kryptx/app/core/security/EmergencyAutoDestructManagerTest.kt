@@ -205,4 +205,32 @@ class EmergencyAutoDestructManagerTest {
         val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
         assertFalse("keystorePurged flag must be false", incomplete.keystorePurged)
     }
+
+    @Test
+    fun testEmergencyWipeReportsIncompleteWhenDatabaseDeletionFails() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
+
+        val tempDb = java.io.File.createTempFile("kryptx_vault", ".db")
+        val failingContext = mock(Context::class.java)
+        `when`(failingContext.getDatabasePath("kryptx_vault.db")).thenReturn(tempDb)
+        `when`(failingContext.deleteDatabase("kryptx_vault.db")).thenReturn(false)
+
+        val manager = EmergencyAutoDestructManager(
+            context = failingContext,
+            sessionManager = null,
+            keystoreManager = mockKeystoreManager,
+            maxFailedAttempts = 1,
+            isEnabled = true
+        )
+
+        try {
+            val result = manager.triggerEmergencyWipe()
+            assertTrue("Failed database deletion must yield DestructionResult.Incomplete", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+            val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
+            assertFalse("databasesPurged flag must be false", incomplete.databasesPurged)
+        } finally {
+            tempDb.delete()
+        }
+    }
 }

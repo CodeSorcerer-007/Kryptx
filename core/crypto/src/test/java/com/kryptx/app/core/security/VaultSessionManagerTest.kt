@@ -229,4 +229,26 @@ class VaultSessionManagerTest {
             }
         }
     }
+
+    @Test
+    fun testReUnlockFailureGuaranteesSessionLocked() {
+        val sessionManager = VaultSessionManager(
+            scope = testScope,
+            memoryLockPolicy = VaultSessionManager.MemoryLockPolicy.BEST_EFFORT
+        )
+        val initialKey = ByteArray(32) { 1 }
+        sessionManager.unlock(initialKey)
+        assertTrue(sessionManager.isUnlocked.value)
+        assertNotNull(sessionManager.getVaultKey())
+
+        try {
+            sessionManager.unlock(ByteArray(0))
+            org.junit.Assert.fail("Expected exception for zero-length buffer")
+        } catch (expected: IllegalArgumentException) {
+            // Expected
+        }
+
+        assertFalse("Session must be explicitly locked after failed re-unlock", sessionManager.isUnlocked.value)
+        assertNull("Active key buffer must be null after failed re-unlock", sessionManager.getVaultKey())
+    }
 }

@@ -151,8 +151,19 @@ class EmergencyAutoDestructManager(
 
             // 3. Purge and shred SharedPreferences metadata and app settings
             try {
-                context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
-                context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
+                val metaPrefs = context.getSharedPreferences("kryptx_metadata_prefs", android.content.Context.MODE_PRIVATE)
+                val metaCommitted = metaPrefs?.edit()?.clear()?.commit() ?: true
+                if (!metaCommitted) {
+                    preferencesPurged = false
+                    errorMessages.add("Failed to commit clear on kryptx_metadata_prefs")
+                }
+
+                val appPrefs = context.getSharedPreferences("kryptx_preferences", android.content.Context.MODE_PRIVATE)
+                val appCommitted = appPrefs?.edit()?.clear()?.commit() ?: true
+                if (!appCommitted) {
+                    preferencesPurged = false
+                    errorMessages.add("Failed to commit clear on kryptx_preferences")
+                }
             } catch (t: Throwable) {
                 preferencesPurged = false
                 errorMessages.add("Failed to clear SharedPreferences: ${t.message}")
@@ -165,8 +176,12 @@ class EmergencyAutoDestructManager(
                     val sharedPrefsDir = File(dataDir, "shared_prefs")
                     if (sharedPrefsDir.exists() && sharedPrefsDir.isDirectory) {
                         sharedPrefsDir.listFiles()?.forEach { file ->
-                            secureOverwriteFile(file)
-                            file.delete()
+                            val overwritten = secureOverwriteFile(file)
+                            val deleted = file.delete() || !file.exists()
+                            if (!overwritten || !deleted) {
+                                preferencesPurged = false
+                                errorMessages.add("Failed to overwrite/delete shared preference file ${file.name}")
+                            }
                         }
                         sharedPrefsDir.delete()
                     }
@@ -182,8 +197,9 @@ class EmergencyAutoDestructManager(
             for (dbName in dbNames) {
                 val dbFile = try { context.getDatabasePath(dbName) } catch (_: Throwable) { null }
                 if (dbFile != null && dbFile.exists()) {
-                    secureOverwriteFile(dbFile)
-                    if (!context.deleteDatabase(dbName)) {
+                    val overwritten = secureOverwriteFile(dbFile)
+                    val deleted = context.deleteDatabase(dbName) || !dbFile.exists()
+                    if (!overwritten || !deleted) {
                         databasesPurged = false
                         errorMessages.add("Failed to delete database $dbName")
                     }
@@ -191,22 +207,20 @@ class EmergencyAutoDestructManager(
 
                 val parentDir = dbFile?.parentFile
                 if (parentDir != null) {
-                    val dbWal = File(parentDir, "$dbName-wal")
-                    if (dbWal.exists()) {
-                        secureOverwriteFile(dbWal)
-                        dbWal.delete()
-                    }
-
-                    val dbShm = File(parentDir, "$dbName-shm")
-                    if (dbShm.exists()) {
-                        secureOverwriteFile(dbShm)
-                        dbShm.delete()
-                    }
-
-                    val dbJournal = File(parentDir, "$dbName-journal")
-                    if (dbJournal.exists()) {
-                        secureOverwriteFile(dbJournal)
-                        dbJournal.delete()
+                    val auxFiles = listOf(
+                        File(parentDir, "$dbName-wal"),
+                        File(parentDir, "$dbName-shm"),
+                        File(parentDir, "$dbName-journal")
+                    )
+                    for (auxFile in auxFiles) {
+                        if (auxFile.exists()) {
+                            val overwritten = secureOverwriteFile(auxFile)
+                            val deleted = auxFile.delete() || !auxFile.exists()
+                            if (!overwritten || !deleted) {
+                                databasesPurged = false
+                                errorMessages.add("Failed to delete journal file ${auxFile.name}")
+                            }
+                        }
                     }
                 }
             }
@@ -217,12 +231,18 @@ class EmergencyAutoDestructManager(
                     if (extraDb.startsWith("kryptx")) {
                         val file = context.getDatabasePath(extraDb)
                         if (file.exists()) {
-                            secureOverwriteFile(file)
-                            context.deleteDatabase(extraDb)
+                            val overwritten = secureOverwriteFile(file)
+                            val deleted = context.deleteDatabase(extraDb) || !file.exists()
+                            if (!overwritten || !deleted) {
+                                databasesPurged = false
+                                errorMessages.add("Failed to delete extra database $extraDb")
+                            }
                         }
                     }
                 }
             } catch (t: Throwable) {
+                databasesPurged = false
+                errorMessages.add("Failed to purge extra databases during wipe: ${t.message}")
                 SecurityLogger.warn("EmergencyAutoDestruct", "Failed to purge extra databases during wipe", t)
             }
 
@@ -230,8 +250,12 @@ class EmergencyAutoDestructManager(
             val attachmentsDir = File(context.filesDir, "vault_attachments")
             if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
                 attachmentsDir.listFiles()?.forEach { file ->
-                    secureOverwriteFile(file)
-                    file.delete()
+                    val overwritten = secureOverwriteFile(file)
+                    val deleted = file.delete() || !file.exists()
+                    if (!overwritten || !deleted) {
+                        databasesPurged = false
+                        errorMessages.add("Failed to delete attachment ${file.name}")
+                    }
                 }
                 attachmentsDir.delete()
             }
@@ -271,11 +295,12 @@ class EmergencyAutoDestructManager(
      *
      * @param file The target [File] on local flash storage to overwrite, truncate, and sanitize.
      */
-    private fun secureOverwriteFile(file: File) {
+    private fun secureOverwriteFile(file: File): Boolean {
         try {
-            if (!file.exists() || !file.canWrite()) return
+            if (!file.exists()) return true
+            if (!file.canWrite()) return false
             val length = file.length()
-            if (length <= 0) return
+            if (length <= 0) return true
 
             // 3-pass in-place overwrite: random -> zeros -> random directly on existing allocated sectors
             repeat(3) { pass ->
@@ -299,9 +324,10 @@ class EmergencyAutoDestructManager(
                 raf.setLength(0L)
                 try { raf.fd.sync() } catch (_: Throwable) {}
             }
+            return true
         } catch (t: Throwable) {
             SecurityLogger.warn("EmergencyAutoDestruct", "File overwrite failed for ${file.name}", t)
-            // Continue best-effort wipe
+            return false
         }
     }
 }
