@@ -100,6 +100,28 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun testResetVaultFailureDoesNotCompleteOrClearOnboarding() = runTest(testDispatcher) {
+        var resetDone = false
+        var errorReported: String? = null
+        fakePreferencesRepository.setOnboardingCompleted(true)
+        fakeVaultRepository.resetVaultResult = com.kryptx.app.core.model.KryptxResult.Error(
+            com.kryptx.app.core.model.KryptxErrorType.UNKNOWN,
+            "Primary database/storage cleanup incomplete"
+        )
+
+        viewModel.resetVault(
+            onResetComplete = { resetDone = true },
+            onResetError = { errorReported = it }
+        )
+        testScheduler.runCurrent()
+
+        assertFalse("onResetComplete must not be invoked on reset failure", resetDone)
+        assertNotNull("onResetError must be called when reset fails", errorReported)
+        assertTrue(errorReported!!.contains("Primary database/storage cleanup incomplete"))
+        assertTrue("Onboarding status must remain completed if reset failed", fakePreferencesRepository.onboardingCompleted.value)
+    }
+
+    @Test
     fun testCategoryVisibilityToggling() {
         val initialVisible = viewModel.visibleCategories.value
         assertTrue(initialVisible.contains("LOGIN"))

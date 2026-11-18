@@ -87,15 +87,25 @@ class KeystoreManager {
 
     /**
      * Deletes existing biometric key from Keystore.
+     * Enforces postcondition verification: asserts that the biometric key alias is verified
+     * absent after deletion.
+     *
+     * @return true if the biometric key alias is confirmed absent from the Keystore; false if deletion failed or the key remains.
      */
-    fun removeBiometricKey() {
-        try {
+    fun removeBiometricKey(): Boolean {
+        return try {
             val ks = getKeyStore()
             if (ks.containsAlias(BIOMETRIC_KEY_ALIAS)) {
                 ks.deleteEntry(BIOMETRIC_KEY_ALIAS)
             }
-        } catch (_: Exception) {
-            // Ignore deletion errors
+            val absent = !ks.containsAlias(BIOMETRIC_KEY_ALIAS)
+            if (!absent) {
+                SecurityLogger.warn("KeystoreManager", "Postcondition check failed: biometric key alias still present after deletion")
+            }
+            absent
+        } catch (t: Throwable) {
+            SecurityLogger.warn("KeystoreManager", "Failed to remove biometric key from Keystore", t)
+            false
         }
     }
 

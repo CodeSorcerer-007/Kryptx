@@ -14,6 +14,7 @@ import javax.crypto.Cipher
 
 class FakeVaultRepository : VaultRepository {
 
+    var resetVaultResult: KryptxResult<Unit> = KryptxResult.Success(Unit)
     private var hasVaultSetup = false
     private var biometricsConfigured = false
     private val _itemsFlow = MutableStateFlow<List<VaultItem>>(emptyList())
@@ -303,10 +304,13 @@ class FakeVaultRepository : VaultRepository {
     }
 
     override suspend fun resetVault(): KryptxResult<Unit> {
-        hasVaultSetup = false
-        biometricsConfigured = false
-        _itemsFlow.value = emptyList()
-        return KryptxResult.Success(Unit)
+        val result = resetVaultResult
+        if (result is KryptxResult.Success) {
+            hasVaultSetup = false
+            biometricsConfigured = false
+            _itemsFlow.value = emptyList()
+        }
+        return result
     }
 
     override fun getDatabaseDiagnostics(): com.kryptx.app.core.database.KryptxDatabaseHelper.DatabaseDiagnostics {

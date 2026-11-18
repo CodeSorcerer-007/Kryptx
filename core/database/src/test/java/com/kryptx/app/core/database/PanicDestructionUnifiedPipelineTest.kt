@@ -74,6 +74,7 @@ class PanicDestructionUnifiedPipelineTest {
         sessionManager = VaultSessionManager()
         keystoreManager = Mockito.mock(KeystoreManager::class.java)
         Mockito.`when`(keystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
+        Mockito.`when`(keystoreManager.removeBiometricKey()).thenReturn(true)
     }
 
     @Test
@@ -220,6 +221,23 @@ class PanicDestructionUnifiedPipelineTest {
         assertTrue("resetVault must return Error when primary DB clear fails", result is com.kryptx.app.core.model.KryptxResult.Error)
         val error = result as com.kryptx.app.core.model.KryptxResult.Error
         assertTrue("Error message must indicate primary DB cleanup failed", error.message.contains("Primary database/storage cleanup incomplete"))
+    }
+
+    @Test
+    fun testResetVaultReturnsErrorWhenBiometricKeyRemovalFails() = runTest {
+        Mockito.`when`(keystoreManager.removeBiometricKey()).thenReturn(false)
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.resetVault()
+        assertTrue("resetVault must return Error when biometric key removal fails", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error message must specify biometric removal failure", error.message.contains("Biometric key removal incomplete"))
     }
 
     @Test

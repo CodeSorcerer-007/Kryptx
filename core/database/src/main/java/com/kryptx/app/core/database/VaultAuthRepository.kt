@@ -485,7 +485,10 @@ class VaultAuthRepositoryImpl(
     }
 
     override suspend fun disableBiometrics() = withContext(Dispatchers.IO) {
-        keystoreManager.removeBiometricKey()
+        val removed = keystoreManager.removeBiometricKey()
+        if (!removed) {
+            SecurityLogger.warn("VaultAuthRepository", "Failed to delete biometric key alias during disableBiometrics")
+        }
         dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, "")
         dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "")
     }
@@ -1030,9 +1033,11 @@ class VaultAuthRepositoryImpl(
         val failures = mutableListOf<String>()
 
         try {
-            keystoreManager.removeBiometricKey()
+            if (!keystoreManager.removeBiometricKey()) {
+                failures.add("Biometric key removal incomplete (key still present or Keystore error)")
+            }
         } catch (e: Exception) {
-            failures.add("Biometric key removal failed: ${e.message}")
+            failures.add("Biometric key removal error: ${e.message}")
         }
 
         try {
