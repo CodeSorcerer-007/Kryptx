@@ -68,8 +68,14 @@ class FakeVaultRepository : VaultRepository {
         return KryptxResult.Success(Unit)
     }
 
-    override suspend fun disableBiometrics() {
-        biometricsConfigured = false
+    var disableBiometricsResult: KryptxResult<Unit> = KryptxResult.Success(Unit)
+
+    override suspend fun disableBiometrics(): KryptxResult<Unit> {
+        val result = disableBiometricsResult
+        if (result is KryptxResult.Success) {
+            biometricsConfigured = false
+        }
+        return result
     }
 
     override suspend fun changeMasterPassword(currentPassword: CharArray, newPassword: CharArray): KryptxResult<Unit> {

@@ -241,6 +241,38 @@ class PanicDestructionUnifiedPipelineTest {
     }
 
     @Test
+    fun testDisableBiometricsReturnsErrorWhenKeystoreRemovalFails() = runTest {
+        Mockito.`when`(keystoreManager.removeBiometricKey()).thenReturn(false)
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.disableBiometrics()
+        assertTrue("disableBiometrics must return Error when keystore removal fails", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error message must explain keystore failure", error.message.contains("Failed to delete biometric key"))
+    }
+
+    @Test
+    fun testDisableBiometricsReturnsSuccessWhenKeystoreRemovalSucceeds() = runTest {
+        Mockito.`when`(keystoreManager.removeBiometricKey()).thenReturn(true)
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = sessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.disableBiometrics()
+        assertTrue("disableBiometrics must return Success when keystore removal succeeds", result is com.kryptx.app.core.model.KryptxResult.Success)
+    }
+
+    @Test
     fun testResetVaultReturnsErrorWhenDecoyDbCleanupFails() = runTest {
         decoyDbHelper.clearAllDataResult = false
         val repository = VaultAuthRepositoryImpl(

@@ -91,10 +91,15 @@ class SettingsViewModelTest {
     @Test
     fun testResetVaultClearsAll() = runTest(testDispatcher) {
         var resetDone = false
-        viewModel.resetVault { resetDone = true }
+        var errorReported: String? = null
+        viewModel.resetVault(
+            onResetComplete = { resetDone = true },
+            onResetError = { errorReported = it }
+        )
         testScheduler.runCurrent()
 
         assertTrue(resetDone)
+        org.junit.Assert.assertNull(errorReported)
         assertFalse(fakeVaultRepository.hasVault())
         assertFalse(fakePreferencesRepository.onboardingCompleted.value)
     }
@@ -119,6 +124,38 @@ class SettingsViewModelTest {
         assertNotNull("onResetError must be called when reset fails", errorReported)
         assertTrue(errorReported!!.contains("Primary database/storage cleanup incomplete"))
         assertTrue("Onboarding status must remain completed if reset failed", fakePreferencesRepository.onboardingCompleted.value)
+    }
+
+    @Test
+    fun testSetBiometricEnabledSuccessAndDisableSuccess() = runTest(testDispatcher) {
+        var enableReported = false
+        var disableReported = false
+
+        viewModel.setBiometricEnabled(true) { enableReported = it }
+        testScheduler.runCurrent()
+        assertTrue("Enabling biometrics should succeed", enableReported)
+        assertTrue("Preference should reflect enabled", fakePreferencesRepository.biometricEnabled.value)
+
+        viewModel.setBiometricEnabled(false) { disableReported = it }
+        testScheduler.runCurrent()
+        assertTrue("Disabling biometrics should succeed", disableReported)
+        assertFalse("Preference should reflect disabled", fakePreferencesRepository.biometricEnabled.value)
+    }
+
+    @Test
+    fun testDisableBiometricsFailurePreservesPreferenceAndReportsFalse() = runTest(testDispatcher) {
+        var disableReported = true
+        fakePreferencesRepository.setBiometricEnabled(true)
+        fakeVaultRepository.disableBiometricsResult = com.kryptx.app.core.model.KryptxResult.Error(
+            com.kryptx.app.core.model.KryptxErrorType.BIOMETRICS_FAILED,
+            "Failed to delete biometric key from Android Keystore"
+        )
+
+        viewModel.setBiometricEnabled(false) { disableReported = it }
+        testScheduler.runCurrent()
+
+        assertFalse("onResult must receive false when disableBiometrics fails", disableReported)
+        assertTrue("Preference must remain true when disabling fails", fakePreferencesRepository.biometricEnabled.value)
     }
 
     @Test

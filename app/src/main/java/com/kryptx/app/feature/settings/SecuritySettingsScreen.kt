@@ -163,12 +163,14 @@ fun SecuritySettingsScreen(
                         }
                     } else {
                         viewModel.setBiometricEnabled(enabled) { success ->
-                            if (success) {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (success) {
                                         if (enabled) "Biometrics enabled" else "Biometrics disabled"
-                                    )
-                                }
+                                    } else {
+                                        "Failed to disable biometrics: Keystore deletion error"
+                                    }
+                                )
                             }
                         }
                     }

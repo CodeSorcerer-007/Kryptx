@@ -58,4 +58,21 @@ class KeystoreManagerInstrumentedTest {
         val decryptCipher = keystoreManager.getDecryptCipher()
         org.junit.Assert.assertNotNull("Decrypt cipher must not be null", decryptCipher)
     }
+
+    @Test
+    fun testBiometricKeyRemovalVerificationAndPostcondition() {
+        // Ensure key exists
+        val keyPair = keystoreManager.getOrCreateBiometricKeyPair()
+        org.junit.Assert.assertNotNull("Biometric key pair must be generated", keyPair)
+        org.junit.Assert.assertTrue("hasBiometricKey must be true after generation", keystoreManager.hasBiometricKey())
+
+        // Execute verified removal
+        val removed = keystoreManager.removeBiometricKey()
+        org.junit.Assert.assertTrue("removeBiometricKey must return true when alias is absent", removed)
+        org.junit.Assert.assertFalse("hasBiometricKey must be false after removal", keystoreManager.hasBiometricKey())
+
+        // Removal must be idempotent and return true if key is already absent
+        val removedAgain = keystoreManager.removeBiometricKey()
+        org.junit.Assert.assertTrue("removeBiometricKey must remain true when already absent", removedAgain)
+    }
 }

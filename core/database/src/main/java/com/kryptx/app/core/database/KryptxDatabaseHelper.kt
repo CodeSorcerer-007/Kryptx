@@ -1045,13 +1045,19 @@ open class KryptxDatabaseHelper(
                         raf.write(buf, 0, chunk)
                         w += chunk
                     }
-                    try { raf.fd.sync() } catch (_: Throwable) {}
+                    raf.fd.sync()
                     com.kryptx.app.core.crypto.SecureMemory.wipe(buf)
                     raf.setLength(0L)
+                    raf.fd.sync()
                 }
             }
             overwritten = true
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "KryptxDatabaseHelper",
+                "Secure overwrite or file-sync failed for ${file.name}",
+                t
+            )
             overwritten = false
         }
         val deleted = file.delete() || !file.exists()
@@ -1080,7 +1086,7 @@ open class KryptxDatabaseHelper(
             val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
             val metaFile = File(sharedPrefsDir, "kryptx_metadata_prefs.xml")
             metadataFileDeleted = if (metaFile.exists()) {
-                metaFile.delete() || !metaFile.exists()
+                secureOverwriteAndDeleteFile(metaFile)
             } else {
                 true
             }

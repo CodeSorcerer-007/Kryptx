@@ -32,7 +32,7 @@ interface VaultAuthRepository {
     suspend fun setupBiometricsWithCipher(cipher: Cipher): KryptxResult<Unit>
     suspend fun unlockWithBiometrics(): KryptxResult<Unit>
     suspend fun unlockWithBiometricCipher(cipher: Cipher): KryptxResult<Unit>
-    suspend fun disableBiometrics()
+    suspend fun disableBiometrics(): KryptxResult<Unit>
     suspend fun changeMasterPassword(currentPassword: CharArray, newPassword: CharArray): KryptxResult<Unit>
     suspend fun rotateVaultEncryptionKey(currentMasterPassword: CharArray): KryptxResult<Unit>
 
@@ -484,13 +484,23 @@ class VaultAuthRepositoryImpl(
         }
     }
 
-    override suspend fun disableBiometrics() = withContext(Dispatchers.IO) {
-        val removed = keystoreManager.removeBiometricKey()
+    override suspend fun disableBiometrics(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val removed = try {
+            keystoreManager.removeBiometricKey()
+        } catch (e: Exception) {
+            SecurityLogger.warn("VaultAuthRepository", "Exception during biometric key removal", e)
+            false
+        }
         if (!removed) {
-            SecurityLogger.warn("VaultAuthRepository", "Failed to delete biometric key alias during disableBiometrics")
+            SecurityLogger.error("VaultAuthRepository", "Failed to delete biometric key alias from Keystore during disableBiometrics")
+            return@withContext KryptxResult.Error(
+                KryptxErrorType.BIOMETRICS_FAILED,
+                "Failed to delete biometric key from Android Keystore. Biometrics cannot be safely disabled while hardware alias remains."
+            )
         }
         dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK, "")
         dbHelper.setMetadata(KryptxDbSchema.KEY_BIOMETRIC_IV, "")
+        KryptxResult.Success(Unit)
     }
 
     override suspend fun changeMasterPassword(

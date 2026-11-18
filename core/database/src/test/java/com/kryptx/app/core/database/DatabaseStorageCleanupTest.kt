@@ -109,4 +109,42 @@ class DatabaseStorageCleanupTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun testDeleteDatabaseFileReportsFailureWhenSidecarCannotBeOverwritten() {
+        val tempDir = Files.createTempDirectory("db_overwrite_fail_test").toFile()
+        try {
+            val dbName = "test_readonly_vault.db"
+            val dbFile = File(tempDir, dbName)
+            dbFile.writeBytes(ByteArray(512) { 1 })
+
+            val walFile = File(tempDir, "$dbName-wal")
+            walFile.writeBytes(ByteArray(256) { 2 })
+            walFile.setReadOnly()
+
+            val mockContext = Mockito.mock(Context::class.java)
+            val appInfo = ApplicationInfo().apply { dataDir = tempDir.absolutePath }
+            Mockito.`when`(mockContext.applicationInfo).thenReturn(appInfo)
+            Mockito.`when`(mockContext.getDatabasePath(dbName)).thenReturn(dbFile)
+            Mockito.`when`(mockContext.deleteDatabase(dbName)).thenAnswer {
+                dbFile.delete()
+            }
+
+            val mockEditor = Mockito.mock(SharedPreferences.Editor::class.java)
+            Mockito.`when`(mockEditor.clear()).thenReturn(mockEditor)
+            Mockito.`when`(mockEditor.commit()).thenReturn(true)
+
+            val mockPrefs = Mockito.mock(SharedPreferences::class.java)
+            Mockito.`when`(mockPrefs.edit()).thenReturn(mockEditor)
+            Mockito.`when`(mockContext.getSharedPreferences(Mockito.anyString(), Mockito.anyInt())).thenReturn(mockPrefs)
+
+            val helper = KryptxDatabaseHelper(mockContext, dbName)
+            val result = helper.deleteDatabaseFile()
+
+            assertFalse("Result must report failure when wal cannot be securely overwritten", result.isSuccess)
+            assertFalse("walDeleted must be false", result.walDeleted)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
 }

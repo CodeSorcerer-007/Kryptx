@@ -126,9 +126,17 @@ class SettingsViewModel(
                 preferencesRepository.setBiometricEnabled(success)
                 onResult(success)
             } else {
-                vaultRepository.disableBiometrics()
-                preferencesRepository.setBiometricEnabled(false)
-                onResult(true)
+                val result = vaultRepository.disableBiometrics()
+                val success = result.isSuccess
+                if (success) {
+                    preferencesRepository.setBiometricEnabled(false)
+                } else {
+                    com.kryptx.app.core.security.SecurityLogger.warn(
+                        "SettingsViewModel",
+                        "Failed to disable biometrics: ${(result as? com.kryptx.app.core.model.KryptxResult.Error)?.message}"
+                    )
+                }
+                onResult(success)
             }
         }
     }
@@ -424,8 +432,17 @@ class SettingsViewModel(
         importContent(content, password, onResult)
     }
 
+    @Deprecated(
+        message = "Use two-argument resetVault(onResetComplete, onResetError) to ensure reset failures are handled by callers",
+        replaceWith = ReplaceWith("resetVault(onResetComplete, onResetError)")
+    )
     fun resetVault(onResetComplete: () -> Unit) {
-        resetVault(onResetComplete, null)
+        resetVault(onResetComplete) { error ->
+            com.kryptx.app.core.security.SecurityLogger.warn(
+                "SettingsViewModel",
+                "Unhandled reset failure in single-argument caller: $error"
+            )
+        }
     }
 
     fun resetVault(
