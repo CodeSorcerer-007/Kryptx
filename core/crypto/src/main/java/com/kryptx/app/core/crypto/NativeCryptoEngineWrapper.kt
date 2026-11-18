@@ -44,8 +44,9 @@ object NativeCryptoEngineWrapper {
     }
 
     fun deriveKey(password: CharArray, salt: ByteArray): ByteArray {
-        // Direct RFC 9106 Argon2id derivation with zeroizable direct buffers,
-        // avoiding immutable java.lang.String heap allocation and preserving memory barriers.
+        // Direct RFC 9106 Argon2id key derivation via Bouncy Castle using ephemeral CharBuffer
+        // and zeroizable byte arrays, avoiding immutable java.lang.String allocations on the heap
+        // and immediately wiping intermediate buffers via SecureMemory.wipe() upon completion.
         return KeyDerivation.deriveKeyArgon2(password, salt)
     }
 

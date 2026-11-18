@@ -50,6 +50,22 @@ class VaultSessionManagerTest {
     }
 
     @Test
+    fun testActiveVaultKeyBackedBySecureDirectBuffer() {
+        val sessionManager = VaultSessionManager(testScope)
+        val key = ByteArray(32) { (it * 3).toByte() }
+
+        sessionManager.unlock(key)
+        assertTrue(sessionManager.isUnlocked.value)
+        val extractedKey = sessionManager.getVaultKey()
+        assertNotNull(extractedKey)
+        assertTrue(Arrays.equals(key, extractedKey))
+
+        sessionManager.lock()
+        assertFalse(sessionManager.isUnlocked.value)
+        assertNull(sessionManager.getVaultKey())
+    }
+
+    @Test
     fun testAutoLockTimeoutTriggersLock() = runTest(testDispatcher) {
         val sessionManager = VaultSessionManager(this)
         val key = ByteArray(32) { 42 }

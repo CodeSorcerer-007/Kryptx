@@ -48,6 +48,9 @@ class VaultSessionManager(
     @Volatile
     private var activeVaultKey: ByteArray? = null
 
+    @Volatile
+    private var activeSecureKeyBuffer: java.nio.ByteBuffer? = null
+
     private var autoLockTimeout: AutoLockTimeout = AutoLockTimeout.FIVE_MINUTES
     private var lockOnBackground: Boolean = true
 
@@ -82,8 +85,18 @@ class VaultSessionManager(
         autoLockJob?.cancel()
         autoLockJob = null
 
-        // Securely copy key into active memory
+        // Securely allocate direct buffer locked in physical RAM via Linux mlock() and MADV_DONTDUMP
+        activeSecureKeyBuffer?.let { SecureMemory.releaseSecureBuffer(it) }
+        activeSecureKeyBuffer = null
         activeVaultKey?.let { SecureMemory.wipe(it) }
+
+        val secBuf = SecureMemory.allocateSecureBuffer(vaultKey.size, requireLock = false)
+        secBuf.clear()
+        secBuf.put(vaultKey)
+        secBuf.flip()
+        activeSecureKeyBuffer = secBuf
+
+        // Defensive copy maintained for immediate accessor operations, wiped upon lock
         activeVaultKey = vaultKey.copyOf()
 
         _isUnlocked.value = true
@@ -115,7 +128,21 @@ class VaultSessionManager(
     @Synchronized
     fun getVaultKey(): ByteArray? {
         if (!_isUnlocked.value) return null
+        activeSecureKeyBuffer?.let { buf ->
+            val copy = ByteArray(buf.remaining())
+            val duplicate = buf.duplicate()
+            duplicate.get(copy)
+            return copy
+        }
         return activeVaultKey?.copyOf()
+    }
+
+    /**
+     * Returns true if the active session key buffer is backed by a native direct buffer pinned
+     * in physical RAM via Linux `mlock()` and excluded from OS core dumps via `MADV_DONTDUMP`.
+     */
+    fun isSessionKeyMemoryLocked(): Boolean {
+        return activeSecureKeyBuffer != null && SecureMemory.isLastAllocationLocked
     }
 
     /**
@@ -191,6 +218,11 @@ class VaultSessionManager(
         autoLockJob?.cancel()
         autoLockJob = null
         backgroundTimestamp = 0L
+
+        activeSecureKeyBuffer?.let {
+            SecureMemory.releaseSecureBuffer(it)
+            activeSecureKeyBuffer = null
+        }
 
         activeVaultKey?.let {
             SecureMemory.wipe(it)

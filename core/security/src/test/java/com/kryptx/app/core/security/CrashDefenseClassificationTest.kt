@@ -40,8 +40,21 @@ class CrashDefenseClassificationTest {
         CrashDefense.registerRecoveryAction {
             actionExecuted = true
         }
-        // Action is registered and callable
-        CrashDefense.registerRecoveryAction { actionExecuted = true }
+        val result = CrashDefense.executeRecoveryActionOrFailClosed()
+        assertTrue("Recovery action must succeed without throwing", result)
+        assertTrue("Recovery action callback must have executed", actionExecuted)
+    }
+
+    @Test
+    fun testBackgroundCriticalExceptionsClassifiedAsSecurityCritical() {
+        val badTag = AEADBadTagException("Background thread AEAD auth tag failure")
+        assertTrue(CrashDefense.isSecurityCritical(badTag))
+
+        val keyEx = InvalidKeyException("Background thread corrupted hardware key")
+        assertTrue(CrashDefense.isSecurityCritical(keyEx))
+
+        val secEx = SecurityException("Background thread unauthorized memory inspection")
+        assertTrue(CrashDefense.isSecurityCritical(secEx))
     }
 
     @Test

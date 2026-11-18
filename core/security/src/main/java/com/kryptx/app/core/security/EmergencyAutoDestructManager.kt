@@ -127,12 +127,13 @@ class EmergencyAutoDestructManager(
             // 1. Instantaneous Cryptographic Erasure: Zeroize volatile in-memory session keys
             sessionManager?.lock()
 
-            // 2. Instantaneous Cryptographic Erasure: Invalidate hardware Keystore keys.
-            // Rendering encrypted databases immediately unreadable on flash even before physical file deletion.
+            // 2. Instantaneous Cryptographic Erasure: Invalidate all hardware Keystore keys,
+            // including biometric, ECDH migration keys, and the AndroidX Security MasterKey
+            // (_androidx_security_master_key_) protecting EncryptedSharedPreferences metadata.
+            // Rendering encrypted databases and vault metadata immediately and irreversibly undecryptable.
             try {
                 val ks = keystoreManager ?: KeystoreManager()
-                ks.removeBiometricKey()
-                ks.removeEcdhKey()  // Also wipe the ECDH P-256 v2 migration key
+                ks.wipeAllKeystoreAliases()
             } catch (t: Throwable) {
                 SecurityLogger.warn("EmergencyAutoDestruct", "Keystore keys removal failed or Keystore uninitialized during wipe", t)
             }

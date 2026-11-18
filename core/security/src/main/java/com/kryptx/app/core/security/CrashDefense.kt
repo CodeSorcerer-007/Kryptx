@@ -108,8 +108,25 @@ object CrashDefense {
             // Attempt clean restart of the root activity in a locked, secure state.
             recoverApplicationGracefully()
         } else {
-            // Background thread exception: swallow and prevent process death
-            SecurityLogger.warn(TAG, "Suppressed fatal crash on background thread '${thread.name}'; process kept alive.")
+            // Check if the background thread exception is security-critical
+            if (isSecurityCritical(throwable)) {
+                SecurityLogger.error(
+                    TAG,
+                    "Background thread '${thread.name}' threw SECURITY-CRITICAL exception: executing fail-closed vault locking",
+                    throwable
+                )
+                executeRecoveryActionOrFailClosed()
+                try {
+                    defaultExceptionHandler?.uncaughtException(thread, throwable)
+                } finally {
+                    try {
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                    } catch (_: Throwable) {}
+                }
+            } else {
+                // Background thread non-critical exception: swallow and prevent process death
+                SecurityLogger.warn(TAG, "Suppressed non-critical crash on background thread '${thread.name}'; process kept alive.")
+            }
         }
     }
 
@@ -191,6 +208,24 @@ object CrashDefense {
      */
     fun registerRecoveryAction(action: () -> Unit) {
         recoveryAction = action
+    }
+
+    /**
+     * Executes the registered security recovery action (e.g. locking the vault session and zeroizing volatile keys).
+     * If the recovery action fails or throws an exception, enforces a strict fail-closed policy by immediately
+     * terminating the process to prevent unauthorized or corrupted session state from persisting.
+     */
+    fun executeRecoveryActionOrFailClosed(): Boolean {
+        return try {
+            recoveryAction?.invoke()
+            true
+        } catch (t: Throwable) {
+            SecurityLogger.error(TAG, "Critical: Security recovery action threw an exception; executing fail-closed process termination", t)
+            try {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            } catch (_: Throwable) {}
+            false
+        }
     }
 
     /**
@@ -283,10 +318,10 @@ object CrashDefense {
     private fun recoverApplicationGracefully() {
         try {
             // Guarantee fail-safe vault locking prior to restarting UI
-            try {
-                recoveryAction?.invoke()
-            } catch (t: Throwable) {
-                SecurityLogger.error(TAG, "Failed executing security recovery action prior to restart", t)
+            val recoverySucceeded = executeRecoveryActionOrFailClosed()
+            if (!recoverySucceeded && recoveryAction != null) {
+                // Fail-closed has terminated or should terminate; do not restart activity
+                return
             }
 
             val app = applicationContextRef?.get() ?: return
@@ -302,7 +337,10 @@ object CrashDefense {
                 app.startActivity(restartIntent)
             }
         } catch (t: Throwable) {
-            SecurityLogger.error(TAG, "Graceful application recovery failed", t)
+            SecurityLogger.error(TAG, "Graceful application recovery failed; executing fail-closed process kill", t)
+            try {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            } catch (_: Throwable) {}
         }
     }
 }

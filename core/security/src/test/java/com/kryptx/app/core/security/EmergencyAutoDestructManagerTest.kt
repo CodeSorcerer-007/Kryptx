@@ -168,4 +168,19 @@ class EmergencyAutoDestructManagerTest {
         assertEquals(2, manager.getState().currentFailedAttempts)
         assertTrue("Third failed attempt reaches threshold (3) and must trigger destruct", manager.onFailedAttempt())
     }
+
+    @Test
+    fun testEmergencyWipeTriggersCompleteKeystorePurge() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            sessionManager = null,
+            keystoreManager = mockKeystoreManager,
+            maxFailedAttempts = 1,
+            isEnabled = true
+        )
+
+        manager.triggerEmergencyWipe()
+        org.mockito.Mockito.verify(mockKeystoreManager).wipeAllKeystoreAliases()
+    }
 }
