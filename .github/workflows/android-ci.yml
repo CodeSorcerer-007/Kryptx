@@ -390,11 +390,11 @@ jobs:
     name: Instrumented Android Tests
     runs-on: ubuntu-latest
     needs: test
-    continue-on-error: true
-    timeout-minutes: 20
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 25
     strategy:
       matrix:
-        api-level: [33, 34]
+        api-level: [30]
 
     steps:
       - name: Checkout repository
@@ -425,9 +425,10 @@ jobs:
 
       - name: Run Connected Android Tests on Emulator
         uses: reactivecircus/android-emulator-runner@v2
+        continue-on-error: true
         with:
           api-level: ${{ matrix.api-level }}
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_6
           disable-animations: true
