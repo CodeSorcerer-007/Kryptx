@@ -239,10 +239,14 @@ class EmergencyAutoDestructManagerTest {
         val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
         `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
 
-        // Create an un-deletable directory (non-empty directory where delete fails)
+        // Create an un-deletable directory structure (nested directory with files)
         val tempDir = java.nio.file.Files.createTempDirectory("vault_attachments_test").toFile()
         val nestedDir = java.io.File(tempDir, "vault_attachments")
         nestedDir.mkdirs()
+        val subDir = java.io.File(nestedDir, "subDir")
+        subDir.mkdirs()
+        val lockedFile = java.io.File(subDir, "locked.bin")
+        lockedFile.writeBytes(byteArrayOf(1, 2, 3))
 
         val fakeContext = mock(Context::class.java)
         `when`(fakeContext.filesDir).thenReturn(tempDir)
@@ -257,13 +261,11 @@ class EmergencyAutoDestructManagerTest {
 
         try {
             val result = manager.triggerEmergencyWipe()
-            // If attachment directory cannot be listed or deleted, it must report incomplete
-            if (nestedDir.exists()) {
-                assertTrue("Undeleted directory must yield Incomplete", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
-            }
+            assertTrue("Undeleted nested attachment directory must unconditionally yield DestructionResult.Incomplete", result is com.kryptx.app.core.model.DestructionResult.Incomplete)
+            val incomplete = result as com.kryptx.app.core.model.DestructionResult.Incomplete
+            assertFalse("databasesPurged flag must be false when attachments cannot be purged", incomplete.databasesPurged)
         } finally {
-            nestedDir.delete()
-            tempDir.delete()
+            tempDir.deleteRecursively()
         }
     }
 }

@@ -1075,9 +1075,12 @@ open class KryptxDatabaseHelper(
     /**
      * Atomically clears all user data across all tables, purges secure preferences metadata,
      * clears in-memory state flows, and deletes the database file.
+     * Returns true if all tables, attachments, and the database file were successfully purged.
      */
     @Synchronized
-    open fun clearAllData() {
+    open fun clearAllData(): Boolean {
+        var tablesCleared = true
+        var attachmentsCleared = true
         try {
             if (internalHelper != null) {
                 val db = internalHelper?.writableDatabase
@@ -1093,16 +1096,21 @@ open class KryptxDatabaseHelper(
                     db?.endTransaction()
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            tablesCleared = false
+        }
         try {
             val attachmentsDir = java.io.File(context.filesDir, "vault_attachments")
             if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
-                attachmentsDir.deleteRecursively()
+                attachmentsCleared = attachmentsDir.deleteRecursively() || !attachmentsDir.exists()
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            attachmentsCleared = false
+        }
         _itemsFlow.value = emptyList()
         _trashFlow.value = emptyList()
         searchIndex.clearKey()
-        deleteDatabaseFile()
+        val dbDeleted = deleteDatabaseFile()
+        return tablesCleared && attachmentsCleared && dbDeleted
     }
 }

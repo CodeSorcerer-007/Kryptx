@@ -11,6 +11,8 @@ import com.kryptx.app.core.model.DestructionResult
 import com.kryptx.app.core.model.KryptxErrorType
 import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.security.VaultSessionManager
+import com.kryptx.app.core.security.IVaultSessionManager
+import com.kryptx.app.core.security.withVaultKey
 import com.kryptx.app.core.security.SecurityLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -62,7 +64,7 @@ interface VaultAuthRepository {
 class VaultAuthRepositoryImpl(
     private val dbHelper: KryptxDatabaseHelper,
     private val decoyDbHelper: KryptxDatabaseHelper,
-    private val sessionManager: VaultSessionManager,
+    private val sessionManager: IVaultSessionManager,
     private val keystoreManager: KeystoreManager,
     private val onAuditInvalidated: (() -> Unit)? = null,
     private val onEmergencyWipe: (() -> DestructionResult)? = null
@@ -136,15 +138,48 @@ class VaultAuthRepositoryImpl(
             KryptxResult.Success(Unit)
         } catch (e: Exception) {
             SecurityLogger.error("VaultAuthRepository", "Failed to setup new vault, rolling back initialization", e)
+            val rollbackFailures = mutableListOf<String>()
+
+            // Step 1: Session lock
             try {
                 sessionManager.lock()
-                dbHelper.clearAllData()
-                decoyDbHelper.clearAllData()
-                keystoreManager.wipeAllKeystoreAliases()
-            } catch (rollbackEx: Throwable) {
-                SecurityLogger.error("VaultAuthRepository", "Rollback failed during failed vault setup", rollbackEx)
+            } catch (t: Throwable) {
+                rollbackFailures.add("session lock: ${t.message}")
             }
-            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to create vault: ${e.message}", e)
+
+            // Step 2: Database clear
+            try {
+                if (!dbHelper.clearAllData()) {
+                    rollbackFailures.add("primary database clear failed")
+                }
+            } catch (t: Throwable) {
+                rollbackFailures.add("primary database clear: ${t.message}")
+            }
+
+            // Step 3: Decoy database clear
+            try {
+                if (!decoyDbHelper.clearAllData()) {
+                    rollbackFailures.add("decoy database clear failed")
+                }
+            } catch (t: Throwable) {
+                rollbackFailures.add("decoy database clear: ${t.message}")
+            }
+
+            // Step 4: Hardware Keystore wipe
+            try {
+                if (!keystoreManager.wipeAllKeystoreAliases()) {
+                    rollbackFailures.add("keystore wipe failed")
+                }
+            } catch (t: Throwable) {
+                rollbackFailures.add("keystore wipe: ${t.message}")
+            }
+
+            val errorMsg = if (rollbackFailures.isEmpty()) {
+                "Failed to create vault: ${e.message}"
+            } else {
+                "Failed to create vault: ${e.message}. Rollback incomplete: ${rollbackFailures.joinToString("; ")}"
+            }
+            KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, errorMsg, e)
         } finally {
             SecureMemory.wipe(vek)
             SecureMemory.wipe(derivedMasterKey)
@@ -981,11 +1016,13 @@ class VaultAuthRepositoryImpl(
         KryptxResult.Success(Unit)
     }
 
-    override suspend fun resetVault() = withContext(Dispatchers.IO) {
-        sessionManager.lock()
-        keystoreManager.removeBiometricKey()
-        dbHelper.clearAllData()
-        decoyDbHelper.clearAllData()
+    override suspend fun resetVault() {
+        withContext(Dispatchers.IO) {
+            sessionManager.lock()
+            keystoreManager.removeBiometricKey()
+            dbHelper.clearAllData()
+            decoyDbHelper.clearAllData()
+        }
     }
 
     override fun getPqcIdentityPublicKey(): ByteArray? {

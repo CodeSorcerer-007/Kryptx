@@ -2,7 +2,9 @@ package com.kryptx.app.core.database
 
 import android.content.Context
 import com.kryptx.app.core.crypto.KeystoreManager
+import com.kryptx.app.core.security.IVaultSessionManager
 import com.kryptx.app.core.security.VaultSessionManager
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -14,9 +16,50 @@ class PanicDestructionUnifiedPipelineTest {
 
     private class FakeDatabaseHelper : KryptxDatabaseHelper(Mockito.mock(Context::class.java)) {
         var clearAllDataCalled = false
-        override fun clearAllData() {
+        var clearAllDataResult = true
+        override fun clearAllData(): Boolean {
             clearAllDataCalled = true
+            return clearAllDataResult
         }
+    }
+
+    private class FakeFailingSessionManager(
+        private val failureException: Exception = SecurityException("Strict memory locking simulated failure")
+    ) : IVaultSessionManager {
+        var lockCalled = false
+        var unlockCalled = false
+
+        override val isUnlocked = MutableStateFlow(false)
+        override val isDecoy = MutableStateFlow(false)
+        override val isLockedDueToTimeout = MutableStateFlow(false)
+        override val failedAttempts = MutableStateFlow(0)
+        override val lockoutSecondsRemaining = MutableStateFlow(0)
+
+        override fun unlock(vaultKey: ByteArray, isDecoy: Boolean) {
+            unlockCalled = true
+            throw failureException
+        }
+
+        override fun lock(isTimeout: Boolean) {
+            lockCalled = true
+        }
+
+        override fun getVaultKey(): ByteArray? = null
+        override fun isSessionKeyMemoryLocked(): Boolean = false
+        override fun recordActivity() {}
+        override fun recordFailedAttempt(): Int = 1
+        override fun addLockListener(listener: () -> Unit) = java.io.Closeable {}
+        override fun removeLockListener(listener: () -> Unit) {}
+        override fun addUnlockListener(listener: () -> Unit) = java.io.Closeable {}
+        override fun removeUnlockListener(listener: () -> Unit) {}
+        override fun addFailedAttemptListener(listener: (Int) -> Unit) = java.io.Closeable {}
+        override fun removeFailedAttemptListener(listener: (Int) -> Unit) {}
+        override fun clearAllListeners() {}
+        override fun setAutoLockTimeout(timeout: VaultSessionManager.AutoLockTimeout) {}
+        override fun setLockOnBackground(lock: Boolean) {}
+        override fun onAppBackgrounded() {}
+        override fun onAppForegrounded() {}
+        override fun setPickerActive(active: Boolean) {}
     }
 
     private lateinit var dbHelper: FakeDatabaseHelper
@@ -107,11 +150,7 @@ class PanicDestructionUnifiedPipelineTest {
 
     @Test
     fun testSetupNewVaultRollsBackWhenSessionUnlockFails() = runTest {
-        val failingSessionManager = object : VaultSessionManager() {
-            override fun unlock(vaultKey: ByteArray, isDecoy: Boolean) {
-                throw SecurityException("Strict memory locking simulated failure")
-            }
-        }
+        val failingSessionManager = FakeFailingSessionManager()
 
         val repository = VaultAuthRepositoryImpl(
             dbHelper = dbHelper,
@@ -126,6 +165,27 @@ class PanicDestructionUnifiedPipelineTest {
         assertTrue("Database helper must clear all data during rollback", dbHelper.clearAllDataCalled)
         assertTrue("Decoy database helper must clear all data during rollback", decoyDbHelper.clearAllDataCalled)
         Mockito.verify(keystoreManager, Mockito.atLeastOnce()).wipeAllKeystoreAliases()
-        assertFalse("Session must remain locked", failingSessionManager.isUnlocked.value)
+        assertTrue("Session manager lock must be invoked during rollback", failingSessionManager.lockCalled)
+    }
+
+    @Test
+    fun testSetupNewVaultReportsIncompleteRollbackWhenKeystoreCleanupFails() = runTest {
+        val failingSessionManager = FakeFailingSessionManager()
+
+        Mockito.`when`(keystoreManager.wipeAllKeystoreAliases()).thenReturn(false)
+
+        val repository = VaultAuthRepositoryImpl(
+            dbHelper = dbHelper,
+            decoyDbHelper = decoyDbHelper,
+            sessionManager = failingSessionManager,
+            keystoreManager = keystoreManager,
+            onEmergencyWipe = { com.kryptx.app.core.model.DestructionResult.Success }
+        )
+
+        val result = repository.setupNewVault("TestPassword123!".toCharArray())
+        assertTrue("Setup must return error", result is com.kryptx.app.core.model.KryptxResult.Error)
+        val error = result as com.kryptx.app.core.model.KryptxResult.Error
+        assertTrue("Error message must report incomplete rollback", error.message.contains("Rollback incomplete"))
+        assertTrue("Error message must indicate keystore wipe failed", error.message.contains("keystore wipe failed"))
     }
 }

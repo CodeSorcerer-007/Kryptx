@@ -16,14 +16,14 @@ import kotlinx.coroutines.launch
  * Manages the active decrypted vault session in memory, auto-lock policies,
  * timeout counters, background duration checks, and unlock failure throttling.
  */
-open class VaultSessionManager(
+class VaultSessionManager(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
     val memoryLockPolicy: MemoryLockPolicy = if (SecureMemory.isNativeMemoryLockSupported()) {
         MemoryLockPolicy.STRICT
     } else {
         MemoryLockPolicy.BEST_EFFORT
     }
-) {
+) : IVaultSessionManager {
 
     enum class MemoryLockPolicy {
         /**
@@ -52,19 +52,19 @@ open class VaultSessionManager(
     }
 
     private val _isUnlocked = MutableStateFlow(false)
-    val isUnlocked: StateFlow<Boolean> = _isUnlocked.asStateFlow()
+    override val isUnlocked: StateFlow<Boolean> = _isUnlocked.asStateFlow()
 
     private val _isDecoy = MutableStateFlow(false)
-    val isDecoy: StateFlow<Boolean> = _isDecoy.asStateFlow()
+    override val isDecoy: StateFlow<Boolean> = _isDecoy.asStateFlow()
 
     private val _isLockedDueToTimeout = MutableStateFlow(false)
-    val isLockedDueToTimeout: StateFlow<Boolean> = _isLockedDueToTimeout.asStateFlow()
+    override val isLockedDueToTimeout: StateFlow<Boolean> = _isLockedDueToTimeout.asStateFlow()
 
     private val _failedAttempts = MutableStateFlow(0)
-    val failedAttempts: StateFlow<Int> = _failedAttempts.asStateFlow()
+    override val failedAttempts: StateFlow<Int> = _failedAttempts.asStateFlow()
 
     private val _lockoutSecondsRemaining = MutableStateFlow(0)
-    val lockoutSecondsRemaining: StateFlow<Int> = _lockoutSecondsRemaining.asStateFlow()
+    override val lockoutSecondsRemaining: StateFlow<Int> = _lockoutSecondsRemaining.asStateFlow()
 
     @Volatile
     private var activeSecureKeyBuffer: java.nio.ByteBuffer? = null
@@ -87,7 +87,7 @@ open class VaultSessionManager(
      * where a caller unlocks the vault while the throttle countdown is still non-zero.
      */
     @Synchronized
-    open fun unlock(vaultKey: ByteArray, isDecoy: Boolean = false) {
+    override fun unlock(vaultKey: ByteArray, isDecoy: Boolean) {
         // Session integrity guard — log if lockout was active when unlock succeeded.
         // This indicates either a genuine timing race or an attempted throttle bypass.
         if (_lockoutSecondsRemaining.value > 0) {
@@ -166,7 +166,7 @@ open class VaultSessionManager(
      * Prefer using [withVaultKey] for scoped, guaranteed zeroization.
      */
     @Synchronized
-    fun getVaultKey(): ByteArray? {
+    override fun getVaultKey(): ByteArray? {
         if (!_isUnlocked.value) return null
         val buf = activeSecureKeyBuffer ?: return null
         val copy = ByteArray(buf.remaining())
@@ -179,7 +179,7 @@ open class VaultSessionManager(
      * Returns true if the active session key buffer is backed by a native direct buffer pinned
      * in physical RAM via Linux `mlock()` and excluded from OS core dumps via `MADV_DONTDUMP`.
      */
-    fun isSessionKeyMemoryLocked(): Boolean {
+    override fun isSessionKeyMemoryLocked(): Boolean {
         val buf = activeSecureKeyBuffer ?: return false
         return SecureMemory.isBufferLocked(buf)
     }
@@ -217,30 +217,30 @@ open class VaultSessionManager(
     private val unlockListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
     private val failedAttemptListeners = java.util.concurrent.CopyOnWriteArrayList<(Int) -> Unit>()
 
-    fun addLockListener(listener: () -> Unit): java.io.Closeable {
+    override fun addLockListener(listener: () -> Unit): java.io.Closeable {
         lockListeners.add(listener)
         return java.io.Closeable { lockListeners.remove(listener) }
     }
 
-    fun removeLockListener(listener: () -> Unit) {
+    override fun removeLockListener(listener: () -> Unit) {
         lockListeners.remove(listener)
     }
 
-    fun addUnlockListener(listener: () -> Unit): java.io.Closeable {
+    override fun addUnlockListener(listener: () -> Unit): java.io.Closeable {
         unlockListeners.add(listener)
         return java.io.Closeable { unlockListeners.remove(listener) }
     }
 
-    fun removeUnlockListener(listener: () -> Unit) {
+    override fun removeUnlockListener(listener: () -> Unit) {
         unlockListeners.remove(listener)
     }
 
-    fun addFailedAttemptListener(listener: (Int) -> Unit): java.io.Closeable {
+    override fun addFailedAttemptListener(listener: (Int) -> Unit): java.io.Closeable {
         failedAttemptListeners.add(listener)
         return java.io.Closeable { failedAttemptListeners.remove(listener) }
     }
 
-    fun removeFailedAttemptListener(listener: (Int) -> Unit) {
+    override fun removeFailedAttemptListener(listener: (Int) -> Unit) {
         failedAttemptListeners.remove(listener)
     }
 
@@ -248,7 +248,7 @@ open class VaultSessionManager(
      * Clears all registered session lifecycle listeners.
      * Invoked during container teardown to eliminate listener reference leaks.
      */
-    fun clearAllListeners() {
+    override fun clearAllListeners() {
         lockListeners.clear()
         unlockListeners.clear()
         failedAttemptListeners.clear()
@@ -258,7 +258,7 @@ open class VaultSessionManager(
      * Locks the vault and immediately zeroizes the in-memory cryptographic key.
      */
     @Synchronized
-    fun lock(isTimeout: Boolean = false) {
+    override fun lock(isTimeout: Boolean) {
         autoLockJob?.cancel()
         autoLockJob = null
         backgroundTimestamp = 0L
@@ -307,6 +307,11 @@ open class VaultSessionManager(
      * Records user touch/navigation activity to reset the auto-lock countdown timer.
      */
     @Synchronized
+    override fun recordActivity() {
+        recordActivity(force = false)
+    }
+
+    @Synchronized
     fun recordActivity(force: Boolean = false) {
         val now = System.currentTimeMillis()
         lastUserActivityTimestamp = now
@@ -336,7 +341,7 @@ open class VaultSessionManager(
     private var isPickerActive: Boolean = false
 
     @Synchronized
-    fun setPickerActive(active: Boolean) {
+    override fun setPickerActive(active: Boolean) {
         isPickerActive = active
         if (active) {
             // Suspend the auto-lock countdown while system UI / picker is active
@@ -355,7 +360,7 @@ open class VaultSessionManager(
      * Invoked when the app leaves the foreground.
      */
     @Synchronized
-    fun onAppBackgrounded() {
+    override fun onAppBackgrounded() {
         backgroundTimestamp = System.currentTimeMillis()
         if (isPickerActive) {
             // User launched a system picker (e.g. Photo Picker, SAF document picker, Camera).
@@ -373,7 +378,7 @@ open class VaultSessionManager(
      * Checks if elapsed background duration exceeded the configured timeout threshold.
      */
     @Synchronized
-    fun onAppForegrounded() {
+    override fun onAppForegrounded() {
         if (!_isUnlocked.value) return
 
         val bgTime = backgroundTimestamp
@@ -450,7 +455,7 @@ open class VaultSessionManager(
      * Lockout state is persisted across process restarts via [setLockoutPersistence] so
      * force-killing the app does not reset the throttle.
      */
-    fun recordFailedAttempt() {
+    override fun recordFailedAttempt(): Int {
         // Atomic CAS update & fetch — eliminates TOCTOU race where another thread
         // increments past lockout threshold between separate update and value operations.
         val attempts = _failedAttempts.updateAndGet { it + 1 }
@@ -480,16 +485,17 @@ open class VaultSessionManager(
                 SecurityLogger.error("VaultSessionManager", "Failed attempt listener threw an exception", t)
             }
         }
+        return attempts
     }
 
-    fun setAutoLockTimeout(timeout: AutoLockTimeout) {
+    override fun setAutoLockTimeout(timeout: AutoLockTimeout) {
         this.autoLockTimeout = timeout
         recordActivity()
     }
 
     fun getAutoLockTimeout(): AutoLockTimeout = autoLockTimeout
 
-    fun setLockOnBackground(lock: Boolean) {
+    override fun setLockOnBackground(lock: Boolean) {
         this.lockOnBackground = lock
     }
 
