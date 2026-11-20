@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -362,10 +365,17 @@ fun UnlockScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable {
-                            rememberMe = !rememberMe
-                            viewModel.setKeepUnlocked(rememberMe)
-                        }
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .toggleable(
+                                value = rememberMe,
+                                role = Role.Checkbox,
+                                onValueChange = {
+                                    rememberMe = it
+                                    viewModel.setKeepUnlocked(rememberMe)
+                                }
+                            )
+                            .padding(vertical = 8.dp)
                     ) {
                         Box(
                             modifier = Modifier

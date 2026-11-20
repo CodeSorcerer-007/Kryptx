@@ -41,6 +41,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
@@ -242,7 +247,10 @@ fun SecurityCenterScreen(
                                     .clip(RoundedCornerShape(18.dp))
                                     .background(KryptxBlue.copy(alpha = 0.12f))
                                     .border(1.dp, KryptxBlue.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
-                                    .clickable {
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClickLabel = "Launch 1-Tap Security Wizard"
+                                    ) {
                                         com.kryptx.app.core.designsystem.components.KryptxHaptics.confirm(view)
                                         showRemediationWizard = true
                                     }
@@ -327,7 +335,13 @@ fun SecurityCenterScreen(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = KryptxBlue,
-                                    modifier = Modifier.clickable { selectedFilter = null }
+                                    modifier = Modifier
+                                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                                        .clickable(
+                                            role = Role.Button,
+                                            onClickLabel = "Show all findings"
+                                        ) { selectedFilter = null }
+                                        .padding(horizontal = 8.dp, vertical = 12.dp)
                                 )
                             }
                         }
@@ -435,10 +449,18 @@ fun AuditStatBox(
     Box(
         modifier = modifier
             .testTag("audit_stat_${label.lowercase().replace(" ", "_")}")
+            .defaultMinSize(minHeight = 48.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-            .clickable { onClick() }
+            .clickable(
+                role = Role.Tab,
+                onClickLabel = "Filter by $label ($count items)"
+            ) { onClick() }
+            .semantics {
+                selected = isSelected
+                stateDescription = if (isSelected) "Selected" else "Not selected"
+            }
             .padding(vertical = 12.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {

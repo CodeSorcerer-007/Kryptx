@@ -371,7 +371,7 @@ private fun CameraPreviewWithScanner(
             IconButton(
                 onClick = onClose,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.6f))
             ) {
@@ -386,7 +386,7 @@ private fun CameraPreviewWithScanner(
                 IconButton(
                     onClick = onPickFromGallery,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.6f))
                 ) {
@@ -404,7 +404,7 @@ private fun CameraPreviewWithScanner(
                             camera?.cameraControl?.enableTorch(isTorchOn)
                         },
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.6f))
                     ) {

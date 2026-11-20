@@ -2,6 +2,8 @@ package com.kryptx.app.feature.vault
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -159,6 +161,8 @@ fun FloatingCategoryBadge(
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .semantics {
                 role = Role.Tab
+                selected = isSelected
+                stateDescription = if (isSelected) "Selected" else "Not selected"
                 contentDescription = "Category $label, $count items"
             },
         contentAlignment = Alignment.Center

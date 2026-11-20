@@ -43,7 +43,12 @@ fun KryptxCircleIconButton(
     Box(
         modifier = modifier
             .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-            .bounceClick(scaleDown = 0.90f, onClick = onClick),
+            .bounceClick(
+                scaleDown = 0.90f,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClickLabel = contentDescription,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Box(

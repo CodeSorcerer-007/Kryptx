@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -156,8 +159,17 @@ fun CategoryCustomizationSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                            .toggleable(
+                                value = isVisible,
+                                role = Role.Switch,
+                                onValueChange = {
+                                    KryptxHaptics.tick(view)
+                                    settingsViewModel.toggleCategoryVisibility(category)
+                                }
+                            )
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -198,10 +210,7 @@ fun CategoryCustomizationSheet(
 
                         Switch(
                             checked = isVisible,
-                            onCheckedChange = {
-                                KryptxHaptics.tick(view)
-                                settingsViewModel.toggleCategoryVisibility(category)
-                            },
+                            onCheckedChange = null,
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = KryptxBlue

@@ -199,7 +199,7 @@ fun KryptxBottomNavBar(
                         ) {
                             Icon(
                                 imageVector = tab.icon,
-                                contentDescription = tab.label,
+                                contentDescription = null,
                                 tint = if (isSelected) selectedIconTint else unselectedIconTint,
                                 modifier = Modifier
                                     .size(22.dp)

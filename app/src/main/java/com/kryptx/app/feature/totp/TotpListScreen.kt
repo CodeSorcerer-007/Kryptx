@@ -28,6 +28,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -295,11 +300,20 @@ fun TotpListScreen(
                                 val isOpt = sortOrder == opt
                                 Box(
                                     modifier = Modifier
+                                        .defaultMinSize(minHeight = 48.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isOpt) KryptxBlue.copy(alpha = 0.18f) else Color.Transparent)
                                         .border(1.dp, if (isOpt) KryptxBlue else Color.Transparent, RoundedCornerShape(8.dp))
-                                        .clickable { viewModel.setSortOrder(opt) }
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        .clickable(
+                                            role = Role.RadioButton,
+                                            onClick = { viewModel.setSortOrder(opt) }
+                                        )
+                                        .semantics {
+                                            selected = isOpt
+                                            stateDescription = if (isOpt) "Selected" else "Not selected"
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = opt.label,
@@ -582,6 +596,12 @@ fun TotpAccountCard(
                 },
                 onLongClick = onLongClick
             )
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                val codeFormatted = code?.formattedCode ?: "generating"
+                val remainingSec = code?.secondsRemaining ?: 0
+                contentDescription = "${account.item.title}, verification code $codeFormatted, $remainingSec seconds remaining. Tap to copy, long press for options."
+            }
             .padding(18.dp)
     ) {
         Row(

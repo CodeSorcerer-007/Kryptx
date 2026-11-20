@@ -3,7 +3,7 @@
   "description": "Renovate dependency update configuration for Kryptx. Security patches are auto-merged; other updates require review.",
 
   "extends": [
-    "config:base",
+    "config:recommended",
     ":semanticCommits",
     "security:openssf-scorecard"
   ],

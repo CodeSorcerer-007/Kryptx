@@ -105,10 +105,10 @@ Kryptx uses an air-gapped multi-module architecture:
 ### Compiling Release APK & Bundle
 ```bash
 ./gradlew assembleRelease bundleRelease copyReleaseApk copyReleaseBundle
-# Output: apk/Kryptx-v20-release.apk, apk/Kryptx-v20-release.aab
-```
-./gradlew assembleRelease
-# Output: app/build/outputs/apk/release/app-release-unsigned.apk (or signed if keystore configured)
+# Output: apk/Kryptx-v31-release.apk, apk/Kryptx-v31-release.aab
+# Direct build outputs:
+#   app/build/outputs/apk/release/*.apk
+#   app/build/outputs/bundle/release/*.aab
 ```
 
 ---
@@ -123,9 +123,9 @@ Kryptx uses an air-gapped multi-module architecture:
    ```
 
 2. **Code Coverage Hard Gate:**
-   JaCoCo test coverage verification requires $\ge 85\%$ line coverage across core modules.
+   JaCoCo test coverage verification requires $\ge 70\%$ instruction coverage across debug builds.
    ```bash
-   ./gradlew jacocoTestCoverageVerification
+   ./gradlew :app:jacocoTestReport :app:jacocoTestCoverageVerification
    ```
 
 3. **Deterministic Nonces:**

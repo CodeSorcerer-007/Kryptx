@@ -24,7 +24,7 @@ import java.util.UUID
  */
 class AttachmentManager(
     private val context: Context,
-    private val sessionManager: VaultSessionManager
+    private val sessionManager: IVaultSessionManager
 ) : IAttachmentManager {
 
     companion object {

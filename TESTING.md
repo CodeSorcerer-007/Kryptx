@@ -117,20 +117,23 @@ The following features require physical device testing before shipping to the Pl
 
 ---
 
-## 7. P2P Local Sync & Offline Web Vault
+## 7. Air-Gapped Animated QR Fountain Sync & Offline Web Vault
 
 **Requirements**
-- Two physical Android devices on the same Wi-Fi network (or one device hosting a mobile hotspot)
+- Two physical Android devices with functioning cameras and screens (zero network, Wi-Fi, or radio connections required)
 
 **What to test**
-- Device A: Tap "Send Vault" → QR code appears with IP, port, PIN, and AES key
-- Device B: Tap "Receive Vault" → Scan QR code → vault items import successfully
-- Device B: Tap "Receive Vault" → Enter wrong PIN → verify transfer is rejected
-- Test with vault containing all 8 item types and file attachments
-- Test Offline Web Companion: Export `.html` file → transfer to desktop PC via USB/Bluetooth → open in Chrome/Firefox/Safari offline → enter export password → verify all accounts decrypt client-side via W3C WebCrypto
+- Device A: Navigate to Settings → Backup & Export → tap "Air-Gap Fountain Transmitter"
+  - Verify high-density animated QR fountain stream starts playing with sequence indices and part-level CRC32 checksums
+- Device B: Navigate to Settings → Backup & Export → tap "Air-Gap Fountain Receiver"
+  - Point camera at Device A's animated QR stream
+  - Verify frame capture progress bar advances in real time as fountain parts are received (including out-of-order frames)
+  - Verify that upon capturing 100% of parts, payload reassembles and imports successfully with full SHA-256 integrity verification
+- Test with vault containing multiple item types and custom fields
+- Test Offline Web Companion: Export `.html` file → transfer to desktop PC via USB cable or SD card → open in Chrome/Firefox/Safari offline → enter export password → verify all accounts decrypt client-side via W3C WebCrypto API
 
 **Pass criteria**
-- All items transfer with zero data loss
+- All items transfer with zero network permissions and zero data loss
 - Offline HTML web vault decrypts flawlessly without internet connectivity
 
 ---

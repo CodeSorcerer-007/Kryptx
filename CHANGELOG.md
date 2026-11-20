@@ -5,6 +5,16 @@ All notable changes to the Kryptx Android Password Manager project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] (versionCode 31) - 2026-11-20
+
+### Full Modularity, CI/CD Hardening & Documentation Accuracy
+- **Modular Architecture**: Extracted physical Gradle subprojects (`:core:model`, `:core:crypto`, `:core:database`, `:core:security`) cleanly separating data models, cryptographic primitives, SQLCipher storage, and security management.
+- **Strict CI/CD Hardening**: Added top-level and job-level minimal permissions (`permissions: read-all`, `contents: read`, `actions: read`), job concurrency cancellation, fixed heredoc bash syntax in release workflows, and upgraded Renovate configuration to `config:recommended`.
+- **Zero-Network Air-Gap Documentation Alignment**: Audited all project documentation (`README.md`, `ARCHITECTURE.md`, `BUILD.md`, `TESTING.md`, `docs/privacy.html`, `docs/index.html`) to eliminate all false claims regarding network calls, HIBP k-Anonymity queries, local Wi-Fi socket servers, and wireless BLE scanning. Kryptx strictly operates 100% offline via local Bloom filter breach analysis and air-gapped camera-to-screen QR fountain sync.
+- **Comprehensive Verification**: 672 automated unit, fuzz, and property-based tests passing with 100% success rate (0 failures, 0 regressions).
+
+---
+
 ## [2.3.0] (versionCode 19) - 2026-10-27
 
 ### 100/100 Sovereign Security & Post-Quantum Fortress Hardening

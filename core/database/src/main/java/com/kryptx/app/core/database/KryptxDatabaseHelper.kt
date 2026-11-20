@@ -518,6 +518,7 @@ open class KryptxDatabaseHelper(
                 for (id in expiredTrashIds) {
                     try {
                         writeDb.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(id))
+                        searchIndex.deleteTokens(writeDb, id)
                     } catch (_: Exception) {
                     }
                 }
@@ -927,7 +928,12 @@ open class KryptxDatabaseHelper(
                     }
                 } catch (_: Exception) {}
                 val rows = db.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(item.id))
-                if (rows > 0) deletedCount++
+                if (rows > 0) {
+                    try {
+                        searchIndex.deleteTokens(db, item.id)
+                    } catch (_: Exception) {}
+                    deletedCount++
+                }
             }
             db.setTransactionSuccessful()
         } finally {

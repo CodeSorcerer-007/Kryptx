@@ -43,6 +43,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -147,11 +150,15 @@ fun DetailFieldCard(
                         com.kryptx.app.core.designsystem.components.KryptxHaptics.tap(view)
                         revealed = !revealed
                     },
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier
+                        .size(48.dp)
+                        .semantics {
+                            stateDescription = if (revealed) "Revealed" else "Hidden"
+                        }
                 ) {
                     Icon(
                         imageVector = if (revealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (revealed) "Hide" else "Reveal",
+                        contentDescription = if (revealed) "Hide $label" else "Reveal $label",
                         tint = if (revealed) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .size(19.dp)
@@ -163,11 +170,11 @@ fun DetailFieldCard(
             if (trailingActionIcon != null && onTrailingAction != null) {
                 IconButton(
                     onClick = onTrailingAction,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = trailingActionIcon,
-                        contentDescription = null,
+                        contentDescription = "Action for $label",
                         tint = KryptxBlue,
                         modifier = Modifier.size(19.dp)
                     )
@@ -184,11 +191,11 @@ fun DetailFieldCard(
                         copied = false
                     }
                 },
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
-                    contentDescription = "Copy",
+                    contentDescription = if (copied) "Copied $label" else "Copy $label",
                     tint = if (copied) KryptxEmerald else KryptxBlue,
                     modifier = Modifier
                         .size(18.dp)

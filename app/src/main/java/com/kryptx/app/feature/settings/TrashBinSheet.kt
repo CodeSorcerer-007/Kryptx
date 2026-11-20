@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
@@ -275,37 +277,59 @@ private fun TrashItemRow(
                 // Restore button
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(KryptxEmerald.copy(alpha = 0.15f))
-                        .clickable { onRestore() },
+                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .bounceClick(
+                            scaleDown = 0.90f,
+                            role = Role.Button,
+                            onClickLabel = "Restore Item",
+                            onClick = onRestore
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Restore,
-                        contentDescription = "Restore Item",
-                        tint = KryptxEmerald,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(KryptxEmerald.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Restore,
+                            contentDescription = "Restore Item",
+                            tint = KryptxEmerald,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
 
                 // Delete permanently
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(KryptxRed.copy(alpha = 0.12f))
-                        .clickable { onPermanentDelete() },
+                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .bounceClick(
+                            scaleDown = 0.90f,
+                            role = Role.Button,
+                            onClickLabel = "Permanently Delete",
+                            onClick = onPermanentDelete
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Permanently Delete",
-                        tint = KryptxRed,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(KryptxRed.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Permanently Delete",
+                            tint = KryptxRed,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }

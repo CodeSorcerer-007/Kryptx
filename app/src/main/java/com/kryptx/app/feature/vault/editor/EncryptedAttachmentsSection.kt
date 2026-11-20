@@ -107,7 +107,7 @@ fun EncryptedAttachmentsSection(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete",
+                                    contentDescription = "Delete attachment ${att.fileName}",
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(18.dp)
                                 )

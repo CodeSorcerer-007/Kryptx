@@ -43,6 +43,9 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -388,7 +391,13 @@ fun SecuritySettingsScreen(
                     .clip(RoundedCornerShape(18.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
-                    .clickable { isAdvancedExpanded = !isAdvancedExpanded }
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = if (isAdvancedExpanded) "Collapse Advanced Threat Protection" else "Expand Advanced Threat Protection"
+                    ) { isAdvancedExpanded = !isAdvancedExpanded }
+                    .semantics {
+                        stateDescription = if (isAdvancedExpanded) "Expanded" else "Collapsed"
+                    }
                     .padding(16.dp)
             ) {
                 Row(

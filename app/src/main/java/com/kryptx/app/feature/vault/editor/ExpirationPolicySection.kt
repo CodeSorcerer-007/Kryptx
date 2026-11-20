@@ -10,6 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,6 +63,7 @@ fun ExpirationPolicySection(
             val isSelected = rotationIntervalDays == days
             Box(
                 modifier = Modifier
+                    .defaultMinSize(minHeight = 48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .border(
@@ -64,8 +71,16 @@ fun ExpirationPolicySection(
                         if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                         RoundedCornerShape(12.dp)
                     )
-                    .clickable { onIntervalSelected(days) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .clickable(
+                        role = Role.RadioButton,
+                        onClick = { onIntervalSelected(days) }
+                    )
+                    .semantics {
+                        selected = isSelected
+                        stateDescription = if (isSelected) "Selected" else "Not selected"
+                    }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = label,

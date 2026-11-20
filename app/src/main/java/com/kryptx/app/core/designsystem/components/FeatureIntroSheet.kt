@@ -126,12 +126,12 @@ enum class FeatureGuide(
     ),
     WEB_COMPANION(
         key = "web_companion_feature",
-        title = "Desktop Web Companion",
-        subtitle = "Zero-Cloud Local Wi-Fi Access",
+        title = "Desktop Offline Web Vault",
+        subtitle = "Zero-Cloud Air-Gapped HTML Vault",
         icon = Icons.Default.Security,
-        whatIsIt = "Access and manage your encrypted vault from your PC or Mac desktop browser over local Wi-Fi.",
-        whyUseIt = "No cloud servers, no extensions to install, and zero internet exposure. Protected with ephemeral PIN handshakes.",
-        proTip = "Turn on the companion server from Settings when you want to work on a large desktop screen."
+        whatIsIt = "Export and view your encrypted vault on your PC or Mac desktop browser without any server or network.",
+        whyUseIt = "Self-contained HTML file decrypts client-side using W3C WebCrypto API. Zero internet exposure and zero servers.",
+        proTip = "Export from Settings to keep a secure, browser-viewable emergency vault on an encrypted flash drive."
     ),
     EMERGENCY_KIT(
         key = "emergency_kit_feature",

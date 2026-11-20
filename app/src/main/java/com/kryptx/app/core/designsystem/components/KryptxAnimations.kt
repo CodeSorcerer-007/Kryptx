@@ -57,6 +57,8 @@ fun Modifier.bounceClick(
     scaleDown: Float = 0.96f,
     hapticFeedback: Boolean = true,
     interactionSource: MutableInteractionSource? = null,
+    role: androidx.compose.ui.semantics.Role? = null,
+    onClickLabel: String? = null,
     onClick: (() -> Unit)? = null
 ): Modifier = composed {
     val actualInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
@@ -75,7 +77,9 @@ fun Modifier.bounceClick(
     val clickModifier = if (onClick != null) {
         Modifier.clickable(
             interactionSource = actualInteractionSource,
-            indication = null
+            indication = null,
+            role = role,
+            onClickLabel = onClickLabel
         ) {
             if (hapticFeedback) {
                 KryptxHaptics.tap(view)

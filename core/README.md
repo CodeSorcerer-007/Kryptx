@@ -68,7 +68,7 @@ graph TD
 | **`:core:crypto`** | Primitive cryptographic implementations (`XChaCha20-Poly1305`, `AES-GCM`, `Argon2Engine`, `PostQuantumEngine`, `SecureMemory`, UniFFI bridge). | `:core:model`, BouncyCastle, Android Keystore | Zero UI, Zero Database logic, Zero direct Feature calls |
 | **`:core:database`** | Encrypted persistence layer (`SQLCipher`, `KryptxDatabaseHelper`, `VaultRepository`, `HmacSearchIndex`, schema migrations). | `:core:crypto`, `:core:model`, SQLCipher Android | Zero UI, Zero network calls, Zero raw unauthenticated data |
 | **`:core:security`** | Application lifecycle security services (`VaultSessionManager`, `BiometricAuthManager`, `RootDetector`, `EmergencyAutoDestructManager`, `ClipboardSecurityManager`). | `:core:database`, `:core:crypto`, `:core:model` | Zero UI layouts or Composables |
-| **`:feature:*`** | Specialized user journeys (Vault browsing, Credential editing, Password generation, TOTP authenticator). | Core modules via strict public interfaces | Direct database writes, manual cipher selection |
+| **`feature.*` (in `:app`)** | Specialized user journeys in `:app` (Vault browsing, Credential editing, Password generation, TOTP authenticator). | Core modules via strict public interfaces | Direct database writes, manual cipher selection |
 
 ---
 

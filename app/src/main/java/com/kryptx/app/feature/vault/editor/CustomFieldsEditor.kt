@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -99,7 +103,7 @@ fun CustomFieldsEditor(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Remove Field",
+                        contentDescription = "Remove Field ${field.label.ifBlank { "at index ${index + 1}" }}",
                         tint = KryptxRed,
                         modifier = Modifier.size(18.dp)
                     )
@@ -107,7 +111,17 @@ fun CustomFieldsEditor(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .toggleable(
+                        value = field.isSecured,
+                        role = Role.Switch,
+                        onValueChange = { isSec ->
+                            customFields[index] = field.copy(isSecured = isSec)
+                        }
+                    )
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -118,9 +132,7 @@ fun CustomFieldsEditor(
                 )
                 Switch(
                     checked = field.isSecured,
-                    onCheckedChange = { isSec ->
-                        customFields[index] = field.copy(isSecured = isSec)
-                    },
+                    onCheckedChange = null,
                     colors = SwitchDefaults.colors(checkedThumbColor = KryptxBlue)
                 )
             }

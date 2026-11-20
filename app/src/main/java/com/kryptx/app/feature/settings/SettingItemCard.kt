@@ -39,7 +39,12 @@ fun SettingItemCard(
                 MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                 RoundedCornerShape(18.dp)
             )
-            .bounceClick(scaleDown = 0.98f, onClick = onClick)
+            .bounceClick(
+                scaleDown = 0.98f,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClickLabel = title,
+                onClick = onClick
+            )
             .padding(16.dp)
     ) {
         Column {

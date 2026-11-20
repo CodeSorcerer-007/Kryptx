@@ -3,7 +3,8 @@ package com.kryptx.app.feature.settings
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -91,13 +92,17 @@ fun AppearanceSettingsScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.setThemeMode(mode) }
+                                .selectable(
+                                    selected = currentTheme == mode,
+                                    role = Role.RadioButton,
+                                    onClick = { viewModel.setThemeMode(mode) }
+                                )
                                 .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
                                 selected = currentTheme == mode,
-                                onClick = { viewModel.setThemeMode(mode) },
+                                onClick = null,
                                 colors = RadioButtonDefaults.colors(selectedColor = KryptxBlue)
                             )
                             Spacer(modifier = Modifier.width(10.dp))

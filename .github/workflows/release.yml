@@ -3,9 +3,12 @@ name: Kryptx Release
 on:
   push:
     tags:
-      - 'v*.*.*'
       - 'v*'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -39,7 +42,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Release Unit Tests & Security Audits
-        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
       - name: Zero-Network Hard Security Check
         run: |
@@ -86,7 +89,7 @@ jobs:
           fi
 
       - name: Build Release APK & AAB Bundle
-        run: ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
+        run: ./gradlew :app:assembleRelease :app:bundleRelease :app:copyReleaseApk :app:copyReleaseBundle --no-daemon --stacktrace
 
       - name: Secure Cleanup of Keystore
         if: always()
@@ -95,33 +98,47 @@ jobs:
             shred -u app/kryptx-release-key.jks 2>/dev/null || rm -f app/kryptx-release-key.jks
           fi
 
-      - name: Enforce APK Size Budget (<= 25 MB)
+      - name: Enforce Release Size Budgets (<= 25 MB Release APK / <= 35 MB AAB)
         run: |
           APK_FILES=$(find app/build/outputs/apk/release/ -name "*.apk")
           if [ -z "$APK_FILES" ]; then
             echo "No release APK found to check size!"
             exit 1
           fi
-          MAX_BYTES=26214400 # 25 MB
+          MAX_BYTES_APK=26214400 # 25 MB
           for APK_PATH in $APK_FILES; do
             SIZE_BYTES=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
-            echo "Release APK: $APK_PATH ($SIZE_BYTES bytes, budget: $MAX_BYTES bytes)"
-            if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
-              echo "ERROR: Release APK $APK_PATH exceeds 25 MB budget ($SIZE_BYTES > $MAX_BYTES)!"
+            echo "Release APK: $APK_PATH ($SIZE_BYTES bytes, budget: $MAX_BYTES_APK bytes)"
+            if [ "$SIZE_BYTES" -gt "$MAX_BYTES_APK" ]; then
+              echo "ERROR: Release APK $APK_PATH exceeds 25 MB budget ($SIZE_BYTES > $MAX_BYTES_APK)!"
               exit 1
             fi
           done
-          echo "All release APK size budgets verified."
+          AAB_FILES=$(find app/build/outputs/bundle/release/ -name "*.aab")
+          MAX_BYTES_AAB=36700160 # 35 MB
+          for AAB_PATH in $AAB_FILES; do
+            SIZE_BYTES=$(stat -c%s "$AAB_PATH" 2>/dev/null || stat -f%z "$AAB_PATH")
+            echo "Release AAB: $AAB_PATH ($SIZE_BYTES bytes, budget: $MAX_BYTES_AAB bytes)"
+            if [ "$SIZE_BYTES" -gt "$MAX_BYTES_AAB" ]; then
+              echo "ERROR: Release AAB $AAB_PATH exceeds 35 MB budget ($SIZE_BYTES > $MAX_BYTES_AAB)!"
+              exit 1
+            fi
+          done
+          echo "All release binary size budgets verified."
 
       - name: Generate SHA-256 Checksums
         run: |
           mkdir -p release-dist
+          if [ -d "apk" ] && [ "$(ls -A apk 2>/dev/null)" ]; then
+            cp apk/* release-dist/ 2>/dev/null || true
+          fi
           find app/build/outputs/apk/release/ -name "*.apk" -exec cp {} release-dist/ \;
           find app/build/outputs/bundle/release/ -name "*.aab" -exec cp {} release-dist/ \;
           cd release-dist
           for f in *.apk *.aab; do
             if [ -f "$f" ]; then
               sha256sum "$f" > "${f}.sha256"
+              echo "Checksum generated: $f SHA-256: $(cat ${f}.sha256)"
             fi
           done
           cd ..
@@ -135,9 +152,27 @@ jobs:
           for pkg in *.apk *.aab; do
             if [ -f "$pkg" ]; then
               PKG_HASH=$(sha256sum "$pkg" | awk '{print $1}')
-              cat <<EOF > "${pkg}.intoto.jsonl"
-          {"_type":"https://in-toto.io/Statement/v0.1","subject":[{"name":"${pkg}","digest":{"sha256":"${PKG_HASH}"}}],"predicateType":"https://slsa.dev/provenance/v0.2","predicate":{"builder":{"id":"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"},"buildType":"https://github.com/actions/runner","invocation":{"configSource":{"uri":"git+https://github.com/${{ github.repository }}@${{ github.ref }}","digest":{"sha1":"${{ github.sha }}"},"entryPoint":".github/workflows/release.yml"}}}
-          EOF
+              python3 -c "
+          import json
+          data = {
+              '_type': 'https://in-toto.io/Statement/v0.1',
+              'subject': [{'name': '$pkg', 'digest': {'sha256': '$PKG_HASH'}}],
+              'predicateType': 'https://slsa.dev/provenance/v0.2',
+              'predicate': {
+                  'builder': {'id': 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'},
+                  'buildType': 'https://github.com/actions/runner',
+                  'invocation': {
+                      'configSource': {
+                          'uri': 'git+https://github.com/${{ github.repository }}@${{ github.ref }}',
+                          'digest': {'sha1': '${{ github.sha }}'},
+                          'entryPoint': '.github/workflows/release.yml'
+                      }
+                  }
+              }
+          }
+          with open('${pkg}.intoto.jsonl', 'w') as f:
+              f.write(json.dumps(data) + '\n')
+          "
               echo "Generated SLSA provenance for $pkg: ${pkg}.intoto.jsonl"
             fi
           done

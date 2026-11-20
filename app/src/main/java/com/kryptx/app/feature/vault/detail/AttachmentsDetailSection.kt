@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -88,7 +89,10 @@ fun AttachmentsDetailSection(
                         .clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
-                        .clickable {
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = "Preview attachment ${att.fileName}"
+                        ) {
                             scope.launch {
                                 try {
                                     val decryptedBytes = viewModel.loadDecryptedAttachment(context, att)

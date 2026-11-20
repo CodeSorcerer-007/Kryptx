@@ -26,6 +26,7 @@ import com.kryptx.app.feature.vault.editor.AttachmentType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -549,11 +550,16 @@ fun AddEditItemScreen(
                                 templates.forEach { (name, templateText) ->
                                     Box(
                                         modifier = Modifier
+                                            .defaultMinSize(minHeight = 48.dp)
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                                            .clickable { notes.value = templateText }
-                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            .clickable(
+                                                role = Role.Button,
+                                                onClick = { notes.value = templateText }
+                                            )
+                                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = name,

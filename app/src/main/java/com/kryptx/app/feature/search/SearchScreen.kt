@@ -20,6 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -210,6 +215,7 @@ fun SearchFilterPill(
 ) {
     Box(
         modifier = Modifier
+            .defaultMinSize(minHeight = 48.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
                 if (isSelected) KryptxBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -219,8 +225,18 @@ fun SearchFilterPill(
                 if (isSelected) KryptxBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                 RoundedCornerShape(14.dp)
             )
-            .bounceClick(scaleDown = 0.94f, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .bounceClick(
+                scaleDown = 0.94f,
+                role = Role.Tab,
+                onClickLabel = "$label filter",
+                onClick = onClick
+            )
+            .semantics {
+                selected = isSelected
+                stateDescription = if (isSelected) "Selected" else "Not selected"
+            }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,

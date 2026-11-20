@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -430,14 +434,23 @@ fun VaultDashboardScreen(
 
                                 Box(
                                     modifier = Modifier
+                                        .defaultMinSize(minHeight = 48.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(optBgColor)
                                         .border(1.dp, optBorderColor, RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            KryptxHaptics.tap(view)
-                                            viewModel.setSortOption(opt)
+                                        .clickable(
+                                            role = Role.RadioButton,
+                                            onClick = {
+                                                KryptxHaptics.tap(view)
+                                                viewModel.setSortOption(opt)
+                                            }
+                                        )
+                                        .semantics {
+                                            selected = isOptSelected
+                                            stateDescription = if (isOptSelected) "Selected" else "Not selected"
                                         }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = opt.label,

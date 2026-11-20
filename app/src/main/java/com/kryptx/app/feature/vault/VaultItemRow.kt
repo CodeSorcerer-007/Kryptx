@@ -152,7 +152,13 @@ fun VaultItemRow(
             .padding(horizontal = 14.dp, vertical = 12.dp)
             .semantics {
                 role = Role.Button
-                contentDescription = "${item.title}, ${item.type.categoryName}, ${item.displaySubtitle}"
+                val statusBadges = buildList {
+                    if (item.isFavorite) add("Favorite")
+                    if (item.totpSecret.isNotBlank()) add("2FA active")
+                    if (item.isExpired) add("Expired")
+                }
+                val statusText = if (statusBadges.isNotEmpty()) ", " + statusBadges.joinToString(", ") else ""
+                contentDescription = "${item.title}, ${item.type.categoryName}, ${item.displaySubtitle}$statusText"
             }
     ) {
         Row(

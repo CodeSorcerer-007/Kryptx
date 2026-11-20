@@ -126,7 +126,7 @@ graph TD
 
 ### 7. Dual-Token Hardware Security Key Redundancy
 - Implements `IHardwareSecurityKeyManager` with dual-token failover enrollment (Primary + Backup physical tokens).
-- Supports NFC IsoDep, USB OTG HID slot 2 (instruction `0x38`), and CTAP2 BLE challenge-response derivation.
+- Supports physical NFC IsoDep and USB OTG HID slot 2 (instruction `0x38`) challenge-response, with device-bound HMAC fallback.
 
 ### 8. Proactive Memory Pressure Resilience
 - `CryptographicMemoryWatchdog` features multi-tiered memory pressure management.
