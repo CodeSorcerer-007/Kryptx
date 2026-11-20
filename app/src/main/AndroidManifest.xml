@@ -50,6 +50,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Emergency Vault Recovery Deep Link (kryptx://recovery) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kryptx" android:host="recovery" />
+            </intent-filter>
+
             <!-- Android Search Framework Integration (Bug 6) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEARCH" />

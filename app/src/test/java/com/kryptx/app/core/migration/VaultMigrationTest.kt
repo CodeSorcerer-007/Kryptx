@@ -81,6 +81,41 @@ class VaultMigrationTest {
     }
 
     @Test
+    fun testExportAndReimportCreditCardAndCustomFieldsCsv() {
+        val cardItem = VaultItem(
+            id = "card_1",
+            title = "Corporate Sapphire Card",
+            type = com.kryptx.app.core.model.ItemType.CREDIT_CARD,
+            cardNumber = "4111222233334444",
+            cardholderName = "Alice Doe",
+            cardExpiry = "12/28",
+            cardCvv = "999",
+            cardPin = "1234",
+            notes = "Company expenses card",
+            customFields = listOf(
+                com.kryptx.app.core.model.CustomField(label = "Billing Zip", value = "94103")
+            )
+        )
+
+        val csvString = VaultExporter.exportToCsv(listOf(cardItem))
+        assertTrue(csvString.contains("card_number: 4111222233334444"))
+        assertTrue(csvString.contains("Billing Zip: 94103"))
+
+        val reimported = VaultImporter.importAutoDetect(csvString)
+        assertEquals(1, reimported.size)
+        assertEquals("Corporate Sapphire Card", reimported[0].title)
+        assertEquals(com.kryptx.app.core.model.ItemType.CREDIT_CARD, reimported[0].type)
+        assertEquals("4111222233334444", reimported[0].cardNumber)
+        assertEquals("Alice Doe", reimported[0].cardholderName)
+        assertEquals("12/28", reimported[0].cardExpiry)
+        assertEquals("999", reimported[0].cardCvv)
+        assertEquals("1234", reimported[0].cardPin)
+        assertEquals(1, reimported[0].customFields.size)
+        assertEquals("Billing Zip", reimported[0].customFields[0].label)
+        assertEquals("94103", reimported[0].customFields[0].value)
+    }
+
+    @Test
     fun testAutoDetectEmptyOrInvalidContent() {
         val empty = VaultImporter.importAutoDetect("")
         assertTrue(empty.isEmpty())

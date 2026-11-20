@@ -129,8 +129,9 @@ class VaultViewModel(
         if (sort == SortOption.WEAKEST_FIRST) {
             synchronized(_entropyCache) {
                 items.forEach { item ->
-                    if (item.password.isNotBlank() && !_entropyCache.containsKey(item.id)) {
-                        _entropyCache[item.id] = EntropyCalculator.analyze(item.password).entropyBits
+                    val cacheKey = "${item.id}_${item.password.hashCode()}"
+                    if (item.password.isNotBlank() && !_entropyCache.containsKey(cacheKey)) {
+                        _entropyCache[cacheKey] = EntropyCalculator.analyze(item.password).entropyBits
                     }
                 }
             }
@@ -148,7 +149,10 @@ class VaultViewModel(
             SortOption.NAME_ASC -> list.sortedBy { it.title.lowercase() }
             SortOption.NAME_DESC -> list.sortedByDescending { it.title.lowercase() }
             // Use pre-computed cache — O(1) lookup instead of analyze() per item per recomposition
-            SortOption.WEAKEST_FIRST -> list.sortedBy { synchronized(_entropyCache) { _entropyCache[it.id] ?: 999.0 } }
+            SortOption.WEAKEST_FIRST -> list.sortedBy { item ->
+                if (item.password.isBlank()) 0.0
+                else synchronized(_entropyCache) { _entropyCache["${item.id}_${item.password.hashCode()}"] ?: 0.0 }
+            }
             SortOption.NEWEST_FIRST -> list.sortedByDescending { it.createdAt }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())

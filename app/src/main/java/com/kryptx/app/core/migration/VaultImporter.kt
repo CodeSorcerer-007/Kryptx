@@ -266,6 +266,7 @@ object VaultImporter {
         val totpIdx = headerCols.indexOfFirst { it.contains("totp") || it.contains("2fa") || it.contains("otp") }
         val passkeyRpIdIdx = headerCols.indexOfFirst { it.contains("passkey_rpid") || it.contains("rpid") }
         val passkeyCredIdx = headerCols.indexOfFirst { it.contains("passkey_cred") || it.contains("credential_id") }
+        val fieldsIdx = headerCols.indexOfFirst { it == "fields" }
 
         for (i in 1 until records.size) {
             val cols = records[i]
@@ -280,6 +281,7 @@ object VaultImporter {
             val totp = if (totpIdx >= 0 && totpIdx < cols.size) cols[totpIdx] else ""
             val passkeyRpId = if (passkeyRpIdIdx >= 0 && passkeyRpIdIdx < cols.size) cols[passkeyRpIdIdx] else ""
             val passkeyCred = if (passkeyCredIdx >= 0 && passkeyCredIdx < cols.size) cols[passkeyCredIdx] else ""
+            val fieldsStr = if (fieldsIdx >= 0 && fieldsIdx < cols.size) cols[fieldsIdx] else ""
 
             val resolvedType = when {
                 typeStr == "passkey" || passkeyRpId.isNotBlank() -> ItemType.PASSKEY
@@ -288,11 +290,56 @@ object VaultImporter {
                 typeStr == "identity" -> ItemType.IDENTITY
                 typeStr == "wifi" -> ItemType.WIFI
                 typeStr == "api_key" -> ItemType.API_KEY
-                typeStr == "crypto_wallet" || typeStr == "ssh_key" || typeStr == "bank_account" -> ItemType.CUSTOM
+                typeStr == "bank_account" -> ItemType.BANK_ACCOUNT
+                typeStr == "crypto_wallet" -> ItemType.CRYPTO_WALLET
+                typeStr == "ssh_key" -> ItemType.SSH_KEY
+                typeStr == "custom" -> ItemType.CUSTOM
                 else -> ItemType.LOGIN
             }
 
-            if (title.isNotBlank() || username.isNotBlank() || password.isNotBlank() || passkeyRpId.isNotBlank()) {
+            var cardNumber = ""
+            var cardExpiry = ""
+            var cardCvv = ""
+            var cardPin = ""
+            var cardholderName = ""
+            var wifiSsid = ""
+            var wifiPassword = ""
+            var wifiSecurity = "WPA2/WPA3 Personal"
+            var apiKey = ""
+            var apiSecret = ""
+            var apiEndpoint = ""
+            val customFields = mutableListOf<com.kryptx.app.core.model.CustomField>()
+
+            if (fieldsStr.isNotBlank()) {
+                fieldsStr.split("\n", "\r\n").forEach { line ->
+                    val colonPos = line.indexOf(':')
+                    if (colonPos > 0) {
+                        val key = line.substring(0, colonPos).trim().lowercase()
+                        val value = line.substring(colonPos + 1).trim()
+                        when (key) {
+                            "card_number" -> cardNumber = value
+                            "cardholder_name" -> cardholderName = value
+                            "card_expiry" -> cardExpiry = value
+                            "card_cvv" -> cardCvv = value
+                            "card_pin" -> cardPin = value
+                            "wifi_ssid" -> wifiSsid = value
+                            "wifi_password" -> wifiPassword = value
+                            "wifi_security" -> wifiSecurity = value
+                            "api_key" -> apiKey = value
+                            "api_secret" -> apiSecret = value
+                            "api_endpoint" -> apiEndpoint = value
+                            else -> {
+                                val rawKey = line.substring(0, colonPos).trim()
+                                if (rawKey.isNotBlank()) {
+                                    customFields.add(com.kryptx.app.core.model.CustomField(label = rawKey, value = value))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (title.isNotBlank() || username.isNotBlank() || password.isNotBlank() || passkeyRpId.isNotBlank() || note.isNotBlank() || cardNumber.isNotBlank() || apiKey.isNotBlank() || wifiPassword.isNotBlank() || customFields.isNotEmpty()) {
                 items.add(
                     VaultItem(
                         id = UUID.randomUUID().toString(),
@@ -304,7 +351,19 @@ object VaultImporter {
                         notes = note,
                         totpSecret = totp,
                         passkeyRpId = passkeyRpId.ifBlank { if (resolvedType == ItemType.PASSKEY) url else "" },
-                        passkeyCredentialId = passkeyCred
+                        passkeyCredentialId = passkeyCred,
+                        cardNumber = cardNumber,
+                        cardholderName = cardholderName,
+                        cardExpiry = cardExpiry,
+                        cardCvv = cardCvv,
+                        cardPin = cardPin,
+                        wifiSsid = wifiSsid,
+                        wifiPassword = wifiPassword,
+                        wifiSecurityType = wifiSecurity,
+                        apiKey = apiKey,
+                        apiSecret = apiSecret,
+                        apiEndpoint = apiEndpoint,
+                        customFields = customFields
                     )
                 )
             }

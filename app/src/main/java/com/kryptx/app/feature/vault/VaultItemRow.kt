@@ -263,7 +263,7 @@ fun VaultItemRow(
                         onToggleFavorite()
                     },
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(44.dp)
                         .testTag("vault_item_favorite_${item.id}")
                 ) {
                     Icon(
@@ -271,7 +271,7 @@ fun VaultItemRow(
                         contentDescription = if (item.isFavorite) "Remove favorite" else "Add favorite",
                         tint = if (item.isFavorite) KryptxAmber else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                         modifier = Modifier
-                            .size(19.dp)
+                            .size(20.dp)
                             .scale(favoriteScale)
                     )
                 }
@@ -280,7 +280,7 @@ fun VaultItemRow(
                 if (item.primarySecret.isNotBlank()) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(44.dp)
                             .testTag("vault_item_copy_${item.id}")
                             .clip(CircleShape)
                             .background(

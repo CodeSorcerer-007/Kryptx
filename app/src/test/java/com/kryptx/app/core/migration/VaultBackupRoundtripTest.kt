@@ -115,9 +115,9 @@ class VaultBackupRoundtripTest {
         val checksum = VaultExporter.computeSha256Checksum(ciphertextBase64)
 
         val header = BackupHeader(
-            app = "Kryptx",
-            version = "2.2.0",
-            formatVersion = 3,
+            app = BackupHeader.CURRENT_APP_NAME,
+            version = BackupHeader.CURRENT_APP_VERSION,
+            formatVersion = BackupHeader.CURRENT_FORMAT_VERSION,
             exportedAt = System.currentTimeMillis(),
             isEncrypted = true,
             kdfAlgorithm = "Argon2id",
@@ -134,7 +134,7 @@ class VaultBackupRoundtripTest {
 
         // 4. Deserialize transport string back to envelope
         val parsedPayload = json.decodeFromString<EncryptedBackupPayload>(backupFileContent)
-        assertEquals("2.2.0", parsedPayload.header.version)
+        assertEquals(BackupHeader.CURRENT_APP_VERSION, parsedPayload.header.version)
         assertEquals("Argon2id", parsedPayload.header.kdfAlgorithm)
 
         // 5. Verify checksum

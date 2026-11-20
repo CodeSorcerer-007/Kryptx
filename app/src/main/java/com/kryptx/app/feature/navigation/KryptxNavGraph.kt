@@ -239,6 +239,10 @@ fun KryptxNavGraph(
                     }
                     onClearPendingShortcut()
                 }
+                "recovery" -> {
+                    navigateTo(Screen.BackupExport)
+                    onClearPendingShortcut()
+                }
             }
         }
     }

@@ -13,11 +13,15 @@ import com.kryptx.app.core.model.VaultItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
 import java.security.SecureRandom
 
 /**
@@ -239,6 +243,9 @@ open class KryptxDatabaseHelper(
     @Volatile
     private var isDegradedStorage = false
 
+    private val _degradedStorageFlow = MutableStateFlow(false)
+    val degradedStorageFlow: StateFlow<Boolean> = _degradedStorageFlow.asStateFlow()
+
     /**
      * Indicates whether the database helper is running in Degraded Storage Mode
      * (software-backed SharedPreferences) due to hardware Keystore / EncryptedSharedPreferences failure.
@@ -260,6 +267,7 @@ open class KryptxDatabaseHelper(
                 )
             } catch (t: Throwable) {
                 isDegradedStorage = true
+                _degradedStorageFlow.value = true
                 com.kryptx.app.core.security.SecurityLogger.warn(
                     "KryptxDatabaseHelper",
                     "EncryptedSharedPreferences unavailable; activating Degraded Storage fallback mode: ${t.message}",
@@ -728,6 +736,9 @@ open class KryptxDatabaseHelper(
                 throw e
             }
 
+            // Re-encrypt disk attachments under the new key
+            reEncryptAttachmentsOnDisk(oldKey, newKey)
+
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -735,6 +746,98 @@ open class KryptxDatabaseHelper(
 
         loadAllItems(newKey)
         updatedCount
+    }
+
+    /**
+     * Atomically re-encrypts all disk-backed attachment files from oldKey to newKey.
+     * Uses temporary files and atomic renaming to prevent data loss or corruption during VEK rotation.
+     */
+    open suspend fun reEncryptAttachmentsOnDisk(oldKey: ByteArray, newKey: ByteArray): Unit = withContext(Dispatchers.IO) {
+        val attachmentsDir = File(context.filesDir, "vault_attachments")
+        if (!attachmentsDir.exists() || !attachmentsDir.isDirectory) return@withContext
+        val files = attachmentsDir.listFiles { f -> f.extension == "enc" } ?: return@withContext
+        if (files.isEmpty()) return@withContext
+
+        val magicHeader = 0x4B525950 // 'KRYP'
+        val tempPairs = mutableListOf<Pair<File, File>>()
+
+        try {
+            for (file in files) {
+                val tempFile = File(attachmentsDir, "${file.name}.tmp")
+                FileInputStream(file).use { fis ->
+                    val headerBuf = ByteArray(8)
+                    val headerRead = fis.read(headerBuf)
+                    if (headerRead != 8) {
+                        throw IllegalStateException("Attachment header corrupt for ${file.name}")
+                    }
+                    val magic = ByteBuffer.wrap(headerBuf, 0, 4).int
+                    if (magic != magicHeader) {
+                        // Legacy single-payload format
+                        val fullEncrypted = file.readBytes()
+                        val decrypted = CryptoEngine.decrypt(fullEncrypted, oldKey)
+                        val reEncrypted = try {
+                            CryptoEngine.encrypt(decrypted, newKey)
+                        } finally {
+                            com.kryptx.app.core.crypto.SecureMemory.wipe(decrypted)
+                        }
+                        tempFile.writeBytes(reEncrypted)
+                        com.kryptx.app.core.crypto.SecureMemory.wipe(reEncrypted)
+                    } else {
+                        // Chunked format
+                        FileOutputStream(tempFile).use { fos ->
+                            fos.write(headerBuf) // Retain magic and chunk size
+                            var chunkIndex = 0
+                            val lenBuf = ByteArray(4)
+                            while (fis.read(lenBuf) == 4) {
+                                val chunkLen = ByteBuffer.wrap(lenBuf).int
+                                if (chunkLen <= 0 || chunkLen > 10 * 1024 * 1024) {
+                                    throw IllegalStateException("Corrupted chunk length $chunkLen in ${file.name}")
+                                }
+                                val encryptedChunk = ByteArray(chunkLen)
+                                var readSoFar = 0
+                                while (readSoFar < chunkLen) {
+                                    val r = fis.read(encryptedChunk, readSoFar, chunkLen - readSoFar)
+                                    if (r == -1) break
+                                    readSoFar += r
+                                }
+                                if (readSoFar != chunkLen) {
+                                    throw IllegalStateException("Unexpected EOF in ${file.name}")
+                                }
+                                val aad = ByteBuffer.allocate(4).putInt(chunkIndex).array()
+                                val decryptedChunk = CryptoEngine.decrypt(encryptedChunk, oldKey, aad)
+                                val newEncryptedChunk = try {
+                                    CryptoEngine.encrypt(decryptedChunk, newKey, aad)
+                                } finally {
+                                    com.kryptx.app.core.crypto.SecureMemory.wipe(decryptedChunk)
+                                }
+                                val newLenBuf = ByteBuffer.allocate(4).putInt(newEncryptedChunk.size).array()
+                                fos.write(newLenBuf)
+                                fos.write(newEncryptedChunk)
+                                chunkIndex++
+                            }
+                        }
+                    }
+                }
+                tempPairs.add(file to tempFile)
+            }
+
+            // Atomic rename of all temp files over originals
+            for ((origFile, tempFile) in tempPairs) {
+                if (origFile.exists()) origFile.delete()
+                if (!tempFile.renameTo(origFile)) {
+                    tempFile.copyTo(origFile, overwrite = true)
+                    tempFile.delete()
+                }
+            }
+        } catch (e: Exception) {
+            com.kryptx.app.core.security.SecurityLogger.error(
+                "KryptxDatabaseHelper", "Failed to re-encrypt attachment files on disk during VEK rotation", e
+            )
+            for ((_, tempFile) in tempPairs) {
+                if (tempFile.exists()) tempFile.delete()
+            }
+            throw e
+        }
     }
 
     /**

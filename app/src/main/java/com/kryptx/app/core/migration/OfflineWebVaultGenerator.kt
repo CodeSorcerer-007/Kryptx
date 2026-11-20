@@ -397,12 +397,51 @@ object OfflineWebVaultGenerator {
                     btn.onclick = () => copyToClipboard(item.password, 'Password');
                     actionsDiv.appendChild(btn);
                 }
+                if (item.cardNumber) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = 'Card #';
+                    btn.onclick = () => copyToClipboard(item.cardNumber, 'Card Number');
+                    actionsDiv.appendChild(btn);
+                }
+                if (item.cardCvv) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = 'CVV';
+                    btn.onclick = () => copyToClipboard(item.cardCvv, 'CVV');
+                    actionsDiv.appendChild(btn);
+                }
                 if (item.wifiPassword) {
                     const btn = document.createElement('button');
                     btn.className = 'btn-icon';
                     btn.textContent = 'Wi-Fi Key';
                     btn.onclick = () => copyToClipboard(item.wifiPassword, 'Wi-Fi Password');
                     actionsDiv.appendChild(btn);
+                }
+                if (item.apiKey) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = 'API Key';
+                    btn.onclick = () => copyToClipboard(item.apiKey, 'API Key');
+                    actionsDiv.appendChild(btn);
+                }
+                if (item.notes) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = 'Notes';
+                    btn.onclick = () => copyToClipboard(item.notes, 'Notes');
+                    actionsDiv.appendChild(btn);
+                }
+                if (item.customFields && Array.isArray(item.customFields)) {
+                    item.customFields.forEach(f => {
+                        if (f && f.value) {
+                            const btn = document.createElement('button');
+                            btn.className = 'btn-icon';
+                            btn.textContent = f.label || 'Field';
+                            btn.onclick = () => copyToClipboard(f.value, f.label || 'Field');
+                            actionsDiv.appendChild(btn);
+                        }
+                    });
                 }
 
                 container.appendChild(card);

@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Bookmark
@@ -409,13 +410,25 @@ fun VaultItemDetailScreen(
                                 modifier = Modifier.padding(16.dp)
                             )
                         } else {
-                            Text(
-                                text = "Secure Note Content (Encrypted)",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp)
-                            )
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = item.notes,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    lineHeight = 20.sp
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    TextButton(onClick = { viewModel.copySecret("Note", item.notes) }) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy Note", modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Copy Note", fontSize = 12.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                     ItemType.BANK_ACCOUNT,
@@ -430,20 +443,29 @@ fun VaultItemDetailScreen(
                                 modifier = Modifier.padding(16.dp)
                             )
                         } else {
-                            Text(
-                                text = "${item.customFields.size} custom field${if (item.customFields.size == 1) "" else "s"}",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp)
-                            )
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                item.customFields.forEach { field ->
+                                    DetailFieldCard(
+                                        label = field.label,
+                                        value = field.value,
+                                        isSecret = field.isSecured,
+                                        onCopy = { viewModel.copySecret(field.label, field.value) }
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Custom fields
-            if (!isFocusMode && item.customFields.isNotEmpty()) {
+            // Custom fields for non-custom item types
+            if (!isFocusMode && item.customFields.isNotEmpty() &&
+                item.type != ItemType.BANK_ACCOUNT &&
+                item.type != ItemType.CRYPTO_WALLET &&
+                item.type != ItemType.SSH_KEY &&
+                item.type != ItemType.CUSTOM
+            ) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "Custom Fields",
@@ -464,7 +486,7 @@ fun VaultItemDetailScreen(
             }
 
             // Notes Section
-            if (!isFocusMode && item.notes.isNotBlank()) {
+            if (!isFocusMode && item.notes.isNotBlank() && item.type != ItemType.SECURE_NOTE) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "Notes",

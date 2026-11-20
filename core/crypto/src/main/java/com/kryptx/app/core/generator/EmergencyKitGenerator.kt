@@ -129,7 +129,7 @@ object EmergencyKitGenerator {
         canvas.drawText("ENCRYPTION SPEC:", 60f, 270f, paint)
         paint.color = COLOR_TEXT_DARK
         paint.textSize = 11f
-        canvas.drawText("AES-256-GCM + PBKDF2 (600,000 Iterations)", 180f, 270f, paint)
+        canvas.drawText("AES-256-GCM + Argon2id (64 MB, 3 passes, 4 lanes)", 180f, 270f, paint)
 
         // Master Password Field (with fill box)
         paint.color = COLOR_TEXT_MUTED

@@ -166,17 +166,8 @@ class AddEditViewModel(
             }
             if (state.cardExpiry.value.isNotBlank()) {
                 val expiryRegex = Regex("""^(0[1-9]|1[0-2])\s*/\s*([0-9]{2}|[0-9]{4})$""")
-                val match = expiryRegex.matchEntire(state.cardExpiry.value.trim())
-                    ?: return "Card expiry must be in MM/YY format (e.g. 12/28)"
-                val month = match.groupValues[1].toInt()
-                val yearStr = match.groupValues[2]
-                val year = if (yearStr.length == 2) 2000 + yearStr.toInt() else yearStr.toInt()
-                val cal = java.util.Calendar.getInstance()
-                if (year < cal.get(java.util.Calendar.YEAR) ||
-                    (year == cal.get(java.util.Calendar.YEAR) &&
-                        month < cal.get(java.util.Calendar.MONTH) + 1)
-                ) {
-                    return "Card is already expired"
+                if (!expiryRegex.matches(state.cardExpiry.value.trim())) {
+                    return "Card expiry must be in MM/YY format (e.g. 12/28)"
                 }
             }
         }

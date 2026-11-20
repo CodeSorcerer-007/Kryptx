@@ -118,9 +118,14 @@ class MainActivity : FragmentActivity() {
             unlockViewModel.handleNfcTag(tag, onSuccess = {})
         }
 
-        pendingShortcutTarget = intent?.getStringExtra("navigate_target")
-            ?: intent?.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
-            ?: if (intent?.action == Intent.ACTION_SEARCH) "search" else null
+        val dataUri = intent?.data
+        pendingShortcutTarget = if (dataUri?.scheme == "kryptx" && dataUri.host == "recovery") {
+            "recovery"
+        } else {
+            intent?.getStringExtra("navigate_target")
+                ?: intent?.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
+                ?: if (intent?.action == Intent.ACTION_SEARCH) "search" else null
+        }
 
         // Observe FLAG_SECURE setting
         lifecycleScope.launch {
@@ -211,9 +216,14 @@ class MainActivity : FragmentActivity() {
             unlockViewModel.handleNfcTag(tag, onSuccess = {})
         }
 
-        val target = intent.getStringExtra("navigate_target")
-            ?: intent.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
-            ?: if (intent.action == Intent.ACTION_SEARCH) "search" else null
+        val dataUri = intent.data
+        val target = if (dataUri?.scheme == "kryptx" && dataUri.host == "recovery") {
+            "recovery"
+        } else {
+            intent.getStringExtra("navigate_target")
+                ?: intent.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()
+                ?: if (intent.action == Intent.ACTION_SEARCH) "search" else null
+        }
         if (!target.isNullOrBlank()) {
             pendingShortcutTarget = target
         }

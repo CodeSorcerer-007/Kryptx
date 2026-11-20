@@ -20,7 +20,41 @@ object VaultExporter {
             val type = item.type.name.lowercase()
             val name = escapeCsv(item.title)
             val notes = escapeCsv(item.notes)
-            val fields = ""
+            val fieldEntries = mutableListOf<String>()
+            when (item.type) {
+                ItemType.CREDIT_CARD -> {
+                    if (item.cardholderName.isNotBlank()) fieldEntries.add("cardholder_name: ${item.cardholderName}")
+                    if (item.cardNumber.isNotBlank()) fieldEntries.add("card_number: ${item.cardNumber}")
+                    if (item.cardExpiry.isNotBlank()) fieldEntries.add("card_expiry: ${item.cardExpiry}")
+                    if (item.cardCvv.isNotBlank()) fieldEntries.add("card_cvv: ${item.cardCvv}")
+                    if (item.cardPin.isNotBlank()) fieldEntries.add("card_pin: ${item.cardPin}")
+                }
+                ItemType.IDENTITY -> {
+                    if (item.identityFullName.isNotBlank()) fieldEntries.add("full_name: ${item.identityFullName}")
+                    if (item.identityEmail.isNotBlank()) fieldEntries.add("email: ${item.identityEmail}")
+                    if (item.identityPhone.isNotBlank()) fieldEntries.add("phone: ${item.identityPhone}")
+                    if (item.identityAddress.isNotBlank()) fieldEntries.add("address: ${item.identityAddress}")
+                    if (item.identityDob.isNotBlank()) fieldEntries.add("dob: ${item.identityDob}")
+                    if (item.identityIdNumber.isNotBlank()) fieldEntries.add("id_number: ${item.identityIdNumber}")
+                }
+                ItemType.WIFI -> {
+                    if (item.wifiSsid.isNotBlank()) fieldEntries.add("wifi_ssid: ${item.wifiSsid}")
+                    if (item.wifiPassword.isNotBlank()) fieldEntries.add("wifi_password: ${item.wifiPassword}")
+                    if (item.wifiSecurityType.isNotBlank()) fieldEntries.add("wifi_security: ${item.wifiSecurityType}")
+                }
+                ItemType.API_KEY -> {
+                    if (item.apiKey.isNotBlank()) fieldEntries.add("api_key: ${item.apiKey}")
+                    if (item.apiSecret.isNotBlank()) fieldEntries.add("api_secret: ${item.apiSecret}")
+                    if (item.apiEndpoint.isNotBlank()) fieldEntries.add("api_endpoint: ${item.apiEndpoint}")
+                }
+                else -> {}
+            }
+            for (cf in item.customFields) {
+                if (cf.label.isNotBlank() || cf.value.isNotBlank()) {
+                    fieldEntries.add("${cf.label}: ${cf.value}")
+                }
+            }
+            val fields = escapeCsv(fieldEntries.joinToString("\n"))
             val reprompt = "0"
             val uri = escapeCsv(if (item.type == ItemType.PASSKEY) item.passkeyRpId else item.website)
             val username = escapeCsv(item.username)

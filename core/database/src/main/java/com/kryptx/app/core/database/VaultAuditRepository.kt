@@ -235,6 +235,24 @@ class VaultAuditRepositoryImpl(
                 }
             }
 
+            // 7. Hardware Keystore / Degraded Storage check
+            if (activeDbHelper.isDegradedStorageMode()) {
+                issues.add(
+                    0,
+                    SecurityIssue(
+                        id = "storage_degraded",
+                        itemId = "system_storage",
+                        itemTitle = "Hardware Keystore Warning",
+                        itemSubtitle = "Degraded Storage Active",
+                        severity = IssueSeverity.CRITICAL,
+                        type = IssueType.COMPROMISED,
+                        title = "Metadata stored in fallback unencrypted storage",
+                        description = "Hardware-backed EncryptedSharedPreferences failed to initialize. Vault metadata is temporarily stored in plaintext fallback storage.",
+                        recommendation = "Check device biometric/keystore settings or reinstall the app to re-initialize hardware-backed secure storage."
+                    )
+                )
+            }
+
             // Compute overall score
             var score = 100
             score -= (compromisedCount * 25)

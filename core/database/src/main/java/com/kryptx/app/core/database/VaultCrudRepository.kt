@@ -194,9 +194,9 @@ class VaultCrudRepositoryImpl(
                 }
 
                 val header = BackupHeader(
-                    app = "Kryptx",
-                    version = "2.2.0",
-                    formatVersion = 3,
+                    app = BackupHeader.CURRENT_APP_NAME,
+                    version = BackupHeader.CURRENT_APP_VERSION,
+                    formatVersion = BackupHeader.CURRENT_FORMAT_VERSION,
                     exportedAt = System.currentTimeMillis(),
                     isEncrypted = true,
                     kdfAlgorithm = "Argon2id",
