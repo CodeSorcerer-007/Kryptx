@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -74,6 +75,14 @@ fun SecureTextField(
     val buffer = remember { mutableStateListOf<Char>() }
     var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
     val interactionSource = remember { MutableInteractionSource() }
+
+    // Wipes memory and discards internal text field buffers upon leaving composition
+    DisposableEffect(Unit) {
+        onDispose {
+            buffer.clear()
+            textFieldValue = TextFieldValue("")
+        }
+    }
 
     // Synchronize buffer when external value changes (e.g. wiped or cleared by caller)
     LaunchedEffect(value) {

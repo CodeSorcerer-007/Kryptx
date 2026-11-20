@@ -56,6 +56,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -105,19 +106,20 @@ fun VaultDashboardScreen(
     modifier: Modifier = Modifier,
     onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null
 ) {
-    val items by viewModel.filteredItems.collectAsState()
-    val allItems by viewModel.rawItems.collectAsState()
-    val favorites by viewModel.favoriteItems.collectAsState()
-    val selectedCategory by viewModel.selectedCategory.collectAsState()
-    val securityReport by viewModel.securityReport.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val visibleCategories by viewModel.visibleCategories.collectAsState()
-    val categoryCounts by viewModel.categoryCounts.collectAsState()
-    val isMinimalistMode by viewModel.isMinimalistMode.collectAsState()
+    val items by viewModel.filteredItems.collectAsStateWithLifecycle()
+    val allItems by viewModel.rawItems.collectAsStateWithLifecycle()
+    val favorites by viewModel.favoriteItems.collectAsStateWithLifecycle()
+    val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val securityReport by viewModel.securityReport.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val visibleCategories by viewModel.visibleCategories.collectAsStateWithLifecycle()
+    val categoryCounts by viewModel.categoryCounts.collectAsStateWithLifecycle()
+    val isMinimalistMode by viewModel.isMinimalistMode.collectAsStateWithLifecycle()
+    val clipboardTimeoutSec by viewModel.clipboardTimeout.collectAsStateWithLifecycle()
 
-    val selectedItemIds by viewModel.selectedItemIds.collectAsState()
-    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
-    val sortOption by viewModel.sortOption.collectAsState()
+    val selectedItemIds by viewModel.selectedItemIds.collectAsStateWithLifecycle()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsStateWithLifecycle()
+    val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
 
     val loginsCount = remember(allItems) { allItems.count { it.type == ItemType.LOGIN } }
     val cardsCount = remember(allItems) { allItems.count { it.type == ItemType.CREDIT_CARD } }
@@ -128,9 +130,9 @@ fun VaultDashboardScreen(
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     val context = LocalContext.current
-    val isAutofillNudgeDismissed by viewModel.autofillNudgeDismissed.collectAsState()
-    val isBiometricsEnabled by viewModel.isBiometricsEnabled.collectAsState()
-    val isBiometricNudgeDismissed by viewModel.biometricNudgeDismissed.collectAsState()
+    val isAutofillNudgeDismissed by viewModel.autofillNudgeDismissed.collectAsStateWithLifecycle()
+    val isBiometricsEnabled by viewModel.isBiometricsEnabled.collectAsStateWithLifecycle()
+    val isBiometricNudgeDismissed by viewModel.biometricNudgeDismissed.collectAsStateWithLifecycle()
 
     var isSearchExpanded by remember { mutableStateOf(false) }
     var selectedItemForActions by remember { mutableStateOf<VaultItem?>(null) }
@@ -470,10 +472,15 @@ fun VaultDashboardScreen(
                                         if (currentItem.primarySecret.isNotBlank()) {
                                             KryptxHaptics.confirm(view)
                                             com.kryptx.app.core.designsystem.components.KryptxAudio.snap(context)
-                                            viewModel.copySecret(currentItem.title, currentItem.primarySecret)
+                                            viewModel.copySecret(currentItem.title, currentItem.primarySecret, clipboardTimeoutSec)
+                                            val copyMsg = if (clipboardTimeoutSec > 0) {
+                                                "Copied '${currentItem.title}' secret (auto-clears in ${clipboardTimeoutSec}s)"
+                                            } else {
+                                                "Copied '${currentItem.title}' secret"
+                                            }
                                             scope.launch {
                                                 snackbarHostState.showSnackbar(
-                                                    message = "Copied '${currentItem.title}' secret (auto-clears in 30s)",
+                                                    message = copyMsg,
                                                     duration = SnackbarDuration.Short
                                                 )
                                             }

@@ -227,12 +227,9 @@ class HmacSearchIndex {
         if (queryTokens.isEmpty()) return null
 
         return withKey { key ->
-            var candidateIds: Set<String>? = null
-
-            for (token in queryTokens) {
-                val hmac = hmacHex(key, token)
+            if (queryTokens.size == 1) {
+                val hmac = hmacHex(key, queryTokens[0])
                 val ids = mutableSetOf<String>()
-
                 db.rawQuery(
                     "SELECT DISTINCT $COL_ITEM_ID FROM $TABLE_SEARCH_TOKENS WHERE $COL_TOKEN_HMAC = ?",
                     arrayOf(hmac)
@@ -241,12 +238,21 @@ class HmacSearchIndex {
                         ids.add(cursor.getString(0))
                     }
                 }
-
-                candidateIds = candidateIds?.intersect(ids) ?: ids
-                if (candidateIds.isEmpty()) return@withKey emptySet()
+                return@withKey ids
             }
 
-            candidateIds ?: emptySet()
+            // Multi-token: execute single grouped relational query matching all tokens via HAVING COUNT(DISTINCT token_hmac) = N
+            val hmacs = queryTokens.map { hmacHex(key, it) }
+            val placeholders = hmacs.joinToString(",") { "?" }
+            val sql = "SELECT $COL_ITEM_ID FROM $TABLE_SEARCH_TOKENS WHERE $COL_TOKEN_HMAC IN ($placeholders) GROUP BY $COL_ITEM_ID HAVING COUNT(DISTINCT $COL_TOKEN_HMAC) = ?"
+            val args = (hmacs + queryTokens.size.toString()).toTypedArray()
+            val ids = mutableSetOf<String>()
+            db.rawQuery(sql, args).use { cursor ->
+                while (cursor.moveToNext()) {
+                    ids.add(cursor.getString(0))
+                }
+            }
+            ids
         }
     }
 

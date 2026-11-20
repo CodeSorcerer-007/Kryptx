@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
@@ -180,8 +181,8 @@ class MainActivity : FragmentActivity() {
         }
 
         setContent {
-            val themeMode by app.preferencesRepository.themeMode.collectAsState()
-            val dynamicColor by app.preferencesRepository.dynamicColor.collectAsState()
+            val themeMode by app.preferencesRepository.themeMode.collectAsStateWithLifecycle()
+            val dynamicColor by app.preferencesRepository.dynamicColor.collectAsStateWithLifecycle()
 
             KryptxTheme(
                 themeMode = themeMode,

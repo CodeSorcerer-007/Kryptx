@@ -48,4 +48,14 @@ class CrashDefenseTest {
         assertEquals("Test bounded exception", recorded.message)
         assertTrue(recorded.stackTraceSnippet.isNotBlank())
     }
+
+    @Test
+    fun testNonCriticalCrashListenerRegistrationAndRemoval() {
+        var notified = false
+        val closeable = CrashDefense.addNonCriticalCrashListener { _, _ ->
+            notified = true
+        }
+        assertNotNull(closeable)
+        closeable.close()
+    }
 }

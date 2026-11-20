@@ -141,13 +141,16 @@ open class KryptxDatabaseHelper(
 
     /**
      * Clears the in-memory SQLCipher key and closes database connections. Call when vault is locked.
-     * Also wipes the search HMAC key from RAM.
+     * Also wipes the search HMAC key from RAM and clears in-memory item flows to prevent
+     * plaintext secret retention while locked.
      */
     @Synchronized
     fun clearDatabaseKey() {
         internalHelper?.close()
         internalHelper = null
         searchIndex.clearKey()
+        _itemsFlow.value = emptyList()
+        _trashFlow.value = emptyList()
     }
 
     fun close() {

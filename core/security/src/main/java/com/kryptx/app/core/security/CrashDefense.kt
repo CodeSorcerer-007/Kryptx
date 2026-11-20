@@ -41,7 +41,18 @@ object CrashDefense {
     )
 
     private val crashEvents = CopyOnWriteArrayList<CrashEvent>()
+    private val nonCriticalCrashListeners = CopyOnWriteArrayList<(Thread, Throwable) -> Unit>()
     private const val MAX_CRASH_EVENTS = 25
+
+    /**
+     * Registers a listener for non-critical background exceptions, enabling coroutine scopes,
+     * UI snackbars, or telemetry handlers to respond to background failures rather than
+     * having them silently swallowed.
+     */
+    fun addNonCriticalCrashListener(listener: (Thread, Throwable) -> Unit): java.io.Closeable {
+        nonCriticalCrashListeners.add(listener)
+        return java.io.Closeable { nonCriticalCrashListeners.remove(listener) }
+    }
 
     /**
      * Installs the multi-layered crash defense engine into the host Application.
@@ -124,8 +135,15 @@ object CrashDefense {
                     } catch (_: Throwable) {}
                 }
             } else {
-                // Background thread non-critical exception: swallow and prevent process death
-                SecurityLogger.warn(TAG, "Suppressed non-critical crash on background thread '${thread.name}'; process kept alive.")
+                // Background thread non-critical exception: notify registered observers and log
+                SecurityLogger.warn(TAG, "Suppressed non-critical crash on background thread '${thread.name}': ${throwable.message}")
+                for (listener in nonCriticalCrashListeners) {
+                    try {
+                        listener(thread, throwable)
+                    } catch (t: Throwable) {
+                        SecurityLogger.error(TAG, "Non-critical crash listener failed", t)
+                    }
+                }
             }
         }
     }

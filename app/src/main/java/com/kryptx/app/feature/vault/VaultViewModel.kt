@@ -83,6 +83,9 @@ class VaultViewModel(
     val isMinimalistMode: StateFlow<Boolean> = preferencesRepository?.minimalistDashboardMode
         ?: MutableStateFlow(false).asStateFlow()
 
+    val clipboardTimeout: StateFlow<Int> = preferencesRepository?.clipboardTimeout
+        ?: MutableStateFlow(30).asStateFlow()
+
     val autofillNudgeDismissed: StateFlow<Boolean> = preferencesRepository?.autofillNudgeDismissed
         ?: MutableStateFlow(false).asStateFlow()
 
@@ -281,7 +284,7 @@ class VaultViewModel(
         }
     }
 
-    fun copySecret(label: String, secret: String, timeoutSeconds: Int = 30) {
+    fun copySecret(label: String, secret: String, timeoutSeconds: Int = clipboardTimeout.value) {
         clipboardSecurityManager.copySensitiveText(label, secret, timeoutSeconds)
     }
 

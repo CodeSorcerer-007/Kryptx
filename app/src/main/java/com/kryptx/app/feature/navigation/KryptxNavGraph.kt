@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -156,11 +157,21 @@ fun KryptxNavGraph(
     onEnrollBiometrics: ((Boolean) -> Unit) -> Unit = {},
     onAutoPromptBiometrics: () -> Unit = onTriggerBiometrics
 ) {
-    val isUnlocked by unlockViewModel.isUnlocked.collectAsState()
-    val unlockUiState by unlockViewModel.uiState.collectAsState()
+    val isUnlocked by unlockViewModel.isUnlocked.collectAsStateWithLifecycle()
+    val unlockUiState by unlockViewModel.uiState.collectAsStateWithLifecycle()
 
     var selectedBottomTab by remember { mutableStateOf(BottomNavTab.VAULT) }
     var activeIntroFeature by remember { mutableStateOf<FeatureGuide?>(null) }
+
+    // Independent per-tab navigation history to preserve subscreen states across tab switches
+    val tabStacks = remember {
+        mutableMapOf<BottomNavTab, MutableList<Screen>>(
+            BottomNavTab.VAULT to mutableListOf(Screen.VaultDashboard),
+            BottomNavTab.TOTP to mutableListOf(Screen.TotpList),
+            BottomNavTab.GENERATOR to mutableListOf(Screen.Generator),
+            BottomNavTab.SETTINGS to mutableListOf(Screen.Settings)
+        )
+    }
 
     // Navigation back stack with process-death survival
     val backStack = rememberSaveable(saver = ScreenBackStackSaver) {
@@ -200,6 +211,10 @@ fun KryptxNavGraph(
                 androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
                     backStack.clear()
                     backStack.add(Screen.Unlock)
+                    tabStacks[BottomNavTab.VAULT] = mutableListOf(Screen.VaultDashboard)
+                    tabStacks[BottomNavTab.TOTP] = mutableListOf(Screen.TotpList)
+                    tabStacks[BottomNavTab.GENERATOR] = mutableListOf(Screen.Generator)
+                    tabStacks[BottomNavTab.SETTINGS] = mutableListOf(Screen.Settings)
                 }
             }
         }
@@ -273,11 +288,14 @@ fun KryptxNavGraph(
     BackHandler(enabled = canHandleBack) {
         if (backStack.size > 1) {
             backStack.removeAt(backStack.size - 1)
+            tabStacks[selectedBottomTab] = backStack.toMutableList()
         } else if (isUnlocked && selectedBottomTab != BottomNavTab.VAULT) {
             androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                tabStacks[selectedBottomTab] = backStack.toMutableList()
                 selectedBottomTab = BottomNavTab.VAULT
                 backStack.clear()
-                backStack.add(Screen.VaultDashboard)
+                val targetStack = tabStacks[BottomNavTab.VAULT]?.takeIf { it.isNotEmpty() } ?: listOf(Screen.VaultDashboard)
+                backStack.addAll(targetStack)
             }
         }
     }
@@ -297,11 +315,22 @@ fun KryptxNavGraph(
                 KryptxBottomNavBar(
                     selectedTab = selectedBottomTab,
                     onTabSelected = { tab ->
-                        if (selectedBottomTab != tab) {
+                        if (selectedBottomTab == tab) {
+                            if (backStack.size > 1) {
+                                androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                                    val root = tab.toScreen()
+                                    backStack.clear()
+                                    backStack.add(root)
+                                    tabStacks[tab] = mutableListOf(root)
+                                }
+                            }
+                        } else {
                             androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                                tabStacks[selectedBottomTab] = backStack.toMutableList()
                                 selectedBottomTab = tab
                                 backStack.clear()
-                                backStack.add(tab.toScreen())
+                                val targetStack = tabStacks[tab]?.takeIf { it.isNotEmpty() } ?: listOf(tab.toScreen())
+                                backStack.addAll(targetStack)
                             }
                         }
                     }

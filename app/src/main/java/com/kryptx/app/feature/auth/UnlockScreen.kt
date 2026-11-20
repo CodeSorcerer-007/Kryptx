@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,10 +80,10 @@ fun UnlockScreen(
     onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null,
     onAutoPromptBiometrics: () -> Unit = onTriggerBiometrics
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val lockoutSeconds by viewModel.lockoutSecondsRemaining.collectAsState()
-    val isQuickUnlock by viewModel.quickUnlockEnabled.collectAsState()
-    val isBiometricPrompted by viewModel.isBiometricEnrollmentPrompted.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lockoutSeconds by viewModel.lockoutSecondsRemaining.collectAsStateWithLifecycle()
+    val isQuickUnlock by viewModel.quickUnlockEnabled.collectAsStateWithLifecycle()
+    val isBiometricPrompted by viewModel.isBiometricEnrollmentPrompted.collectAsStateWithLifecycle()
     var rememberMe by remember { mutableStateOf(true) }
     var triggerCelebration by remember { mutableStateOf(false) }
     var passwordChars by remember { mutableStateOf(CharArray(0)) }
@@ -314,9 +315,13 @@ fun UnlockScreen(
                                             color = KryptxBlue
                                         )
                                         Text(
-                                            text = "Enter password above, then tap your hardware key to unlock.",
+                                            text = if (uiState.isHardwareKeyDetected) {
+                                                "Security key detected! Enter password and tap Unlock."
+                                            } else {
+                                                "Enter password above, then tap your hardware key to unlock."
+                                            },
                                             fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (uiState.isHardwareKeyDetected) KryptxBlue else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }

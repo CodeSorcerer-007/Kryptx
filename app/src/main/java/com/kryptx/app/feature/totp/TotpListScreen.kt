@@ -65,6 +65,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -108,11 +109,11 @@ fun TotpListScreen(
     viewModel: TotpViewModel,
     modifier: Modifier = Modifier
 ) {
-    val accounts by viewModel.filteredTotpAccounts.collectAsState()
-    val allAccounts by viewModel.totpAccounts.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val selectedCategory by viewModel.selectedCategory.collectAsState()
-    val sortOrder by viewModel.sortOrder.collectAsState()
+    val accounts by viewModel.filteredTotpAccounts.collectAsStateWithLifecycle()
+    val allAccounts by viewModel.totpAccounts.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -122,7 +123,9 @@ fun TotpListScreen(
 
     androidx.compose.runtime.DisposableEffect(viewModel) {
         viewModel.startTicker()
-        onDispose { }
+        onDispose {
+            viewModel.stopTicker()
+        }
     }
 
     var showAddDialog by remember { mutableStateOf(false) }

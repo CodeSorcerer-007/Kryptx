@@ -848,28 +848,36 @@ fun BackupExportScreen(
 
     if (showAirGapTransmitterDialog && airGapFrames.isNotEmpty()) {
         var activeFrameIndex by remember { mutableStateOf(0) }
-        var activeBitmaps by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
-        var isPreRendering by remember { mutableStateOf(true) }
+        var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
+        // Lazy frame generation: Generates only the active frame on-the-fly and recycles
+        // the previous bitmap, capping heap allocation to a single frame (< 300 KB) instead
+        // of pre-rendering hundreds of MBs into a static list and triggering OutOfMemoryError.
         LaunchedEffect(airGapFrames) {
-            isPreRendering = true
-            val rendered = withContext(Dispatchers.Default) {
-                airGapFrames.mapNotNull { frame ->
-                    generateQrBitmap(frame, 512)
-                }
-            }
-            activeBitmaps = rendered
-            isPreRendering = false
             activeFrameIndex = 0
-            while (isActive && activeBitmaps.isNotEmpty()) {
+            while (isActive && airGapFrames.isNotEmpty()) {
+                val frame = airGapFrames[activeFrameIndex % airGapFrames.size]
+                val bmp = withContext(Dispatchers.Default) {
+                    generateQrBitmap(frame, 380)
+                }
+                currentBitmap?.recycle()
+                currentBitmap = bmp
                 delay(180L)
-                activeFrameIndex = (activeFrameIndex + 1) % activeBitmaps.size
+                activeFrameIndex = (activeFrameIndex + 1) % airGapFrames.size
             }
         }
-        val currentBitmap = activeBitmaps.getOrNull(activeFrameIndex)
+
+        DisposableEffect(Unit) {
+            onDispose {
+                currentBitmap?.recycle()
+                currentBitmap = null
+            }
+        }
 
         AlertDialog(
             onDismissRequest = {
+                currentBitmap?.recycle()
+                currentBitmap = null
                 showAirGapTransmitterDialog = false
                 airGapFrames = emptyList()
             },
@@ -879,22 +887,10 @@ fun BackupExportScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (isPreRendering) {
-                        CircularProgressIndicator(
-                            color = KryptxCyan,
-                            modifier = Modifier
-                                .size(64.dp)
-                                .padding(16.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Pre-rendering high-density frames...",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else if (currentBitmap != null) {
+                    val bmp = currentBitmap
+                    if (bmp != null) {
                         Image(
-                            bitmap = currentBitmap.asImageBitmap(),
+                            bitmap = bmp.asImageBitmap(),
                             contentDescription = "Animated QR Frame",
                             modifier = Modifier
                                 .size(260.dp)
@@ -912,12 +908,21 @@ fun BackupExportScreen(
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    } else {
+                        CircularProgressIndicator(
+                            color = KryptxCyan,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(8.dp)
+                        )
                     }
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
+                        currentBitmap?.recycle()
+                        currentBitmap = null
                         showAirGapTransmitterDialog = false
                         airGapFrames = emptyList()
                     }

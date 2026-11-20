@@ -42,10 +42,7 @@ class TotpViewModel(
     val selectedCategory = MutableStateFlow<String?>("ALL")
     val sortOrder = MutableStateFlow(TotpSortOrder.ALPHABETICAL)
 
-    init {
-        startTicker()
-    }
-
+    // Ticker is managed lifecycle-consciously by TotpListScreen DisposableEffect to eliminate background battery/CPU drain
     val totpAccounts: StateFlow<List<TotpAccount>> = combine(
         vaultRepository.getItems(),
         _tick
