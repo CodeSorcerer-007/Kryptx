@@ -244,7 +244,9 @@ class KryptxCredentialProviderService : CredentialProviderService() {
                     if (rpName.isNotBlank()) {
                         description = "Save Passkey for $rpName"
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    SecurityLogger.warn("KryptxCredentialProviderService", "Failed to parse create passkey JSON request: ${e.message}", e)
+                }
             }
             if (accountPreview.isBlank()) {
                 accountPreview = targetOrigin?.removePrefix("https://")?.removePrefix("http://")

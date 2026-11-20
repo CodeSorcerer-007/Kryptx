@@ -105,12 +105,6 @@ class CredentialAuthActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        try {
-            val field = FragmentActivity::class.java.getDeclaredField("mRequestedPermissionsFromFragment")
-            field.isAccessible = true
-            field.setBoolean(this, true)
-        } catch (_: Throwable) {}
-
         // Enforce hardware FLAG_SECURE protection
         window.setFlags(
             android.view.WindowManager.LayoutParams.FLAG_SECURE,

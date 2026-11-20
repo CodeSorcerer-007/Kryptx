@@ -38,6 +38,15 @@ object SecurityLogger {
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
 
+    private val isDebug: Boolean by lazy {
+        try {
+            val clazz = Class.forName("com.kryptx.app.BuildConfig")
+            (clazz.getField("DEBUG").get(null) as? Boolean) ?: false
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     fun trace(tag: String, message: String, throwable: Throwable? = null) {
         log(Level.TRACE, tag, message, throwable)
     }
@@ -69,12 +78,6 @@ object SecurityLogger {
         )
 
         try {
-            val isDebug = try {
-                val clazz = Class.forName("com.kryptx.app.BuildConfig")
-                (clazz.getField("DEBUG").get(null) as? Boolean) ?: false
-            } catch (_: Throwable) {
-                false
-            }
             if (isDebug) {
                 when (level) {
                     Level.TRACE, Level.DEBUG -> android.util.Log.d(tag, if (throwable != null) "$message: ${throwable.javaClass.name}: ${throwable.message}" else message, throwable)

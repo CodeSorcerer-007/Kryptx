@@ -22,6 +22,7 @@ import com.kryptx.app.KryptxApplication
 import com.kryptx.app.MainActivity
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.VaultItem
+import com.kryptx.app.core.security.SecurityLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -126,7 +127,9 @@ class KryptxAutofillService : AutofillService() {
                                 try {
                                     responseBuilder.addDataset(datasetBuilder.build())
                                     addedDatasets++
-                                } catch (e: Exception) {}
+                                } catch (e: Exception) {
+                                    SecurityLogger.warn("KryptxAutofillService", "Failed to add dataset to response: ${e.message}", e)
+                                }
                             }
                         }
 

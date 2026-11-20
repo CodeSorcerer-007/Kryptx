@@ -258,7 +258,9 @@ fun AnimatedQrScanner(
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                             )
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) {
+                            com.kryptx.app.core.security.SecurityLogger.warn("AnimatedQrScanner", "Failed to launch application details settings: ${e.message}", e)
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(0.7f)
                 ) {
