@@ -42,11 +42,19 @@ class KryptxApplication : Application(), KryptxDependencies {
     override val hardwareKeyManager: com.kryptx.app.core.security.IHardwareSecurityKeyManager get() = container.hardwareKeyManager
 
     /**
-     * Staged credential submitted via Autofill save request while the vault was locked.
-     * Automatically committed to the vault once the user authenticates.
+     * Staged credentials submitted via Autofill save requests while the vault was locked.
+     * Safely queued in memory and committed to the vault once the user authenticates.
      */
-    @Volatile
-    var pendingAutofillSave: com.kryptx.app.core.model.VaultItem? = null
+    val pendingAutofillQueue = java.util.concurrent.ConcurrentLinkedQueue<com.kryptx.app.core.model.VaultItem>()
+
+    var pendingAutofillSave: com.kryptx.app.core.model.VaultItem?
+        get() = pendingAutofillQueue.peek()
+        set(value) {
+            pendingAutofillQueue.clear()
+            if (value != null) {
+                pendingAutofillQueue.offer(value)
+            }
+        }
 
     private val activeActivityCount = AtomicInteger(0)
 

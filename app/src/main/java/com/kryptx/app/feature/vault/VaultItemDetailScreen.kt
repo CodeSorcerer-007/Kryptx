@@ -189,6 +189,9 @@ fun VaultItemDetailScreen(
                             ItemType.SECURE_NOTE -> "Copy Note"
                             ItemType.IDENTITY -> "Copy ID Number"
                             ItemType.PASSKEY -> "Copy Credential ID"
+                            ItemType.BANK_ACCOUNT -> "Copy Account Number"
+                            ItemType.CRYPTO_WALLET -> "Copy Seed / Key"
+                            ItemType.SSH_KEY -> "Copy Private Key"
                             else -> "Copy Password"
                         }
                     } else "Edit Item",

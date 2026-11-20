@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -66,9 +67,11 @@ import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.migration.AirGapQrFountainCodec
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -192,11 +195,18 @@ fun BackupExportScreen(
                     val activeVaultId = app?.vaultRepository?.getActiveVaultId() ?: "personal"
                     val recoveryUri = "kryptx://recovery?vault=$activeVaultId&salt=$saltBase64&kdf=$kdfAlgo"
 
+                    val memoryKb = app?.dbHelper?.getMetadata("argon2_memory_kb")?.toIntOrNull() ?: 65536
+                    val memoryMb = memoryKb / 1024
+                    val iterations = app?.dbHelper?.getMetadata("argon2_iterations")?.toIntOrNull() ?: 3
+                    val parallelism = app?.dbHelper?.getMetadata("argon2_parallelism")?.toIntOrNull() ?: 4
+                    val dynamicEncSpec = "AES-256-GCM + Argon2id ($memoryMb MB, $iterations passes, $parallelism lanes)"
+
                     val pdfFile = com.kryptx.app.core.generator.EmergencyKitGenerator
                         .generateEmergencyKitPdf(
                             context = context,
                             accountIdentifier = "$activeVaultId Vault",
-                            recoveryPayload = recoveryUri
+                            recoveryPayload = recoveryUri,
+                            encryptionSpec = dynamicEncSpec
                         )
                     val pdfBytes = pdfFile.readBytes()
                     val written = writeToUri(context, uri, pdfBytes)
@@ -838,14 +848,25 @@ fun BackupExportScreen(
 
     if (showAirGapTransmitterDialog && airGapFrames.isNotEmpty()) {
         var activeFrameIndex by remember { mutableStateOf(0) }
+        var activeBitmaps by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+        var isPreRendering by remember { mutableStateOf(true) }
+
         LaunchedEffect(airGapFrames) {
-            while (isActive && airGapFrames.isNotEmpty()) {
+            isPreRendering = true
+            val rendered = withContext(Dispatchers.Default) {
+                airGapFrames.mapNotNull { frame ->
+                    generateQrBitmap(frame, 512)
+                }
+            }
+            activeBitmaps = rendered
+            isPreRendering = false
+            activeFrameIndex = 0
+            while (isActive && activeBitmaps.isNotEmpty()) {
                 delay(180L)
-                activeFrameIndex = (activeFrameIndex + 1) % airGapFrames.size
+                activeFrameIndex = (activeFrameIndex + 1) % activeBitmaps.size
             }
         }
-        val currentFrame = airGapFrames[activeFrameIndex]
-        val qrBitmap = remember(currentFrame) { generateQrBitmap(currentFrame, 512) }
+        val currentBitmap = activeBitmaps.getOrNull(activeFrameIndex)
 
         AlertDialog(
             onDismissRequest = {
@@ -858,27 +879,40 @@ fun BackupExportScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (qrBitmap != null) {
+                    if (isPreRendering) {
+                        CircularProgressIndicator(
+                            color = KryptxCyan,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .padding(16.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Pre-rendering high-density frames...",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (currentBitmap != null) {
                         Image(
-                            bitmap = qrBitmap.asImageBitmap(),
+                            bitmap = currentBitmap.asImageBitmap(),
                             contentDescription = "Animated QR Frame",
                             modifier = Modifier
                                 .size(260.dp)
                                 .padding(8.dp)
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Frame ${activeFrameIndex + 1} of ${airGapFrames.size}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = KryptxCyan
+                        )
+                        Text(
+                            text = "Hold receiving device camera steady in front of screen.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Frame ${activeFrameIndex + 1} of ${airGapFrames.size}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = KryptxCyan
-                    )
-                    Text(
-                        text = "Hold receiving device camera steady in front of screen.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             },
             confirmButton = {
@@ -985,11 +1019,14 @@ private fun generateQrBitmap(content: String, size: Int): Bitmap? {
     return try {
         val bitMatrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
-        for (x in 0 until size) {
-            for (y in 0 until size) {
-                bitmap.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+        val pixels = IntArray(size * size)
+        for (y in 0 until size) {
+            val offset = y * size
+            for (x in 0 until size) {
+                pixels[offset + x] = if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE
             }
         }
+        bitmap.setPixels(pixels, 0, size, 0, 0, size, size)
         bitmap
     } catch (_: Exception) {
         null

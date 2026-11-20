@@ -203,6 +203,7 @@ object VaultImporter {
         val currentRecord = mutableListOf<String>()
         val sb = StringBuilder()
         var inQuotes = false
+        var wasQuoted = false
         var i = 0
         val len = csvContent.length
 
@@ -210,6 +211,7 @@ object VaultImporter {
             val c = csvContent[i]
             when {
                 c == '\"' -> {
+                    wasQuoted = true
                     if (inQuotes && i + 1 < len && csvContent[i + 1] == '\"') {
                         // RFC 4180 standard escaped double-quote: "" -> "
                         sb.append('\"')
@@ -219,15 +221,19 @@ object VaultImporter {
                     }
                 }
                 c == delimiter && !inQuotes -> {
-                    currentRecord.add(sb.toString().trim())
+                    val token = sb.toString()
+                    currentRecord.add(if (wasQuoted) token else token.trim())
                     sb.setLength(0)
+                    wasQuoted = false
                 }
                 (c == '\r' || c == '\n') && !inQuotes -> {
                     if (c == '\r' && i + 1 < len && csvContent[i + 1] == '\n') {
                         i++
                     }
-                    currentRecord.add(sb.toString().trim())
+                    val token = sb.toString()
+                    currentRecord.add(if (wasQuoted) token else token.trim())
                     sb.setLength(0)
+                    wasQuoted = false
                     if (currentRecord.any { it.isNotBlank() }) {
                         records.add(ArrayList(currentRecord))
                     }
@@ -240,7 +246,8 @@ object VaultImporter {
             i++
         }
         if (sb.isNotEmpty() || currentRecord.isNotEmpty()) {
-            currentRecord.add(sb.toString().trim())
+            val token = sb.toString()
+            currentRecord.add(if (wasQuoted) token else token.trim())
             if (currentRecord.any { it.isNotBlank() }) {
                 records.add(currentRecord)
             }
@@ -394,11 +401,13 @@ object VaultImporter {
         val result = mutableListOf<String>()
         val sb = java.lang.StringBuilder()
         var inQuotes = false
+        var wasQuoted = false
         var i = 0
         while (i < line.length) {
             val c = line[i]
             when {
                 c == '\"' -> {
+                    wasQuoted = true
                     if (inQuotes && i + 1 < line.length && line[i + 1] == '\"') {
                         // RFC 4180 standard escaped double-quote: "" -> "
                         sb.append('\"')
@@ -408,8 +417,10 @@ object VaultImporter {
                     }
                 }
                 c == delimiter && !inQuotes -> {
-                    result.add(sb.toString().trim())
+                    val token = sb.toString()
+                    result.add(if (wasQuoted) token else token.trim())
                     sb.setLength(0)
+                    wasQuoted = false
                 }
                 else -> {
                     sb.append(c)
@@ -417,7 +428,8 @@ object VaultImporter {
             }
             i++
         }
-        result.add(sb.toString().trim())
+        val token = sb.toString()
+        result.add(if (wasQuoted) token else token.trim())
         return result
     }
 }

@@ -405,6 +405,13 @@ object OfflineWebVaultGenerator {
                     btn.onclick = () => copyToClipboard(item.password, 'Password');
                     actionsDiv.appendChild(btn);
                 }
+                if (item.totpSecret) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-icon';
+                    btn.textContent = '2FA Secret';
+                    btn.onclick = () => copyToClipboard(item.totpSecret, '2FA Secret');
+                    actionsDiv.appendChild(btn);
+                }
                 if (item.cardNumber) {
                     const btn = document.createElement('button');
                     btn.className = 'btn-icon';

@@ -91,32 +91,34 @@ class VaultViewModel(
     }
 
     fun checkAndSavePendingAutofill(app: com.kryptx.app.KryptxApplication) {
-        val pending = app.pendingAutofillSave ?: return
-        app.pendingAutofillSave = null
+        if (app.pendingAutofillQueue.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val existingItems = vaultRepository.getItems().first()
-                val match = existingItems.firstOrNull { item ->
-                    item.type == ItemType.LOGIN && (
-                        when {
-                            !pending.website.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isDomainMatch(pending.website, item.website)
-                            else -> false
-                        }
-                    ) && (pending.username.isBlank() || item.username.equals(pending.username, ignoreCase = true))
-                }
+                while (app.pendingAutofillQueue.isNotEmpty()) {
+                    val pending = app.pendingAutofillQueue.poll() ?: break
+                    val existingItems = vaultRepository.getItems().first()
+                    val match = existingItems.firstOrNull { item ->
+                        item.type == ItemType.LOGIN && (
+                            when {
+                                !pending.website.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isDomainMatch(pending.website, item.website)
+                                else -> false
+                            }
+                        ) && (pending.username.isBlank() || item.username.equals(pending.username, ignoreCase = true))
+                    }
 
-                if (match != null) {
-                    val updated = match.copy(
-                        password = pending.password,
-                        username = if (pending.username.isNotBlank()) pending.username else match.username,
-                        updatedAt = System.currentTimeMillis(),
-                        lastUsedAt = System.currentTimeMillis()
-                    )
-                    vaultRepository.saveItem(updated)
-                    app.activityLogManager.logEvent("Autofill", "Committed pending update for ${updated.title}")
-                } else {
-                    vaultRepository.saveItem(pending)
-                    app.activityLogManager.logEvent("Autofill", "Committed pending credential for ${pending.title}")
+                    if (match != null) {
+                        val updated = match.copy(
+                            password = pending.password,
+                            username = if (pending.username.isNotBlank()) pending.username else match.username,
+                            updatedAt = System.currentTimeMillis(),
+                            lastUsedAt = System.currentTimeMillis()
+                        )
+                        vaultRepository.saveItem(updated)
+                        app.activityLogManager.logEvent("Autofill", "Committed pending update for ${updated.title}")
+                    } else {
+                        vaultRepository.saveItem(pending)
+                        app.activityLogManager.logEvent("Autofill", "Committed pending credential for ${pending.title}")
+                    }
                 }
             } catch (e: Exception) {
                 com.kryptx.app.core.security.SecurityLogger.error("VaultViewModel", "Failed to commit pending autofill item", e)

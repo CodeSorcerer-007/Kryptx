@@ -44,7 +44,8 @@ object EmergencyKitGenerator {
     suspend fun generateEmergencyKitPdf(
         context: Context,
         accountIdentifier: String = "Personal Primary Vault",
-        recoveryPayload: String = "Kryptx-ZeroKnowledge-Emergency-Token"
+        recoveryPayload: String = "Kryptx-ZeroKnowledge-Emergency-Token",
+        encryptionSpec: String = "AES-256-GCM + Argon2id (64 MB, 3 passes, 4 lanes)"
     ): File = withContext(Dispatchers.IO) {
         val pdfDocument = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 1).create()
@@ -129,7 +130,7 @@ object EmergencyKitGenerator {
         canvas.drawText("ENCRYPTION SPEC:", 60f, 270f, paint)
         paint.color = COLOR_TEXT_DARK
         paint.textSize = 11f
-        canvas.drawText("AES-256-GCM + Argon2id (64 MB, 3 passes, 4 lanes)", 180f, 270f, paint)
+        canvas.drawText(encryptionSpec, 180f, 270f, paint)
 
         // Master Password Field (with fill box)
         paint.color = COLOR_TEXT_MUTED
@@ -232,11 +233,14 @@ object EmergencyKitGenerator {
         return try {
             val bitMatrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
             val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
-            for (x in 0 until size) {
-                for (y in 0 until size) {
-                    bitmap.setPixel(x, y, if (bitMatrix.get(x, y)) Color.BLACK else Color.WHITE)
+            val pixels = IntArray(size * size)
+            for (y in 0 until size) {
+                val offset = y * size
+                for (x in 0 until size) {
+                    pixels[offset + x] = if (bitMatrix.get(x, y)) Color.BLACK else Color.WHITE
                 }
             }
+            bitmap.setPixels(pixels, 0, size, 0, 0, size, size)
             bitmap
         } catch (_: Exception) {
             null

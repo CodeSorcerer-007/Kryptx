@@ -47,6 +47,23 @@ class OfflineWebVaultGeneratorTest {
     }
 
     @Test
+    fun testOfflineWebVaultRendersTotpSecretAction() {
+        val items = listOf(
+            VaultItem(
+                id = "totp_1",
+                title = "Service with 2FA",
+                type = ItemType.LOGIN,
+                username = "admin",
+                password = "Password123!",
+                totpSecret = "JBSWY3DPEHPK3PXP"
+            )
+        )
+        val html = OfflineWebVaultGenerator.generateOfflineHtml(items, "MasterPass123!".toCharArray())
+        assertTrue(html.contains("2FA Secret"))
+        assertTrue(html.contains("copyToClipboard(item.totpSecret, '2FA Secret')"))
+    }
+
+    @Test
     fun testOfflineWebVaultCryptographicRoundTrip() {
         val items = listOf(
             VaultItem(

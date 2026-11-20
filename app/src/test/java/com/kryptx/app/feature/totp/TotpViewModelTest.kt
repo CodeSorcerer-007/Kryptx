@@ -132,4 +132,30 @@ class TotpViewModelTest {
         val updatedAccount = viewModel.totpAccounts.value.first()
         org.junit.Assert.assertNotNull(updatedAccount.code)
     }
+
+    @Test
+    fun testAddTotpReconcilesWithExistingItem() = runTest(testDispatcher) {
+        val existingItem = VaultItem(
+            id = "existing_github",
+            title = "GitHub",
+            type = ItemType.LOGIN,
+            username = "octocat",
+            password = "SecurePassword123!"
+        )
+        fakeVaultRepository.saveItem(existingItem)
+        testScheduler.runCurrent()
+
+        var successCalled = false
+        viewModel.addTotpManual("GitHub", "octocat", "JBSWY3DPEHPK3PXP") {
+            successCalled = true
+        }
+        testScheduler.runCurrent()
+
+        org.junit.Assert.assertTrue(successCalled)
+        assertEquals(1, viewModel.totpAccounts.value.size)
+        val reconciledItem = viewModel.totpAccounts.value.first().item
+        assertEquals("existing_github", reconciledItem.id)
+        assertEquals("JBSWY3DPEHPK3PXP", reconciledItem.totpSecret)
+        assertEquals("SecurePassword123!", reconciledItem.password)
+    }
 }

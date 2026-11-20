@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -153,15 +154,30 @@ class TotpViewModel(
     fun addTotpFromUri(uriString: String, onSuccess: () -> Unit, onError: () -> Unit) {
         val parsed = UriParser.parse(uriString)
         if (parsed != null) {
-            val newItem = VaultItem(
-                id = UUID.randomUUID().toString(),
-                title = parsed.issuer.ifBlank { parsed.accountName },
-                type = ItemType.LOGIN,
-                username = parsed.accountName,
-                totpSecret = parsed.secret
-            )
             viewModelScope.launch {
-                if (vaultRepository.saveItem(newItem).isSuccess) {
+                val existingItems = vaultRepository.getItems().first()
+                val targetIssuer = parsed.issuer.ifBlank { parsed.accountName }
+                val match = existingItems.firstOrNull { item ->
+                    item.type == ItemType.LOGIN && (
+                        (parsed.issuer.isNotBlank() && item.title.equals(parsed.issuer, ignoreCase = true)) ||
+                        (parsed.accountName.isNotBlank() && item.username.equals(parsed.accountName, ignoreCase = true))
+                    )
+                }
+
+                val result = if (match != null) {
+                    vaultRepository.saveItem(match.copy(totpSecret = parsed.secret, updatedAt = System.currentTimeMillis()))
+                } else {
+                    val newItem = VaultItem(
+                        id = UUID.randomUUID().toString(),
+                        title = targetIssuer,
+                        type = ItemType.LOGIN,
+                        username = parsed.accountName,
+                        totpSecret = parsed.secret
+                    )
+                    vaultRepository.saveItem(newItem)
+                }
+
+                if (result.isSuccess) {
                     onSuccess()
                 } else {
                     onError()
@@ -173,15 +189,28 @@ class TotpViewModel(
     }
 
     fun addTotpManual(issuer: String, account: String, secret: String, onSuccess: () -> Unit) {
-        val newItem = VaultItem(
-            id = UUID.randomUUID().toString(),
-            title = issuer.ifBlank { account },
-            type = ItemType.LOGIN,
-            username = account,
-            totpSecret = secret
-        )
         viewModelScope.launch {
-            vaultRepository.saveItem(newItem)
+            val existingItems = vaultRepository.getItems().first()
+            val targetTitle = issuer.ifBlank { account }
+            val match = existingItems.firstOrNull { item ->
+                item.type == ItemType.LOGIN && (
+                    (issuer.isNotBlank() && item.title.equals(issuer, ignoreCase = true)) ||
+                    (account.isNotBlank() && item.username.equals(account, ignoreCase = true))
+                )
+            }
+
+            if (match != null) {
+                vaultRepository.saveItem(match.copy(totpSecret = secret, updatedAt = System.currentTimeMillis()))
+            } else {
+                val newItem = VaultItem(
+                    id = UUID.randomUUID().toString(),
+                    title = targetTitle,
+                    type = ItemType.LOGIN,
+                    username = account,
+                    totpSecret = secret
+                )
+                vaultRepository.saveItem(newItem)
+            }
             onSuccess()
         }
     }

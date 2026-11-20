@@ -94,4 +94,20 @@ class CsvRfc4180FuzzTest {
         assertTrue(item.notes.contains("Port: 5432"))
         assertTrue(item.notes.contains("Cluster: Primary-US-East"))
     }
+
+    @Test
+    fun testImportCsvPreservesQuotedWhitespace() {
+        val csv = """
+            type,title,username,password,url,notes
+            login," Whitespace Title "," user_with_spaces ","  pass_with_spaces  ",https://site.com,"  notes with spaces  "
+        """.trimIndent()
+
+        val items = VaultImporter.importCsv(csv)
+        assertEquals(1, items.size)
+        val item = items[0]
+        assertEquals(" Whitespace Title ", item.title)
+        assertEquals(" user_with_spaces ", item.username)
+        assertEquals("  pass_with_spaces  ", item.password)
+        assertEquals("  notes with spaces  ", item.notes)
+    }
 }

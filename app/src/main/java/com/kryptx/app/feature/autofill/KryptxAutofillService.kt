@@ -446,16 +446,18 @@ class KryptxAutofillService : AutofillService() {
                         "KryptxAutofillService",
                         "Vault is locked during save request; staging pending credential for $formattedTitle"
                     )
-                    app.pendingAutofillSave = VaultItem(
-                        title = formattedTitle,
-                        type = ItemType.LOGIN,
-                        username = extractedUsername,
-                        password = extractedPassword,
-                        website = websiteUrl,
-                        notes = "Saved via Sovereign Autofill",
-                        createdAt = System.currentTimeMillis(),
-                        updatedAt = System.currentTimeMillis(),
-                        lastUsedAt = System.currentTimeMillis()
+                    app.pendingAutofillQueue.offer(
+                        VaultItem(
+                            title = formattedTitle,
+                            type = ItemType.LOGIN,
+                            username = extractedUsername,
+                            password = extractedPassword,
+                            website = websiteUrl,
+                            notes = "Saved via Sovereign Autofill",
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis(),
+                            lastUsedAt = System.currentTimeMillis()
+                        )
                     )
                     callback.onSuccess()
                     return
