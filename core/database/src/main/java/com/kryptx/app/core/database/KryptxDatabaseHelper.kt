@@ -821,12 +821,22 @@ open class KryptxDatabaseHelper(
                 tempPairs.add(file to tempFile)
             }
 
-            // Atomic rename of all temp files over originals
+            // Atomic replacement of all temp files over originals without deleting originals first
             for ((origFile, tempFile) in tempPairs) {
-                if (origFile.exists()) origFile.delete()
-                if (!tempFile.renameTo(origFile)) {
-                    tempFile.copyTo(origFile, overwrite = true)
-                    tempFile.delete()
+                try {
+                    java.nio.file.Files.move(
+                        tempFile.toPath(),
+                        origFile.toPath(),
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                    )
+                } catch (_: Exception) {
+                    // Fallback to standard replace if atomic filesystem move is unsupported
+                    java.nio.file.Files.move(
+                        tempFile.toPath(),
+                        origFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                    )
                 }
             }
         } catch (e: Exception) {

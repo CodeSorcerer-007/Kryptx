@@ -1,9 +1,12 @@
 package com.kryptx.app.feature.settings
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -33,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,11 +46,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import com.kryptx.app.core.crypto.SecureMemory
+import com.kryptx.app.core.designsystem.components.AnimatedQrScanner
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
@@ -53,8 +62,12 @@ import com.kryptx.app.core.designsystem.components.KryptxTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
+import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxRed
+import com.kryptx.app.core.migration.AirGapQrFountainCodec
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -77,6 +90,11 @@ fun BackupExportScreen(
     var showPlaintextWarningDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var showOfflineHtmlDialog by remember { mutableStateOf(false) }
+    var showAirGapPasswordDialog by remember { mutableStateOf(false) }
+    var airGapExportPassword by remember { mutableStateOf("") }
+    var showAirGapTransmitterDialog by remember { mutableStateOf(false) }
+    var airGapFrames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showAirGapReceiverDialog by remember { mutableStateOf(false) }
 
     // Pending export bytes — held while waiting for SAF URI to be picked
     var pendingEncryptedBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -435,6 +453,63 @@ fun BackupExportScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
+                text = "SOVEREIGN AIR-GAP QR SYNC",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = KryptxCyan,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            KryptxCard(borderColor = KryptxCyan.copy(alpha = 0.5f)) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = KryptxCyan,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Zero-Network Air-Gapped Fountain Sync",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Stream or receive encrypted vault archives via animated QR sequences between devices without Wi-Fi, Bluetooth, or cables.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        KryptxOutlinedButton(
+                            text = "Transmit via QR",
+                            borderColor = KryptxCyan,
+                            textColor = KryptxCyan,
+                            modifier = Modifier.weight(1f),
+                            onClick = { showAirGapPasswordDialog = true }
+                        )
+                        KryptxOutlinedButton(
+                            text = "Receive via Camera",
+                            borderColor = KryptxEmerald,
+                            textColor = KryptxEmerald,
+                            modifier = Modifier.weight(1f),
+                            onClick = { showAirGapReceiverDialog = true }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
                 text = "UNENCRYPTED EXPORT (HIGH RISK)",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -704,6 +779,171 @@ fun BackupExportScreen(
             }
         )
     }
+
+    if (showAirGapPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAirGapPasswordDialog = false
+                airGapExportPassword = ""
+            },
+            title = { Text("Transmit via Animated QR") },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter a passphrase to encrypt your vault archive before streaming high-density animated QR frames.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    KryptxTextField(
+                        value = airGapExportPassword,
+                        onValueChange = { airGapExportPassword = it },
+                        label = "Export Passphrase",
+                        isPassword = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val pass = airGapExportPassword
+                        showAirGapPasswordDialog = false
+                        airGapExportPassword = ""
+                        if (pass.isNotBlank()) {
+                            scope.launch {
+                                val bytes = viewModel.exportEncryptedBackup(pass)
+                                if (bytes != null) {
+                                    val frames = AirGapQrFountainCodec.encodeFountain(bytes)
+                                    airGapFrames = frames
+                                    showAirGapTransmitterDialog = true
+                                } else {
+                                    snackbarHostState.showSnackbar("Failed to encrypt vault for air-gap transmission.")
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Start Streaming", color = KryptxCyan, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAirGapPasswordDialog = false
+                    airGapExportPassword = ""
+                }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showAirGapTransmitterDialog && airGapFrames.isNotEmpty()) {
+        var activeFrameIndex by remember { mutableStateOf(0) }
+        LaunchedEffect(airGapFrames) {
+            while (isActive && airGapFrames.isNotEmpty()) {
+                delay(180L)
+                activeFrameIndex = (activeFrameIndex + 1) % airGapFrames.size
+            }
+        }
+        val currentFrame = airGapFrames[activeFrameIndex]
+        val qrBitmap = remember(currentFrame) { generateQrBitmap(currentFrame, 512) }
+
+        AlertDialog(
+            onDismissRequest = {
+                showAirGapTransmitterDialog = false
+                airGapFrames = emptyList()
+            },
+            title = { Text("Air-Gap Fountain Transmitter") },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (qrBitmap != null) {
+                        Image(
+                            bitmap = qrBitmap.asImageBitmap(),
+                            contentDescription = "Animated QR Frame",
+                            modifier = Modifier
+                                .size(260.dp)
+                                .padding(8.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Frame ${activeFrameIndex + 1} of ${airGapFrames.size}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = KryptxCyan
+                    )
+                    Text(
+                        text = "Hold receiving device camera steady in front of screen.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAirGapTransmitterDialog = false
+                        airGapFrames = emptyList()
+                    }
+                ) {
+                    Text("Done", color = KryptxCyan)
+                }
+            }
+        )
+    }
+
+    if (showAirGapReceiverDialog) {
+        val reassembler = remember { AirGapQrFountainCodec.FountainReassembler() }
+        var receiverStatus by remember { mutableStateOf("Point camera at transmitting device...") }
+
+        AlertDialog(
+            onDismissRequest = { showAirGapReceiverDialog = false },
+            title = { Text("Air-Gap Camera Scanner") },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AnimatedQrScanner(
+                        onFrameScanned = { frame ->
+                            when (val result = reassembler.feedFrame(frame)) {
+                                is AirGapQrFountainCodec.FountainReassembler.Result.Progress -> {
+                                    receiverStatus = "Received ${result.receivedParts} / ${result.totalParts} frames (${result.receivedParts * 100 / result.totalParts}%)"
+                                }
+                                is AirGapQrFountainCodec.FountainReassembler.Result.Complete -> {
+                                    showAirGapReceiverDialog = false
+                                    pendingImportBytes = result.payload
+                                    showImportDialog = true
+                                }
+                                is AirGapQrFountainCodec.FountainReassembler.Result.Corrupted -> {
+                                    receiverStatus = "Corrupted frame detected: ${result.reason}"
+                                }
+                                is AirGapQrFountainCodec.FountainReassembler.Result.Ignored -> {}
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = receiverStatus,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAirGapReceiverDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 // ── SAF helpers ───────────────────────────────────────────────────────────────
@@ -737,6 +977,21 @@ private fun readFromUri(context: Context, uri: Uri, maxBytes: Int = 50 * 1024 * 
             buffer.toByteArray()
         }
     } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun generateQrBitmap(content: String, size: Int): Bitmap? {
+    return try {
+        val bitMatrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bitmap.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bitmap
+    } catch (_: Exception) {
         null
     }
 }

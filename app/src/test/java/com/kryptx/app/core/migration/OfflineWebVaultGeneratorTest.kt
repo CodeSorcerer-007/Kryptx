@@ -40,6 +40,10 @@ class OfflineWebVaultGeneratorTest {
         // Must NOT leak plaintext credentials in the HTML file
         assertFalse(html.contains("SuperSecretDevPassword!2026"))
         assertFalse(html.contains("dev_user"))
+
+        // Must enforce 30-second clipboard auto-clear security timer
+        assertTrue(html.contains("Clears in 30s"))
+        assertTrue(html.contains("30000"))
     }
 
     @Test

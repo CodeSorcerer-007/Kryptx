@@ -41,6 +41,13 @@ class KryptxApplication : Application(), KryptxDependencies {
     override val emergencyAutoDestructManager: com.kryptx.app.core.security.EmergencyAutoDestructManager get() = container.emergencyAutoDestructManager
     override val hardwareKeyManager: com.kryptx.app.core.security.IHardwareSecurityKeyManager get() = container.hardwareKeyManager
 
+    /**
+     * Staged credential submitted via Autofill save request while the vault was locked.
+     * Automatically committed to the vault once the user authenticates.
+     */
+    @Volatile
+    var pendingAutofillSave: com.kryptx.app.core.model.VaultItem? = null
+
     private val activeActivityCount = AtomicInteger(0)
 
     override fun onCreate() {

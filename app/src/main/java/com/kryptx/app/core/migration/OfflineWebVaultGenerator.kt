@@ -322,9 +322,17 @@ object OfflineWebVaultGenerator {
             renderItems();
         }
 
+        var clipboardTimer = null;
         function copyToClipboard(text, label) {
+            if (clipboardTimer) clearTimeout(clipboardTimer);
             navigator.clipboard.writeText(text).then(() => {
-                showToast(`Copied ${'$'}{label} to clipboard!`);
+                showToast(`Copied ${'$'}{label} to clipboard! (Clears in 30s)`);
+                clipboardTimer = setTimeout(() => {
+                    navigator.clipboard.writeText('').catch(() => {});
+                    showToast('Clipboard cleared for security');
+                }, 30000);
+            }).catch(() => {
+                showToast(`Failed to copy ${'$'}{label}`);
             });
         }
 

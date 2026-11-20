@@ -88,6 +88,19 @@ class VaultBackupRoundtripTest {
                 wifiPassword = "WPA3-Enterprise-Key!987",
                 notes = "Floor 4 Access Point",
                 createdAt = 1700003000000L
+            ),
+            VaultItem(
+                id = UUID.randomUUID().toString(),
+                title = "Alice Identity Card",
+                type = ItemType.IDENTITY,
+                identityFullName = "Alice Eve Doe",
+                identityEmail = "alice.doe@example.com",
+                identityPhone = "+15551234567",
+                identityAddress = "456 Cryptography Way, Suite 10",
+                identityDob = "1992-04-15",
+                identityIdNumber = "PASSPORT-987654321",
+                notes = "Digital identity record",
+                createdAt = 1700004000000L
             )
         )
     }
@@ -246,6 +259,15 @@ class VaultBackupRoundtripTest {
         assertEquals("CorrectHorse-Battery.Staple-99!", imported[0].password)
         assertEquals("https://mail.proton.me", imported[0].website)
         assertEquals("JBSWY3DPEHPK3PXP", imported[0].totpSecret)
+
+        val importedIdentity = imported.firstOrNull { it.type == ItemType.IDENTITY }
+        assertNotNull(importedIdentity)
+        assertEquals("Alice Eve Doe", importedIdentity!!.identityFullName)
+        assertEquals("alice.doe@example.com", importedIdentity.identityEmail)
+        assertEquals("+15551234567", importedIdentity.identityPhone)
+        assertEquals("456 Cryptography Way, Suite 10", importedIdentity.identityAddress)
+        assertEquals("1992-04-15", importedIdentity.identityDob)
+        assertEquals("PASSPORT-987654321", importedIdentity.identityIdNumber)
     }
 
     @Test

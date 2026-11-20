@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -87,6 +88,40 @@ class VaultViewModel(
 
     fun dismissAutofillNudge() {
         preferencesRepository?.setAutofillNudgeDismissed(true)
+    }
+
+    fun checkAndSavePendingAutofill(app: com.kryptx.app.KryptxApplication) {
+        val pending = app.pendingAutofillSave ?: return
+        app.pendingAutofillSave = null
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val existingItems = vaultRepository.getItems().first()
+                val match = existingItems.firstOrNull { item ->
+                    item.type == ItemType.LOGIN && (
+                        when {
+                            !pending.website.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isDomainMatch(pending.website, item.website)
+                            else -> false
+                        }
+                    ) && (pending.username.isBlank() || item.username.equals(pending.username, ignoreCase = true))
+                }
+
+                if (match != null) {
+                    val updated = match.copy(
+                        password = pending.password,
+                        username = if (pending.username.isNotBlank()) pending.username else match.username,
+                        updatedAt = System.currentTimeMillis(),
+                        lastUsedAt = System.currentTimeMillis()
+                    )
+                    vaultRepository.saveItem(updated)
+                    app.activityLogManager.logEvent("Autofill", "Committed pending update for ${updated.title}")
+                } else {
+                    vaultRepository.saveItem(pending)
+                    app.activityLogManager.logEvent("Autofill", "Committed pending credential for ${pending.title}")
+                }
+            } catch (e: Exception) {
+                com.kryptx.app.core.security.SecurityLogger.error("VaultViewModel", "Failed to commit pending autofill item", e)
+            }
+        }
     }
 
     val isBiometricsEnabled: StateFlow<Boolean> = preferencesRepository?.biometricEnabled

@@ -48,6 +48,17 @@ class UnlockViewModel(
         }
     }
 
+    private val _recoveryParameters = MutableStateFlow<Triple<String?, String?, String?>?>(null)
+    val recoveryParameters: StateFlow<Triple<String?, String?, String?>?> = _recoveryParameters.asStateFlow()
+
+    fun setRecoveryParameters(vaultId: String?, salt: String?, kdf: String?) {
+        _recoveryParameters.value = Triple(vaultId, salt, kdf)
+    }
+
+    fun clearRecoveryParameters() {
+        _recoveryParameters.value = null
+    }
+
     fun setBiometricEnrollmentPrompted(prompted: Boolean) {
         preferencesRepository.setBiometricEnrollmentPrompted(prompted)
     }

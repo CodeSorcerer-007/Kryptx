@@ -308,6 +308,12 @@ object VaultImporter {
             var apiKey = ""
             var apiSecret = ""
             var apiEndpoint = ""
+            var identityFullName = ""
+            var identityEmail = ""
+            var identityPhone = ""
+            var identityAddress = ""
+            var identityDob = ""
+            var identityIdNumber = ""
             val customFields = mutableListOf<com.kryptx.app.core.model.CustomField>()
 
             if (fieldsStr.isNotBlank()) {
@@ -328,6 +334,12 @@ object VaultImporter {
                             "api_key" -> apiKey = value
                             "api_secret" -> apiSecret = value
                             "api_endpoint" -> apiEndpoint = value
+                            "full_name" -> identityFullName = value
+                            "email" -> identityEmail = value
+                            "phone" -> identityPhone = value
+                            "address" -> identityAddress = value
+                            "dob" -> identityDob = value
+                            "id_number" -> identityIdNumber = value
                             else -> {
                                 val rawKey = line.substring(0, colonPos).trim()
                                 if (rawKey.isNotBlank()) {
@@ -339,7 +351,7 @@ object VaultImporter {
                 }
             }
 
-            if (title.isNotBlank() || username.isNotBlank() || password.isNotBlank() || passkeyRpId.isNotBlank() || note.isNotBlank() || cardNumber.isNotBlank() || apiKey.isNotBlank() || wifiPassword.isNotBlank() || customFields.isNotEmpty()) {
+            if (title.isNotBlank() || username.isNotBlank() || password.isNotBlank() || passkeyRpId.isNotBlank() || note.isNotBlank() || cardNumber.isNotBlank() || apiKey.isNotBlank() || wifiPassword.isNotBlank() || identityFullName.isNotBlank() || identityIdNumber.isNotBlank() || customFields.isNotEmpty()) {
                 items.add(
                     VaultItem(
                         id = UUID.randomUUID().toString(),
@@ -357,6 +369,12 @@ object VaultImporter {
                         cardExpiry = cardExpiry,
                         cardCvv = cardCvv,
                         cardPin = cardPin,
+                        identityFullName = identityFullName,
+                        identityEmail = identityEmail,
+                        identityPhone = identityPhone,
+                        identityAddress = identityAddress,
+                        identityDob = identityDob,
+                        identityIdNumber = identityIdNumber,
                         wifiSsid = wifiSsid,
                         wifiPassword = wifiPassword,
                         wifiSecurityType = wifiSecurity,

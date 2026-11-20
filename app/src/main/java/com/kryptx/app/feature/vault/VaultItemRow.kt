@@ -263,7 +263,7 @@ fun VaultItemRow(
                         onToggleFavorite()
                     },
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .testTag("vault_item_favorite_${item.id}")
                 ) {
                     Icon(
@@ -280,7 +280,7 @@ fun VaultItemRow(
                 if (item.primarySecret.isNotBlank()) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(48.dp)
                             .testTag("vault_item_copy_${item.id}")
                             .clip(CircleShape)
                             .background(

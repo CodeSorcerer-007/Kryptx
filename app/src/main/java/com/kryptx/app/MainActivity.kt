@@ -120,6 +120,10 @@ class MainActivity : FragmentActivity() {
 
         val dataUri = intent?.data
         pendingShortcutTarget = if (dataUri?.scheme == "kryptx" && dataUri.host == "recovery") {
+            val vaultId = dataUri.getQueryParameter("vault")
+            val salt = dataUri.getQueryParameter("salt")
+            val kdf = dataUri.getQueryParameter("kdf")
+            unlockViewModel.setRecoveryParameters(vaultId, salt, kdf)
             "recovery"
         } else {
             intent?.getStringExtra("navigate_target")
@@ -134,13 +138,15 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        // Reset auto prompt flag and biometric state when vault locks
+        // Reset auto prompt flag and biometric state when vault locks, commit pending autofill when unlocked
         lifecycleScope.launch {
             app.sessionManager.isUnlocked.collect { unlocked ->
                 if (!unlocked) {
                     hasAutoPromptedBiometrics = false
                     biometricCoordinator.reset()
                     unlockViewModel.checkVaultStatus()
+                } else {
+                    vaultViewModel.checkAndSavePendingAutofill(app)
                 }
             }
         }
@@ -218,6 +224,10 @@ class MainActivity : FragmentActivity() {
 
         val dataUri = intent.data
         val target = if (dataUri?.scheme == "kryptx" && dataUri.host == "recovery") {
+            val vaultId = dataUri.getQueryParameter("vault")
+            val salt = dataUri.getQueryParameter("salt")
+            val kdf = dataUri.getQueryParameter("kdf")
+            unlockViewModel.setRecoveryParameters(vaultId, salt, kdf)
             "recovery"
         } else {
             intent.getStringExtra("navigate_target")

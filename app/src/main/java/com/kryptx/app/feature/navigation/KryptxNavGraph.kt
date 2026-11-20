@@ -211,37 +211,42 @@ fun KryptxNavGraph(
         }
     }
 
-    // Handle incoming launcher shortcuts when unlocked
+    // Handle incoming launcher shortcuts when unlocked or deep link recovery
     androidx.compose.runtime.LaunchedEffect(isUnlocked, pendingShortcutTarget) {
-        if (isUnlocked && pendingShortcutTarget != null) {
-            when (pendingShortcutTarget) {
-                "search" -> {
-                    navigateTo(Screen.Search)
-                    onClearPendingShortcut()
-                }
-                "add_item" -> {
-                    navigateTo(Screen.AddEditItem(null))
-                    onClearPendingShortcut()
-                }
-                "generator" -> {
-                    androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
-                        selectedBottomTab = BottomNavTab.GENERATOR
-                        backStack.clear()
-                        backStack.add(Screen.Generator)
-                    }
-                    onClearPendingShortcut()
-                }
-                "totp" -> {
-                    androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
-                        selectedBottomTab = BottomNavTab.TOTP
-                        backStack.clear()
-                        backStack.add(Screen.TotpList)
-                    }
-                    onClearPendingShortcut()
-                }
-                "recovery" -> {
+        if (pendingShortcutTarget != null) {
+            if (pendingShortcutTarget == "recovery") {
+                if (isUnlocked) {
                     navigateTo(Screen.BackupExport)
-                    onClearPendingShortcut()
+                } else if (!unlockUiState.hasVault) {
+                    navigateTo(Screen.SetupMasterPassword)
+                }
+                onClearPendingShortcut()
+            } else if (isUnlocked) {
+                when (pendingShortcutTarget) {
+                    "search" -> {
+                        navigateTo(Screen.Search)
+                        onClearPendingShortcut()
+                    }
+                    "add_item" -> {
+                        navigateTo(Screen.AddEditItem(null))
+                        onClearPendingShortcut()
+                    }
+                    "generator" -> {
+                        androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                            selectedBottomTab = BottomNavTab.GENERATOR
+                            backStack.clear()
+                            backStack.add(Screen.Generator)
+                        }
+                        onClearPendingShortcut()
+                    }
+                    "totp" -> {
+                        androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                            selectedBottomTab = BottomNavTab.TOTP
+                            backStack.clear()
+                            backStack.add(Screen.TotpList)
+                        }
+                        onClearPendingShortcut()
+                    }
                 }
             }
         }

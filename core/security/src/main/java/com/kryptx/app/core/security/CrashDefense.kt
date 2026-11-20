@@ -193,7 +193,7 @@ object CrashDefense {
                     Handler(Looper.getMainLooper()).post {
                         recoverApplicationGracefully()
                     }
-                    break
+                    // Keep MainLooper guardian pump active so subsequent Activity lifecycle cycles remain protected
                 }
             }
         }

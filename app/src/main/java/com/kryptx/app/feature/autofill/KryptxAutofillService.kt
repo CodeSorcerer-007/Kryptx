@@ -379,7 +379,7 @@ class KryptxAutofillService : AutofillService() {
 
         if (extractedPassword.isNotBlank()) {
             val app = applicationContext as? KryptxApplication
-            if (app != null && app.sessionManager.isUnlocked.value) {
+            if (app != null) {
                 val rawTarget = extractedDomain?.removePrefix("www.")
                     ?: appPackage?.substringAfterLast('.')?.replaceFirstChar { it.uppercase() }
                     ?: "Saved Login"
@@ -392,53 +392,74 @@ class KryptxAutofillService : AutofillService() {
                 }
                 val websiteUrl = if (domainSafe != null) "https://${domainSafe.removePrefix("www.")}" else ""
 
-                serviceScope.launch {
-                    try {
-                        val existingItems = app.vaultRepository.getItems().first()
+                if (app.sessionManager.isUnlocked.value) {
+                    serviceScope.launch {
+                        try {
+                            val existingItems = app.vaultRepository.getItems().first()
 
-                        // Use the same strict boundary-aware DomainMatcher as onFillRequest to prevent
-                        // substring-spoof attacks (e.g. "evil-paypal.com" matching "paypal.com" via contains())
-                        // and title-spoof attacks where a malicious app title overwrites credentials.
-                        val match = existingItems.firstOrNull { item ->
-                            item.type == ItemType.LOGIN && (
-                                when {
-                                    !extractedDomain.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isDomainMatch(extractedDomain, item.website)
-                                    !appPackage.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isPackageMatch(appPackage, item.website, item.title)
-                                    else -> false
-                                }
-                            ) && (extractedUsername.isBlank() || item.username.equals(extractedUsername, ignoreCase = true))
-                        }
+                            // Use the same strict boundary-aware DomainMatcher as onFillRequest to prevent
+                            // substring-spoof attacks (e.g. "evil-paypal.com" matching "paypal.com" via contains())
+                            // and title-spoof attacks where a malicious app title overwrites credentials.
+                            val match = existingItems.firstOrNull { item ->
+                                item.type == ItemType.LOGIN && (
+                                    when {
+                                        !extractedDomain.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isDomainMatch(extractedDomain, item.website)
+                                        !appPackage.isNullOrBlank() -> com.kryptx.app.core.security.DomainMatcher.isPackageMatch(appPackage, item.website, item.title)
+                                        else -> false
+                                    }
+                                ) && (extractedUsername.isBlank() || item.username.equals(extractedUsername, ignoreCase = true))
+                            }
 
-                        if (match != null) {
-                            val updated = match.copy(
-                                password = extractedPassword,
-                                username = if (extractedUsername.isNotBlank()) extractedUsername else match.username,
-                                updatedAt = System.currentTimeMillis(),
-                                lastUsedAt = System.currentTimeMillis()
-                            )
-                            app.vaultRepository.saveItem(updated)
-                            app.activityLogManager.logEvent("Autofill", "Updated credential for ${updated.title}")
-                        } else {
-                            val newItem = VaultItem(
-                                title = formattedTitle,
-                                type = ItemType.LOGIN,
-                                username = extractedUsername,
-                                password = extractedPassword,
-                                website = websiteUrl,
-                                createdAt = System.currentTimeMillis(),
-                                updatedAt = System.currentTimeMillis(),
-                                lastUsedAt = System.currentTimeMillis()
-                            )
-                            app.vaultRepository.saveItem(newItem)
-                            app.activityLogManager.logEvent("Autofill", "Saved new credential for ${newItem.title}")
+                            if (match != null) {
+                                val updated = match.copy(
+                                    password = extractedPassword,
+                                    username = if (extractedUsername.isNotBlank()) extractedUsername else match.username,
+                                    updatedAt = System.currentTimeMillis(),
+                                    lastUsedAt = System.currentTimeMillis()
+                                )
+                                app.vaultRepository.saveItem(updated)
+                                app.activityLogManager.logEvent("Autofill", "Updated credential for ${updated.title}")
+                            } else {
+                                val newItem = VaultItem(
+                                    title = formattedTitle,
+                                    type = ItemType.LOGIN,
+                                    username = extractedUsername,
+                                    password = extractedPassword,
+                                    website = websiteUrl,
+                                    createdAt = System.currentTimeMillis(),
+                                    updatedAt = System.currentTimeMillis(),
+                                    lastUsedAt = System.currentTimeMillis()
+                                )
+                                app.vaultRepository.saveItem(newItem)
+                                app.activityLogManager.logEvent("Autofill", "Saved new credential for ${newItem.title}")
+                            }
+                            callback.onSuccess()
+                        } catch (e: Exception) {
+                            com.kryptx.app.core.security.SecurityLogger.error("KryptxAutofillService", "Failed to save autofill credential", e)
+                            callback.onFailure("Failed to save credential")
                         }
-                        callback.onSuccess()
-                    } catch (e: Exception) {
-                        com.kryptx.app.core.security.SecurityLogger.error("KryptxAutofillService", "Failed to save autofill credential", e)
-                        callback.onFailure("Failed to save credential")
                     }
+                    return
+                } else {
+                    // Vault locked: Stage credential safely in memory so it is saved automatically upon unlock
+                    com.kryptx.app.core.security.SecurityLogger.info(
+                        "KryptxAutofillService",
+                        "Vault is locked during save request; staging pending credential for $formattedTitle"
+                    )
+                    app.pendingAutofillSave = VaultItem(
+                        title = formattedTitle,
+                        type = ItemType.LOGIN,
+                        username = extractedUsername,
+                        password = extractedPassword,
+                        website = websiteUrl,
+                        notes = "Saved via Sovereign Autofill",
+                        createdAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
+                        lastUsedAt = System.currentTimeMillis()
+                    )
+                    callback.onSuccess()
+                    return
                 }
-                return
             }
         }
 
