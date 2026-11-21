@@ -75,6 +75,8 @@ object DomainMatcher {
         "azurewebsites.net", "s3.amazonaws.com", "cloudfront.net",
         "herokuapp.com", "myshopify.com", "000webhostapp.com",
         "wordpress.com", "blogspot.com", "tumblr.com",
+        "fly.dev", "railway.app", "up.railway.app", "deno.dev",
+        "render.com", "onrender.com", "supabase.co",
         // Multi-part country code TLDs
         "co.uk", "org.uk", "gov.uk", "ac.uk", "net.uk",
         "com.au", "net.au", "org.au", "edu.au", "gov.au",

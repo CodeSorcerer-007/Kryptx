@@ -88,15 +88,14 @@ class VaultSessionManager(
      */
     @Synchronized
     override fun unlock(vaultKey: ByteArray, isDecoy: Boolean) {
-        // Session integrity guard — log if lockout was active when unlock succeeded.
-        // This indicates either a genuine timing race or an attempted throttle bypass.
-        if (_lockoutSecondsRemaining.value > 0) {
-            SecurityLogger.warn(
+        // Fail-closed lockout enforcement: Hard-block any unlock attempt while brute-force penalty is active
+        val lockoutRemaining = _lockoutSecondsRemaining.value
+        if (lockoutRemaining > 0) {
+            SecurityLogger.error(
                 "VaultSessionManager",
-                "Vault unlocked while lockout timer was still active " +
-                "(${_lockoutSecondsRemaining.value}s remaining). " +
-                "Possible timing bypass attempt — investigate."
+                "Unlock blocked: Lockout throttle active (${lockoutRemaining}s remaining). Possible timing or brute-force bypass attempt."
             )
+            throw SecurityException("Unlock prohibited: System is locked out ($lockoutRemaining seconds remaining)")
         }
 
         // Fail-closed atomic state transition: If re-unlocking an active session, unconditionally

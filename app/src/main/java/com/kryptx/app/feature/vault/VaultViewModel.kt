@@ -143,6 +143,10 @@ class VaultViewModel(
         items.groupBy { it.type }.mapValues { it.value.size }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    val totpCount: StateFlow<Int> = rawItems.map { items ->
+        items.count { it.totpSecret.isNotBlank() }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     val visibleCategories: StateFlow<Set<ItemType>> = if (preferencesRepository != null) {
         combine(preferencesRepository.visibleCategories, isMinimalistMode, rawItems) { names, minimalist, items ->
             val nonZeroTypes = items.map { it.type }.toSet()

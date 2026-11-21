@@ -135,6 +135,26 @@ class VaultSessionManagerTest {
     }
 
     @Test
+    fun testUnlockThrowsSecurityExceptionWhenLockoutActive() = runTest(testDispatcher) {
+        val sessionManager = VaultSessionManager(this)
+        // 3 failed attempts triggers 10 second lockout
+        sessionManager.recordFailedAttempt()
+        sessionManager.recordFailedAttempt()
+        sessionManager.recordFailedAttempt()
+        assertTrue(sessionManager.lockoutSecondsRemaining.value > 0)
+
+        val key = ByteArray(32) { 1 }
+        try {
+            sessionManager.unlock(key)
+            org.junit.Assert.fail("Expected SecurityException when lockout countdown is active")
+        } catch (e: SecurityException) {
+            assertTrue(e.message?.contains("locked out") == true)
+            assertFalse(sessionManager.isUnlocked.value)
+            assertNull(sessionManager.getVaultKey())
+        }
+    }
+
+    @Test
     fun testWithVaultKeyExecutesSafely() {
         val sessionManager = VaultSessionManager(testScope)
         val key = ByteArray(32) { 99 }

@@ -68,6 +68,10 @@ class DomainMatcherHardeningTest {
         assertFalse(DomainMatcher.isDomainMatch("mysite.vercel.app", "vercel.app"))
         assertFalse(DomainMatcher.isDomainMatch("s3.amazonaws.com", "mybucket.s3.amazonaws.com"))
         assertFalse(DomainMatcher.isDomainMatch("firebaseapp.com", "project.firebaseapp.com"))
+        assertFalse(DomainMatcher.isDomainMatch("fly.dev", "myapp.fly.dev"))
+        assertFalse(DomainMatcher.isDomainMatch("attacker.fly.dev", "victim.fly.dev"))
+        assertFalse(DomainMatcher.isDomainMatch("railway.app", "service.railway.app"))
+        assertFalse(DomainMatcher.isDomainMatch("deno.dev", "api.deno.dev"))
 
         // Multi-part ccTLDs
         assertFalse(DomainMatcher.isDomainMatch("co.uk", "company.co.uk"))

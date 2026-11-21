@@ -118,6 +118,7 @@ fun VaultDashboardScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val visibleCategories by viewModel.visibleCategories.collectAsStateWithLifecycle()
     val categoryCounts by viewModel.categoryCounts.collectAsStateWithLifecycle()
+    val totpCount by viewModel.totpCount.collectAsStateWithLifecycle()
     val isMinimalistMode by viewModel.isMinimalistMode.collectAsStateWithLifecycle()
     val clipboardTimeoutSec by viewModel.clipboardTimeout.collectAsStateWithLifecycle()
 
@@ -125,10 +126,9 @@ fun VaultDashboardScreen(
     val isSelectionMode by viewModel.isSelectionMode.collectAsStateWithLifecycle()
     val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
 
-    val loginsCount = remember(allItems) { allItems.count { it.type == ItemType.LOGIN } }
-    val cardsCount = remember(allItems) { allItems.count { it.type == ItemType.CREDIT_CARD } }
-    val notesCount = remember(allItems) { allItems.count { it.type == ItemType.SECURE_NOTE } }
-    val totpCount = remember(allItems) { allItems.count { it.totpSecret.isNotBlank() } }
+    val loginsCount = categoryCounts[ItemType.LOGIN] ?: 0
+    val cardsCount = categoryCounts[ItemType.CREDIT_CARD] ?: 0
+    val notesCount = categoryCounts[ItemType.SECURE_NOTE] ?: 0
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()

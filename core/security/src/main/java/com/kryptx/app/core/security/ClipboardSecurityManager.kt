@@ -118,6 +118,10 @@ class ClipboardSecurityManager(
                         if (alarmManager.canScheduleExactAlarms()) {
                             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
                         } else {
+                            SecurityLogger.warn(
+                                "ClipboardSecurity",
+                                "SCHEDULE_EXACT_ALARM not granted on Android 12+. Inexact alarm fallback active; in-process coroutine ticker will clear foreground clipboard."
+                            )
                             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
                         }
                     } else {

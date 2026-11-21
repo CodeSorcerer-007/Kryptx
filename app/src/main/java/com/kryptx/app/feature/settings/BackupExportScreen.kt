@@ -60,6 +60,7 @@ import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
 import com.kryptx.app.core.designsystem.components.KryptxPrimaryButton
 import com.kryptx.app.core.designsystem.components.KryptxTextField
+import com.kryptx.app.core.designsystem.components.SecureTextField
 import com.kryptx.app.core.designsystem.components.KryptxTopBar
 import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
@@ -94,7 +95,7 @@ fun BackupExportScreen(
     var showImportDialog by remember { mutableStateOf(false) }
     var showOfflineHtmlDialog by remember { mutableStateOf(false) }
     var showAirGapPasswordDialog by remember { mutableStateOf(false) }
-    var airGapExportPassword by remember { mutableStateOf("") }
+    var airGapExportPasswordChars by remember { mutableStateOf(CharArray(0)) }
     var showAirGapTransmitterDialog by remember { mutableStateOf(false) }
     var airGapFrames by remember { mutableStateOf<List<String>>(emptyList()) }
     var showAirGapReceiverDialog by remember { mutableStateOf(false) }
@@ -112,6 +113,7 @@ fun BackupExportScreen(
             pendingCsvBytes?.let { SecureMemory.wipe(it) }
             pendingHtmlBytes?.let { SecureMemory.wipe(it) }
             pendingImportBytes?.let { SecureMemory.wipe(it) }
+            SecureMemory.wipe(airGapExportPasswordChars)
         }
     }
 
@@ -567,9 +569,13 @@ fun BackupExportScreen(
 
     // ── Encrypted Export passphrase dialog ────────────────────────────────────
     if (showEncryptedExportDialog) {
-        var exportPass by remember { mutableStateOf("") }
+        var exportPassChars by remember { mutableStateOf(CharArray(0)) }
         AlertDialog(
-            onDismissRequest = { showEncryptedExportDialog = false; exportPass = "" },
+            onDismissRequest = {
+                showEncryptedExportDialog = false
+                SecureMemory.wipe(exportPassChars)
+                exportPassChars = CharArray(0)
+            },
             title = { Text("Set Export Passphrase") },
             text = {
                 Column {
@@ -579,9 +585,9 @@ fun BackupExportScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    KryptxTextField(
-                        value = exportPass,
-                        onValueChange = { exportPass = it },
+                    SecureTextField(
+                        value = exportPassChars,
+                        onValueChange = { exportPassChars = it },
                         label = "Export Passphrase",
                         isPassword = true
                     )
@@ -590,11 +596,16 @@ fun BackupExportScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val pass = exportPass
+                        val pass = exportPassChars.copyOf()
                         showEncryptedExportDialog = false
-                        exportPass = ""
+                        SecureMemory.wipe(exportPassChars)
+                        exportPassChars = CharArray(0)
                         scope.launch {
-                            val bytes = viewModel.exportEncryptedBackup(pass)
+                            val bytes = try {
+                                viewModel.exportEncryptedBackup(pass)
+                            } finally {
+                                SecureMemory.wipe(pass)
+                            }
                             if (bytes != null) {
                                 pendingEncryptedBytes = bytes
                                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -615,7 +626,11 @@ fun BackupExportScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEncryptedExportDialog = false; exportPass = "" }) {
+                TextButton(onClick = {
+                    showEncryptedExportDialog = false
+                    SecureMemory.wipe(exportPassChars)
+                    exportPassChars = CharArray(0)
+                }) {
                     Text("Cancel")
                 }
             }
@@ -624,9 +639,13 @@ fun BackupExportScreen(
 
     // ── Offline Web Vault dialog ──────────────────────────────────────────────
     if (showOfflineHtmlDialog) {
-        var exportPass by remember { mutableStateOf("") }
+        var exportPassChars by remember { mutableStateOf(CharArray(0)) }
         AlertDialog(
-            onDismissRequest = { showOfflineHtmlDialog = false; exportPass = "" },
+            onDismissRequest = {
+                showOfflineHtmlDialog = false
+                SecureMemory.wipe(exportPassChars)
+                exportPassChars = CharArray(0)
+            },
             title = { Text("Offline Web Vault Companion") },
             text = {
                 Column {
@@ -636,9 +655,9 @@ fun BackupExportScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    KryptxTextField(
-                        value = exportPass,
-                        onValueChange = { exportPass = it },
+                    SecureTextField(
+                        value = exportPassChars,
+                        onValueChange = { exportPassChars = it },
                         label = "Export Passphrase",
                         isPassword = true
                     )
@@ -647,11 +666,16 @@ fun BackupExportScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val pass = exportPass
+                        val pass = exportPassChars.copyOf()
                         showOfflineHtmlDialog = false
-                        exportPass = ""
+                        SecureMemory.wipe(exportPassChars)
+                        exportPassChars = CharArray(0)
                         scope.launch {
-                            val bytes = viewModel.exportOfflineWebVault(pass)
+                            val bytes = try {
+                                viewModel.exportOfflineWebVault(pass)
+                            } finally {
+                                SecureMemory.wipe(pass)
+                            }
                             if (bytes != null) {
                                 pendingHtmlBytes = bytes
                                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -672,7 +696,11 @@ fun BackupExportScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showOfflineHtmlDialog = false; exportPass = "" }) {
+                TextButton(onClick = {
+                    showOfflineHtmlDialog = false
+                    SecureMemory.wipe(exportPassChars)
+                    exportPassChars = CharArray(0)
+                }) {
                     Text("Cancel")
                 }
             }
@@ -728,13 +756,14 @@ fun BackupExportScreen(
 
     // ── Import dialog (after file is opened) ──────────────────────────────────
     if (showImportDialog) {
-        var importPassword by remember { mutableStateOf("") }
+        var importPasswordChars by remember { mutableStateOf(CharArray(0)) }
         AlertDialog(
             onDismissRequest = {
                 showImportDialog = false
                 pendingImportBytes?.let { SecureMemory.wipe(it) }
                 pendingImportBytes = null
-                importPassword = ""
+                SecureMemory.wipe(importPasswordChars)
+                importPasswordChars = CharArray(0)
             },
             title = { Text("Import Credentials") },
             text = {
@@ -746,9 +775,9 @@ fun BackupExportScreen(
                         lineHeight = 18.sp
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    KryptxTextField(
-                        value = importPassword,
-                        onValueChange = { importPassword = it },
+                    SecureTextField(
+                        value = importPasswordChars,
+                        onValueChange = { importPasswordChars = it },
                         label = "Backup Password (if encrypted)",
                         isPassword = true
                     )
@@ -758,13 +787,15 @@ fun BackupExportScreen(
                 TextButton(
                     onClick = {
                         val bytes = pendingImportBytes
-                        val pass = importPassword
+                        val pass = if (importPasswordChars.isNotEmpty()) importPasswordChars.copyOf() else null
                         showImportDialog = false
                         pendingImportBytes = null
-                        importPassword = ""
+                        SecureMemory.wipe(importPasswordChars)
+                        importPasswordChars = CharArray(0)
                         if (bytes != null) {
-                            viewModel.importFromBytes(bytes, pass.ifBlank { null }) { count ->
+                            viewModel.importFromBytes(bytes, pass) { count ->
                                 SecureMemory.wipe(bytes)
+                                pass?.let { SecureMemory.wipe(it) }
                                 scope.launch {
                                     if (count > 0) {
                                         snackbarHostState.showSnackbar("Successfully imported $count credentials.")
@@ -784,7 +815,8 @@ fun BackupExportScreen(
                     showImportDialog = false
                     pendingImportBytes?.let { SecureMemory.wipe(it) }
                     pendingImportBytes = null
-                    importPassword = ""
+                    SecureMemory.wipe(importPasswordChars)
+                    importPasswordChars = CharArray(0)
                 }) { Text("Cancel") }
             }
         )
@@ -794,7 +826,8 @@ fun BackupExportScreen(
         AlertDialog(
             onDismissRequest = {
                 showAirGapPasswordDialog = false
-                airGapExportPassword = ""
+                SecureMemory.wipe(airGapExportPasswordChars)
+                airGapExportPasswordChars = CharArray(0)
             },
             title = { Text("Transmit via Animated QR") },
             text = {
@@ -806,9 +839,9 @@ fun BackupExportScreen(
                         lineHeight = 18.sp
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    KryptxTextField(
-                        value = airGapExportPassword,
-                        onValueChange = { airGapExportPassword = it },
+                    SecureTextField(
+                        value = airGapExportPasswordChars,
+                        onValueChange = { airGapExportPasswordChars = it },
                         label = "Export Passphrase",
                         isPassword = true
                     )
@@ -817,14 +850,23 @@ fun BackupExportScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val pass = airGapExportPassword
+                        val pass = airGapExportPasswordChars.copyOf()
                         showAirGapPasswordDialog = false
-                        airGapExportPassword = ""
-                        if (pass.isNotBlank()) {
+                        SecureMemory.wipe(airGapExportPasswordChars)
+                        airGapExportPasswordChars = CharArray(0)
+                        if (pass.isNotEmpty()) {
                             scope.launch {
-                                val bytes = viewModel.exportEncryptedBackup(pass)
+                                val bytes = try {
+                                    viewModel.exportEncryptedBackup(pass)
+                                } finally {
+                                    SecureMemory.wipe(pass)
+                                }
                                 if (bytes != null) {
-                                    val frames = AirGapQrFountainCodec.encodeFountain(bytes)
+                                    val frames = try {
+                                        AirGapQrFountainCodec.encodeFountain(bytes)
+                                    } finally {
+                                        SecureMemory.wipe(bytes)
+                                    }
                                     airGapFrames = frames
                                     showAirGapTransmitterDialog = true
                                 } else {
@@ -840,7 +882,8 @@ fun BackupExportScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showAirGapPasswordDialog = false
-                    airGapExportPassword = ""
+                    SecureMemory.wipe(airGapExportPasswordChars)
+                    airGapExportPasswordChars = CharArray(0)
                 }) { Text("Cancel") }
             }
         )

@@ -407,8 +407,8 @@ class SettingsViewModel(
         }
     }
 
-    suspend fun exportOfflineWebVault(password: String): ByteArray? {
-        val chars = password.toCharArray()
+    suspend fun exportOfflineWebVault(password: CharArray): ByteArray? {
+        val chars = password.copyOf()
         return try {
             val items = vaultRepository.getItems().first()
             activityLogManager?.logEvent("Backup", "Exported sovereign offline Web Vault (.html)")
@@ -421,19 +421,24 @@ class SettingsViewModel(
         }
     }
 
-    fun importContent(content: String, password: String?, onResult: (count: Int) -> Unit) {
+    suspend fun exportOfflineWebVault(password: String): ByteArray? {
+        val chars = password.toCharArray()
+        return try {
+            exportOfflineWebVault(chars)
+        } finally {
+            SecureMemory.wipe(chars)
+        }
+    }
+
+    fun importContent(content: String, password: CharArray?, onResult: (count: Int) -> Unit) {
+        val passCopy = password?.copyOf()
         viewModelScope.launch {
             try {
                 // Check if encrypted backup
-                if (content.contains("ciphertextBase64") && !password.isNullOrBlank()) {
+                if (content.contains("ciphertextBase64") && passCopy != null && passCopy.isNotEmpty()) {
                     try {
                         val payload = json.decodeFromString<EncryptedBackupPayload>(content)
-                        val chars = password.toCharArray()
-                        val result = try {
-                            vaultRepository.importEncryptedBackup(payload, chars)
-                        } finally {
-                            SecureMemory.wipe(chars)
-                        }
+                        val result = vaultRepository.importEncryptedBackup(payload, passCopy)
                         onResult(result.getOrDefault(0))
                         return@launch
                     } catch (_: Throwable) {
@@ -451,13 +456,33 @@ class SettingsViewModel(
                 onResult(count)
             } catch (_: Throwable) {
                 onResult(0)
+            } finally {
+                passCopy?.let { SecureMemory.wipe(it) }
             }
         }
     }
 
-    fun importFromBytes(bytes: ByteArray, password: String?, onResult: (count: Int) -> Unit) {
+    fun importContent(content: String, password: String?, onResult: (count: Int) -> Unit) {
+        val chars = password?.toCharArray()
+        try {
+            importContent(content, chars, onResult)
+        } finally {
+            chars?.let { SecureMemory.wipe(it) }
+        }
+    }
+
+    fun importFromBytes(bytes: ByteArray, password: CharArray?, onResult: (count: Int) -> Unit) {
         val content = bytes.toString(Charsets.UTF_8)
         importContent(content, password, onResult)
+    }
+
+    fun importFromBytes(bytes: ByteArray, password: String?, onResult: (count: Int) -> Unit) {
+        val chars = password?.toCharArray()
+        try {
+            importFromBytes(bytes, chars, onResult)
+        } finally {
+            chars?.let { SecureMemory.wipe(it) }
+        }
     }
 
     @Deprecated(

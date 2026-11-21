@@ -92,19 +92,23 @@ object PasskeyEngine {
         )
     }
 
+    val DEFAULT_AAGUID = ByteArray(16)
+
     /**
      * Creates a W3C WebAuthn Level 3 compliant Attestation Object (CBOR encoded with fmt="none").
      *
      * Format:
      * - authData: [32-byte rpIdHash] + [1-byte flags (UP=1, UV=1, AT=1 -> 0x45)] + [4-byte signCount (0)]
-     *             + [16-byte aaguid (zeros)] + [2-byte credentialIdLength] + [credentialIdBytes] + [cosePublicKeyBytes]
+     *             + [16-byte aaguid] + [2-byte credentialIdLength] + [credentialIdBytes] + [cosePublicKeyBytes]
      * - cborMap: { "fmt": "none", "attStmt": {}, "authData": authData }
      */
     fun createAttestationObject(
         rpId: String,
         credentialIdBytes: ByteArray,
-        cosePublicKeyBytes: ByteArray
+        cosePublicKeyBytes: ByteArray,
+        aaguid: ByteArray = DEFAULT_AAGUID
     ): ByteArray {
+        require(aaguid.size == 16) { "AAGUID must be exactly 16 bytes" }
         val rpIdHash = sha256(rpId.toByteArray(Charsets.UTF_8))
         val authDataStream = ByteArrayOutputStream()
         authDataStream.write(rpIdHash)
@@ -112,8 +116,8 @@ object PasskeyEngine {
         authDataStream.write(ByteBuffer.allocate(4).putInt(0).array()) // Sign count: 0
 
         // Attested Credential Data:
-        // AAGUID: 16 bytes of zeros for sovereign/privacy-preserving platform authenticator
-        authDataStream.write(ByteArray(16))
+        // AAGUID: 16 bytes (all zeros per W3C WebAuthn §6.5.1 for privacy-preserving platform authenticators or enterprise GUID)
+        authDataStream.write(aaguid)
 
         // Credential ID Length: 2 bytes big-endian
         val credIdLenBuffer = ByteBuffer.allocate(2).putShort(credentialIdBytes.size.toShort()).array()

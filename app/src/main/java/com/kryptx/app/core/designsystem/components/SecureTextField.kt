@@ -87,15 +87,21 @@ fun SecureTextField(
     // Synchronize buffer when external value changes (e.g. wiped or cleared by caller)
     LaunchedEffect(value) {
         val currentChars = CharArray(buffer.size) { i -> buffer[i] }
-        if (value.isEmpty() && buffer.isNotEmpty()) {
-            buffer.clear()
-            textFieldValue = TextFieldValue("")
+        if (value.isEmpty()) {
+            if (buffer.isNotEmpty()) {
+                buffer.clear()
+                textFieldValue = TextFieldValue("")
+            }
         } else if (!value.contentEquals(currentChars)) {
             buffer.clear()
             for (c in value) {
                 buffer.add(c)
             }
-            textFieldValue = TextFieldValue(String(value))
+            val textStr = String(value)
+            textFieldValue = TextFieldValue(
+                text = textStr,
+                selection = androidx.compose.ui.text.TextRange(textStr.length)
+            )
         }
         SecureMemory.wipe(currentChars)
     }
