@@ -54,6 +54,9 @@ object CryptoEngine {
     const val CIPHER_TAG_XCHACHA = 0x01.toByte()
     const val CIPHER_TAG_AES_GCM = 0x02.toByte()
 
+    /** Maximum allowed associated data length in bytes (64 KB) to prevent DoS via allocation. */
+    const val MAX_AAD_BYTES = 65_536
+
     /**
      * XChaCha20-Poly1305 with embedded AAD tag.
      *
@@ -118,6 +121,9 @@ object CryptoEngine {
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun buildAadFrame(associatedData: ByteArray, plaintext: ByteArray): ByteArray {
+        require(associatedData.size <= MAX_AAD_BYTES) {
+            "Associated data exceeds maximum allowed size ($MAX_AAD_BYTES bytes): ${associatedData.size} bytes"
+        }
         val frame = ByteArray(4 + associatedData.size + plaintext.size)
         frame[0] = (associatedData.size ushr 24).toByte()
         frame[1] = (associatedData.size ushr 16).toByte()
@@ -145,7 +151,7 @@ object CryptoEngine {
                      ((decryptedFrame[1].toInt() and 0xFF) shl 16) or
                      ((decryptedFrame[2].toInt() and 0xFF) shl 8) or
                       (decryptedFrame[3].toInt() and 0xFF)
-        require(aadLen >= 0 && 4 + aadLen <= decryptedFrame.size) {
+        require(aadLen in 0..MAX_AAD_BYTES && 4 + aadLen <= decryptedFrame.size) {
             "XChaCha20-AAD frame declares invalid AAD length ($aadLen); frame is ${decryptedFrame.size} bytes"
         }
         val embeddedAad = decryptedFrame.copyOfRange(4, 4 + aadLen)

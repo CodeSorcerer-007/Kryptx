@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,8 +31,23 @@ fun ChangeMasterPasswordDialog(
     var confirmPassword by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            currentPassword = ""
+            newPassword = ""
+            confirmPassword = ""
+        }
+    }
+
+    val dismissAndWipe = {
+        currentPassword = ""
+        newPassword = ""
+        confirmPassword = ""
+        onDismiss()
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = dismissAndWipe,
         title = { Text("Change Master Password") },
         text = {
             Column {

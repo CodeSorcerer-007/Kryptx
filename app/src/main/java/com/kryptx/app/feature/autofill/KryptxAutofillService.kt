@@ -98,7 +98,7 @@ class KryptxAutofillService : AutofillService() {
 
         // 1. If vault is unlocked, search for matching credentials off the binder thread
         if (isUnlocked) {
-            serviceScope.launch {
+            val fillJob = serviceScope.launch {
                 try {
                     val matchedItems = findMatchingItems(app, parsedForm)
                     if (cancellationSignal.isCanceled) return@launch
@@ -158,6 +158,9 @@ class KryptxAutofillService : AutofillService() {
                     com.kryptx.app.core.security.SecurityLogger.error("KryptxAutofillService", "Autofill request failed", e)
                     callback.onFailure("Autofill service unavailable")
                 }
+            }
+            cancellationSignal.setOnCancelListener {
+                fillJob.cancel()
             }
             return
         }

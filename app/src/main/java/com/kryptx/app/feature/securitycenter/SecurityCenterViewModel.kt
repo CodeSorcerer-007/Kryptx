@@ -76,29 +76,4 @@ class SecurityCenterViewModel(
             onComplete(result)
         }
     }
-
-    fun remediateAllWeak(onDone: (Int) -> Unit) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            val report = _auditReport.value ?: vaultRepository.computeSecurityAudit()
-            val weakItemIds = report.issues
-                .filter { it.type == com.kryptx.app.core.model.IssueType.WEAK_PASSWORD || it.type == com.kryptx.app.core.model.IssueType.COMPROMISED }
-                .map { it.itemId }
-                .distinct()
-
-            var remediatedCount = 0
-            for (id in weakItemIds) {
-                val item = vaultRepository.getItemById(id) ?: continue
-                PasswordRotationHelper.rotatePassword(
-                    item = item,
-                    vaultRepository = vaultRepository,
-                    clipboardManager = clipboardSecurityManager
-                )
-                remediatedCount++
-            }
-            activityLogManager?.logEvent("Security", "Batch remediated $remediatedCount weak credentials")
-            runAudit()
-            onDone(remediatedCount)
-        }
-    }
 }

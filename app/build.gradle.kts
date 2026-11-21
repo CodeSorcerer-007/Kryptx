@@ -15,7 +15,14 @@ plugins {
 android {
     namespace = "com.kryptx.app"
     compileSdk = 36
-    ndkVersion = "27.2.12479018"
+
+    val localProperties = Properties().apply {
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            FileInputStream(localPropertiesFile).use { load(it) }
+        }
+    }
+    ndkVersion = localProperties.getProperty("ndk.version") ?: "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.kryptx.app"
@@ -37,13 +44,6 @@ android {
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
             isUniversalApk = true
-        }
-    }
-
-    val localProperties = Properties().apply {
-        val localPropertiesFile = rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
-            FileInputStream(localPropertiesFile).use { load(it) }
         }
     }
 

@@ -699,7 +699,9 @@ fun TotpAccountCard(
                             fontWeight = FontWeight.Black,
                             color = ringColor,
                             modifier = Modifier.semantics {
-                                liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite
+                                if (code.secondsRemaining <= 5) {
+                                    liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite
+                                }
                                 contentDescription = "${code.secondsRemaining} seconds remaining"
                             }
                         )

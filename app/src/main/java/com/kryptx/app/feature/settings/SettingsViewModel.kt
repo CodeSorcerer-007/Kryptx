@@ -398,13 +398,12 @@ class SettingsViewModel(
     }
 
     suspend fun exportPlaintextCsv(): ByteArray? {
-        return when (val result = vaultRepository.exportPlaintextJson()) {
-            is com.kryptx.app.core.model.KryptxResult.Success -> {
-                activityLogManager?.logEvent("Security", "WARNING: Exported plaintext CSV backup")
-                val items = json.decodeFromString<List<com.kryptx.app.core.model.VaultItem>>(result.data)
-                VaultExporter.exportToCsv(items).toByteArray(Charsets.UTF_8)
-            }
-            is com.kryptx.app.core.model.KryptxResult.Error -> null
+        return try {
+            val items = vaultRepository.getItems().first()
+            activityLogManager?.logEvent("Security", "WARNING: Exported plaintext CSV backup")
+            VaultExporter.exportToCsv(items).toByteArray(Charsets.UTF_8)
+        } catch (_: Exception) {
+            null
         }
     }
 

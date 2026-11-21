@@ -95,12 +95,23 @@ class AddEditViewModel(
                 is ItemEditorState.Passkey -> {
                     state.privateKeyCiphertext.value = ""
                 }
+                is ItemEditorState.Wifi -> {
+                    state.password.value = ""
+                }
+                is ItemEditorState.ApiKey -> {
+                    state.key.value = ""
+                    state.secret.value = ""
+                }
+                is ItemEditorState.Identity -> {
+                    state.idNumber.value = ""
+                }
                 is ItemEditorState.Custom -> {
                     state.customFields.clear()
                 }
                 else -> {}
             }
         }
+        originalItem = null
         _editorState.value = null
     }
 

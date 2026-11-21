@@ -38,7 +38,6 @@ interface VaultCrudRepository {
     fun queryByBlindIndex(query: String): Set<String>?
 
     suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload>
-    suspend fun exportPlaintextJson(): KryptxResult<String>
     suspend fun importEncryptedBackup(payload: EncryptedBackupPayload, importPassword: CharArray): KryptxResult<Int>
     suspend fun importItems(items: List<VaultItem>): KryptxResult<Int>
     fun getDatabaseDiagnostics(): KryptxDatabaseHelper.DatabaseDiagnostics
@@ -212,17 +211,6 @@ class VaultCrudRepositoryImpl(
                 KryptxResult.Success(EncryptedBackupPayload(header, ciphertextBase64))
             } catch (e: Exception) {
                 KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export encrypted backup", e)
-            }
-        } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
-    }
-
-    override suspend fun exportPlaintextJson(): KryptxResult<String> = withContext(Dispatchers.Default) {
-        sessionManager.withVaultKey { activeVek ->
-            try {
-                val items = activeDbHelper.loadAllItems(activeVek)
-                KryptxResult.Success(json.encodeToString(items))
-            } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export vault", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }

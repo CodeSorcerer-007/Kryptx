@@ -76,8 +76,19 @@ class TotpViewModel(
         if (category != null && category != "ALL") {
             list = when (category) {
                 "FAVORITES" -> list.filter { it.item.isFavorite }
-                "WORK" -> list.filter { it.item.title.contains("work", ignoreCase = true) || it.item.notes.contains("work", ignoreCase = true) || it.item.username.contains("work", ignoreCase = true) }
-                "PERSONAL" -> list.filter { !it.item.title.contains("work", ignoreCase = true) && !it.item.notes.contains("work", ignoreCase = true) && !it.item.username.contains("work", ignoreCase = true) }
+                "WORK" -> list.filter {
+                    it.item.tags.any { tag -> tag.equals("work", ignoreCase = true) } ||
+                    it.item.title.contains("work", ignoreCase = true) ||
+                    it.item.notes.contains("work", ignoreCase = true) ||
+                    it.item.username.contains("work", ignoreCase = true)
+                }
+                "PERSONAL" -> list.filter {
+                    it.item.tags.any { tag -> tag.equals("personal", ignoreCase = true) } ||
+                    (!it.item.tags.any { tag -> tag.equals("work", ignoreCase = true) } &&
+                     !it.item.title.contains("work", ignoreCase = true) &&
+                     !it.item.notes.contains("work", ignoreCase = true) &&
+                     !it.item.username.contains("work", ignoreCase = true))
+                }
                 else -> list
             }
         }

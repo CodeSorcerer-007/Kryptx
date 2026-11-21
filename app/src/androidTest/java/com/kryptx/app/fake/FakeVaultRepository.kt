@@ -290,12 +290,6 @@ class FakeVaultRepository : VaultRepository {
         }
     }
 
-    override suspend fun exportPlaintextJson(): KryptxResult<String> {
-        return KryptxResult.Success(
-            json.encodeToString(kotlinx.serialization.builtins.ListSerializer(VaultItem.serializer()), _itemsFlow.value)
-        )
-    }
-
     override suspend fun importEncryptedBackup(payload: EncryptedBackupPayload, importPassword: CharArray): KryptxResult<Int> {
         return try {
             val salt = java.util.Base64.getDecoder().decode(payload.header.saltBase64)

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -232,6 +233,7 @@ fun SearchFilterPill(
                 onClick = onClick
             )
             .semantics {
+                role = Role.Tab
                 selected = isSelected
                 stateDescription = if (isSelected) "Selected" else "Not selected"
             }
