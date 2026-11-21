@@ -305,6 +305,8 @@ class VaultViewModel(
             _deletedItemStack.clear()
         }
         synchronized(_entropyCache) { _entropyCache.clear() }
+        _selectedItemIds.value = emptySet()
+        _searchQuery.value = ""
     }
 
     init {

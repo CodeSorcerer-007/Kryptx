@@ -25,8 +25,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,9 +45,9 @@ fun AppearanceSettingsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val currentTheme by viewModel.themeMode.collectAsState()
-    val dynamicColor by viewModel.dynamicColor.collectAsState()
-    val acousticFeedbackEnabled by viewModel.acousticFeedbackEnabled.collectAsState()
+    val currentTheme by viewModel.themeMode.collectAsStateWithLifecycle()
+    val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val acousticFeedbackEnabled by viewModel.acousticFeedbackEnabled.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier

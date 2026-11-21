@@ -189,7 +189,7 @@ fun VaultDashboardScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Add Item",
+                        contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(28.dp)
                     )

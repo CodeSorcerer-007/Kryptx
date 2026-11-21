@@ -1,5 +1,7 @@
 package com.kryptx.app.core.security
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -149,13 +151,31 @@ object PasswordRotationHelper {
 
     /**
      * Launches the change password URL in the default browser.
+     * Automatically normalizes scheme-less URLs and falls back to clipboard if no browser handles the intent.
      */
     fun openChangePasswordInBrowser(context: Context, url: String) {
+        val trimmed = url.trim()
+        if (trimmed.isBlank()) return
+
+        val sanitizedUrl = when {
+            trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+            else -> "https://$trimmed"
+        }
+
         try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val scheme = sanitizedUrl.substringBefore("://").lowercase()
+            if (scheme == "http" || scheme == "https") {
+                val uri = Uri.parse(sanitizedUrl)
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
             }
-            context.startActivity(intent)
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            clipboard?.setPrimaryClip(ClipData.newPlainText("URL", sanitizedUrl))
+        }
     }
 }

@@ -51,12 +51,12 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,19 +86,19 @@ fun SecuritySettingsScreen(
     modifier: Modifier = Modifier,
     onEnrollBiometrics: (((Boolean) -> Unit) -> Unit)? = null
 ) {
-    val biometricEnabled by viewModel.biometricEnabled.collectAsState()
-    val autoLockSeconds by viewModel.autoLockSeconds.collectAsState()
-    val lockOnBackground by viewModel.lockOnBackground.collectAsState()
-    val shakeToLockEnabled by viewModel.shakeToLockEnabled.collectAsState()
-    val clipboardTimeout by viewModel.clipboardTimeout.collectAsState()
-    val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsState()
-    val quickUnlockEnabled by viewModel.quickUnlockEnabled.collectAsState()
-    val scrambledPinDisabled by viewModel.scrambledPinDisabled.collectAsState()
-    val hasDuress by viewModel.hasDuress.collectAsState()
-    val hasPanic by viewModel.hasPanic.collectAsState()
-    val autoDestructEnabled by viewModel.autoDestructEnabled.collectAsState()
-    val autoDestructMaxAttempts by viewModel.autoDestructMaxAttempts.collectAsState()
-    val activityEvents by viewModel.activityEvents.collectAsState()
+    val biometricEnabled by viewModel.biometricEnabled.collectAsStateWithLifecycle()
+    val autoLockSeconds by viewModel.autoLockSeconds.collectAsStateWithLifecycle()
+    val lockOnBackground by viewModel.lockOnBackground.collectAsStateWithLifecycle()
+    val shakeToLockEnabled by viewModel.shakeToLockEnabled.collectAsStateWithLifecycle()
+    val clipboardTimeout by viewModel.clipboardTimeout.collectAsStateWithLifecycle()
+    val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsStateWithLifecycle()
+    val quickUnlockEnabled by viewModel.quickUnlockEnabled.collectAsStateWithLifecycle()
+    val scrambledPinDisabled by viewModel.scrambledPinDisabled.collectAsStateWithLifecycle()
+    val hasDuress by viewModel.hasDuress.collectAsStateWithLifecycle()
+    val hasPanic by viewModel.hasPanic.collectAsStateWithLifecycle()
+    val autoDestructEnabled by viewModel.autoDestructEnabled.collectAsStateWithLifecycle()
+    val autoDestructMaxAttempts by viewModel.autoDestructMaxAttempts.collectAsStateWithLifecycle()
+    val activityEvents by viewModel.activityEvents.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()

@@ -101,7 +101,7 @@ fun UnlockScreen(
         }
     }
 
-    val isUnlocked by viewModel.isUnlocked.collectAsState()
+    val isUnlocked by viewModel.isUnlocked.collectAsStateWithLifecycle()
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val shakeOffset = remember { Animatable(0f) }

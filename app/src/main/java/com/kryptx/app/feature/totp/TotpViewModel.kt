@@ -77,7 +77,7 @@ class TotpViewModel(
             list = when (category) {
                 "FAVORITES" -> list.filter { it.item.isFavorite }
                 "WORK" -> list.filter { it.item.title.contains("work", ignoreCase = true) || it.item.notes.contains("work", ignoreCase = true) || it.item.username.contains("work", ignoreCase = true) }
-                "PERSONAL" -> list.filter { !it.item.title.contains("work", ignoreCase = true) }
+                "PERSONAL" -> list.filter { !it.item.title.contains("work", ignoreCase = true) && !it.item.notes.contains("work", ignoreCase = true) && !it.item.username.contains("work", ignoreCase = true) }
                 else -> list
             }
         }
@@ -97,8 +97,10 @@ class TotpViewModel(
         tickerJob?.cancel()
         tickerJob = viewModelScope.launch(dispatcher) {
             while (isActive) {
-                delay(1000L)
-                _tick.value = System.currentTimeMillis()
+                val now = System.currentTimeMillis()
+                _tick.value = now
+                val msUntilNextSecond = (1000L - (now % 1000L)).coerceAtLeast(50L)
+                delay(msUntilNextSecond)
             }
         }
     }

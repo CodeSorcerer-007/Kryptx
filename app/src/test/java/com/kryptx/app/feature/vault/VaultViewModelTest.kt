@@ -556,6 +556,22 @@ class VaultViewModelTest {
         assertEquals(1, fakeAttManager.deletedAttachments.size)
         assertEquals("trash_att_1", fakeAttManager.deletedAttachments[0].id)
     }
+
+    @Test
+    fun testAutoLockClearsSearchQueryAndSelection() = runTest(testDispatcher) {
+        viewModel.updateSearchQuery("secret key")
+        viewModel.toggleSelectItem("item_1")
+        testScheduler.runCurrent()
+
+        assertEquals("secret key", viewModel.searchQuery.value)
+        assertEquals(setOf("item_1"), viewModel.selectedItemIds.value)
+
+        sessionManager.lock()
+        testScheduler.runCurrent()
+
+        assertEquals("", viewModel.searchQuery.value)
+        assertEquals(emptySet<String>(), viewModel.selectedItemIds.value)
+    }
 }
 
 

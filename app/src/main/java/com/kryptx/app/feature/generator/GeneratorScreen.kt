@@ -12,6 +12,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,8 +88,8 @@ fun GeneratorScreen(
     viewModel: GeneratorViewModel,
     modifier: Modifier = Modifier
 ) {
-    val config by viewModel.config.collectAsState()
-    val result by viewModel.result.collectAsState()
+    val config by viewModel.config.collectAsStateWithLifecycle()
+    val result by viewModel.result.collectAsStateWithLifecycle()
 
     val view = LocalView.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -134,9 +138,14 @@ fun GeneratorScreen(
                     Box(
                         modifier = Modifier
                             .weight(1f)
+                            .defaultMinSize(minHeight = 48.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(tabBg)
                             .testTag("mode_tab_${mode.name.lowercase()}")
+                            .semantics {
+                                role = Role.Tab
+                                selected = isSelected
+                            }
                             .bounceClick(scaleDown = 0.94f) {
                                 viewModel.updateMode(mode)
                             }

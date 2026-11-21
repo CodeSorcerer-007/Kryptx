@@ -68,6 +68,42 @@ class AddEditViewModel(
     val isDirty: Boolean
         get() = _editorState.value?.isDirtyRelativeTo(originalItem) ?: false
 
+    private val lockListener: () -> Unit = {
+        clearEditorState()
+    }
+
+    init {
+        sessionManager.addLockListener(lockListener)
+    }
+
+    /**
+     * Overwrites and zeroes transient sensitive fields, resetting the active editor form state.
+     */
+    fun clearEditorState() {
+        _editorState.value?.let { state ->
+            state.notes.value = ""
+            when (state) {
+                is ItemEditorState.Login -> {
+                    state.password.value = ""
+                    state.totpSecret.value = ""
+                }
+                is ItemEditorState.CreditCard -> {
+                    state.cardNumber.value = ""
+                    state.cardCvv.value = ""
+                    state.cardPin.value = ""
+                }
+                is ItemEditorState.Passkey -> {
+                    state.privateKeyCiphertext.value = ""
+                }
+                is ItemEditorState.Custom -> {
+                    state.customFields.clear()
+                }
+                else -> {}
+            }
+        }
+        _editorState.value = null
+    }
+
     // ── Initialisation ────────────────────────────────────────────────────────
 
     /**
@@ -248,7 +284,14 @@ class AddEditViewModel(
             _newAttachments.clear()
             _deletedAttachments.clear()
         }
+        clearEditorState()
         _saveResult.value = SaveResult.Idle
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        sessionManager.removeLockListener(lockListener)
+        clearEditorState()
     }
 
     /** Resets [SaveResult] back to [SaveResult.Idle] after the screen has handled the state. */

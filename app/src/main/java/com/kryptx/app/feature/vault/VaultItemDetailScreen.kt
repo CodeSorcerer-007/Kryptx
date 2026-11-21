@@ -42,8 +42,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -90,9 +90,9 @@ fun VaultItemDetailScreen(
     onNavigateToEdit: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val items by viewModel.rawItems.collectAsState()
+    val items by viewModel.rawItems.collectAsStateWithLifecycle()
     val item = items.firstOrNull { it.id == itemId }
-    val securityReport by viewModel.securityReport.collectAsState()
+    val securityReport by viewModel.securityReport.collectAsStateWithLifecycle()
     val itemIssues = securityReport?.issues?.filter { it.itemId == itemId } ?: emptyList()
 
     val context = LocalContext.current

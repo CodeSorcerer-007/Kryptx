@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -38,6 +39,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.semantics.Role
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -86,7 +89,7 @@ fun SecurityRemediationWizard(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val view = LocalView.current
-    val auditReport by viewModel.auditReport.collectAsState()
+    val auditReport by viewModel.auditReport.collectAsStateWithLifecycle()
 
     var weakItems by remember { mutableStateOf<List<VaultItem>>(emptyList()) }
     var isLoadingItems by remember { mutableStateOf(true) }
@@ -403,14 +406,18 @@ fun SecurityRemediationWizard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                KryptxHaptics.tap(view)
-                                if (currentIndex + 1 < weakItems.size) {
-                                    currentIndex++
-                                } else {
-                                    isFinished = true
+                            .defaultMinSize(minHeight = 48.dp)
+                            .clickable(
+                                role = Role.Button,
+                                onClick = {
+                                    KryptxHaptics.tap(view)
+                                    if (currentIndex + 1 < weakItems.size) {
+                                        currentIndex++
+                                    } else {
+                                        isFinished = true
+                                    }
                                 }
-                            }
+                            )
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {

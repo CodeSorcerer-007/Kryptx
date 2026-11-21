@@ -96,6 +96,29 @@ class TotpViewModelTest {
     }
 
     @Test
+    fun testCategoryFilterPersonalExcludesWorkNotesAndUsername() = runTest(testDispatcher) {
+        val workByTitle = VaultItem(id = "1", title = "Work Slack", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP")
+        val workByNotes = VaultItem(id = "2", title = "Internal Portal", type = ItemType.LOGIN, notes = "for work use only", totpSecret = "JBSWY3DPEHPK3PXP")
+        val workByUsername = VaultItem(id = "3", title = "VPN Gateway", type = ItemType.LOGIN, username = "john.work", totpSecret = "JBSWY3DPEHPK3PXP")
+        val personalItem = VaultItem(id = "4", title = "Personal Steam", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP")
+
+        fakeVaultRepository.saveItem(workByTitle)
+        fakeVaultRepository.saveItem(workByNotes)
+        fakeVaultRepository.saveItem(workByUsername)
+        fakeVaultRepository.saveItem(personalItem)
+        testScheduler.runCurrent()
+
+        viewModel.selectCategory("WORK")
+        testScheduler.runCurrent()
+        assertEquals(3, viewModel.filteredTotpAccounts.value.size)
+
+        viewModel.selectCategory("PERSONAL")
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.filteredTotpAccounts.value.size)
+        assertEquals("Personal Steam", viewModel.filteredTotpAccounts.value.first().item.title)
+    }
+
+    @Test
     fun testCategoryFilterFavorites() = runTest(testDispatcher) {
         val item1 = VaultItem(id = "1", title = "GitHub", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP", isFavorite = true)
         val item2 = VaultItem(id = "2", title = "Discord", type = ItemType.LOGIN, totpSecret = "JBSWY3DPEHPK3PXP", isFavorite = false)

@@ -55,9 +55,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -118,7 +118,7 @@ fun AddEditItemScreen(
     val addEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel = customAddEditViewModel
         ?: androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
 
-    val items by viewModel.rawItems.collectAsState()
+    val items by viewModel.rawItems.collectAsStateWithLifecycle()
     val existingItem = remember(itemId, items) {
         items.firstOrNull { it.id == itemId }
     }
@@ -137,7 +137,7 @@ fun AddEditItemScreen(
     }
 
     // Observe save results
-    val saveResult by addEditViewModel.saveResult.collectAsState()
+    val saveResult by addEditViewModel.saveResult.collectAsStateWithLifecycle()
     var localError by remember { mutableStateOf<String?>(null) }
     var isSaved by remember { mutableStateOf(false) }
 
@@ -152,7 +152,7 @@ fun AddEditItemScreen(
         }
     }
 
-    val editorStateRaw by addEditViewModel.editorState.collectAsState()
+    val editorStateRaw by addEditViewModel.editorState.collectAsStateWithLifecycle()
 
     if (itemId != null && existingItem == null) {
         BackHandler(onBack = onNavigateBack)

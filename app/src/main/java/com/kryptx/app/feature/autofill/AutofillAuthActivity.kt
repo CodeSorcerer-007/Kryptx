@@ -48,8 +48,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -190,8 +190,8 @@ class AutofillAuthActivity : FragmentActivity() {
         }
 
         setContent {
-            val themeMode by app.preferencesRepository.themeMode.collectAsState()
-            val dynamicColor by app.preferencesRepository.dynamicColor.collectAsState()
+            val themeMode by app.preferencesRepository.themeMode.collectAsStateWithLifecycle()
+            val dynamicColor by app.preferencesRepository.dynamicColor.collectAsStateWithLifecycle()
 
             KryptxTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
                 AutofillAuthScreen(
@@ -336,9 +336,9 @@ class AutofillAuthActivity : FragmentActivity() {
             onCancel()
             return
         }
-        val isUnlocked by app.sessionManager.isUnlocked.collectAsState()
-        val biometricEnabled by app.preferencesRepository.biometricEnabled.collectAsState()
-        val lockoutSeconds by app.sessionManager.lockoutSecondsRemaining.collectAsState()
+        val isUnlocked by app.sessionManager.isUnlocked.collectAsStateWithLifecycle()
+        val biometricEnabled by app.preferencesRepository.biometricEnabled.collectAsStateWithLifecycle()
+        val lockoutSeconds by app.sessionManager.lockoutSecondsRemaining.collectAsStateWithLifecycle()
         val isBiometricsConfigured = remember(biometricEnabled) {
             if (app.vaultRepository.isBiometricsConfigured() && !app.preferencesRepository.biometricEnabled.value) {
                 app.preferencesRepository.setBiometricEnabled(true)
