@@ -76,6 +76,7 @@ class KryptxCredentialProviderService : CredentialProviderService() {
         // If vault is locked, return an Action entry prompting the user to unlock Kryptx
         if (!isUnlocked) {
             val unlockIntent = Intent(this, CredentialAuthActivity::class.java).apply {
+                setPackage(packageName)
                 action = CredentialConstants.ACTION_UNLOCK_VAULT
                 putExtra(CredentialConstants.EXTRA_AUTH_TOKEN, CredentialAuthTokenManager.generateToken())
                 putExtra(CredentialConstants.EXTRA_ORIGIN, targetOrigin)
@@ -119,6 +120,7 @@ class KryptxCredentialProviderService : CredentialProviderService() {
                     if (item.type == ItemType.PASSKEY && passkeyOptions.isNotEmpty()) {
                         val option = passkeyOptions.first()
                         val intent = Intent(this@KryptxCredentialProviderService, CredentialAuthActivity::class.java).apply {
+                            setPackage(packageName)
                             action = CredentialConstants.ACTION_ASSERT_PASSKEY
                             putExtra(CredentialConstants.EXTRA_AUTH_TOKEN, CredentialAuthTokenManager.generateToken())
                             putExtra(CredentialConstants.EXTRA_ITEM_ID, item.id)
@@ -152,6 +154,7 @@ class KryptxCredentialProviderService : CredentialProviderService() {
                     if (item.type == ItemType.LOGIN && passwordOptions.isNotEmpty()) {
                         val option = passwordOptions.first()
                         val intent = Intent(this@KryptxCredentialProviderService, CredentialAuthActivity::class.java).apply {
+                            setPackage(packageName)
                             action = CredentialConstants.ACTION_GET_PASSWORD
                             putExtra(CredentialConstants.EXTRA_AUTH_TOKEN, CredentialAuthTokenManager.generateToken())
                             putExtra(CredentialConstants.EXTRA_ITEM_ID, item.id)
@@ -184,6 +187,7 @@ class KryptxCredentialProviderService : CredentialProviderService() {
                 // If no direct matches, offer an Action entry to search or choose any vault item
                 if (entryCount == 0) {
                     val searchIntent = Intent(this@KryptxCredentialProviderService, CredentialAuthActivity::class.java).apply {
+                        setPackage(packageName)
                         action = CredentialConstants.ACTION_SEARCH_VAULT
                         putExtra(CredentialConstants.EXTRA_AUTH_TOKEN, CredentialAuthTokenManager.generateToken())
                         putExtra(CredentialConstants.EXTRA_ORIGIN, targetOrigin)
@@ -261,6 +265,7 @@ class KryptxCredentialProviderService : CredentialProviderService() {
         }
 
         val createIntent = Intent(this, CredentialAuthActivity::class.java).apply {
+            setPackage(packageName)
             action = CredentialConstants.ACTION_CREATE_CREDENTIAL
             putExtra(CredentialConstants.EXTRA_AUTH_TOKEN, CredentialAuthTokenManager.generateToken())
             putExtra(CredentialConstants.EXTRA_CREDENTIAL_TYPE, requestType)

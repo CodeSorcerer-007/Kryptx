@@ -34,4 +34,23 @@ class AdaptiveKdfCalibratorTest {
         )
         assertNotNull(result.hardwareClass)
     }
+
+    @Test
+    fun `test hardware calibration in throttled mode returns safe bounded parameters`() = runBlocking {
+        val result = AdaptiveKdfCalibrator.calibrateHardware(isThrottled = true)
+
+        assertNotNull(result)
+        assertTrue(
+            "Calibrated PBKDF2 rounds must be at least ${AdaptiveKdfCalibrator.MIN_PBKDF2_ROUNDS}",
+            result.recommendedPbkdf2Rounds >= AdaptiveKdfCalibrator.MIN_PBKDF2_ROUNDS
+        )
+        assertTrue(
+            "Calibrated PBKDF2 rounds must not exceed ${AdaptiveKdfCalibrator.MAX_PBKDF2_ROUNDS}",
+            result.recommendedPbkdf2Rounds <= AdaptiveKdfCalibrator.MAX_PBKDF2_ROUNDS
+        )
+        assertTrue(
+            "Argon2 memory must be at least 64MB",
+            result.recommendedArgon2MemoryKb >= 64 * 1024
+        )
+    }
 }

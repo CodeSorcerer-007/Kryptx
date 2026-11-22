@@ -175,6 +175,7 @@ class KryptxAutofillService : AutofillService() {
             ?: (if (parsedForm.usernameFieldId == null) parsedForm.focusedFieldId ?: parsedForm.allAutofillIds.firstOrNull() else null)
 
         val intent = Intent(this, AutofillAuthActivity::class.java).apply {
+            setPackage(packageName)
             putExtra(AutofillAuthActivity.EXTRA_AUTH_TOKEN, AutofillAuthTokenManager.generateToken())
             parsedForm.webDomain?.let { putExtra(AutofillAuthActivity.EXTRA_WEB_DOMAIN, it) }
             parsedForm.packageName?.let { putExtra(AutofillAuthActivity.EXTRA_PACKAGE_NAME, it) }

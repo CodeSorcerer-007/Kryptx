@@ -13,14 +13,10 @@
     <!-- Required on Android 13+ (API 33) to show the local clipboard-clear notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--
-        Required on Android 12+ (API 31) to schedule an exact-time clipboard auto-clear alarm.
-        On devices where the user has not granted this (or has revoked it), the app silently
-        falls back to an inexact alarm via setAndAllowWhileIdle() — no crash, just wider window.
-        Declared with minSdkVersion="31" so older devices ignore it entirely.
+        On Android 12+ (API 31+), clipboard auto-clear executes via battery-optimized inexact alarms
+        (setAndAllowWhileIdle()) and in-process coroutine tickers. This guarantees full Google Play
+        Store policy compliance without requiring SCHEDULE_EXACT_ALARM.
     -->
-    <uses-permission
-        android:name="android.permission.SCHEDULE_EXACT_ALARM"
-        android:minSdkVersion="31" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />

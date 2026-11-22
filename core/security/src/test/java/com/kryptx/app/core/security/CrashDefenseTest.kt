@@ -58,4 +58,15 @@ class CrashDefenseTest {
         assertNotNull(closeable)
         closeable.close()
     }
+
+    @Test
+    fun testRecoveryActionExecutionSucceedsWhenRegistered() {
+        var recoveryInvoked = false
+        CrashDefense.registerRecoveryAction {
+            recoveryInvoked = true
+        }
+        val result = CrashDefense.executeRecoveryActionOrFailClosed()
+        assertTrue("Recovery action must succeed", result)
+        assertTrue("Recovery callback must be executed", recoveryInvoked)
+    }
 }

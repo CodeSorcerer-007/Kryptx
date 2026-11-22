@@ -47,6 +47,11 @@ object OfflineWebVaultGenerator {
         val ivBase64 = Base64.getEncoder().encodeToString(ivBytes)
         val ciphertextBase64 = Base64.getEncoder().encodeToString(ciphertextAndTag)
 
+        SecureMemory.wipe(salt)
+        SecureMemory.wipe(ivBytes)
+        SecureMemory.wipe(ciphertextAndTag)
+        SecureMemory.wipe(encryptedPayload)
+
         return buildHtmlDocument(saltBase64, ivBase64, ciphertextBase64, items.size)
     }
 
@@ -61,6 +66,7 @@ object OfflineWebVaultGenerator {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kryptx Sovereign Offline Vault</title>
     <style>

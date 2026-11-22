@@ -95,11 +95,13 @@ object CrashDefense {
             handleUncaughtException(thread, throwable)
         }
 
-        // 3. Start Main Looper Immortal Loop
-        startMainLooperGuardian()
-
-        SecurityLogger.info(TAG, "CrashDefense initialized: multi-layered shield active")
+        SecurityLogger.info(TAG, "CrashDefense initialized: multi-layered fail-safe handler active")
     }
+
+    @Volatile
+    private var consecutiveCrashes = 0
+    @Volatile
+    private var lastCrashTimestamp = 0L
 
     /**
      * Intercepts uncaught exceptions on any thread.
@@ -114,9 +116,25 @@ object CrashDefense {
             throwable
         )
 
+        val now = System.currentTimeMillis()
+        if (now - lastCrashTimestamp > 5000L) {
+            consecutiveCrashes = 0
+        }
+        consecutiveCrashes++
+        lastCrashTimestamp = now
+
+        // Prevent infinite restart loops
+        if (consecutiveCrashes >= 3) {
+            SecurityLogger.error(TAG, "Exceeded maximum consecutive crashes ($consecutiveCrashes) — executing fail-closed process termination")
+            executeRecoveryActionOrFailClosed()
+            try {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            } catch (_: Throwable) {}
+            return
+        }
+
         if (isMainThread) {
-            // Main thread crashed outside of the Main Looper loop (e.g. during early initialization).
-            // Attempt clean restart of the root activity in a locked, secure state.
+            // Main thread crashed: guarantee fail-closed key zeroization and attempt clean restart in locked state
             recoverApplicationGracefully()
         } else {
             // Check if the background thread exception is security-critical
@@ -143,75 +161,6 @@ object CrashDefense {
                     } catch (t: Throwable) {
                         SecurityLogger.error(TAG, "Non-critical crash listener failed", t)
                     }
-                }
-            }
-        }
-    }
-
-    /**
-     * Hooks into the Main Looper's message pump.
-     * If an uncaught exception is thrown while processing any UI message, it is caught here,
-     * recorded, and classified:
-     * - Security-critical exceptions (key derivation, crypto, vault auth) are re-thrown so the
-     *   system's default handler can surface them cleanly — suppressing these would mask failures.
-     * - UI / rendering exceptions (Compose recomposition, layout, touch) are swallowed and the
-     *   message loop is re-entered, keeping the application alive.
-     *
-     * Security-critical exception types are identified by package prefix and class name to avoid
-     * hard-coding a brittle exhaustive list.
-     */
-    @Volatile
-    private var consecutiveCrashes = 0
-    @Volatile
-    private var lastCrashTimestamp = 0L
-
-    private fun startMainLooperGuardian() {
-        val mainHandler = Handler(Looper.getMainLooper())
-        mainHandler.post {
-            while (true) {
-                try {
-                    Looper.loop()
-                } catch (throwable: Throwable) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastCrashTimestamp > 5000L) {
-                        consecutiveCrashes = 0
-                    }
-                    consecutiveCrashes++
-                    lastCrashTimestamp = now
-
-                    // If crashing repeatedly within 5 seconds, terminate process to prevent zombie loops
-                    if (consecutiveCrashes >= 3) {
-                        SecurityLogger.error(TAG, "Exceeded maximum consecutive crashes ($consecutiveCrashes) — terminating process to prevent zombie loop")
-                        try {
-                            android.os.Process.killProcess(android.os.Process.myPid())
-                        } catch (_: Throwable) {}
-                        return@post
-                    }
-
-                    if (isSecurityCritical(throwable)) {
-                        SecurityLogger.error(
-                            TAG,
-                            "MainLooper intercepted SECURITY-CRITICAL exception — propagating to system handler: " +
-                            "${throwable::class.java.simpleName}: ${throwable.message}",
-                            throwable
-                        )
-                        recordCrash(throwable, "MainLooper-SecurityCritical")
-                        // Re-throw: let the system UncaughtExceptionHandler deal with it
-                        // (which will trigger recoverApplicationGracefully via handleUncaughtException).
-                        throw throwable
-                    }
-                    recordCrash(throwable, "MainLooper")
-                    SecurityLogger.error(
-                        TAG,
-                        "MainLooper message cycle caught non-critical UI exception — restarting Activity: " +
-                        "${throwable::class.java.simpleName}: ${throwable.message}",
-                        throwable
-                    )
-                    // Force a clean Activity restart rather than resuming with a corrupted slot table
-                    Handler(Looper.getMainLooper()).post {
-                        recoverApplicationGracefully()
-                    }
-                    // Keep MainLooper guardian pump active so subsequent Activity lifecycle cycles remain protected
                 }
             }
         }

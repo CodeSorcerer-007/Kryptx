@@ -306,35 +306,59 @@ class VaultAuditRepositoryImpl(
         )
     }
 
-    private fun calculateSimilarity(s1: String, s2: String): Double {
+    internal fun calculateSimilarity(s1: String, s2: String): Double {
         if (s1.isEmpty() && s2.isEmpty()) return 1.0
         if (s1.isEmpty() || s2.isEmpty()) return 0.0
 
         val maxLen = maxOf(s1.length, s2.length)
-        val distance = levenshtein(s1, s2)
+        val lenDiff = kotlin.math.abs(s1.length - s2.length)
+        // 0.85 similarity implies edit distance must be <= 15% of max length
+        val maxAllowedDistance = (maxLen * 0.15).toInt()
+        if (lenDiff > maxAllowedDistance) return 0.0
+
+        val distance = boundedLevenshtein(s1, s2, maxAllowedDistance)
+        if (distance > maxAllowedDistance) return 0.0
         return 1.0 - (distance.toDouble() / maxLen.toDouble())
     }
 
-    private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {
-        val lhsLength = lhs.length
-        val rhsLength = rhs.length
+    /**
+     * Bounded 2-row Levenshtein distance computation with early termination.
+     * Prevents GC memory thrashing and CPU starvation across large password sets.
+     */
+    internal fun boundedLevenshtein(s1: CharSequence, s2: CharSequence, maxDistance: Int): Int {
+        val (shorter, longer) = if (s1.length <= s2.length) s1 to s2 else s2 to s1
+        val n = shorter.length
+        val m = longer.length
 
-        var cost = IntArray(lhsLength + 1) { it }
-        var newCost = IntArray(lhsLength + 1)
+        if (m - n > maxDistance) return maxDistance + 1
 
-        for (i in 1..rhsLength) {
-            newCost[0] = i
-            for (j in 1..lhsLength) {
-                val match = if (lhs[j - 1] == rhs[i - 1]) 0 else 1
-                val costReplace = cost[j - 1] + match
-                val costInsert = cost[j] + 1
-                val costDelete = newCost[j - 1] + 1
-                newCost[j] = minOf(minOf(costInsert, costDelete), costReplace)
+        var prev = IntArray(n + 1) { it }
+        var curr = IntArray(n + 1)
+
+        for (i in 1..m) {
+            curr[0] = i
+            var minInRow = curr[0]
+            val ch = longer[i - 1]
+
+            for (j in 1..n) {
+                val match = if (shorter[j - 1] == ch) 0 else 1
+                val costReplace = prev[j - 1] + match
+                val costInsert = prev[j] + 1
+                val costDelete = curr[j - 1] + 1
+                val v = minOf(minOf(costInsert, costDelete), costReplace)
+                curr[j] = v
+                if (v < minInRow) minInRow = v
             }
-            val swap = cost
-            cost = newCost
-            newCost = swap
+
+            if (minInRow > maxDistance) {
+                return maxDistance + 1
+            }
+
+            val temp = prev
+            prev = curr
+            curr = temp
         }
-        return cost[lhsLength]
+
+        return prev[n]
     }
 }

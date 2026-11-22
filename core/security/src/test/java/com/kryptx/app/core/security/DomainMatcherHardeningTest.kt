@@ -77,11 +77,16 @@ class DomainMatcherHardeningTest {
         assertFalse(DomainMatcher.isDomainMatch("co.uk", "company.co.uk"))
         assertFalse(DomainMatcher.isDomainMatch("company.co.uk", "co.uk"))
         assertFalse(DomainMatcher.isDomainMatch("com.au", "business.com.au"))
+        assertFalse(DomainMatcher.isDomainMatch("org.br", "empresa.org.br"))
+        assertFalse(DomainMatcher.isDomainMatch("com.ng", "service.com.ng"))
+        assertFalse(DomainMatcher.isDomainMatch("surge.sh", "site.surge.sh"))
+        assertFalse(DomainMatcher.isDomainMatch("duckdns.org", "home.duckdns.org"))
 
         // But legitimate subdomains of a tenant remain matched
         assertTrue(DomainMatcher.isDomainMatch("api.myuser.github.io", "myuser.github.io"))
         assertTrue(DomainMatcher.isDomainMatch("myuser.github.io", "myuser.github.io"))
         assertTrue(DomainMatcher.isDomainMatch("auth.service.company.co.uk", "company.co.uk"))
+        assertTrue(DomainMatcher.isDomainMatch("login.empresa.com.br", "empresa.com.br"))
     }
 
     @Test

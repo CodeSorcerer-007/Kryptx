@@ -44,6 +44,10 @@ class OfflineWebVaultGeneratorTest {
         // Must enforce 30-second clipboard auto-clear security timer
         assertTrue(html.contains("Clears in 30s"))
         assertTrue(html.contains("30000"))
+
+        // Must enforce strict air-gapped Content-Security-Policy header
+        assertTrue(html.contains("http-equiv=\"Content-Security-Policy\""))
+        assertTrue(html.contains("default-src 'none'"))
     }
 
     @Test

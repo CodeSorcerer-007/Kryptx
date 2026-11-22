@@ -77,19 +77,54 @@ object DomainMatcher {
         "wordpress.com", "blogspot.com", "tumblr.com",
         "fly.dev", "railway.app", "up.railway.app", "deno.dev",
         "render.com", "onrender.com", "supabase.co",
+        "surge.sh", "webflow.io", "wixsite.com", "duckdns.org",
+        "ngrok.io", "ngrok.app", "ngrok-free.app", "loca.lt",
+        "readthedocs.io", "gitbook.io", "appspot.com",
         // Multi-part country code TLDs
-        "co.uk", "org.uk", "gov.uk", "ac.uk", "net.uk",
-        "com.au", "net.au", "org.au", "edu.au", "gov.au",
-        "co.jp", "ne.jp", "or.jp", "ac.jp", "go.jp",
-        "co.nz", "org.nz", "net.nz",
-        "com.br", "org.br", "net.br",
-        "co.in", "net.in", "org.in", "gen.in", "firm.in", "ind.in",
-        "com.sg", "edu.sg", "gov.sg", "net.sg", "org.sg",
-        "co.za", "org.za", "net.za"
+        "co.uk", "org.uk", "gov.uk", "ac.uk", "net.uk", "me.uk", "ltd.uk", "plc.uk",
+        "com.au", "net.au", "org.au", "edu.au", "gov.au", "asn.au", "id.au",
+        "co.jp", "ne.jp", "or.jp", "ac.jp", "go.jp", "ed.jp", "ad.jp",
+        "co.nz", "org.nz", "net.nz", "govt.nz", "ac.nz", "school.nz",
+        "com.br", "org.br", "net.br", "gov.br", "edu.br", "art.br", "app.br",
+        "co.in", "net.in", "org.in", "gen.in", "firm.in", "ind.in", "nic.in", "ac.in", "edu.in", "res.in", "gov.in", "mil.in",
+        "com.sg", "edu.sg", "gov.sg", "net.sg", "org.sg", "per.sg",
+        "co.za", "org.za", "net.za", "gov.za", "ac.za", "edu.za",
+        "com.mx", "org.mx", "net.mx", "edu.mx", "gob.mx",
+        "co.id", "web.id", "or.id", "ac.id", "go.id", "my.id", "biz.id",
+        "co.kr", "ne.kr", "or.kr", "re.kr", "pe.kr", "go.kr", "mil.kr", "ac.kr", "hs.kr", "ms.kr", "es.kr",
+        "com.tw", "org.tw", "net.tw", "gov.tw", "edu.tw", "idv.tw",
+        "com.tr", "org.tr", "net.tr", "gov.tr", "edu.tr", "bel.tr", "k12.tr",
+        "com.my", "org.my", "net.my", "gov.my", "edu.my", "mil.my",
+        "com.ar", "org.ar", "net.ar", "gob.ar", "edu.ar",
+        "com.co", "org.co", "net.co", "gov.co", "edu.co",
+        "com.ph", "org.ph", "net.ph", "gov.ph", "edu.ph",
+        "co.il", "org.il", "net.il", "gov.il", "ac.il", "muni.il",
+        "co.th", "ac.th", "go.th", "or.th", "net.th",
+        "com.vn", "net.vn", "org.vn", "edu.vn", "gov.vn",
+        "com.ng", "org.ng", "gov.ng", "edu.ng", "net.ng",
+        "com.pk", "org.pk", "net.pk", "edu.pk", "gov.pk",
+        "com.eg", "org.eg", "net.eg", "edu.eg", "gov.eg",
+        "co.ke", "or.ke", "ne.ke", "go.ke", "ac.ke", "sc.ke"
+    )
+
+    private val COMMON_CC_SLD_PREFIXES = setOf(
+        "co", "com", "net", "org", "edu", "gov", "ac", "ne", "or", "go",
+        "gen", "firm", "ind", "mil", "gob", "govt", "web", "idv", "bel"
     )
 
     fun isMultiTenantPublicSuffix(host: String): Boolean {
-        return MULTI_TENANT_PUBLIC_SUFFIXES.contains(host)
+        if (MULTI_TENANT_PUBLIC_SUFFIXES.contains(host)) return true
+
+        // Algorithmic fallback for two-part country code second-level domains
+        val parts = host.split('.')
+        if (parts.size == 2) {
+            val sld = parts[0]
+            val tld = parts[1]
+            if (tld.length == 2 && sld in COMMON_CC_SLD_PREFIXES) {
+                return true
+            }
+        }
+        return false
     }
 
     /**

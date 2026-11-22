@@ -128,6 +128,7 @@ open class KryptxDatabaseHelper(
      * Rekeys the underlying SQLCipher database file with a new encryption key.
      * This is required when rotating the Vault Encryption Key (VEK) so that page-level
      * encryption matches the new key derived from the rotated VEK.
+     * Enforces immediate post-rekey integrity verification.
      */
     @Synchronized
     open fun rekeyDatabase(newKey: ByteArray) {
@@ -136,7 +137,18 @@ open class KryptxDatabaseHelper(
         val db = helper.writableDatabase
         db.changePassword(newKey)
         helper.close()
-        internalHelper = InternalOpenHelper(context, databaseName, newKey, DATABASE_VERSION)
+
+        val newHelper = InternalOpenHelper(context, databaseName, newKey, DATABASE_VERSION)
+        val verifyDb = newHelper.writableDatabase
+        verifyDb.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                val result = cursor.getString(0)
+                if (!result.equals("ok", ignoreCase = true)) {
+                    throw IllegalStateException("Database integrity check failed after rekeying: $result")
+                }
+            }
+        }
+        internalHelper = newHelper
     }
 
     /**

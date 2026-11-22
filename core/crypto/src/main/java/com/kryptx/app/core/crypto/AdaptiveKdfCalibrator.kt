@@ -50,8 +50,8 @@ object AdaptiveKdfCalibrator {
     /**
      * Returns the cached [KdfCalibrationResult] if available, otherwise executes a fast calibration.
      */
-    suspend fun getCalibratedOrBenchmark(): KdfCalibrationResult {
-        return cachedCalibrationResult ?: calibrateHardware().also { cachedCalibrationResult = it }
+    suspend fun getCalibratedOrBenchmark(isThrottled: Boolean = false): KdfCalibrationResult {
+        return cachedCalibrationResult ?: calibrateHardware(isThrottled).also { cachedCalibrationResult = it }
     }
 
     /**
@@ -63,8 +63,10 @@ object AdaptiveKdfCalibrator {
 
     /**
      * Executes a fast CPU/RAM benchmark to compute calibrated KDF work factors.
+     * When [isThrottled] is true (e.g. low-power mode or high thermal index), work factors
+     * are calibrated against a lower target duration (~520ms) to prevent UI frame stalls.
      */
-    suspend fun calibrateHardware(): KdfCalibrationResult = withContext(Dispatchers.Default) {
+    suspend fun calibrateHardware(isThrottled: Boolean = false): KdfCalibrationResult = withContext(Dispatchers.Default) {
         val random = SecureRandom()
         val randomBytes = ByteArray(24).also { random.nextBytes(it) }
         val samplePassword = CharArray(24) { i ->
@@ -89,8 +91,9 @@ object AdaptiveKdfCalibrator {
 
         val sampleDurationMs = (System.currentTimeMillis() - startTime).coerceAtLeast(1)
 
-        // Calculate extrapolated rounds for 800ms
-        val calculatedRounds = ((TARGET_DURATION_MS.toDouble() / sampleDurationMs) * SAMPLE_ROUNDS).toInt()
+        val targetMs = if (isThrottled) (TARGET_DURATION_MS * 0.65).toLong() else TARGET_DURATION_MS
+        // Calculate extrapolated rounds for target duration
+        val calculatedRounds = ((targetMs.toDouble() / sampleDurationMs) * SAMPLE_ROUNDS).toInt()
         val recommendedPbkdf2Rounds = calculatedRounds.coerceIn(MIN_PBKDF2_ROUNDS, MAX_PBKDF2_ROUNDS)
 
         // Profile memory limits
