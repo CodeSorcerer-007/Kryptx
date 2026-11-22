@@ -64,20 +64,23 @@ class KryptxViewModelFactory(
             }
             modelClass.isAssignableFrom(GeneratorViewModel::class.java) -> {
                 GeneratorViewModel(
-                    clipboardSecurityManager = deps.clipboardManager
+                    clipboardSecurityManager = deps.clipboardManager,
+                    preferencesRepository = deps.preferencesRepository
                 ) as T
             }
             modelClass.isAssignableFrom(SecurityCenterViewModel::class.java) -> {
                 SecurityCenterViewModel(
                     vaultRepository = deps.vaultRepository,
                     clipboardSecurityManager = deps.clipboardManager,
-                    activityLogManager = deps.activityLogManager
+                    activityLogManager = deps.activityLogManager,
+                    preferencesRepository = deps.preferencesRepository
                 ) as T
             }
             modelClass.isAssignableFrom(TotpViewModel::class.java) -> {
                 TotpViewModel(
                     vaultRepository = deps.vaultRepository,
-                    clipboardSecurityManager = deps.clipboardManager
+                    clipboardSecurityManager = deps.clipboardManager,
+                    preferencesRepository = deps.preferencesRepository
                 ) as T
             }
             modelClass.isAssignableFrom(SearchViewModel::class.java) -> {

@@ -146,6 +146,8 @@ open class KryptxDatabaseHelper(
                 if (!result.equals("ok", ignoreCase = true)) {
                     throw IllegalStateException("Database integrity check failed after rekeying: $result")
                 }
+            } else {
+                throw IllegalStateException("Database integrity check returned no results after rekeying")
             }
         }
         internalHelper = newHelper

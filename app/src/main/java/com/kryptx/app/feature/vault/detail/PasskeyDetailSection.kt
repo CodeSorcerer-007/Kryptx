@@ -53,7 +53,10 @@ fun PasskeyDetailSection(
             DetailFieldCard(
                 label = "Cryptographic Algorithm",
                 value = item.passkeyAlgorithm,
-                onCopy = {}
+                onCopy = {
+                    viewModel.copySecret("Cryptographic Algorithm", item.passkeyAlgorithm)
+                    scope.launch { snackbarHostState.showSnackbar("Algorithm copied!") }
+                }
             )
         }
     }

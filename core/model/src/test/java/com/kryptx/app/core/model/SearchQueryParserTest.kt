@@ -119,4 +119,39 @@ class SearchQueryParserTest {
         assertEquals(1, res.size)
         assertEquals("Work Slack", res[0].title)
     }
+
+    @Test
+    fun testSearchByIdentityAndPasskeyFields() {
+        val items = listOf(
+            VaultItem(
+                title = "Passport Card",
+                type = ItemType.IDENTITY,
+                identityFullName = "Alice Henderson",
+                identityPhone = "+1-555-4321",
+                identityAddress = "456 Wall Street"
+            ),
+            VaultItem(
+                title = "Google Passkey",
+                type = ItemType.PASSKEY,
+                passkeyRpId = "accounts.google.com",
+                passkeyUserHandle = "alice.henderson"
+            ),
+            VaultItem(
+                title = "Stripe API Key",
+                type = ItemType.API_KEY,
+                apiEndpoint = "https://api.stripe.com/v1"
+            )
+        )
+
+        val byContact = SearchQueryParser.filter(items, "henderson")
+        assertEquals(2, byContact.size)
+
+        val byDomain = SearchQueryParser.filter(items, "accounts.google.com")
+        assertEquals(1, byDomain.size)
+        assertEquals("Google Passkey", byDomain[0].title)
+
+        val byEndpoint = SearchQueryParser.filter(items, "stripe.com")
+        assertEquals(1, byEndpoint.size)
+        assertEquals("Stripe API Key", byEndpoint[0].title)
+    }
 }

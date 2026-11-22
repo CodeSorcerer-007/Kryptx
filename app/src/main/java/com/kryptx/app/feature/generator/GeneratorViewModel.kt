@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class GeneratorViewModel(
-    private val clipboardSecurityManager: IClipboardSecurityManager
+    private val clipboardSecurityManager: IClipboardSecurityManager,
+    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null
 ) : ViewModel() {
 
     private val _config = MutableStateFlow(GeneratorConfig())
@@ -137,6 +138,7 @@ class GeneratorViewModel(
             GeneratorMode.PIN        -> "Generated PIN"
             GeneratorMode.USERNAME   -> "Generated Username"
         }
-        clipboardSecurityManager.copySensitiveText(label, _result.value.value, timeoutSeconds = 45)
+        val timeout = preferencesRepository?.clipboardTimeout?.value ?: 45
+        clipboardSecurityManager.copySensitiveText(label, _result.value.value, timeoutSeconds = timeout)
     }
 }

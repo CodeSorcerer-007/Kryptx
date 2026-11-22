@@ -73,7 +73,7 @@ class VaultAuditRepositoryImpl(
             }
 
             // 1.5. Password similarity detection (Levenshtein distance)
-            var similarCount = 0
+            val similarItemIds = mutableSetOf<String>()
             val checkedPairs = mutableSetOf<Pair<String, String>>()
             val auditSampleSize = minOf(loginItems.size, 200)
             for (i in 0 until auditSampleSize) {
@@ -90,7 +90,8 @@ class VaultAuditRepositoryImpl(
 
                     val similarity = calculateSimilarity(itemA.password, itemB.password)
                     if (similarity > 0.85) {
-                        similarCount += 2
+                        similarItemIds.add(itemA.id)
+                        similarItemIds.add(itemB.id)
 
                         issues.add(
                             SecurityIssue(
@@ -122,6 +123,7 @@ class VaultAuditRepositoryImpl(
                     }
                 }
             }
+            val similarCount = similarItemIds.size
 
             // 2. Weak passwords & entropy
             var weakCount = 0

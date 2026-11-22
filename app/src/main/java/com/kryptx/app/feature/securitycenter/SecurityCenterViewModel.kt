@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 class SecurityCenterViewModel(
     private val vaultRepository: VaultRepository,
     private val clipboardSecurityManager: IClipboardSecurityManager? = null,
-    private val activityLogManager: ActivityLogManager? = null
+    private val activityLogManager: ActivityLogManager? = null,
+    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null
 ) : ViewModel() {
 
     private val _auditReport = MutableStateFlow<SecurityAuditReport?>(null)
@@ -47,10 +48,11 @@ class SecurityCenterViewModel(
     }
 
     fun copyCandidatePassword(title: String, candidate: String) {
+        val timeout = preferencesRepository?.clipboardTimeout?.value ?: 60
         clipboardSecurityManager?.copySensitiveText(
             label = "New Password for $title",
             text = candidate,
-            timeoutSeconds = 60
+            timeoutSeconds = timeout
         )
     }
 

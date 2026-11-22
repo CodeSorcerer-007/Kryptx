@@ -565,7 +565,8 @@ fun VaultItemDetailScreen(
             onDismiss = { showPasswordHistorySheet = false },
             onCopyPassword = { pass ->
                 viewModel.copySecret("Previous Password", pass)
-                scope.launch { snackbarHostState.showSnackbar("Historical password copied! Clears in 30s.") }
+                val timeout = viewModel.clipboardTimeout.value
+                scope.launch { snackbarHostState.showSnackbar("Historical password copied! Clears in ${timeout}s.") }
             },
             onRestorePassword = { restoredPassword ->
                 val updated = item.copy(

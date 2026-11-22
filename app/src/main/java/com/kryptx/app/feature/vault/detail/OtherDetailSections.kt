@@ -26,7 +26,7 @@ fun WifiDetailSection(item: VaultItem, viewModel: VaultViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         DetailFieldCard(label = "Network SSID", value = item.wifiSsid, onCopy = { viewModel.copySecret("SSID", item.wifiSsid) })
         DetailFieldCard(label = "Wi-Fi Password", value = item.wifiPassword, isSecret = true, onCopy = { viewModel.copySecret("Wi-Fi Password", item.wifiPassword) })
-        DetailFieldCard(label = "Security Protocol", value = item.wifiSecurityType, onCopy = {})
+        DetailFieldCard(label = "Security Protocol", value = item.wifiSecurityType, onCopy = { viewModel.copySecret("Security Protocol", item.wifiSecurityType) })
     }
 }
 

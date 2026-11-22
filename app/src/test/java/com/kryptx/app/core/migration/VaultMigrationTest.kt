@@ -230,5 +230,56 @@ class VaultMigrationTest {
         assertEquals("SuperSecretAwsPassword!", items[0].password)
         assertEquals("https://aws.amazon.com", items[0].website)
     }
+
+    @Test
+    fun testCsvImportUsernamePrecedingTitleDoesNotCollide() {
+        val csv = """
+            url,username,password,title
+            https://gitlab.com,gituser,SecretPass777,GitLab Cloud
+        """.trimIndent()
+        val items = VaultImporter.importCsv(csv)
+        assertEquals(1, items.size)
+        assertEquals("GitLab Cloud", items[0].title)
+        assertEquals("gituser", items[0].username)
+        assertEquals("SecretPass777", items[0].password)
+    }
+
+    @Test
+    fun testBitwardenJsonIdentityImport() {
+        val identityJson = """
+            {
+              "items": [
+                {
+                  "type": 4,
+                  "name": "Personal Passport & ID",
+                  "notes": "Emergency identity",
+                  "identity": {
+                    "firstName": "Jane",
+                    "middleName": "A",
+                    "lastName": "Doe",
+                    "email": "jane.doe@example.com",
+                    "phone": "+1-555-0199",
+                    "address1": "100 Security Way",
+                    "city": "Cyber City",
+                    "state": "CA",
+                    "postalCode": "94016",
+                    "country": "US",
+                    "ssn": "987-65-4321"
+                  }
+                }
+              ]
+            }
+        """.trimIndent()
+        val items = VaultImporter.importJson(identityJson)
+        assertEquals(1, items.size)
+        val item = items[0]
+        assertEquals("Personal Passport & ID", item.title)
+        assertEquals(com.kryptx.app.core.model.ItemType.IDENTITY, item.type)
+        assertEquals("Jane A Doe", item.identityFullName)
+        assertEquals("jane.doe@example.com", item.identityEmail)
+        assertEquals("+1-555-0199", item.identityPhone)
+        assertTrue(item.identityAddress.contains("100 Security Way"))
+        assertEquals("987-65-4321", item.identityIdNumber)
+    }
 }
 

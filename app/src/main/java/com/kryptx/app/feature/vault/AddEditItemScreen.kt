@@ -116,7 +116,10 @@ fun AddEditItemScreen(
         )
     }
     val addEditViewModel: com.kryptx.app.feature.vault.editor.AddEditViewModel = customAddEditViewModel
-        ?: androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+        ?: androidx.lifecycle.viewmodel.compose.viewModel(
+            key = itemId ?: "new_item",
+            factory = factory
+        )
 
     val items by viewModel.rawItems.collectAsStateWithLifecycle()
     val existingItem = remember(itemId, items) {

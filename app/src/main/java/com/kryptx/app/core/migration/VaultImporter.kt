@@ -136,6 +136,34 @@ object VaultImporter {
                         cardCvv = cardObj["code"].asString() ?: ""
                     }
 
+                    // Identity fields
+                    var identityFullName = ""
+                    var identityEmail = ""
+                    var identityPhone = ""
+                    var identityAddress = ""
+                    var identityIdNumber = ""
+                    val identityObj = itemObj["identity"] as? JsonObject
+                    if (identityObj != null) {
+                        val first = identityObj["firstName"].asString() ?: ""
+                        val middle = identityObj["middleName"].asString() ?: ""
+                        val last = identityObj["lastName"].asString() ?: ""
+                        identityFullName = listOf(first, middle, last).filter { it.isNotBlank() }.joinToString(" ")
+                        identityEmail = identityObj["email"].asString() ?: ""
+                        identityPhone = identityObj["phone"].asString() ?: ""
+
+                        val addr1 = identityObj["address1"].asString() ?: ""
+                        val addr2 = identityObj["address2"].asString() ?: ""
+                        val city = identityObj["city"].asString() ?: ""
+                        val state = identityObj["state"].asString() ?: ""
+                        val postal = identityObj["postalCode"].asString() ?: ""
+                        val country = identityObj["country"].asString() ?: ""
+                        identityAddress = listOf(addr1, addr2, city, state, postal, country).filter { it.isNotBlank() }.joinToString(", ")
+                        identityIdNumber = identityObj["ssn"].asString()
+                            ?: identityObj["passportNumber"].asString()
+                            ?: identityObj["licenseNumber"].asString()
+                            ?: ""
+                    }
+
                     val customFields = mutableListOf<CustomField>()
                     val fieldsArray = itemObj["fields"] as? JsonArray
                     if (fieldsArray != null) {
@@ -164,6 +192,11 @@ object VaultImporter {
                             cardNumber = cardNumber,
                             cardExpiry = cardExpiry,
                             cardCvv = cardCvv,
+                            identityFullName = identityFullName,
+                            identityEmail = identityEmail,
+                            identityPhone = identityPhone,
+                            identityAddress = identityAddress,
+                            identityIdNumber = identityIdNumber,
                             customFields = customFields
                         )
                     )
@@ -265,11 +298,14 @@ object VaultImporter {
 
         // Find column indices with precise matching priority
         val typeIdx = headerCols.indexOfFirst { it == "type" }
-        val titleIdx = headerCols.indexOfFirst { it.contains("title") || it.contains("name") }
+        val titleIdx = headerCols.indexOfFirst {
+            it == "title" || it == "name" || it == "item_name" || it == "item name" ||
+            ((it.contains("title") || it.contains("name")) && !it.contains("user") && !it.contains("login") && !it.contains("host") && !it.contains("domain"))
+        }
         val usernameIdx = headerCols.indexOfFirst { it.contains("username") || it.contains("user") || it.contains("email") || it == "login" }
         val urlIdx = headerCols.indexOfFirst { it.contains("url") || it.contains("uri") || it.contains("website") }
         val passwordIdx = headerCols.indexOfFirst {
-            it == "password" || it == "pass" || it.contains("password") || it.contains("secret") || (it.contains("pass") && !it.contains("passkey"))
+            it == "password" || it == "pass" || it.contains("password") || it.contains("secret") || (it.contains("pass") && !it.contains("passkey") && !it.contains("passport"))
         }
         val noteIdx = headerCols.indexOfFirst { it.contains("note") || it.contains("comment") }
         val totpIdx = headerCols.indexOfFirst { it.contains("totp") || it.contains("2fa") || it.contains("otp") }

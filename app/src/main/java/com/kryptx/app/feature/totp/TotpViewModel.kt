@@ -22,7 +22,8 @@ import java.util.UUID
 
 class TotpViewModel(
     private val vaultRepository: VaultRepository,
-    private val clipboardSecurityManager: IClipboardSecurityManager
+    private val clipboardSecurityManager: IClipboardSecurityManager,
+    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null
 ) : ViewModel() {
 
     enum class TotpSortOrder(val label: String) {
@@ -139,17 +140,19 @@ class TotpViewModel(
     }
 
     fun copyCode(account: TotpAccount) {
+        val timeout = preferencesRepository?.clipboardTimeout?.value ?: 30
         account.code?.let {
-            clipboardSecurityManager.copySensitiveText(account.item.title, it.code, timeoutSeconds = 30)
+            clipboardSecurityManager.copySensitiveText(account.item.title, it.code, timeoutSeconds = timeout)
         }
     }
 
     fun copySecret(account: TotpAccount) {
+        val timeout = preferencesRepository?.clipboardTimeout?.value ?: 30
         if (account.item.totpSecret.isNotBlank()) {
             clipboardSecurityManager.copySensitiveText(
                 "${account.item.title} Secret",
                 account.item.totpSecret,
-                timeoutSeconds = 30
+                timeoutSeconds = timeout
             )
         }
     }

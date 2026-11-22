@@ -32,7 +32,7 @@ fun CreditCardDetailSection(
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(modifier = Modifier.weight(1f)) {
-                DetailFieldCard(label = "Expiry", value = item.cardExpiry, onCopy = {})
+                DetailFieldCard(label = "Expiry", value = item.cardExpiry, onCopy = { viewModel.copySecret("Card Expiry", item.cardExpiry) })
             }
             Box(modifier = Modifier.weight(1f)) {
                 DetailFieldCard(

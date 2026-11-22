@@ -171,6 +171,13 @@ object SearchQueryParser {
                 append(item.website).append(" ")
                 append(item.notes).append(" ")
                 append(item.identityEmail).append(" ")
+                append(item.identityFullName).append(" ")
+                append(item.identityPhone).append(" ")
+                append(item.identityAddress).append(" ")
+                append(item.cardholderName).append(" ")
+                append(item.passkeyRpId).append(" ")
+                append(item.passkeyUserHandle).append(" ")
+                append(item.apiEndpoint).append(" ")
                 append(item.wifiSsid).append(" ")
                 for (tag in item.tags) {
                     append(tag).append(" ")

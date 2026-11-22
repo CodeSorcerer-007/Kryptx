@@ -292,6 +292,12 @@ class HmacSearchIndex {
             if (item.notes.isNotBlank()) append(item.notes.take(512)).append(' ')
             append(item.wifiSsid).append(' ')
             append(item.identityEmail).append(' ')
+            append(item.cardholderName).append(' ')
+            append(item.identityFullName).append(' ')
+            append(item.identityPhone).append(' ')
+            append(item.identityAddress).append(' ')
+            append(item.passkeyRpId).append(' ')
+            append(item.passkeyUserHandle).append(' ')
             append(normaliseHost(item.apiEndpoint)).append(' ')
             for (tag in item.tags) append(tag).append(' ')
             for (field in item.customFields) {

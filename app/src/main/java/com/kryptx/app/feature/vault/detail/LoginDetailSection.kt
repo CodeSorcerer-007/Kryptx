@@ -72,7 +72,8 @@ fun LoginDetailSection(
                 isSecret = true,
                 onCopy = {
                     viewModel.copySecret("Password", item.password)
-                    scope.launch { snackbarHostState.showSnackbar("Password copied! Clears in 30s.") }
+                    val timeout = viewModel.clipboardTimeout.value
+                    scope.launch { snackbarHostState.showSnackbar("Password copied! Clears in ${timeout}s.") }
                 }
             )
 
