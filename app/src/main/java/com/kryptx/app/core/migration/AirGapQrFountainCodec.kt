@@ -8,11 +8,15 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.CRC32
 
 /**
- * Sovereign Air-Gapped Animated QR Code Fountain Codec.
+ * Sovereign Air-Gapped Animated QR Code Streaming Codec.
  *
- * Enables transmitting arbitrary encrypted vault backups, Post-Quantum Archives,
- * and credential sets across physical air-gapped devices via high-density animated QR codes
- * without requiring any network, Bluetooth, or local socket connections.
+ * Implements a high-density sequenced multi-frame transmission protocol enabling
+ * transfer of arbitrary encrypted vault backups, Post-Quantum Archives, and credential
+ * sets across physical air-gapped devices via animated QR streams without requiring
+ * network, Bluetooth, or local sockets.
+ *
+ * Employs metadata announcing, cyclic sequenced data framing, chunk-level CRC32 checksums,
+ * robust out-of-order chunk reassembly buffer, and full payload SHA-256 integrity verification.
  *
  * Format Specification:
  * - Meta Frame:

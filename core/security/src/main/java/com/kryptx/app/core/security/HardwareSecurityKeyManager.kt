@@ -146,22 +146,40 @@ class HardwareSecurityKeyManager(
             return null
         }
 
-        // Attempt HMAC-SHA1 challenge-response via yubikit-android USB HID transport
+        // Attempt HMAC-SHA1 challenge-response via official yubikit-android USB OTP/SmartCard transport
         if (context != null) {
             try {
                 val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager
                 if (usbManager != null && usbManager.hasPermission(usbDevice)) {
-                    val connection = usbManager.openDevice(usbDevice)
-                    if (connection != null) {
-                        // Use the same HMAC-SHA1 slot-2 challenge-response command as the NFC path.
-                        // YubiKey USB HID endpoint 0x01 IN/OUT for OTP application.
-                        val response = sendYubikeyHidChallenge(connection, usbDevice, challenge)
-                        connection.close()
-                        if (response != null) return response
+                    val yubiDevice = com.yubico.yubikit.android.transport.usb.UsbYubiKeyDevice(usbManager, usbDevice)
+                    if (yubiDevice.hasPermission()) {
+                        if (yubiDevice.supportsConnection(com.yubico.yubikit.core.otp.OtpConnection::class.java)) {
+                            val conn = yubiDevice.openConnection(com.yubico.yubikit.core.otp.OtpConnection::class.java)
+                            try {
+                                val session = com.yubico.yubikit.yubiotp.YubiOtpSession(conn)
+                                val response = session.calculateHmacSha1(com.yubico.yubikit.yubiotp.Slot.TWO, challenge, null)
+                                if (response != null && response.isNotEmpty()) {
+                                    return response
+                                }
+                            } finally {
+                                try { conn.close() } catch (_: Throwable) {}
+                            }
+                        } else if (yubiDevice.supportsConnection(com.yubico.yubikit.core.smartcard.SmartCardConnection::class.java)) {
+                            val conn = yubiDevice.openConnection(com.yubico.yubikit.core.smartcard.SmartCardConnection::class.java)
+                            try {
+                                val session = com.yubico.yubikit.yubiotp.YubiOtpSession(conn)
+                                val response = session.calculateHmacSha1(com.yubico.yubikit.yubiotp.Slot.TWO, challenge, null)
+                                if (response != null && response.isNotEmpty()) {
+                                    return response
+                                }
+                            } finally {
+                                try { conn.close() } catch (_: Throwable) {}
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
-                SecurityLogger.warn("HardwareSecurityKeyManager", "USB HID YubiKey challenge failed, checking fallback policy", e)
+                SecurityLogger.warn("HardwareSecurityKeyManager", "Official YubiKit USB OTP/SmartCard challenge failed, checking fallback policy", e)
             }
         }
 
@@ -180,71 +198,6 @@ class HardwareSecurityKeyManager(
         } finally {
             SecureMemory.wipe(deviceIdentifier)
         }
-    }
-
-    /**
-     * Sends a HMAC-SHA1 slot-2 challenge to a YubiKey over USB HID.
-     * Implements the YubiKey OTP HID protocol: 64-byte HID frames, frame sequence numbers,
-     * and the slot-2 HMAC-SHA1 challenge-response instruction (0x38).
-     *
-     * @param connection An active [android.hardware.usb.UsbDeviceConnection] to the target USB peripheral.
-     * @param usbDevice The [UsbDevice] instance describing endpoints and HID interfaces.
-     * @param challenge The raw byte array containing challenge entropy to submit to slot 2.
-     * @return The 20-byte HMAC-SHA1 response, or null if communication fails or times out.
-     */
-    private fun sendYubikeyHidChallenge(
-        connection: android.hardware.usb.UsbDeviceConnection,
-        usbDevice: UsbDevice,
-        challenge: ByteArray
-    ): ByteArray? {
-        // Find the HID interface (class 3) — YubiKey OTP application
-        for (i in 0 until usbDevice.interfaceCount) {
-            val iface = usbDevice.getInterface(i)
-            if (iface.interfaceClass != android.hardware.usb.UsbConstants.USB_CLASS_HID) continue
-
-            val claimed = connection.claimInterface(iface, true)
-            if (!claimed) continue
-
-            try {
-                // Find IN and OUT endpoints
-                var epIn: android.hardware.usb.UsbEndpoint? = null
-                var epOut: android.hardware.usb.UsbEndpoint? = null
-                for (j in 0 until iface.endpointCount) {
-                    val ep = iface.getEndpoint(j)
-                    if (ep.type == android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_INT) {
-                        if (ep.direction == android.hardware.usb.UsbConstants.USB_DIR_IN) epIn = ep
-                        else epOut = ep
-                    }
-                }
-
-                if (epOut == null || epIn == null) continue
-
-                // Build YubiKey HID frame: [payload:6][padding:58][seqNo:1][touchTrigger:1][crc:2][flags:1][cmd:1]
-                // Slot 2 HMAC-SHA1 challenge-response = 0x38
-                val frame = ByteArray(64)
-                val payload = challenge.copyOf(minOf(challenge.size, 6))
-                System.arraycopy(payload, 0, frame, 0, payload.size)
-                frame[62] = 0x38.toByte() // Instruction: slot 2 HMAC challenge
-                frame[63] = 0x01.toByte() // Sequence + write flag
-
-                val written = connection.bulkTransfer(epOut, frame, frame.size, 3000)
-                if (written < 0) continue
-
-                // Poll for response — YubiKey signals completion via sequence number in frame[61]
-                val responseFrame = ByteArray(64)
-                for (attempt in 0..30) {
-                    val read = connection.bulkTransfer(epIn, responseFrame, responseFrame.size, 200)
-                    if (read >= 22 && (responseFrame[63].toInt() and 0x01) == 0) {
-                        // Response is in bytes 0..19 (20-byte HMAC-SHA1)
-                        return responseFrame.copyOf(20)
-                    }
-                    Thread.sleep(50)
-                }
-            } finally {
-                connection.releaseInterface(iface)
-            }
-        }
-        return null
     }
 
     /**

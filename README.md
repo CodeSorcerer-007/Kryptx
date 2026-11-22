@@ -20,7 +20,7 @@
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.5.1%20(Code%2031)-FFB300?style=for-the-badge" alt="Version 2.5.1 (Code 31)" /></a>
   <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
   <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-672%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="672 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-695%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="695 Unit Tests Passed" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
@@ -58,10 +58,10 @@
 | **Post-Quantum Cryptography (PQC)** | **⚡ ML-KEM-768 & ML-DSA-65** (NIST FIPS 203 / 204 hybrid key encapsulation) | ❌ Classical RSA / ECC only | ❌ Classical SRP / ECC only | ❌ Classical AES / ChaCha20 only | ❌ Classical PBKDF2 iterations only |
 | **Dual Bare-Metal Ciphers** | **Rust Native 2024 JNI**:<br/>XChaCha20-Poly1305 + NIST AES-256-GCM | ⚠️ Single cipher (AES-256) | ⚠️ Single cipher (AES-256) | ⚠️ Single cipher (User selectable) | ⚠️ Single cipher (AES-256) |
 | **RAM Protection & Zeroization** | **DirectBuffer `mlock()` & Compile-Time Zeroization**:<br/>Direct memory pinned via `mlock()` / `MADV_DONTDUMP` (fail-closed pinning supported) + compile-time `@MustBeWiped` zeroization barriers | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ⚠️ Protected memory in desktop; unpinned on mobile | ❌ Standard managed web/app memory |
-| **Hardware Security Keys (Physical Tokens)** | **NFC IsoDep + USB OTG HID** (HMAC-SHA1 Slot 2) | ⚠️ WebAuthn 2FA only (Requires cloud server) | ⚠️ WebAuthn 2FA only (Requires cloud server) | ⚠️ Desktop plugin only; fragile on Android | ⚠️ WebAuthn 2FA only |
+| **Hardware Security Keys (Physical Tokens)** | **Official YubiKit SDK USB OTP + NFC IsoDep** (HMAC-SHA1 Slot 2) | ⚠️ WebAuthn 2FA only (Requires cloud server) | ⚠️ WebAuthn 2FA only (Requires cloud server) | ⚠️ Desktop plugin only; fragile on Android | ⚠️ WebAuthn 2FA only |
 | **Hardware Keystore Isolation** | **StrongBox TEE + ECDH P-256**:<br/>Tamper-resistant dedicated silicon module | ⚠️ Standard Android Keystore (Software fallback on some OEMs) | ⚠️ Standard Android Keystore | ❌ Password / Keyfile only (No TEE key wrapping) | ⚠️ Standard Android Keystore |
 | **Anti-Phishing Autofill Defense** | **Strict `DomainMatcher`**:<br/>Terminal segment validation rejects `evil-paypal.com` or spoofed subdomains | ⚠️ Standard domain matching | ⚠️ Standard domain matching | ❌ Manual copy-paste or third-party input helper | ⚠️ Standard domain matching |
-| **Credential Breach Checking** | **100% Offline Bloom Filter**:<br/>In-memory breach analysis with zero network leakage | ⚠️ Cloud API query to HIBP (leaks partial hash range) | ⚠️ Cloud API query (Watchtower) | ❌ Requires third-party cloud plugins | ⚠️ Cloud API query |
+| **Credential Breach Checking** | **100% Offline Bloom Filter**:<br/>In-memory breach analysis with zero network leakage (10K+ entries, <0.5% FPR) | ⚠️ Cloud API query to HIBP (leaks partial hash range) | ⚠️ Cloud API query (Watchtower) | ❌ Requires third-party cloud plugins | ⚠️ Cloud API query |
 | **Anti-Coercion & Cryptographic Erasure** | **Duress Decoy Vault** (isolated fake vault) + **Cryptographic Erasure** (hardware key destruction + defense-in-depth file overwrite) | ❌ None (Unlocking reveals entire vault) | ❌ Travel Mode only (Requires pre-trip web setup) | ❌ None (Requires separate database file swap) | ❌ None |
 | **UI Engine & Frame Rate Lock** | **120 FPS Display Mode Lock** + Jetpack Compose Material 3 + `CrashDefense` Immortal Looper | ⚠️ Hybrid Xamarin/MAUI/Flutter | ⚠️ Electron / React Native wrapper | ⚠️ Legacy Views / XML | ⚠️ WebView / Legacy hybrid |
 | **Cost & Telemetry** | **100% Free & Open Source (Apache 2.0)**<br/>0 Ads • 0 Trackers • 0 Subscriptions | ⚠️ Freemium ($10/yr for TOTP & attachments) | ❌ $36–$60 / year recurring subscription | 🟢 Free Open Source (Donation funded) | ❌ $36 / year subscription + tracker SDKs |
@@ -75,11 +75,11 @@
 | **1. Zero-Network Air-Gap** | **Verified in CI** | `android.permission.INTERNET` omitted. Linux kernel physically rejects all socket creation attempts. |
 | **2. Post-Quantum Fortification** | **NIST FIPS 203 & 204** | Hybrid ML-KEM-768 & ML-DSA-65 Signed & Encrypted Vault Archives (`SignedEncryptedVaultArchive`). |
 | **3. Bare-Metal Rust Engine & Memory Safety** | **UniFFI JNI (4 ABIs)** | UniFFI JNI across arm64-v8a, armeabi-v7a, x86, x86_64; DirectBuffer Linux `mlock()` and `MADV_DONTDUMP` with fail-closed pinning (`allocateMandatorySecureBuffer`) + compile-time `@MustBeWiped` zeroization barriers. |
-| **4. Hardware Security Keys & Biometrics** | **Dual-Token Redundant** | `IHardwareSecurityKeyManager` with Dual-Token failover redundancy (Primary + Backup NFC/USB), StrongBox TEE biometrics, and physical hardware token challenge-response. |
+| **4. Hardware Security Keys & Biometrics** | **Dual-Token Redundant** | `IHardwareSecurityKeyManager` with Dual-Token failover redundancy (Primary + Backup NFC/USB via official YubiKit SDK and IsoDep), StrongBox TEE biometrics, and physical hardware token challenge-response. |
 | **5. Anti-Coercion & Anti-Forensics** | **Hardware Crypto-Shredding** | Duress PIN opens isolated decoy vault; panic mode executes instantaneous cryptographic erasure of session & all hardware Keystore keys (including biometric, ECDH, and AndroidX metadata MasterKey) with defense-in-depth multi-pass file overwrite. |
 | **6. Fluidity & Crash Defense** | **120 FPS Lock** | 120 FPS high-refresh rate lock; `CrashDefense` UI looper with strict fail-closed security exception propagation and pre-restart vault locking. |
-| **7. Test Quality & Verification** | **672 / 672 Passing** | **672 automated unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
-| **8. UI/UX & Human Experience** | **WCAG 2.1 AA** | `AirGapQrFountainCodec` animated QR vault sync, accessibility semantics (`Role.Button`), offline identicons, and tactile haptics. |
+| **7. Test Quality & Verification** | **695 / 695 Passing** | **695 automated unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
+| **8. UI/UX & Human Experience** | **WCAG 2.1 AA** | `AirGapQrFountainCodec` animated QR sequenced sync, accessibility semantics (`Role.Button`), offline identicons, and tactile haptics. |
 
 ---
 
@@ -100,12 +100,12 @@ Every technology listed below is 100% active and running in the production app:
 | Category | Technology | Real-World Implementation |
 |:---|:---|:---|
 | **OS & Core** | **Android 16 (API 36) & Kotlin 2.3.20** | Modern edge-to-edge architecture with compileSdk 36, targetSdk 36, and decoupled `DisplayConfigurator` / `NfcDispatcher`. |
-| **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, Argon2id, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) enforced by `cargo clippy -- -D warnings`. |
+| **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) enforced by `cargo clippy -- -D warnings`. |
 | **Interface** | **Jetpack Compose (Material 3)** | Full animated Material 3 color transitions (Light / Dark / AMOLED), interactive component showcase catalog (`KryptxComponentCatalog`), 120 FPS high-refresh rate lock (`DisplayConfigurator`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
 | **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces with thread-safe rollover re-randomization. |
 | **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration. |
-| **Hardware Security Keys** | **NFC IsoDep + USB OTG HID (YubiKey Slot 2)** | Physical challenge-response via NFC and USB HID slot-2 HMAC-SHA1 protocol (instruction `0x38`) with device-bound HMAC fallback. |
-| **Key Derivation** | **Adaptive Argon2id & PBKDF2-HMAC-SHA256** | Hardware-calibrated memory-hard key derivation (`AdaptiveKdfCalibrator`) in bare-metal Rust with 32-byte cryptographically secure salts. Uniform KDF preservation across password changes and key rotations. |
+| **Hardware Security Keys** | **Official YubiKit USB + NFC IsoDep (Slot 2)** | Physical challenge-response via official YubiKit SDK (`UsbYubiKeyDevice`, `OtpConnection` / `SmartCardConnection`) and NFC IsoDep slot-2 HMAC-SHA1 challenge-response with device-bound HMAC fallback. |
+| **Key Derivation** | **Adaptive Argon2id & PBKDF2-HMAC-SHA256** | Hardware-calibrated memory-hard key derivation (`AdaptiveKdfCalibrator`) utilizing BouncyCastle RFC 9106 Argon2id to ensure direct `CharArray` in-memory zeroization without immutable String JVM heap residency, with 32-byte cryptographically secure salts. |
 | **Post-Quantum** | **ML-KEM-768 (FIPS 203) & ML-DSA-65 (FIPS 204)** | Hybrid post-quantum key encapsulation and digital signature verification via BouncyCastle. |
 | **Persistence** | **Encrypted SQLite (WAL Mode)** | `KryptxDatabaseHelper` with zero plaintext rows, HMAC blind search indexing, and AES-256-GCM envelope encryption. |
 | **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; compile-time `@MustBeWiped` zeroization contracts and two-pass zeroization (`Arrays.fill` + Rust `zeroize`). |
@@ -149,7 +149,7 @@ graph TD;
 9.  **Fluid 120 FPS High Refresh Rate & Low-Latency UI**:
     *   **Hardware Display Lock**: Requests `preferredDisplayModeId` and `preferredRefreshRate` matching the panel's highest refresh rate (90Hz / 120Hz / 144Hz), preventing OEM downclocking under `FLAG_SECURE`.
 10. **Multi-Protocol Hardware Key Security**:
-    *   **NFC & USB OTG**: Physical YubiKey challenge-response (HMAC-SHA1 slot-2, instruction `0x38`) with IsoDep tag detection and USB HID enumeration.
+    *   **NFC & USB OTG**: Physical YubiKey challenge-response (HMAC-SHA1 slot-2) powered by the official YubiKit SDK for USB OTG (`OtpConnection` / `SmartCardConnection`) and NFC IsoDep APDU dispatch.
     *   **Device-Bound Fallback**: Cryptographically derived hardware token authentication with failover key pairing.
 11. **Cryptographic Erasure & Storage Sanitization (`EmergencyAutoDestructManager`)**:
     *   **Cryptographic Erasure (Primary Guarantee)**: Instantaneous zeroization of volatile in-memory keys from DirectByteBuffer followed by permanent destruction and verified absence of all Android Keystore keys (biometric, ECDH, and AndroidX metadata MasterKey `_androidx_security_master_key_`), unified across panic PIN and auto-destruct pathways, rendering all encrypted SQLite databases and metadata mathematically irrecoverable regardless of flash wear-leveling (FTL).
@@ -184,13 +184,13 @@ Organize your life into clean, dedicated categories:
 
 ### 🛡️ 4. Human-Centric Security Assistant
 *   **Audit Score**: A clear 0–100 score showing the health of your passwords.
-*   **Offline Breach Checker**: Built-in Bloom filter matching against leaked password databases and dictionary patterns 100% offline.
+*   **Offline Breach Checker**: Built-in Bloom filter matching against 10,000+ top compromised passwords and structural pattern heuristics (<0.5% false-positive rate) 100% offline in volatile RAM.
 *   **Guided Password Assistant**: When you have weak or reused passwords, Kryptx guides you one account at a time. It generates a high-entropy password, opens the service's `/.well-known/change-password` page in your browser, copies the password, and only saves it once you confirm.
 
 ### 🚨 5. Emergency & Anti-Coercion Protection
 *   **Duress Decoy Vault**: If forced to unlock your phone under duress, enter your secondary Duress PIN to open an innocent decoy vault with believable fake accounts.
 *   **Panic Self-Destruct**: An optional emergency wipe PIN that instantly zeroes out your cryptographic keys and shreds disk sectors.
-*   **Hardware Security Keys**: Physical YubiKey USB OTG (slot-2 HMAC-SHA1 challenge-response instruction `0x38`) and NFC IsoDep security token challenge-response support.
+*   **Hardware Security Keys**: Physical YubiKey USB OTG (official YubiKit SDK slot-2 HMAC-SHA1 challenge-response) and NFC IsoDep security token challenge-response support.
 
 ### 📦 6. Truly Portable Backups
 *   **Encrypted Backup (`.kryptx`)**: Export your entire vault encrypted with Argon2id + AES-256-GCM. You can restore this file on any Android phone running Kryptx—now or 10 years from now.
@@ -221,7 +221,7 @@ Kryptx is officially available on the Google Play Store for seamless installatio
 
 ### Run Tests & Verification
 ```bash
-# Run all unit tests (672/672 passing, 0 failures)
+# Run all unit tests (695/695 passing, 0 failures)
 ./gradlew testDebugUnitTest
 
 # Run Android Lint static security analysis

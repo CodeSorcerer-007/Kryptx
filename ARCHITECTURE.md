@@ -111,7 +111,7 @@ graph TD
 - Payloads carry 1-byte cipher discriminator tags (`0x01`, `0x02`, `0x03`) for deterministic routing.
 
 ### 4. Hardware Keystore & Biometrics
-- Master passwords derive keys through Argon2id.
+- Master passwords derive keys through BouncyCastle RFC 9106 Argon2id, engineered with direct in-place `CharArray` zeroization to completely prevent immutable `java.lang.String` JVM heap retention.
 - Biometric unlock relies on hardware-backed Android Keystore keys gated by `setUserAuthenticationRequired(true)`.
 - Keystore keys are bound to cryptographic `Cipher` instances passed directly to `BiometricPrompt.CryptoObject`.
 
@@ -120,13 +120,13 @@ graph TD
 - Searchable tokens are transformed into `HMAC-SHA256(searchKey, token)` before storage.
 - Search queries are tokenized and hashed in memory with the session HMAC key, allowing full querying without database plaintext leakage.
 
-### 6. Sovereign Air-Gapped Animated QR Fountain Sync
-- High-density animated QR code sequence codec (`AirGapQrFountainCodec`) enabling cross-device encrypted vault backups and Post-Quantum Archive transfers without network or radio protocols.
-- Sequenced fountain framing with part-level CRC32 checksums, out-of-order reassembly, and full SHA-256 payload integrity verification.
+### 6. Sovereign Air-Gapped Animated QR Sync Protocol
+- High-density sequenced animated QR code codec (`AirGapQrFountainCodec`) enabling cross-device encrypted vault backups and Post-Quantum Archive transfers without network or radio protocols.
+- Sequenced multi-frame framing protocol (`kryptx:ur:meta/` metadata frame announcing session parameters followed by `kryptx:ur:part/` payload frames) with part-level CRC32 checksums, out-of-order reassembly, and full SHA-256 payload integrity verification.
 
 ### 7. Dual-Token Hardware Security Key Redundancy
 - Implements `IHardwareSecurityKeyManager` with dual-token failover enrollment (Primary + Backup physical tokens).
-- Supports physical NFC IsoDep and USB OTG HID slot 2 (instruction `0x38`) challenge-response, with device-bound HMAC fallback.
+- Leverages the official YubiKit SDK for USB OTG (`UsbYubiKeyDevice`, `OtpConnection` / `SmartCardConnection`, `YubiOtpSession.calculateHmacSha1(Slot.TWO)`) alongside NFC IsoDep APDU slot-2 challenge-response, with device-bound HMAC fallback.
 
 ### 8. Proactive Memory Pressure Resilience
 - `CryptographicMemoryWatchdog` features multi-tiered memory pressure management.
