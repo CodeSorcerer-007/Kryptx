@@ -279,8 +279,16 @@ fun SecurityCenterScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
+                                            val bannerText = when {
+                                                r.weakCount > 0 && r.compromisedCount > 0 ->
+                                                    "Fix ${r.weakCount} weak & ${r.compromisedCount} compromised credentials"
+                                                r.compromisedCount > 0 ->
+                                                    "Fix ${r.compromisedCount} compromised credential${if (r.compromisedCount == 1) "" else "s"}"
+                                                else ->
+                                                    "Fix ${r.weakCount} weak password${if (r.weakCount == 1) "" else "s"} instantly"
+                                            }
                                             Text(
-                                                text = "Fix ${r.weakCount} weak password${if (r.weakCount == 1) "" else "s"} instantly",
+                                                text = bannerText,
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )

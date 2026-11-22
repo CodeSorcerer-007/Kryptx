@@ -268,7 +268,9 @@ object VaultImporter {
         val titleIdx = headerCols.indexOfFirst { it.contains("title") || it.contains("name") }
         val usernameIdx = headerCols.indexOfFirst { it.contains("username") || it.contains("user") || it.contains("email") || it == "login" }
         val urlIdx = headerCols.indexOfFirst { it.contains("url") || it.contains("uri") || it.contains("website") }
-        val passwordIdx = headerCols.indexOfFirst { it.contains("password") || it.contains("secret") || it.contains("pass") }
+        val passwordIdx = headerCols.indexOfFirst {
+            it == "password" || it == "pass" || it.contains("password") || it.contains("secret") || (it.contains("pass") && !it.contains("passkey"))
+        }
         val noteIdx = headerCols.indexOfFirst { it.contains("note") || it.contains("comment") }
         val totpIdx = headerCols.indexOfFirst { it.contains("totp") || it.contains("2fa") || it.contains("otp") }
         val passkeyRpIdIdx = headerCols.indexOfFirst { it.contains("passkey_rpid") || it.contains("rpid") }

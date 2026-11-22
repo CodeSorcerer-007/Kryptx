@@ -94,6 +94,7 @@ fun VaultItemDetailScreen(
     val item = items.firstOrNull { it.id == itemId }
     val securityReport by viewModel.securityReport.collectAsStateWithLifecycle()
     val itemIssues = securityReport?.issues?.filter { it.itemId == itemId } ?: emptyList()
+    val clipboardTimeout by viewModel.clipboardTimeout.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -201,7 +202,12 @@ fun VaultItemDetailScreen(
                         if (item.primarySecret.isNotBlank()) {
                             viewModel.copySecret(item.title, item.primarySecret)
                             scope.launch {
-                                snackbarHostState.showSnackbar("Secret copied! Clears automatically in 30s.")
+                                val message = if (clipboardTimeout > 0) {
+                                    "Secret copied! Clears automatically in ${clipboardTimeout}s."
+                                } else {
+                                    "Secret copied to clipboard."
+                                }
+                                snackbarHostState.showSnackbar(message)
                             }
                         } else {
                             onNavigateToEdit(item.id)

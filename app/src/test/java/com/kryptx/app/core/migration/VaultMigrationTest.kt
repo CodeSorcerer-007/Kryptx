@@ -27,6 +27,18 @@ class VaultMigrationTest {
     }
 
     @Test
+    fun testCsvImportPasskeyHeaderDoesNotCollideWithPassword() {
+        val csv = """
+            title,username,passkey_rpid,password,url
+            Google,user@gmail.com,accounts.google.com,MySecretPassword123,https://google.com
+        """.trimIndent()
+        val items = VaultImporter.importCsv(csv)
+        assertEquals(1, items.size)
+        assertEquals("MySecretPassword123", items[0].password)
+        assertEquals("accounts.google.com", items[0].passkeyRpId)
+    }
+
+    @Test
     fun testBitwardenJsonImport() {
         val sampleBitwardenJson = """
             {

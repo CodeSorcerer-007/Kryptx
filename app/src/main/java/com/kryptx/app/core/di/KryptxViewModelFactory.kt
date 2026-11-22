@@ -83,7 +83,8 @@ class KryptxViewModelFactory(
             modelClass.isAssignableFrom(SearchViewModel::class.java) -> {
                 SearchViewModel(
                     vaultRepository = deps.vaultRepository,
-                    clipboardSecurityManager = deps.clipboardManager
+                    clipboardSecurityManager = deps.clipboardManager,
+                    preferencesRepository = deps.preferencesRepository
                 ) as T
             }
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> {

@@ -3,6 +3,7 @@ package com.kryptx.app.feature.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kryptx.app.core.crypto.EntropyCalculator
+import com.kryptx.app.core.database.IPreferencesRepository
 import com.kryptx.app.core.database.VaultRepository
 import com.kryptx.app.core.model.ItemType
 import com.kryptx.app.core.model.SearchQueryParser
@@ -21,8 +22,12 @@ import kotlinx.coroutines.launch
 
 class SearchViewModel(
     private val vaultRepository: VaultRepository,
-    private val clipboardSecurityManager: IClipboardSecurityManager
+    private val clipboardSecurityManager: IClipboardSecurityManager,
+    private val preferencesRepository: IPreferencesRepository? = null
 ) : ViewModel() {
+
+    val clipboardTimeout: StateFlow<Int> = preferencesRepository?.clipboardTimeout
+        ?: MutableStateFlow(30).asStateFlow()
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
@@ -103,8 +108,8 @@ class SearchViewModel(
         _selectedFilter.value = if (_selectedFilter.value == filter) null else filter
     }
 
-    fun copySecret(label: String, secret: String) {
-        clipboardSecurityManager.copySensitiveText(label, secret, timeoutSeconds = 30)
+    fun copySecret(label: String, secret: String, timeoutSeconds: Int = clipboardTimeout.value) {
+        clipboardSecurityManager.copySensitiveText(label, secret, timeoutSeconds)
     }
 
     fun toggleFavorite(itemId: String) {

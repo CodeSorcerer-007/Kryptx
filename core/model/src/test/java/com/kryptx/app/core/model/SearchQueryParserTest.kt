@@ -66,6 +66,18 @@ class SearchQueryParserTest {
         val passkeys = SearchQueryParser.filter(items, "type:passkey")
         assertEquals(1, passkeys.size)
         assertEquals("FIDO2 Key", passkeys[0].title)
+
+        val bankItems = listOf(VaultItem(title = "Chase", type = ItemType.BANK_ACCOUNT))
+        assertEquals(1, SearchQueryParser.filter(bankItems, "type:bank").size)
+        assertEquals(1, SearchQueryParser.filter(bankItems, "type:banking").size)
+
+        val cryptoItems = listOf(VaultItem(title = "Ledger", type = ItemType.CRYPTO_WALLET))
+        assertEquals(1, SearchQueryParser.filter(cryptoItems, "type:crypto").size)
+        assertEquals(1, SearchQueryParser.filter(cryptoItems, "type:wallet").size)
+
+        val sshItems = listOf(VaultItem(title = "Id_rsa", type = ItemType.SSH_KEY))
+        assertEquals(1, SearchQueryParser.filter(sshItems, "type:ssh").size)
+        assertEquals(1, SearchQueryParser.filter(sshItems, "type:sshkey").size)
     }
 
     @Test

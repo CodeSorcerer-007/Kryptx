@@ -19,8 +19,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
 
 interface VaultCrudRepository {
     fun getItems(): Flow<List<VaultItem>>
@@ -294,13 +296,15 @@ class VaultCrudRepositoryImpl(
                 return@withContext KryptxResult.Error(KryptxErrorType.DECRYPTION_FAILED, "Wrong import password or corrupted backup file")
             }
 
-            val plaintextJson = String(decryptedBytes, Charsets.UTF_8)
-            SecureMemory.wipe(decryptedBytes)
-
             val items = try {
-                json.decodeFromString<List<VaultItem>>(plaintextJson)
+                @OptIn(ExperimentalSerializationApi::class)
+                java.io.ByteArrayInputStream(decryptedBytes).use { stream ->
+                    json.decodeFromStream<List<VaultItem>>(stream)
+                }
             } catch (e: Exception) {
                 return@withContext KryptxResult.Error(KryptxErrorType.IMPORT_PARSE_FAILED, "Backup file is corrupted or incompatible", e)
+            } finally {
+                SecureMemory.wipe(decryptedBytes)
             }
 
             importItems(items)

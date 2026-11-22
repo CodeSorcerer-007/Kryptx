@@ -58,7 +58,9 @@ object SearchQueryParser {
                         "login", "logins", "password", "passwords" -> ItemType.LOGIN
                         "passkey", "passkeys", "fido", "fido2", "webauthn" -> ItemType.PASSKEY
                         "wifi", "wi-fi" -> ItemType.WIFI
-                        "bank", "banking", "bankaccount", "crypto", "cryptowallet", "wallet", "ssh", "sshkey" -> ItemType.CUSTOM
+                        "bank", "banking", "bankaccount" -> ItemType.BANK_ACCOUNT
+                        "crypto", "cryptowallet", "wallet" -> ItemType.CRYPTO_WALLET
+                        "ssh", "sshkey" -> ItemType.SSH_KEY
                         "api", "apikey", "token" -> ItemType.API_KEY
                         "id", "identity", "identities" -> ItemType.IDENTITY
                         "custom" -> ItemType.CUSTOM

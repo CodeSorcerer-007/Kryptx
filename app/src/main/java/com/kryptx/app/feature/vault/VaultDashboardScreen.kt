@@ -333,7 +333,12 @@ fun VaultDashboardScreen(
                         onCopySecret = { favItem ->
                             viewModel.copySecret(favItem.title, favItem.primarySecret)
                             scope.launch {
-                                snackbarHostState.showSnackbar("Secret copied! Clears automatically in 30s.")
+                                val message = if (clipboardTimeoutSec > 0) {
+                                    "Secret copied! Clears automatically in ${clipboardTimeoutSec}s."
+                                } else {
+                                    "Secret copied to clipboard."
+                                }
+                                snackbarHostState.showSnackbar(message)
                             }
                         }
                     )
@@ -617,7 +622,12 @@ fun VaultDashboardScreen(
                                     onCopySecret = {
                                         viewModel.copySecret(item.title, item.primarySecret)
                                         scope.launch {
-                                            snackbarHostState.showSnackbar("Secret copied! Clears automatically in 30s.")
+                                            val message = if (clipboardTimeoutSec > 0) {
+                                                "Secret copied! Clears automatically in ${clipboardTimeoutSec}s."
+                                            } else {
+                                                "Secret copied to clipboard."
+                                            }
+                                            snackbarHostState.showSnackbar(message)
                                         }
                                     },
                                     isSelected = selectedItemIds.contains(item.id),

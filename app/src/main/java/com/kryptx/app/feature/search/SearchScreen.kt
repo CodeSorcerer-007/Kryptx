@@ -66,6 +66,7 @@ fun SearchScreen(
     val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val results by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+    val clipboardTimeout by viewModel.clipboardTimeout.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -197,7 +198,12 @@ fun SearchScreen(
                             onCopySecret = {
                                 viewModel.copySecret(item.title, item.primarySecret)
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Secret copied! Clears automatically in 30s.")
+                                    val message = if (clipboardTimeout > 0) {
+                                        "Secret copied! Clears automatically in ${clipboardTimeout}s."
+                                    } else {
+                                        "Secret copied to clipboard."
+                                    }
+                                    snackbarHostState.showSnackbar(message)
                                 }
                             }
                         )
