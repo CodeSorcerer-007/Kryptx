@@ -300,6 +300,26 @@ class EmergencyAutoDestructManager(
                 }
             }
 
+            // 5b. Overwrite & delete software fallback encryption metadata key (.sys_meta_k)
+            try {
+                val filesDir = try { context.filesDir } catch (_: Throwable) { null }
+                if (filesDir != null && filesDir.exists()) {
+                    val fallbackKey = File(filesDir, ".sys_meta_k")
+                    if (fallbackKey.exists()) {
+                        val overwritten = secureOverwriteFile(fallbackKey)
+                        val deleted = fallbackKey.delete() || !fallbackKey.exists()
+                        if (!overwritten || !deleted) {
+                            databasesPurged = false
+                            errorMessages.add("Failed to overwrite/delete fallback key .sys_meta_k")
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                databasesPurged = false
+                errorMessages.add("Failed to purge software fallback metadata key: ${t.message}")
+                SecurityLogger.warn("EmergencyAutoDestruct", "Failed to purge fallback key during wipe", t)
+            }
+
             // 6. Reset counter - handled authoritatively by sessionManager.lock()
             localFailedAttempts.set(0)
 

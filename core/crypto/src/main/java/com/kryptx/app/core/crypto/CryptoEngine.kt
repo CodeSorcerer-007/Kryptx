@@ -500,10 +500,11 @@ object CryptoEngine {
     ): CharArray {
         val encryptedBytes = Base64.getDecoder().decode(encryptedBase64)
         val decryptedBytes = decrypt(encryptedBytes, key, associatedData)
+        var charBuffer: java.nio.CharBuffer? = null
         return try {
             val decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
             val byteBuffer = ByteBuffer.wrap(decryptedBytes)
-            val charBuffer = decoder.decode(byteBuffer)
+            charBuffer = decoder.decode(byteBuffer)
             val chars = CharArray(charBuffer.remaining())
             charBuffer.get(chars)
             chars
@@ -520,7 +521,11 @@ object CryptoEngine {
                 throw IllegalArgumentException("Cannot decode decrypted bytes to CharArray")
             }
         } finally {
+            if (charBuffer != null && charBuffer.hasArray()) {
+                SecureMemory.wipe(charBuffer.array())
+            }
             SecureMemory.wipe(decryptedBytes)
+            SecureMemory.wipe(encryptedBytes)
         }
     }
 }

@@ -279,4 +279,17 @@ class CryptoEngineTest {
 
         CryptoEngine.decrypt(corrupted, key)
     }
+
+    @Test
+    fun `encryptCharArray and decryptToCharArray round-trip correctly`() {
+        val key = CryptoEngine.generateVaultKey()
+        val secretChars = "super-secret-master-password-!#%&".toCharArray()
+
+        val encryptedBase64 = CryptoEngine.encryptCharArray(secretChars, key)
+        val decryptedChars = CryptoEngine.decryptToCharArray(encryptedBase64, key)
+
+        assertTrue("Decrypted char array must match original", secretChars.contentEquals(decryptedChars))
+        SecureMemory.wipe(secretChars)
+        SecureMemory.wipe(decryptedChars)
+    }
 }

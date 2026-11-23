@@ -289,4 +289,34 @@ class EmergencyAutoDestructManagerTest {
         manager.triggerEmergencyWipe()
         assertTrue("onBeforeWipeCallback must be invoked during emergency wipe", callbackExecuted)
     }
+
+    @Test
+    fun testEmergencyWipePurgesSoftwareFallbackKeyFile() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
+
+        val tempFilesDir = java.nio.file.Files.createTempDirectory("emergency_files_test").toFile()
+        val fallbackKeyFile = java.io.File(tempFilesDir, ".sys_meta_k")
+        fallbackKeyFile.writeBytes(ByteArray(32) { 0x42 })
+
+        val fakeContext = mock(Context::class.java)
+        `when`(fakeContext.filesDir).thenReturn(tempFilesDir)
+
+        val manager = EmergencyAutoDestructManager(
+            context = fakeContext,
+            sessionManager = null,
+            keystoreManager = mockKeystoreManager,
+            maxFailedAttempts = 1,
+            isEnabled = true
+        )
+
+        try {
+            assertTrue("Fallback key file must exist before wipe", fallbackKeyFile.exists())
+            val result = manager.triggerEmergencyWipe()
+            assertTrue("Wipe must report success", result is com.kryptx.app.core.model.DestructionResult.Success)
+            assertFalse("Fallback key file .sys_meta_k must be shredded and unlinked", fallbackKeyFile.exists())
+        } finally {
+            tempFilesDir.deleteRecursively()
+        }
+    }
 }
