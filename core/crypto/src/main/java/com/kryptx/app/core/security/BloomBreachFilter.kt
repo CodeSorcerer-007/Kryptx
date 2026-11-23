@@ -62,7 +62,9 @@ class BloomBreachFilter(
             require(magic == MAGIC) { "Invalid magic bytes for bloom filter: $magic" }
             buf.get() // version
             val hashCount = buf.get().toInt() and 0xFF
+            require(hashCount in 1..20) { "Invalid bloom filter hash count: $hashCount" }
             val bitCount = buf.int
+            require(bitCount in 1024..100_000_000) { "Invalid bloom filter bit count: $bitCount" }
 
             val byteCount = (bitCount + 7) / 8
             val rawBits = ByteArray(byteCount)

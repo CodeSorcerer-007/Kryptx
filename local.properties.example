@@ -1,0 +1,9 @@
+# local.properties.example
+# Location of the Android SDK on your local machine
+sdk.dir=C:\\Users\\username\\AppData\\Local\\Android\\Sdk
+
+# Optional: Release signing configuration for local production builds
+# KRYPTX_KEYSTORE_PASSWORD=your_keystore_password
+# KRYPTX_KEY_PASSWORD=your_key_password
+# KRYPTX_KEY_ALIAS=kryptx-release
+# kryptx.release.fingerprint=C2:D1:01:03:2A:19:A9:37:8A:F3:5A:D9:5A:15:65:BA:61:2B:1A:AA:4D:4F:56:FA:33:67:AC:E9:22:F5:AA:1D

@@ -69,24 +69,17 @@ jobs:
           KRYPTX_KEY_ALIAS: ${{ secrets.KRYPTX_KEY_ALIAS }}
           KRYPTX_RELEASE_FINGERPRINT: ${{ secrets.KRYPTX_RELEASE_FINGERPRINT }}
         run: |
-          if [ -n "$KRYPTX_KEYSTORE_BASE64" ]; then
-            echo "$KRYPTX_KEYSTORE_BASE64" | base64 --decode > app/kryptx-release-key.jks
-            echo "Release keystore decoded from repository secrets."
-            echo "KRYPTX_KEYSTORE_FILE=$PWD/app/kryptx-release-key.jks" >> $GITHUB_ENV
-            [ -n "$KRYPTX_KEYSTORE_PASSWORD" ] && echo "KRYPTX_KEYSTORE_PASSWORD=$KRYPTX_KEYSTORE_PASSWORD" >> $GITHUB_ENV
-            [ -n "$KRYPTX_KEY_PASSWORD" ] && echo "KRYPTX_KEY_PASSWORD=$KRYPTX_KEY_PASSWORD" >> $GITHUB_ENV
-            [ -n "$KRYPTX_KEY_ALIAS" ] && echo "KRYPTX_KEY_ALIAS=$KRYPTX_KEY_ALIAS" >> $GITHUB_ENV
-            [ -n "$KRYPTX_RELEASE_FINGERPRINT" ] && echo "KRYPTX_RELEASE_FINGERPRINT=$KRYPTX_RELEASE_FINGERPRINT" >> $GITHUB_ENV
-          else
-            echo "KRYPTX_KEYSTORE_BASE64 not configured in secrets — generating CI signing key..."
-            keytool -genkeypair -v -keystore app/kryptx-release-key.jks -alias kryptx-release -keyalg RSA -keysize 2048 -validity 10000 -storepass "kryptx-ci-pass" -keypass "kryptx-ci-pass" -dname "CN=Kryptx CI, O=Kryptx, C=US"
-            echo "KRYPTX_KEYSTORE_FILE=$PWD/app/kryptx-release-key.jks" >> $GITHUB_ENV
-            echo "KRYPTX_KEYSTORE_PASSWORD=kryptx-ci-pass" >> $GITHUB_ENV
-            echo "KRYPTX_KEY_PASSWORD=kryptx-ci-pass" >> $GITHUB_ENV
-            echo "KRYPTX_KEY_ALIAS=kryptx-release" >> $GITHUB_ENV
-            FP=$(keytool -list -v -keystore app/kryptx-release-key.jks -alias kryptx-release -storepass "kryptx-ci-pass" | grep -i "SHA256:" | head -1 | awk '{print $2}' | tr -d ':')
-            echo "KRYPTX_RELEASE_FINGERPRINT=$FP" >> $GITHUB_ENV
+          if [ -z "$KRYPTX_KEYSTORE_BASE64" ]; then
+            echo "::error::CRITICAL: KRYPTX_KEYSTORE_BASE64 secret is not configured! Cannot produce authentic production release."
+            exit 1
           fi
+          echo "$KRYPTX_KEYSTORE_BASE64" | base64 --decode > app/kryptx-release-key.jks
+          echo "Release keystore decoded from repository secrets."
+          echo "KRYPTX_KEYSTORE_FILE=$PWD/app/kryptx-release-key.jks" >> $GITHUB_ENV
+          [ -n "$KRYPTX_KEYSTORE_PASSWORD" ] && echo "KRYPTX_KEYSTORE_PASSWORD=$KRYPTX_KEYSTORE_PASSWORD" >> $GITHUB_ENV
+          [ -n "$KRYPTX_KEY_PASSWORD" ] && echo "KRYPTX_KEY_PASSWORD=$KRYPTX_KEY_PASSWORD" >> $GITHUB_ENV
+          [ -n "$KRYPTX_KEY_ALIAS" ] && echo "KRYPTX_KEY_ALIAS=$KRYPTX_KEY_ALIAS" >> $GITHUB_ENV
+          [ -n "$KRYPTX_RELEASE_FINGERPRINT" ] && echo "KRYPTX_RELEASE_FINGERPRINT=$KRYPTX_RELEASE_FINGERPRINT" >> $GITHUB_ENV
 
       - name: Build Release APK & AAB Bundle
         run: ./gradlew :app:assembleRelease :app:bundleRelease :app:copyReleaseApk :app:copyReleaseBundle --no-daemon --stacktrace

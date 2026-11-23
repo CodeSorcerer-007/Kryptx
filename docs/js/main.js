@@ -206,10 +206,23 @@ function initFormValidation() {
           window.KryptxAnalytics.track('contact_submit', { form: form.id || 'contact_form' });
         }
 
-        // Simulate secure on-device cryptographic transmission & redirect
+        // Prepare mailto dispatch for security disclosures and direct inquiries
+        const subjectSelect = form.querySelector('#contact-subject');
+        const subjectVal = subjectSelect ? subjectSelect.value : 'General';
+        const nameVal = form.querySelector('#contact-name')?.value || 'Anonymous';
+        const emailVal = form.querySelector('#contact-email')?.value || '';
+        const msgVal = form.querySelector('#contact-message')?.value || '';
+
+        const mailSubject = encodeURIComponent(`[Kryptx ${subjectVal.toUpperCase()}] Inquiry from ${nameVal}`);
+        const mailBody = encodeURIComponent(`Sender: ${nameVal} <${emailVal}>\nTopic: ${subjectVal}\n\nDetails:\n${msgVal}`);
+
         setTimeout(() => {
-          window.location.href = 'thank-you.html';
-        }, 900);
+          // Open mail client for secure delivery, then proceed to confirmation
+          window.location.href = `mailto:security@kryptx.dev?subject=${mailSubject}&body=${mailBody}`;
+          setTimeout(() => {
+            window.location.href = 'thank-you.html';
+          }, 300);
+        }, 600);
       }
     });
 

@@ -177,6 +177,19 @@ class AttachmentManager(
         }
     }
 
+    private fun getSecureAttachmentFile(fileName: String): File {
+        val cleanName = File(fileName).name
+        if (cleanName.contains("..") || cleanName.contains("/") || cleanName.contains("\\") || cleanName.isBlank()) {
+            throw SecurityException("Invalid attachment filename: path traversal sequence detected")
+        }
+        val target = File(attachmentsDir, cleanName).canonicalFile
+        val parent = attachmentsDir.canonicalFile
+        if (target.parentFile != parent) {
+            throw SecurityException("Path traversal escape detected: $fileName")
+        }
+        return target
+    }
+
     /**
      * Decrypts an encrypted attachment and streams plaintext bytes directly into an output stream.
      */
@@ -185,7 +198,11 @@ class AttachmentManager(
         outputStream: OutputStream
     ): Boolean = withContext(Dispatchers.IO) {
         sessionManager.withVaultKey { activeVek ->
-            val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
+            val encryptedFile = try {
+                getSecureAttachmentFile(attachment.encryptedFileName)
+            } catch (_: SecurityException) {
+                return@withVaultKey false
+            }
             if (!encryptedFile.exists()) return@withVaultKey false
 
             try {
@@ -237,7 +254,11 @@ class AttachmentManager(
      * Deletes an encrypted attachment file from disk with defensive zeroization.
      */
     override suspend fun deleteAttachment(attachment: VaultAttachment): Boolean = withContext(Dispatchers.IO) {
-        val encryptedFile = File(attachmentsDir, attachment.encryptedFileName)
+        val encryptedFile = try {
+            getSecureAttachmentFile(attachment.encryptedFileName)
+        } catch (_: SecurityException) {
+            return@withContext false
+        }
         if (encryptedFile.exists()) {
             try {
                 val junk = ByteArray(encryptedFile.length().toInt().coerceAtMost(4096))

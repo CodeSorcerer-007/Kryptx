@@ -62,7 +62,8 @@ object Argon2Engine {
 
             /**
              * Automatically selects the appropriate Argon2 profile based on available JVM heap.
-             * - ≥ 512 MB heap → FLAGSHIP_EXTREME (256 MB, 4 rounds, 4 lanes) for flagship silicon
+             * Standardizes on OWASP-recommended HIGH_SECURITY (64 MB, 4 rounds) baseline for universal
+             * portability across flagship and budget devices, avoiding OutOfMemoryError on restore.
              * - ≥ 256 MB heap → HIGH_SECURITY (64 MB, 4 rounds) — OWASP recommended minimum
              * - < 256 MB heap → LOW_RAM (16 MB, 3 rounds) for Android Go / constrained devices
              *
@@ -72,7 +73,6 @@ object Argon2Engine {
             fun forDevice(): Argon2Params {
                 val maxHeapMb = Runtime.getRuntime().maxMemory() / (1024 * 1024)
                 return when {
-                    maxHeapMb >= 512 -> FLAGSHIP_EXTREME
                     maxHeapMb >= 256 -> HIGH_SECURITY
                     else -> LOW_RAM
                 }

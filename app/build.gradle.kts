@@ -333,8 +333,14 @@ tasks.register("generateRustBindings") {
     group = "rust"
     description = "Generates Kotlin bindings using Mozilla UniFFI from the kryptx_crypto crate"
     
-    val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-    val libExtension = if (isWindows) "dll" else "so"
+    val currentOs = org.gradle.internal.os.OperatingSystem.current()
+    val isWindows = currentOs.isWindows
+    val isMac = currentOs.isMacOsX
+    val libExtension = when {
+        isWindows -> "dll"
+        isMac -> "dylib"
+        else -> "so"
+    }
     val libPrefix = if (isWindows) "" else "lib"
     
     doLast {

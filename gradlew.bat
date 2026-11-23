@@ -37,18 +37,6 @@ set JAVA_EXE=%JAVA_HOME%/bin/java.exe
 
 if exist "%JAVA_EXE%" goto init
 
-if exist "C:\Program Files\Android\openjdk\jdk-21.0.8\bin\java.exe" (
-    set "JAVA_HOME=C:\Program Files\Android\openjdk\jdk-21.0.8"
-    set "JAVA_EXE=C:\Program Files\Android\openjdk\jdk-21.0.8\bin\java.exe"
-    goto init
-)
-
-if exist "C:\Program Files\Java\jdk-26.0.2\bin\java.exe" (
-    set "JAVA_HOME=C:\Program Files\Java\jdk-26.0.2"
-    set "JAVA_EXE=C:\Program Files\Java\jdk-26.0.2\bin\java.exe"
-    goto init
-)
-
 set JAVA_EXE=java.exe
 %JAVA_EXE% -version >NUL 2>&1
 if "%ERRORLEVEL%" == "0" goto init

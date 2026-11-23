@@ -21,13 +21,9 @@ object SecurityBootstrapper {
     private var isSessionAcknowledged: Boolean = false
 
     fun isCompromiseAcknowledged(context: Context): Boolean {
-        if (isSessionAcknowledged) return true
-        return try {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.getBoolean(KEY_COMPROMISE_ACKNOWLEDGED, false)
-        } catch (_: Throwable) {
-            false
-        }
+        // Enforce volatile in-memory session acknowledgement so persistent cleartext SharedPreferences
+        // cannot be exploited via ADB or root to permanently silence security compromise warnings.
+        return isSessionAcknowledged
     }
 
     fun setCompromiseAcknowledged(context: Context, acknowledged: Boolean) {
@@ -58,15 +54,11 @@ object SecurityBootstrapper {
             details.add("Build signed with test-keys")
         }
 
-        // 2. Check for common root binaries — uses the same authoritative path list as RootDetector
-        //    to prevent maintenance drift between the two scanners.
-        val paths = RootDetector.ROOT_BINARY_PATHS.toTypedArray()
-
-        for (path in paths) {
-            if (File(path).exists()) {
-                isCompromised = true
-                details.add("Found suspected root binary at $path")
-            }
+        // 2. Run active multi-indicator root detection heuristics
+        val rootStatus = RootDetector.checkDeviceSecurity()
+        if (rootStatus.isRooted || rootStatus.hasTestKeys || rootStatus.detectedIndicators.isNotEmpty()) {
+            isCompromised = true
+            details.addAll(rootStatus.detectedIndicators)
         }
 
         // 3. Check for Magisk / Zygisk / Xposed / LSPosed hooks in process maps
@@ -229,21 +221,15 @@ object SecurityBootstrapper {
                 }
             }
 
-            // If the fingerprint didn't match the upload key, check if this build was installed
-            // through the official Google Play Store (where Google Play App Signing re-signs the APK).
-            if (isInstalledFromGooglePlay(context)) {
-                Log.i(TAG, "App installed via Google Play Store (com.android.vending); Google Play App Signing verified.")
-                return true
+            // If explicit fingerprints are configured, exact match against pinned certificates is required.
+            // Sideloaded or repackaged builds cannot bypass verification by spoofing installer package names.
+            if (expectedFingerprints.isNotEmpty()) {
+                Log.w(TAG, "APK signature mismatch: certificate does not match any expected release fingerprints.")
+                return false
             }
 
             // If no explicit fingerprint was configured, well-formed signature presence is sufficient
-            if (expectedFingerprints.isEmpty()) {
-                true
-            } else {
-                // Sideloaded or repackaged build whose signature matches neither the release key nor Google Play distribution
-                Log.w(TAG, "APK signature mismatch: APK was not installed from Google Play and does not match expected release certificates.")
-                false
-            }
+            true
         } catch (_: Throwable) {
             // Fail open ONLY in non-Android mock JVM testing environments if context lacks PM
             val isPlainJvmTest = try {

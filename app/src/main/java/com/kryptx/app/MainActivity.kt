@@ -112,11 +112,15 @@ class MainActivity : FragmentActivity() {
 
         val dataUri = intent?.data
         pendingShortcutTarget = if (dataUri?.scheme == "kryptx" && dataUri.host == "recovery") {
-            val vaultId = dataUri.getQueryParameter("vault")
-            val salt = dataUri.getQueryParameter("salt")
-            val kdf = dataUri.getQueryParameter("kdf")
-            unlockViewModel.setRecoveryParameters(vaultId, salt, kdf)
-            "recovery"
+            val vaultId = dataUri.getQueryParameter("vault")?.takeIf { it.isNotBlank() && it.length <= 128 }
+            val salt = dataUri.getQueryParameter("salt")?.takeIf { it.isNotBlank() && it.length <= 256 }
+            val kdf = dataUri.getQueryParameter("kdf")?.takeIf { it.isNotBlank() && it.length <= 64 }
+            if (vaultId != null && salt != null && kdf != null) {
+                unlockViewModel.setRecoveryParameters(vaultId, salt, kdf)
+                "recovery"
+            } else {
+                null
+            }
         } else {
             intent?.getStringExtra("navigate_target")
                 ?: intent?.getStringExtra("EXTRA_QUICK_ACTION")?.lowercase()

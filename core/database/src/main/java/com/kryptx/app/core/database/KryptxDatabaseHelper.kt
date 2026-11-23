@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -730,25 +731,29 @@ open class KryptxDatabaseHelper(
 
         if (result != -1L) {
             if (item.isDeleted) {
-                val currentTrash = _trashFlow.value.toMutableList()
-                val index = currentTrash.indexOfFirst { it.id == item.id }
-                if (index >= 0) {
-                    currentTrash[index] = item
-                } else {
-                    currentTrash.add(0, item)
+                _trashFlow.update { current ->
+                    val mutable = current.toMutableList()
+                    val index = mutable.indexOfFirst { it.id == item.id }
+                    if (index >= 0) {
+                        mutable[index] = item
+                    } else {
+                        mutable.add(0, item)
+                    }
+                    mutable
                 }
-                _trashFlow.value = currentTrash
-                _itemsFlow.value = _itemsFlow.value.filter { it.id != item.id }
+                _itemsFlow.update { current -> current.filter { it.id != item.id } }
             } else {
-                val currentList = _itemsFlow.value.toMutableList()
-                val index = currentList.indexOfFirst { it.id == item.id }
-                if (index >= 0) {
-                    currentList[index] = item
-                } else {
-                    currentList.add(0, item)
+                _itemsFlow.update { current ->
+                    val mutable = current.toMutableList()
+                    val index = mutable.indexOfFirst { it.id == item.id }
+                    if (index >= 0) {
+                        mutable[index] = item
+                    } else {
+                        mutable.add(0, item)
+                    }
+                    mutable
                 }
-                _itemsFlow.value = currentList
-                _trashFlow.value = _trashFlow.value.filter { it.id != item.id }
+                _trashFlow.update { current -> current.filter { it.id != item.id } }
             }
             true
         } else {
@@ -1126,8 +1131,8 @@ open class KryptxDatabaseHelper(
         val rows = db.delete(TABLE_VAULT_ITEMS, "$COL_ID = ?", arrayOf(itemId))
         if (rows > 0) {
             searchIndex.deleteTokens(db, itemId)
-            _itemsFlow.value = _itemsFlow.value.filter { it.id != itemId }
-            _trashFlow.value = _trashFlow.value.filter { it.id != itemId }
+            _itemsFlow.update { current -> current.filter { it.id != itemId } }
+            _trashFlow.update { current -> current.filter { it.id != itemId } }
             true
         } else {
             false

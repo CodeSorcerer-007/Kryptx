@@ -85,6 +85,23 @@ object EntropyCalculator {
             entropyBits += 10.0
         }
 
+        // Passphrase heuristic: detect words separated by hyphens, spaces, or underscores
+        val pwdStr = String(password)
+        val delimiter = when {
+            pwdStr.contains('-') -> '-'
+            pwdStr.contains(' ') -> ' '
+            pwdStr.contains('_') -> '_'
+            else -> null
+        }
+        if (delimiter != null) {
+            val words = pwdStr.split(delimiter).filter { it.isNotBlank() }
+            if (words.size >= 3 && words.all { w -> w.all { c -> c.isLetter() } }) {
+                // Ground passphrase entropy in realistic dictionary search space (~12.9 bits/word for EFF)
+                val passphraseEntropy = (words.size * 13.0) + (if (words.any { it.any { c -> c.isUpperCase() } }) 10.0 else 0.0) + (words.size * 5.0)
+                entropyBits = passphraseEntropy.coerceAtMost(entropyBits).coerceAtLeast(35.0)
+            }
+        }
+
         // Sequential characters penalty (e.g. "abc", "123", "cba", "321")
         if (length >= 3) {
             var hasSequential = false
@@ -132,7 +149,7 @@ object EntropyCalculator {
             StrengthScore.WEAK -> "Weak password"
             StrengthScore.FAIR -> "Moderate security"
             StrengthScore.STRONG -> "Strong password"
-            StrengthScore.VERY_STRONG -> "Excellent military-grade strength"
+            StrengthScore.VERY_STRONG -> "Excellent cryptographic strength"
         }
 
         val crackTime = estimateCrackTime(entropyBits)
@@ -214,6 +231,23 @@ object EntropyCalculator {
             entropyBits += 10.0
         }
 
+        // Passphrase heuristic: detect words separated by hyphens, spaces, or underscores
+        val pwdStr = password
+        val delimiter = when {
+            pwdStr.contains('-') -> '-'
+            pwdStr.contains(' ') -> ' '
+            pwdStr.contains('_') -> '_'
+            else -> null
+        }
+        if (delimiter != null) {
+            val words = pwdStr.split(delimiter).filter { it.isNotBlank() }
+            if (words.size >= 3 && words.all { w -> w.all { c -> c.isLetter() } }) {
+                // Ground passphrase entropy in realistic dictionary search space (~12.9 bits/word for EFF)
+                val passphraseEntropy = (words.size * 13.0) + (if (words.any { it.any { c -> c.isUpperCase() } }) 10.0 else 0.0) + (words.size * 5.0)
+                entropyBits = passphraseEntropy.coerceAtMost(entropyBits).coerceAtLeast(35.0)
+            }
+        }
+
         // Repeating substring pattern penalty (e.g., "Abc!Abc!Abc!" or "abababab")
         // A password that is purely N repetitions of a short unit has the entropy of
         // that unit alone — not N times it.
@@ -252,7 +286,7 @@ object EntropyCalculator {
             StrengthScore.WEAK -> "Weak password"
             StrengthScore.FAIR -> "Moderate security"
             StrengthScore.STRONG -> "Strong password"
-            StrengthScore.VERY_STRONG -> "Excellent military-grade strength"
+            StrengthScore.VERY_STRONG -> "Excellent cryptographic strength"
         }
 
         val crackTime = estimateCrackTime(entropyBits)

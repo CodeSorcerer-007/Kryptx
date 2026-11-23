@@ -64,7 +64,7 @@ object DicewareWordlists {
         "aiueo", "aida", "aizu", "aen", "aozora", "akachan", "akari", "akikan",
         "akubi", "akuma", "azuki", "ashi", "ajisai", "azuma", "ase", "asoko",
         "atama", "atarashii", "atsui", "anata", "ani", "ane", "abura", "abunai",
-        "amai", "amari", "ame", "arashi", "arigatou", "aruki", "aruki", "anzen"
+        "amai", "amari", "ame", "arashi", "arigatou", "aruki", "asahi", "anzen"
     )
 
     fun getWordlist(language: WordlistLanguage = WordlistLanguage.ENGLISH): List<String> {
