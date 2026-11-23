@@ -94,8 +94,8 @@ class OfflineWebVaultGeneratorTest {
         val iv = Base64.getDecoder().decode(ivBase64)
         val ciphertext = Base64.getDecoder().decode(ciphertextBase64)
 
-        // Verify key derivation matches browser WebCrypto specification (100,000 iterations PBKDF2)
-        val derivedKey = KeyDerivation.deriveKey(pass, salt, iterations = 100_000)
+        // Verify key derivation matches browser WebCrypto specification (600,000 iterations PBKDF2 per OWASP)
+        val derivedKey = KeyDerivation.deriveKey(pass, salt, iterations = OfflineWebVaultGenerator.WEB_PBKDF2_ITERATIONS)
 
         // Recombine IV + Ciphertext for CryptoEngine.decrypt
         val combined = ByteArray(iv.size + ciphertext.size)

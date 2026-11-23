@@ -13,11 +13,12 @@ import kotlinx.serialization.json.Json
  *
  * This file allows users to view and copy their credentials on any desktop (Windows, macOS, Linux)
  * using any modern browser (Chrome, Safari, Firefox, Edge) 100% OFFLINE without any network access or server.
- * Decryption is executed strictly client-side using the W3C WebCrypto API (PBKDF2-SHA256 + AES-256-GCM).
+ * Decryption is executed strictly client-side using the W3C WebCrypto API (PBKDF2-SHA256 with 600,000 rounds + AES-256-GCM).
  */
 object OfflineWebVaultGenerator {
 
-    private const val WEB_PBKDF2_ITERATIONS = 100_000
+    /** OWASP-recommended iteration count for PBKDF2-HMAC-SHA256 (600,000 rounds), executed via WebCrypto deriveKey. */
+    const val WEB_PBKDF2_ITERATIONS = KeyDerivation.DEFAULT_ITERATIONS
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true

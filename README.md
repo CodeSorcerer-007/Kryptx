@@ -20,7 +20,7 @@
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.5.1%20(Code%2031)-FFB300?style=for-the-badge" alt="Version 2.5.1 (Code 31)" /></a>
   <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
   <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-695%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="695 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-689%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="689 Unit Tests Passed" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
@@ -58,7 +58,7 @@
 | **Post-Quantum Cryptography (PQC)** | **⚡ ML-KEM-768 & ML-DSA-65** (NIST FIPS 203 / 204 hybrid key encapsulation) | ❌ Classical RSA / ECC only | ❌ Classical SRP / ECC only | ❌ Classical AES / ChaCha20 only | ❌ Classical PBKDF2 iterations only |
 | **Dual Bare-Metal Ciphers** | **Rust Native 2024 JNI**:<br/>XChaCha20-Poly1305 + NIST AES-256-GCM | ⚠️ Single cipher (AES-256) | ⚠️ Single cipher (AES-256) | ⚠️ Single cipher (User selectable) | ⚠️ Single cipher (AES-256) |
 | **RAM Protection & Zeroization** | **DirectBuffer `mlock()` & Compile-Time Zeroization**:<br/>Direct memory pinned via `mlock()` / `MADV_DONTDUMP` (fail-closed pinning supported) + compile-time `@MustBeWiped` zeroization barriers | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ❌ Standard managed memory (Subject to OS swap & heap dumps) | ⚠️ Protected memory in desktop; unpinned on mobile | ❌ Standard managed web/app memory |
-| **Hardware Keystore Isolation** | **StrongBox TEE + ECDH P-256**:<br/>Tamper-resistant dedicated silicon module | ⚠️ Standard Android Keystore (Software fallback on some OEMs) | ⚠️ Standard Android Keystore | ❌ Password / Keyfile only (No TEE key wrapping) | ⚠️ Standard Android Keystore |
+| **Hardware Keystore Isolation** | **StrongBox TEE + ECDH P-256**:<br/>Tamper-resistant dedicated silicon module (with graceful ARM TrustZone TEE fallback) | ⚠️ Standard Android Keystore (Software fallback on some OEMs) | ⚠️ Standard Android Keystore | ❌ Password / Keyfile only (No TEE key wrapping) | ⚠️ Standard Android Keystore |
 | **Anti-Phishing Autofill Defense** | **Strict `DomainMatcher`**:<br/>Terminal segment validation rejects `evil-paypal.com` or spoofed subdomains | ⚠️ Standard domain matching | ⚠️ Standard domain matching | ❌ Manual copy-paste or third-party input helper | ⚠️ Standard domain matching |
 | **Credential Breach Checking** | **100% Offline Bloom Filter**:<br/>In-memory breach analysis with zero network leakage (100K+ entries, <0.5% FPR) | ⚠️ Cloud API query to HIBP (leaks partial hash range) | ⚠️ Cloud API query (Watchtower) | ❌ Requires third-party cloud plugins | ⚠️ Cloud API query |
 | **Anti-Coercion & Cryptographic Erasure** | **Duress Decoy Vault** (isolated fake vault) + **Cryptographic Erasure** (hardware key destruction + defense-in-depth file overwrite) | ❌ None (Unlocking reveals entire vault) | ❌ Travel Mode only (Requires pre-trip web setup) | ❌ None (Requires separate database file swap) | ❌ None |
@@ -102,10 +102,10 @@ Every technology listed below is 100% active and running in the production app:
 | **Native Engine** | **Rust 2024 & UniFFI JNI** | Bare-metal XChaCha20-Poly1305, AES-256-GCM, and Linux `mlock` RAM protection across all 4 Android ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) enforced by `cargo clippy -- -D warnings`. |
 | **Interface** | **Jetpack Compose (Material 3)** | Full animated Material 3 color transitions (Light / Dark / AMOLED), interactive component showcase catalog (`KryptxComponentCatalog`), 120 FPS high-refresh rate lock (`DisplayConfigurator`), spring physics (`KryptxMotion`), haptic feedback (`KryptxHaptics`), procedural sine-wave audio (`KryptxAudio`). |
 | **Dual Ciphers** | **Rust Native XChaCha20 + AES-256-GCM** | Native XChaCha20-Poly1305 with length-prefixed authenticated AAD framing; AES-256-GCM with NIST SP 800-38D §8.2.1 deterministic 96-bit nonces with thread-safe rollover re-randomization. |
-| **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration. |
+| **Hardware Biometrics** | **StrongBox TEE + ECDH P-256 & RSA-2048** | Hardware-isolated key wrapping with Class 3 strong biometrics, biometric enrollment invalidation, and ECDH P-256 + HKDF-SHA256 forward migration (graceful fallback to ARM TrustZone TEE). |
 | **Key Derivation** | **Adaptive Argon2id & PBKDF2-HMAC-SHA256** | Hardware-calibrated memory-hard key derivation (`AdaptiveKdfCalibrator`) utilizing BouncyCastle RFC 9106 Argon2id to ensure direct `CharArray` in-memory zeroization without immutable String JVM heap residency, with 32-byte cryptographically secure salts. |
 | **Post-Quantum** | **ML-KEM-768 (FIPS 203) & ML-DSA-65 (FIPS 204)** | Hybrid post-quantum key encapsulation and digital signature verification via BouncyCastle. |
-| **Persistence** | **Encrypted SQLite (WAL Mode)** | `KryptxDatabaseHelper` with zero plaintext rows, HMAC blind search indexing, and AES-256-GCM envelope encryption. |
+| **Persistence** | **SQLCipher 4 (Page-Level Encryption & WAL Mode)** | Page-level encrypted SQLite via SQLCipher 4 (`net.zetetic.database.sqlcipher`) with `cipher_memory_security = ON`, zero plaintext rows, HMAC blind search indexing, and dual-layer AES-256-GCM / XChaCha20 payload envelope encryption. |
 | **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; compile-time `@MustBeWiped` zeroization contracts and two-pass zeroization (`Arrays.fill` + Rust `zeroize`). |
 | **Resilience Shield** | **Enterprise `CrashDefense`** | Immortal main looper (ADR-007) preventing UI thread termination during Compose recomposition/layout, thread-level sentinels, and sanitized zero-leak telemetry. |
 | **Document Sandbox** | **Native `PdfRenderer` + `FileProvider`** | 100% offline hardware-accelerated PDF rendering with page navigation; safe read-only delegation to external viewers via secure `FileProvider`. |
@@ -171,10 +171,11 @@ Organize your life into clean, dedicated categories:
 *   Protected by `DomainMatcher` host boundaries to thwart phishing attacks.
 *   Dedicated `AutofillAuthActivity` with biometric unlock and `FLAG_SECURE` screen privacy.
 
-### ⏱️ 3. Built-In TOTP 2FA Authenticator
+### ⏱️ 3. Built-In TOTP 2FA Authenticator & Clipboard Defense
 *   Full RFC 6238 two-factor authentication built right into each login item.
 *   Smooth, continuous countdown ring with visual urgency colors.
-*   One-tap copy to clipboard.
+*   **Android 13+ Sensitive Masking**: Attaches `ClipDescription.EXTRA_IS_SENSITIVE = true` preventing Gboard and system clipboards from caching sensitive secrets into keyboard history or floating previews.
+*   **Dual Auto-Clear Ticker**: Foreground coroutine countdown ticker (configurable 10s–120s) with background `AlarmManager.RTC_WAKEUP` broadcast receiver fallback ensuring secrets are wiped even if the app is minimized.
 *   Scan QR codes offline with camera or import QR screenshots from gallery—images are decoded in volatile RAM and never saved to disk.
 
 ### 🛡️ 4. Human-Centric Security Assistant
@@ -188,7 +189,7 @@ Organize your life into clean, dedicated categories:
 
 ### 📦 6. Truly Portable Backups
 *   **Encrypted Backup (`.kryptx`)**: Export your entire vault encrypted with Argon2id + AES-256-GCM. You can restore this file on any Android phone running Kryptx—now or 10 years from now.
-*   **Offline Web Vault Companion (`.html`)**: Self-contained single-file HTML companion with client-side WebCrypto AES-GCM that opens offline in any desktop browser.
+*   **Offline Web Vault Companion (`.html`)**: Self-contained single-file HTML companion with client-side W3C WebCrypto API (OWASP-compliant 600,000 PBKDF2-SHA256 rounds + AES-256-GCM) that decrypts 100% offline in any modern desktop browser.
 *   **Emergency Recovery Kit**: Generates a clean 1-page PDF containing your unique Vault ID, Salt, and secure recovery parameters for safe-deposit box storage.
 *   **Universal Importer**: Easily switch from Bitwarden, 1Password, LastPass, Chrome, or KeePass with offline CSV/JSON auto-detection.
 
