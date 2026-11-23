@@ -44,7 +44,7 @@ jobs:
       - name: Run Unit Tests Across All Modules
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Verify Test Count (702 Expected)
+      - name: Verify Test Count (715 Expected)
         run: |
           echo "Verifying test count across all modules..."
           TOTAL=0

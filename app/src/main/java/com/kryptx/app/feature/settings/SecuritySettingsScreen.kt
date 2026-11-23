@@ -98,6 +98,9 @@ fun SecuritySettingsScreen(
     val hasPanic by viewModel.hasPanic.collectAsStateWithLifecycle()
     val autoDestructEnabled by viewModel.autoDestructEnabled.collectAsStateWithLifecycle()
     val autoDestructMaxAttempts by viewModel.autoDestructMaxAttempts.collectAsStateWithLifecycle()
+    val deadManSwitchEnabled by viewModel.deadManSwitchEnabled.collectAsStateWithLifecycle()
+    val deadManSwitchDays by viewModel.deadManSwitchDays.collectAsStateWithLifecycle()
+    var showDeadManDaysDialog by remember { mutableStateOf(false) }
     val activityEvents by viewModel.activityEvents.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -581,6 +584,86 @@ fun SecuritySettingsScreen(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Inactivity Dead Man's Switch Section
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, (if (deadManSwitchEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline).copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                        .padding(16.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background((if (deadManSwitchEnabled) MaterialTheme.colorScheme.error else KryptxAmber).copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = if (deadManSwitchEnabled) MaterialTheme.colorScheme.error else KryptxAmber,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Inactivity Dead Man's Switch",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (deadManSwitchEnabled) "Armed (Cryptographic erasure if inactive for $deadManSwitchDays days)" else "Disabled (Wipes vault if unauthenticated for extended period)",
+                                    fontSize = 12.sp,
+                                    color = if (deadManSwitchEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Switch(
+                                checked = deadManSwitchEnabled,
+                                onCheckedChange = { enabled ->
+                                    viewModel.setDeadManSwitchEnabled(enabled)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.error,
+                                    checkedTrackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
+
+                        if (deadManSwitchEnabled) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Inactivity Threshold: $deadManSwitchDays Days",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                TextButton(onClick = { showDeadManDaysDialog = true }) {
+                                    Text("Change Period", color = KryptxBlue, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -823,6 +906,60 @@ fun SecuritySettingsScreen(
                 scope.launch { snackbarHostState.showSnackbar("Audit log cleared") }
             },
             onDismiss = { showActivityLogSheet = false }
+        )
+    }
+
+    // Inactivity Dead Man's Switch Dialog
+    if (showDeadManDaysDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeadManDaysDialog = false },
+            title = { Text("Inactivity Threshold", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        "Select maximum inactive period before permanent cryptographic erasure triggers:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    listOf(14, 30, 60, 90).forEach { days ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setDeadManSwitchDays(days)
+                                    showDeadManDaysDialog = false
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = deadManSwitchDays == days,
+                                onClick = {
+                                    viewModel.setDeadManSwitchDays(days)
+                                    showDeadManDaysDialog = false
+                                },
+                                colors = RadioButtonDefaults.colors(selectedColor = KryptxBlue)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = when (days) {
+                                    14 -> "14 Days (High Risk / Operational)"
+                                    30 -> "30 Days (Standard Sovereign - Recommended)"
+                                    60 -> "60 Days (Extended Inactivity)"
+                                    else -> "90 Days (Long-Term Vault)"
+                                },
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDeadManDaysDialog = false }) {
+                    Text("Close")
+                }
+            }
         )
     }
 }

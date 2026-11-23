@@ -20,7 +20,7 @@
   <a href="https://github.com/CodeSorcerer-007/Kryptx/releases"><img src="https://img.shields.io/badge/Version-2.5.1%20(Code%2031)-FFB300?style=for-the-badge" alt="Version 2.5.1 (Code 31)" /></a>
   <a href="https://slsa.dev"><img src="https://img.shields.io/badge/SLSA-Level%202%20Provenance-blue?style=for-the-badge&logo=securityscorecards&logoColor=white" alt="SLSA Level 2" /></a>
   <a href="https://securityscorecards.dev"><img src="https://img.shields.io/badge/Scorecard-Supply%20Chain%20Hardened-brightgreen?style=for-the-badge&logo=github&logoColor=white" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-702%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="702 Unit Tests Passed" /></a>
+  <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Tests-715%20Passed%20(100%25)-00E676?style=for-the-badge&logo=android&logoColor=white" alt="715 Unit Tests Passed" /></a>
   <a href="https://github.com/CodeSorcerer-007/Kryptx"><img src="https://img.shields.io/badge/Coverage-JaCoCo%20Enforced-00D4FF?style=for-the-badge&logo=shield&logoColor=white" alt="JaCoCo Enforced" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge" alt="License" /></a>
 </p>
@@ -77,7 +77,7 @@
 | **4. Hardware Keystore & Biometrics** | **StrongBox TEE** | Class 3 strong biometrics, biometric enrollment invalidation, and StrongBox TEE key wrapping with ECDH P-256 forward migration. |
 | **5. Anti-Coercion & Anti-Forensics** | **Cryptographic Erasure** | Duress PIN opens isolated decoy vault with constant-time Argon2id timing parity; panic mode executes instantaneous cryptographic erasure of session & all hardware Keystore keys (including biometric, ECDH, and AndroidX metadata MasterKey) with defense-in-depth multi-pass file overwrite. |
 | **6. Fluidity & Crash Defense** | **120 FPS Lock** | 120 FPS high-refresh rate lock; `CrashDefense` graceful process recovery with AlarmManager-scheduled restart, strict fail-closed security exception propagation, and pre-restart vault locking. |
-| **7. Test Quality & Verification** | **702 / 702 Passing** | **702 automated unit, fuzz, and property-based tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
+| **7. Test Quality & Verification** | **715 / 715 Passing** | **715 automated unit, fuzz, and property-based tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
 | **8. UI/UX & Human Experience** | **WCAG 2.1 AA** | `AirGapQrFountainCodec` animated QR sequenced sync, accessibility semantics (`Role.Button`), offline identicons, and tactile haptics. |
 
 ---
@@ -216,7 +216,7 @@ Kryptx is officially available on the Google Play Store for seamless installatio
 
 ### Run Tests & Verification
 ```bash
-# Run all unit tests (702/702 passing, 0 failures)
+# Run all unit tests (715/715 passing, 0 failures)
 ./gradlew testDebugUnitTest
 
 # Run Android Lint static security analysis

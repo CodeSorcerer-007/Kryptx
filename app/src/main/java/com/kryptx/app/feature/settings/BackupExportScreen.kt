@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.kryptx.app.core.crypto.SecureMemory
+import com.kryptx.app.core.crypto.ShamirShare
 import com.kryptx.app.core.designsystem.components.AnimatedQrScanner
 import com.kryptx.app.core.designsystem.components.KryptxCard
 import com.kryptx.app.core.designsystem.components.KryptxOutlinedButton
@@ -102,11 +103,22 @@ fun BackupExportScreen(
     var airGapFrames by remember { mutableStateOf<List<String>>(emptyList()) }
     var showAirGapReceiverDialog by remember { mutableStateOf(false) }
 
+    // Distributed Shamir Secret Sharing state
+    var showShamirSplitDialog by remember { mutableStateOf(false) }
+    var showShamirRestoreDialog by remember { mutableStateOf(false) }
+    var shamirThreshold by remember { mutableStateOf(2) }
+    var shamirTotalShares by remember { mutableStateOf(3) }
+    var collectedShamirShares by remember { mutableStateOf<List<com.kryptx.app.core.crypto.ShamirShare>>(emptyList()) }
+    var currentShardInput by remember { mutableStateOf("") }
+    var shamirShardError by remember { mutableStateOf<String?>(null) }
+    var shamirRestoreSuccessMessage by remember { mutableStateOf<String?>(null) }
+
     // Pending export bytes — held while waiting for SAF URI to be picked
     var pendingEncryptedBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingKpqcBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingCsvBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingHtmlBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingShamirPdfFile by remember { mutableStateOf<java.io.File?>(null) }
     // Import bytes — held while the password dialog is open
     var pendingImportBytes by remember { mutableStateOf<ByteArray?>(null) }
 
@@ -117,6 +129,7 @@ fun BackupExportScreen(
             pendingCsvBytes?.let { SecureMemory.wipe(it) }
             pendingHtmlBytes?.let { SecureMemory.wipe(it) }
             pendingImportBytes?.let { SecureMemory.wipe(it) }
+            pendingShamirPdfFile?.delete()
             SecureMemory.wipe(airGapExportPasswordChars)
         }
     }
@@ -246,6 +259,32 @@ fun BackupExportScreen(
                     snackbarHostState.showSnackbar("Failed to generate PDF: ${e.message}")
                 }
             }
+        }
+    }
+
+    // Shamir Secret Sharing PDF launcher
+    val saveShamirPdfLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
+        val file = pendingShamirPdfFile
+        pendingShamirPdfFile = null
+        if (uri != null && file != null) {
+            scope.launch {
+                try {
+                    val pdfBytes = file.readBytes()
+                    val written = writeToUri(context, uri, pdfBytes)
+                    SecureMemory.wipe(pdfBytes)
+                    file.delete()
+                    snackbarHostState.showSnackbar(
+                        if (written) "Shamir Shards Recovery Kit PDF saved." else "Failed to save PDF."
+                    )
+                } catch (e: Exception) {
+                    snackbarHostState.showSnackbar("Failed to save PDF: ${e.message}")
+                }
+            }
+        } else {
+            file?.delete()
         }
     }
 
@@ -474,6 +513,62 @@ fun BackupExportScreen(
                         textColor = KryptxEmerald,
                         onClick = { showOfflineHtmlDialog = true }
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Distributed Recovery Shards (Shamir SSS)
+            KryptxCard {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = KryptxCyan,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Distributed Recovery Shards (Shamir's SSS)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Cryptographically split your emergency recovery key into k-of-n threshold shards (e.g., 2-of-3 or 3-of-5). Distribute among trusted trustees with zero risk from single shard compromise.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        KryptxOutlinedButton(
+                            text = "Split Shards (PDF)",
+                            borderColor = KryptxCyan,
+                            textColor = KryptxCyan,
+                            modifier = Modifier.weight(1f),
+                            onClick = { showShamirSplitDialog = true }
+                        )
+                        KryptxOutlinedButton(
+                            text = "Reconstruct Token",
+                            borderColor = KryptxEmerald,
+                            textColor = KryptxEmerald,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                collectedShamirShares = emptyList()
+                                currentShardInput = ""
+                                shamirShardError = null
+                                shamirRestoreSuccessMessage = null
+                                showShamirRestoreDialog = true
+                            }
+                        )
+                    }
                 }
             }
 
@@ -1101,6 +1196,299 @@ fun BackupExportScreen(
             dismissButton = {
                 TextButton(onClick = { showAirGapReceiverDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // ── Shamir Secret Sharing Dialogs ─────────────────────────────────────────
+
+    if (showShamirSplitDialog) {
+        AlertDialog(
+            onDismissRequest = { showShamirSplitDialog = false },
+            title = {
+                Text(
+                    text = "Split Emergency Recovery Key",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = "Shamir's Secret Sharing (SSS) splits your master vault recovery anchor across multiple printable cards. Any k shards can reconstruct the vault, but k-1 shards reveal mathematically zero information.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "CHOOSE SCHEME",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = KryptxCyan
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val presets = listOf(
+                        Triple(2, 3, "2 of 3 (Standard — Recommended)"),
+                        Triple(3, 5, "3 of 5 (High Resilience)"),
+                        Triple(2, 4, "2 of 4 (Multi-Custodian)")
+                    )
+
+                    presets.forEach { (k, n, label) ->
+                        val isSelected = (shamirThreshold == k && shamirTotalShares == n)
+                        KryptxCard(
+                            backgroundColor = if (isSelected) KryptxCyan.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "$k shards required to unlock, $n shards generated",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                KryptxOutlinedButton(
+                                    text = if (isSelected) "Selected" else "Select",
+                                    borderColor = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.outline,
+                                    textColor = if (isSelected) KryptxCyan else MaterialTheme.colorScheme.onSurface,
+                                    onClick = {
+                                        shamirThreshold = k
+                                        shamirTotalShares = n
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "A multi-page PDF kit will be generated with dedicated tamper-evident shard cards, custody assignments, and individual shard QR codes.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                KryptxPrimaryButton(
+                    text = "Generate Shard Kit (PDF)",
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val saltBase64 = app?.dbHelper?.getMetadata(com.kryptx.app.core.database.KryptxDatabaseHelper.KEY_SALT) ?: ""
+                                val kdfAlgo = app?.dbHelper?.getMetadata(com.kryptx.app.core.database.KryptxDatabaseHelper.KEY_KDF_ALGORITHM) ?: "argon2id"
+                                val activeVaultId = app?.vaultRepository?.getActiveVaultId() ?: "personal"
+                                val recoveryUri = "kryptx://recovery?vault=$activeVaultId&salt=$saltBase64&kdf=$kdfAlgo"
+                                val recoveryBytes = recoveryUri.toByteArray(Charsets.UTF_8)
+
+                                val tagBytes = ByteArray(8)
+                                val rawTag = activeVaultId.toByteArray(Charsets.UTF_8)
+                                System.arraycopy(rawTag, 0, tagBytes, 0, minOf(8, rawTag.size))
+
+                                val shares = com.kryptx.app.core.crypto.ShamirSecretSharing.split(
+                                    secret = recoveryBytes,
+                                    threshold = shamirThreshold,
+                                    totalShares = shamirTotalShares,
+                                    identifier = tagBytes
+                                )
+                                SecureMemory.wipe(recoveryBytes)
+
+                                val pdfFile = com.kryptx.app.core.generator.ShamirEmergencyKitGenerator.generateShamirKitPdf(
+                                    context = context,
+                                    shares = shares,
+                                    accountIdentifier = "$activeVaultId Vault"
+                                )
+                                pendingShamirPdfFile = pdfFile
+                                showShamirSplitDialog = false
+                                app?.sessionManager?.setPickerActive(true)
+                                saveShamirPdfLauncher.launch("kryptx-recovery-shards-$activeVaultId.pdf")
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Shamir split failed: ${e.message}")
+                            }
+                        }
+                    }
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showShamirSplitDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showShamirRestoreDialog) {
+        AlertDialog(
+            onDismissRequest = { showShamirRestoreDialog = false },
+            title = {
+                Text(
+                    text = "Reconstruct Secret from Shards",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = "Paste shard tokens (formatted as KSS1-...) from your recovery cards. Once the threshold is met, the recovery anchor will be mathematically reconstructed.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val requiredThreshold = collectedShamirShares.firstOrNull()?.threshold ?: 0
+                    if (collectedShamirShares.isNotEmpty()) {
+                        Text(
+                            text = "COLLECTED SHARDS (${collectedShamirShares.size} / ${if (requiredThreshold > 0) requiredThreshold else "?"})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (requiredThreshold > 0 && collectedShamirShares.size >= requiredThreshold) KryptxEmerald else KryptxCyan
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        collectedShamirShares.forEach { share ->
+                            val idHex = share.identifier.joinToString("") { "%02X".format(it) }
+                            Text(
+                                text = "• Shard #${share.index} (Threshold: ${share.threshold}/${share.totalShares}, ID: $idHex)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = KryptxEmerald
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
+                    if (shamirRestoreSuccessMessage != null) {
+                        KryptxCard(backgroundColor = KryptxEmerald.copy(alpha = 0.15f)) {
+                            Column {
+                                Text(
+                                    text = "Secret Successfully Reconstructed!",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = KryptxEmerald
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = shamirRestoreSuccessMessage ?: "",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    } else {
+                        KryptxTextField(
+                            value = currentShardInput,
+                            onValueChange = {
+                                currentShardInput = it
+                                shamirShardError = null
+                            },
+                            label = "Paste Shard String (KSS1-...)",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        shamirShardError?.let { err ->
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = err,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    val token = currentShardInput.trim()
+                                    if (token.isEmpty()) {
+                                        shamirShardError = "Please enter a shard string"
+                                        return@TextButton
+                                    }
+                                    val decoded = try {
+                                        com.kryptx.app.core.crypto.ShamirShare.fromEncodedString(token)
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                    if (decoded == null) {
+                                        shamirShardError = "Invalid shard format or corrupt CRC32 checksum"
+                                        return@TextButton
+                                    }
+                                    if (collectedShamirShares.any { it.index == decoded.index }) {
+                                        shamirShardError = "Shard #${decoded.index} is already added"
+                                        return@TextButton
+                                    }
+                                    if (collectedShamirShares.isNotEmpty()) {
+                                        val first = collectedShamirShares.first()
+                                        if (!first.identifier.contentEquals(decoded.identifier) || first.threshold != decoded.threshold) {
+                                            shamirShardError = "Shard does not match ID or threshold of previous shards"
+                                            return@TextButton
+                                        }
+                                    }
+                                    collectedShamirShares = collectedShamirShares + decoded
+                                    currentShardInput = ""
+                                    shamirShardError = null
+                                }
+                            ) {
+                                Text("Add Shard")
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                val requiredThreshold = collectedShamirShares.firstOrNull()?.threshold ?: 2
+                val canReconstruct = collectedShamirShares.size >= requiredThreshold && shamirRestoreSuccessMessage == null
+                if (canReconstruct) {
+                    KryptxPrimaryButton(
+                        text = "Reconstruct Secret",
+                        onClick = {
+                            try {
+                                val secretBytes = com.kryptx.app.core.crypto.ShamirSecretSharing.combine(collectedShamirShares)
+                                val payload = String(secretBytes, Charsets.UTF_8)
+                                SecureMemory.wipe(secretBytes)
+                                shamirRestoreSuccessMessage = payload
+                            } catch (e: Exception) {
+                                shamirShardError = "Reconstruction error: ${e.message}"
+                            }
+                        }
+                    )
+                } else if (shamirRestoreSuccessMessage != null) {
+                    KryptxPrimaryButton(
+                        text = "Done",
+                        onClick = {
+                            showShamirRestoreDialog = false
+                            shamirRestoreSuccessMessage = null
+                            collectedShamirShares = emptyList()
+                        }
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showShamirRestoreDialog = false
+                    shamirRestoreSuccessMessage = null
+                    collectedShamirShares = emptyList()
+                }) {
+                    Text("Close")
                 }
             }
         )

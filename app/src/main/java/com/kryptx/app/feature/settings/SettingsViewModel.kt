@@ -3,6 +3,8 @@ package com.kryptx.app.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kryptx.app.core.crypto.SecureMemory
+import com.kryptx.app.core.crypto.ShamirSecretSharing
+import com.kryptx.app.core.crypto.ShamirShare
 import com.kryptx.app.core.database.AppThemeMode
 import com.kryptx.app.core.database.IPreferencesRepository
 import com.kryptx.app.core.database.VaultRepository
@@ -43,6 +45,9 @@ class SettingsViewModel(
     val acousticFeedbackEnabled = preferencesRepository.acousticFeedbackEnabled
     val autoDestructEnabled = preferencesRepository.autoDestructEnabled
     val autoDestructMaxAttempts = preferencesRepository.autoDestructMaxAttempts
+    val deadManSwitchEnabled = preferencesRepository.deadManSwitchEnabled
+    val deadManSwitchDays = preferencesRepository.deadManSwitchDays
+    val lastAuthTimestamp = preferencesRepository.lastAuthTimestamp
 
     fun setAutoDestructEnabled(enabled: Boolean) {
         preferencesRepository.setAutoDestructEnabled(enabled)
@@ -50,6 +55,28 @@ class SettingsViewModel(
 
     fun setAutoDestructMaxAttempts(attempts: Int) {
         preferencesRepository.setAutoDestructMaxAttempts(attempts)
+    }
+
+    fun setDeadManSwitchEnabled(enabled: Boolean) {
+        preferencesRepository.setDeadManSwitchEnabled(enabled)
+    }
+
+    fun setDeadManSwitchDays(days: Int) {
+        preferencesRepository.setDeadManSwitchDays(days)
+    }
+
+    fun splitRecoveryPayloadIntoShards(payload: String, threshold: Int, totalShares: Int): List<ShamirShare> {
+        val bytes = payload.toByteArray(Charsets.UTF_8)
+        return ShamirSecretSharing.split(bytes, threshold = threshold, totalShares = totalShares)
+    }
+
+    fun reconstructRecoveryPayloadFromShards(shares: List<ShamirShare>): String {
+        val bytes = ShamirSecretSharing.combine(shares)
+        return try {
+            String(bytes, Charsets.UTF_8)
+        } finally {
+            SecureMemory.wipe(bytes)
+        }
     }
 
     val activityEvents: StateFlow<List<ActivityEvent>> = activityLogManager?.events

@@ -6,16 +6,16 @@ Write-Host "`n=== Kryptx Documentation Validation ===" -ForegroundColor Cyan
 Write-Host "Checking consistency across README, CHANGELOG, and docs...`n" -ForegroundColor Gray
 
 $errors = @()
-$expectedTestCount = 702
+$expectedTestCount = 715
 $expectedVersion = "2.5.1"
 $expectedVersionCode = 31
 
 # Files to check
 $files = @(
-    @{Path="README.md"; Patterns=@("702", "2.5.1", "Code 31")},
-    @{Path="CHANGELOG.md"; Patterns=@("702", "[2.5.1]", "versionCode 31")},
-    @{Path="docs\TEST_COVERAGE.md"; Patterns=@("702", "2.5.1")},
-    @{Path="scripts\verify-test-counts.ps1"; Patterns=@('$expectedCount = 702')}
+    @{Path="README.md"; Patterns=@("715", "2.5.1", "Code 31")},
+    @{Path="CHANGELOG.md"; Patterns=@("715", "[2.5.1]", "versionCode 31")},
+    @{Path="docs\TEST_COVERAGE.md"; Patterns=@("715", "2.5.1")},
+    @{Path="scripts\verify-test-counts.ps1"; Patterns=@('$expectedCount = 715')}
 )
 
 foreach ($file in $files) {

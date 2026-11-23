@@ -1,7 +1,7 @@
 # Kryptx — Comprehensive Test Coverage Report
 
 **Version:** 2.5.1  
-**Total Tests:** 702  
+**Total Tests:** 715  
 **Pass Rate:** 100% (0 failures, 0 regressions)  
 **Last Updated:** 2026-11-23
 
@@ -9,17 +9,17 @@
 
 ## Test Suite Architecture
 
-Kryptx maintains a comprehensive automated test suite spanning **5 modules** with **702 unit, fuzz, and property-based tests**:
+Kryptx maintains a comprehensive automated test suite spanning **5 modules** with **715 unit, fuzz, and property-based tests**:
 
 | Module | Test Count | Coverage Focus |
 |:---|---:|:---|
 | **app** | 209 | End-to-end integration, ViewModels, UI state, migration, backup roundtrip, architecture rules |
-| **core:crypto** | 271 | Cryptographic primitives, KDF, AEAD, zeroization, entropy, TOTP, breach detection |
+| **core:crypto** | 280 | Cryptographic primitives, KDF, AEAD, zeroization, entropy, TOTP, breach detection, Shamir's secret sharing |
 | **core:database** | 67 | SQLCipher integration, HMAC blind search index, vault CRUD operations |
 | **core:model** | 13 | Data models, passkey vault, password history, search query parsing |
-| **core:security** | 142 | Biometric coordinator, keystore management, domain matching, clipboard security, root detection |
+| **core:security** | 146 | Biometric coordinator, keystore management, domain matching, clipboard security, root detection, inactivity dead man's switch |
 
-**Total:** 702 tests  
+**Total:** 715 tests  
 **Coverage Threshold:** 70% enforced by JaCoCo with CI hard gate
 
 ---
@@ -66,7 +66,7 @@ Kryptx maintains a comprehensive automated test suite spanning **5 modules** wit
 
 ### Full Test Suite
 ```bash
-# Run all 702 tests across all modules
+# Run all 715 tests across all modules
 ./gradlew testDebugUnitTest --stacktrace
 
 # Generate JaCoCo coverage report (HTML output)
@@ -81,7 +81,7 @@ Kryptx maintains a comprehensive automated test suite spanning **5 modules** wit
 # App module only (209 tests)
 ./gradlew :app:testDebugUnitTest
 
-# Crypto core (271 tests)
+# Crypto core (280 tests)
 ./gradlew :core:crypto:testDebugUnitTest
 
 # Database core (67 tests)
@@ -90,7 +90,7 @@ Kryptx maintains a comprehensive automated test suite spanning **5 modules** wit
 # Model core (13 tests)
 ./gradlew :core:model:testDebugUnitTest
 
-# Security core (142 tests)
+# Security core (146 tests)
 ./gradlew :core:security:testDebugUnitTest
 ```
 
@@ -101,29 +101,29 @@ pwsh scripts/verify-test-counts.ps1
 
 # Expected output:
 #   app                  : 209 tests
-#   core:crypto          : 271 tests
+#   core:crypto          : 280 tests
 #   core:database        : 67 tests
 #   core:model           : 13 tests
-#   core:security        : 142 tests
+#   core:security        : 146 tests
 #   ============================================
-#   GRAND TOTAL              : 702 tests
-#   ✓ Test count verified: 702 matches expected 702
+#   GRAND TOTAL              : 715 tests
+#   ✓ Test count verified: 715 matches expected 715
 ```
 
 ---
 
 ## CI/CD Integration
 
-GitHub Actions CI automatically runs all 702 tests on every push and pull request:
+GitHub Actions CI automatically runs all 715 tests on every push and pull request:
 
 ```yaml
 - name: Run Unit Tests Across All Modules
   run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
-- name: Verify Test Count (702 Expected)
+- name: Verify Test Count (715 Expected)
   run: |
     # Automated test count validation
-    # Fails build if count drifts from expected 702
+    # Fails build if count drifts from expected 715
 ```
 
 **CI Test Reports:**
@@ -221,22 +221,22 @@ When adding/removing tests, update the following locations:
 
 1. **README.md** (Badge & Build section)
    ```markdown
-   ![Tests](https://img.shields.io/badge/Tests-702%20Passed%20(100%25)-00E676)
+   ![Tests](https://img.shields.io/badge/Tests-715%20Passed%20(100%25)-00E676)
    ```
 
 2. **CHANGELOG.md** (Latest version section)
    ```markdown
-   - **Comprehensive Verification**: 702 automated tests passing...
+   - **Comprehensive Verification**: 715 automated tests passing...
    ```
 
 3. **This File** (TEST_COVERAGE.md header)
    ```markdown
-   **Total Tests:** 702
+   **Total Tests:** 715
    ```
 
 4. **CI Verification Script** (`scripts/verify-test-counts.ps1`)
    ```powershell
-   $expectedCount = 702
+   $expectedCount = 715
    ```
 
 ### Adding New Tests

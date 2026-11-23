@@ -39,6 +39,9 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
         private const val KEY_ACOUSTIC_FEEDBACK = "acoustic_feedback_enabled"
         private const val KEY_AUTO_DESTRUCT_ENABLED = "auto_destruct_enabled"
         private const val KEY_AUTO_DESTRUCT_MAX_ATTEMPTS = "auto_destruct_max_attempts"
+        private const val KEY_DEAD_MAN_SWITCH_ENABLED = "dead_man_switch_enabled"
+        private const val KEY_DEAD_MAN_SWITCH_DAYS = "dead_man_switch_days"
+        private const val KEY_LAST_AUTH_TIMESTAMP = "last_auth_timestamp"
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -66,6 +69,15 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
 
     private val _autoDestructMaxAttempts = MutableStateFlow(prefs.getInt(KEY_AUTO_DESTRUCT_MAX_ATTEMPTS, 10))
     override val autoDestructMaxAttempts: StateFlow<Int> = _autoDestructMaxAttempts.asStateFlow()
+
+    private val _deadManSwitchEnabled = MutableStateFlow(prefs.getBoolean(KEY_DEAD_MAN_SWITCH_ENABLED, false))
+    override val deadManSwitchEnabled: StateFlow<Boolean> = _deadManSwitchEnabled.asStateFlow()
+
+    private val _deadManSwitchDays = MutableStateFlow(prefs.getInt(KEY_DEAD_MAN_SWITCH_DAYS, 30))
+    override val deadManSwitchDays: StateFlow<Int> = _deadManSwitchDays.asStateFlow()
+
+    private val _lastAuthTimestamp = MutableStateFlow(prefs.getLong(KEY_LAST_AUTH_TIMESTAMP, 0L))
+    override val lastAuthTimestamp: StateFlow<Long> = _lastAuthTimestamp.asStateFlow()
 
     private val _clipboardTimeout = MutableStateFlow(prefs.getInt(KEY_CLIPBOARD_TIMEOUT, 30))
     override val clipboardTimeout: StateFlow<Int> = _clipboardTimeout.asStateFlow()
@@ -226,6 +238,25 @@ class PreferencesRepository(context: Context) : IPreferencesRepository {
     override fun setAutoDestructMaxAttempts(attempts: Int) {
         prefs.edit().putInt(KEY_AUTO_DESTRUCT_MAX_ATTEMPTS, attempts).apply()
         _autoDestructMaxAttempts.value = attempts
+    }
+
+    override fun setDeadManSwitchEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_DEAD_MAN_SWITCH_ENABLED, enabled).apply()
+        _deadManSwitchEnabled.value = enabled
+    }
+
+    override fun setDeadManSwitchDays(days: Int) {
+        prefs.edit().putInt(KEY_DEAD_MAN_SWITCH_DAYS, days).apply()
+        _deadManSwitchDays.value = days
+    }
+
+    override fun recordAuthTimestamp(timestamp: Long) {
+        prefs.edit().putLong(KEY_LAST_AUTH_TIMESTAMP, timestamp).apply()
+        _lastAuthTimestamp.value = timestamp
+    }
+
+    override fun getLastAuthTimestamp(): Long {
+        return prefs.getLong(KEY_LAST_AUTH_TIMESTAMP, 0L)
     }
 
     override fun hasSeenFeatureIntro(featureKey: String): Boolean {

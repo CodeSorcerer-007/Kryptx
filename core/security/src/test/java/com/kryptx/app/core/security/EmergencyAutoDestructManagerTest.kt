@@ -319,4 +319,83 @@ class EmergencyAutoDestructManagerTest {
             tempFilesDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun testInactivityDeadManSwitchDisabledByDefault() {
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            isEnabled = false,
+            isDeadManSwitchEnabled = false
+        )
+        assertFalse(manager.effectiveDeadManSwitchEnabled)
+        val now = 1_700_000_000_000L
+        // 100 days later
+        assertFalse(manager.checkInactivityDeadManSwitch(now + 100L * 24 * 60 * 60 * 1000))
+    }
+
+    @Test
+    fun testInactivityDeadManSwitchInitializesOnFirstRun() {
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            isEnabled = false,
+            isDeadManSwitchEnabled = true,
+            deadManSwitchDays = 30
+        )
+        assertTrue(manager.effectiveDeadManSwitchEnabled)
+        val now = 1_700_000_000_000L
+        // First check initializes anchor and returns false
+        assertFalse(manager.checkInactivityDeadManSwitch(now))
+        // 10 days later (< 30 days) should return false
+        assertFalse(manager.checkInactivityDeadManSwitch(now + 10L * 24 * 60 * 60 * 1000))
+    }
+
+    @Test
+    fun testInactivityDeadManSwitchTriggersWhenThresholdReached() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
+
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            keystoreManager = mockKeystoreManager,
+            isEnabled = false,
+            isDeadManSwitchEnabled = true,
+            deadManSwitchDays = 14
+        )
+        val now = 1_700_000_000_000L
+        manager.recordSuccessfulAuth(now)
+
+        // 13 days later: below 14-day threshold
+        assertFalse(manager.checkInactivityDeadManSwitch(now + 13L * 24 * 60 * 60 * 1000))
+
+        // 14 days later: threshold reached
+        assertTrue(manager.checkInactivityDeadManSwitch(now + 14L * 24 * 60 * 60 * 1000))
+    }
+
+    @Test
+    fun testSuccessfulAuthResetsInactivityDeadManSwitch() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
+
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            keystoreManager = mockKeystoreManager,
+            isEnabled = false,
+            isDeadManSwitchEnabled = true,
+            deadManSwitchDays = 30
+        )
+        val t0 = 1_700_000_000_000L
+        manager.recordSuccessfulAuth(t0)
+
+        // 25 days later, auth succeeds again
+        val t1 = t0 + 25L * 24 * 60 * 60 * 1000
+        manager.recordSuccessfulAuth(t1)
+
+        // 10 days after t1 (35 days after t0): should NOT trigger because anchor was reset at t1
+        val t2 = t1 + 10L * 24 * 60 * 60 * 1000
+        assertFalse(manager.checkInactivityDeadManSwitch(t2))
+
+        // 31 days after t1: threshold reached
+        val t3 = t1 + 31L * 24 * 60 * 60 * 1000
+        assertTrue(manager.checkInactivityDeadManSwitch(t3))
+    }
 }

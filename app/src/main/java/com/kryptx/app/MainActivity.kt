@@ -89,6 +89,9 @@ class MainActivity : FragmentActivity() {
                 "Application must be KryptxApplication — check android:name in AndroidManifest.xml"
             )
 
+        // Automated Inactivity Dead Man's Switch check
+        app.emergencyAutoDestructManager.checkInactivityDeadManSwitch()
+
         val factory = com.kryptx.app.core.di.KryptxViewModelFactory(app)
         val viewModelProvider = androidx.lifecycle.ViewModelProvider(this, factory)
 

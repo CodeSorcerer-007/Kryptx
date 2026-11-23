@@ -125,6 +125,9 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
         sessionManager.addFailedAttemptListener {
             manager.onFailedAttempt()
         }
+        sessionManager.addUnlockListener {
+            manager.recordSuccessfulAuth()
+        }
     }
 
     // ── Vault repository (composed of auth, CRUD, audit, trash sub-repos) ───

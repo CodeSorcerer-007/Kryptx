@@ -18,9 +18,9 @@ Kryptx has been upgraded from **9.5/10 (Exceptional)** to **10/10 (Solid)** thro
 
 | Check | Status | Details |
 |:---|:---:|:---|
-| **Test Suite Execution** | ✅ PASS | 702/702 tests passing (100% success rate) |
+| **Test Suite Execution** | ✅ PASS | 715/715 tests passing (100% success rate) |
 | **Test Count Verification** | ✅ PASS | Verified across all 5 modules |
-| **Documentation Consistency** | ✅ PASS | Unified test count (702) across all docs |
+| **Documentation Consistency** | ✅ PASS | Unified test count (715) across all docs |
 | **Zero-Network Guarantee** | ✅ PASS | No INTERNET permission in manifest |
 | **Build Status** | ✅ PASS | Clean builds (debug + release) |
 | **Code Quality** | ✅ PASS | Android Lint: 0 errors, 0 warnings |
@@ -30,19 +30,19 @@ Kryptx has been upgraded from **9.5/10 (Exceptional)** to **10/10 (Solid)** thro
 
 ## Test Suite Breakdown
 
-### Module Test Distribution (Total: 702)
+### Module Test Distribution (Total: 715)
 
 ```
 ┌─────────────────────┬───────────┬──────────────────────────────────┐
 │ Module              │ Tests     │ Primary Focus                    │
 ├─────────────────────┼───────────┼──────────────────────────────────┤
 │ app                 │ 209 tests │ Integration, ViewModels, UI      │
-│ core:crypto         │ 271 tests │ Cryptography, KDF, AEAD          │
+│ core:crypto         │ 280 tests │ Cryptography, KDF, AEAD, Shamir  │
 │ core:database       │ 67 tests  │ SQLCipher, HMAC search           │
 │ core:model          │ 13 tests  │ Data models, passkeys            │
-│ core:security       │ 142 tests │ Biometrics, keystore, autofill   │
+│ core:security       │ 146 tests │ Biometrics, dead man's switch    │
 ├─────────────────────┼───────────┼──────────────────────────────────┤
-│ TOTAL               │ 702 tests │ 100% pass rate                   │
+│ TOTAL               │ 715 tests │ 100% pass rate                   │
 └─────────────────────┴───────────┴──────────────────────────────────┘
 ```
 

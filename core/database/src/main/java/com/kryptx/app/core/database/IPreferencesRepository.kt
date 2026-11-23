@@ -48,6 +48,9 @@ interface IPreferencesRepository {
     val biometricEnrollmentPrompted: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
     val autoDestructEnabled: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
     val autoDestructMaxAttempts: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(10)
+    val deadManSwitchEnabled: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val deadManSwitchDays: StateFlow<Int> get() = kotlinx.coroutines.flow.MutableStateFlow(30)
+    val lastAuthTimestamp: StateFlow<Long> get() = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
     fun setThemeMode(mode: AppThemeMode)
     fun setDynamicColor(enable: Boolean)
@@ -57,6 +60,10 @@ interface IPreferencesRepository {
     fun setBiometricEnrollmentPrompted(prompted: Boolean) {}
     fun setAutoDestructEnabled(enabled: Boolean) {}
     fun setAutoDestructMaxAttempts(attempts: Int) {}
+    fun setDeadManSwitchEnabled(enabled: Boolean) {}
+    fun setDeadManSwitchDays(days: Int) {}
+    fun recordAuthTimestamp(timestamp: Long = System.currentTimeMillis()) {}
+    fun getLastAuthTimestamp(): Long = 0L
     fun setClipboardTimeout(seconds: Int)
     fun setFlagSecureEnabled(enabled: Boolean)
     fun setOnboardingCompleted(completed: Boolean)

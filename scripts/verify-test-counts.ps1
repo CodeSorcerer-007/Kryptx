@@ -49,7 +49,7 @@ Write-Host "  GRAND TOTAL              : $grandTotal tests" -ForegroundColor Gre
 Write-Host "  $('=' * 44)`n" -ForegroundColor Cyan
 
 # Verify against expected count
-$expectedCount = 702
+$expectedCount = 715
 if ($grandTotal -eq $expectedCount) {
     Write-Host "Test count verified: $grandTotal matches expected $expectedCount" -ForegroundColor Green
     exit 0

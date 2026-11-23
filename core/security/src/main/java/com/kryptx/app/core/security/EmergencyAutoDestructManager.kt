@@ -35,16 +35,25 @@ class EmergencyAutoDestructManager(
     private var maxFailedAttempts: Int = 10,
     private var isEnabled: Boolean = false,
     private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null,
-    private val onBeforeWipeCallback: (() -> Unit)? = null
+    private val onBeforeWipeCallback: (() -> Unit)? = null,
+    private var isDeadManSwitchEnabled: Boolean = false,
+    private var deadManSwitchDays: Int = 30
 ) {
     private val secureRandom = SecureRandom()
     private val localFailedAttempts = java.util.concurrent.atomic.AtomicInteger(0)
+    private val localLastAuthTimestamp = java.util.concurrent.atomic.AtomicLong(0L)
 
     val effectiveEnabled: Boolean
         get() = preferencesRepository?.autoDestructEnabled?.value ?: isEnabled
 
     val effectiveMaxAttempts: Int
         get() = preferencesRepository?.autoDestructMaxAttempts?.value ?: maxFailedAttempts
+
+    val effectiveDeadManSwitchEnabled: Boolean
+        get() = preferencesRepository?.deadManSwitchEnabled?.value ?: isDeadManSwitchEnabled
+
+    val effectiveDeadManSwitchDays: Int
+        get() = preferencesRepository?.deadManSwitchDays?.value ?: deadManSwitchDays
 
     fun setEnabled(enabled: Boolean) {
         this.isEnabled = enabled
@@ -54,6 +63,16 @@ class EmergencyAutoDestructManager(
     fun setMaxFailedAttempts(attempts: Int) {
         this.maxFailedAttempts = attempts
         preferencesRepository?.setAutoDestructMaxAttempts(attempts)
+    }
+
+    fun setDeadManSwitchEnabled(enabled: Boolean) {
+        this.isDeadManSwitchEnabled = enabled
+        preferencesRepository?.setDeadManSwitchEnabled(enabled)
+    }
+
+    fun setDeadManSwitchDays(days: Int) {
+        this.deadManSwitchDays = days
+        preferencesRepository?.setDeadManSwitchDays(days)
     }
 
     data class AutoDestructState(
@@ -118,10 +137,54 @@ class EmergencyAutoDestructManager(
     }
 
     /**
-     * Resets failed attempts counter on successful auth.
+     * Resets failed attempts counter and updates timestamp anchor on successful auth.
      */
-    fun recordSuccessfulAuth() {
+    fun recordSuccessfulAuth(timestamp: Long = System.currentTimeMillis()) {
         localFailedAttempts.set(0)
+        localLastAuthTimestamp.set(timestamp)
+        preferencesRepository?.recordAuthTimestamp(timestamp)
+    }
+
+    /**
+     * Checks whether the Dead Man's Switch threshold has been reached due to prolonged inactivity.
+     * If elapsed days since the last successful authentication exceeds [effectiveDeadManSwitchDays],
+     * triggers emergency cryptographic erasure.
+     *
+     * @param currentTimeMs Current time in milliseconds (injectable for deterministic testing).
+     * @return true if dead man's switch triggered cryptographic erasure; false otherwise.
+     */
+    fun checkInactivityDeadManSwitch(currentTimeMs: Long = System.currentTimeMillis()): Boolean {
+        if (!effectiveDeadManSwitchEnabled) return false
+
+        val lastAuth = preferencesRepository?.getLastAuthTimestamp()?.takeIf { it > 0L }
+            ?: localLastAuthTimestamp.get()
+
+        if (lastAuth <= 0L) {
+            // First activation or anchor initialization
+            recordSuccessfulAuth(currentTimeMs)
+            return false
+        }
+
+        // Clock rollback detection: device system clock set backwards by > 24 hours
+        if (currentTimeMs < lastAuth - 86_400_000L) {
+            SecurityLogger.warn(
+                "EmergencyAutoDestruct",
+                "Clock rollback detected (current: $currentTimeMs, anchor: $lastAuth). Defensive posture maintained."
+            )
+        }
+
+        val elapsedMs = currentTimeMs - lastAuth
+        val elapsedDays = (elapsedMs / (1000L * 60 * 60 * 24)).toInt()
+
+        if (elapsedDays >= effectiveDeadManSwitchDays) {
+            SecurityLogger.warn(
+                "EmergencyAutoDestruct",
+                "Inactivity Dead Man's Switch triggered: $elapsedDays days inactive (limit: $effectiveDeadManSwitchDays days). Executing emergency cryptographic erasure."
+            )
+            triggerEmergencyWipe()
+            return true
+        }
+        return false
     }
 
     /**
