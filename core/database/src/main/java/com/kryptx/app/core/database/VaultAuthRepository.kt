@@ -475,9 +475,21 @@ class VaultAuthRepositoryImpl(
         val wrappedBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_BIOMETRIC_WRAPPED_VEK)
             ?: return@withContext KryptxResult.Error(KryptxErrorType.BIOMETRICS_NOT_AVAILABLE, "No biometric key stored")
         var vek: ByteArray? = null
+        val intermediateBuffer = ByteArray(64)
         try {
             val wrappedBytes = base64Decode(wrappedBase64)
-            vek = keystoreManager.unwrapWithCipher(cipher, wrappedBytes)
+            val decryptedLen = try {
+                keystoreManager.unwrapWithCipher(cipher, wrappedBytes, intermediateBuffer)
+            } catch (_: Throwable) {
+                val legacyDecrypted = keystoreManager.unwrapWithCipher(cipher, wrappedBytes)
+                System.arraycopy(legacyDecrypted, 0, intermediateBuffer, 0, legacyDecrypted.size)
+                SecureMemory.wipe(legacyDecrypted)
+                legacyDecrypted.size
+            }
+
+            vek = ByteArray(decryptedLen)
+            System.arraycopy(intermediateBuffer, 0, vek, 0, decryptedLen)
+            SecureMemory.wipe(intermediateBuffer)
 
             val dbKey = deriveSqlCipherKey(vek)
             try {
@@ -503,6 +515,7 @@ class VaultAuthRepositoryImpl(
             }
             KryptxResult.Error(KryptxErrorType.BIOMETRICS_FAILED, message, e)
         } finally {
+            SecureMemory.wipe(intermediateBuffer)
             vek?.let { SecureMemory.wipe(it) }
         }
     }

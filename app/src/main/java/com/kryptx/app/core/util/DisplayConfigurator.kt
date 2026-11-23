@@ -37,7 +37,36 @@ object DisplayConfigurator {
             val lp = window.attributes
             lp.preferredDisplayModeId = maxMode.modeId
             lp.preferredRefreshRate = maxMode.refreshRate
+
+            // Hardening against OEM aggressive battery savers (Samsung OneUI, Xiaomi MIUI/HyperOS, OnePlus)
+            // that clamp refresh rate to 60Hz under FLAG_SECURE:
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                try {
+                    val lpClass = lp.javaClass
+                    val minRateField = lpClass.getField("preferredMinDisplayRefreshRate")
+                    val maxRateField = lpClass.getField("preferredMaxDisplayRefreshRate")
+                    minRateField.setFloat(lp, maxMode.refreshRate)
+                    maxRateField.setFloat(lp, maxMode.refreshRate)
+                } catch (_: Throwable) {
+                    // Ignored on standard Android stubs where fields are internal/unexposed
+                }
+            }
             window.attributes = lp
+
+            // On Android 11+ (API 30+), attempt setting surface / view frame rate directly
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                try {
+                    val decorView = window.decorView
+                    val setFrameRateMethod = decorView.javaClass.getMethod(
+                        "setFrameRate",
+                        Float::class.javaPrimitiveType,
+                        Int::class.javaPrimitiveType
+                    )
+                    setFrameRateMethod.invoke(decorView, maxMode.refreshRate, 0)
+                } catch (_: Throwable) {
+                    // Non-fatal if decorView does not support setFrameRate
+                }
+            }
         }
     }
 }

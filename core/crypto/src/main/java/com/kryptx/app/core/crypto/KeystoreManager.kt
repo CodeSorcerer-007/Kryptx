@@ -433,6 +433,16 @@ class KeystoreManager {
     fun unwrapWithCipher(cipher: Cipher, ciphertext: ByteArray): ByteArray {
         return cipher.doFinal(ciphertext)
     }
+
+    /**
+     * Decrypts the wrapped Vault Encryption Key directly into a pre-allocated output buffer,
+     * avoiding unpinned intermediate heap byte arrays that could linger in garbage collection.
+     *
+     * @return Number of decrypted bytes written into [outputBuffer].
+     */
+    fun unwrapWithCipher(cipher: Cipher, ciphertext: ByteArray, outputBuffer: ByteArray): Int {
+        return cipher.doFinal(ciphertext, 0, ciphertext.size, outputBuffer, 0)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

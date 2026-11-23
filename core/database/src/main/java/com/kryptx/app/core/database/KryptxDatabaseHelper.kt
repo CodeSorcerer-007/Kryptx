@@ -3,6 +3,7 @@ package com.kryptx.app.core.database
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
+import android.os.Build
 import net.zetetic.database.sqlcipher.SQLiteDatabase
 import net.zetetic.database.sqlcipher.SQLiteOpenHelper
 import net.zetetic.database.sqlcipher.SQLiteDatabaseHook
@@ -297,13 +298,119 @@ open class KryptxDatabaseHelper(
         }
     }
 
-    open fun getMetadata(key: String): String? {
+    private fun stealthKeyMapping(key: String): String {
+        return when (key) {
+            KEY_DURESS_SALT -> "sys_cache_seed"
+            KEY_DURESS_TOKEN -> "sys_cache_token"
+            KEY_HAS_DURESS -> "sys_cache_enabled"
+            KryptxDbSchema.KEY_PANIC_SALT -> "sys_sync_seed"
+            KryptxDbSchema.KEY_PANIC_TOKEN -> "sys_sync_token"
+            KryptxDbSchema.KEY_PANIC_HASH -> "sys_sync_hash"
+            KryptxDbSchema.KEY_HAS_PANIC -> "sys_sync_enabled"
+            KryptxDbSchema.KEY_PANIC_KDF_ALGORITHM -> "sys_sync_alg"
+            else -> key
+        }
+    }
+
+    @Volatile
+    private var softwareFallbackKey: ByteArray? = null
+
+    private fun getOrCreateSoftwareFallbackKey(): ByteArray {
+        softwareFallbackKey?.let { return it }
+        return synchronized(this) {
+            softwareFallbackKey ?: run {
+                val key = ByteArray(32)
+                var loaded = false
+                val filesDir = try { context.filesDir } catch (_: Throwable) { null }
+                val keyFile = if (filesDir != null) File(filesDir, ".sys_meta_k") else null
+                if (keyFile != null && keyFile.exists() && keyFile.length() == 32L) {
+                    try {
+                        keyFile.inputStream().use { it.read(key) }
+                        loaded = true
+                    } catch (_: Throwable) {}
+                }
+                if (!loaded) {
+                    secureRandom.nextBytes(key)
+                    if (keyFile != null) {
+                        try {
+                            keyFile.outputStream().use { it.write(key) }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                keyFile.setReadable(false, false)
+                                keyFile.setReadable(true, true)
+                                keyFile.setWritable(false, false)
+                                keyFile.setWritable(true, true)
+                            }
+                        } catch (_: Throwable) {}
+                    }
+                }
+                softwareFallbackKey = key
+                key
+            }
+        }
+    }
+
+    private fun encryptFallbackValueIfNeeded(value: String): String {
+        if (!isDegradedStorage) return value
         return try {
-            getSecurePrefs()?.getString(key, null)
+            val key = getOrCreateSoftwareFallbackKey()
+            val iv = ByteArray(12)
+            secureRandom.nextBytes(iv)
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                javax.crypto.Cipher.ENCRYPT_MODE,
+                javax.crypto.spec.SecretKeySpec(key, "AES"),
+                javax.crypto.spec.GCMParameterSpec(128, iv)
+            )
+            val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+            val ivBase64 = java.util.Base64.getEncoder().encodeToString(iv)
+            val ctBase64 = java.util.Base64.getEncoder().encodeToString(ciphertext)
+            "enc:v1:$ivBase64:$ctBase64"
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Fallback software encryption failed", t)
+            value
+        }
+    }
+
+    private fun decryptFallbackValueIfNeeded(rawValue: String): String {
+        if (!rawValue.startsWith("enc:v1:")) return rawValue
+        return try {
+            val parts = rawValue.split(":")
+            if (parts.size != 4) return rawValue
+            val iv = java.util.Base64.getDecoder().decode(parts[2])
+            val ct = java.util.Base64.getDecoder().decode(parts[3])
+            val key = getOrCreateSoftwareFallbackKey()
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                javax.crypto.Cipher.DECRYPT_MODE,
+                javax.crypto.spec.SecretKeySpec(key, "AES"),
+                javax.crypto.spec.GCMParameterSpec(128, iv)
+            )
+            val decryptedBytes = cipher.doFinal(ct)
+            String(decryptedBytes, Charsets.UTF_8)
+        } catch (t: Throwable) {
+            com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Fallback software decryption failed", t)
+            rawValue
+        }
+    }
+
+    open fun getMetadata(key: String): String? {
+        val prefs = getSecurePrefs() ?: return null
+        val stealthKey = stealthKeyMapping(key)
+        val rawValue = try {
+            val v = prefs.getString(stealthKey, null)
+            if (v != null) {
+                v
+            } else if (stealthKey != key) {
+                prefs.getString(key, null)
+            } else {
+                null
+            }
         } catch (t: Throwable) {
             com.kryptx.app.core.security.SecurityLogger.warn("KryptxDatabaseHelper", "Failed to read secure metadata for $key", t)
             null
-        }
+        } ?: return null
+
+        return decryptFallbackValueIfNeeded(rawValue)
     }
 
     @SuppressLint("ApplySharedPref")
@@ -317,7 +424,13 @@ open class KryptxDatabaseHelper(
                 )
                 return false
             }
-            val committed = prefs.edit().putString(key, value).commit()
+            val stealthKey = stealthKeyMapping(key)
+            val storedValue = encryptFallbackValueIfNeeded(value)
+            val editor = prefs.edit().putString(stealthKey, storedValue)
+            if (stealthKey != key) {
+                editor.remove(key)
+            }
+            val committed = editor.commit()
             if (!committed) {
                 com.kryptx.app.core.security.SecurityLogger.warn(
                     "KryptxDatabaseHelper",
@@ -342,7 +455,12 @@ open class KryptxDatabaseHelper(
                 )
                 return false
             }
-            val committed = prefs.edit().remove(key).commit()
+            val stealthKey = stealthKeyMapping(key)
+            val editor = prefs.edit().remove(stealthKey)
+            if (stealthKey != key) {
+                editor.remove(key)
+            }
+            val committed = editor.commit()
             if (!committed) {
                 com.kryptx.app.core.security.SecurityLogger.warn(
                     "KryptxDatabaseHelper",
@@ -370,7 +488,12 @@ open class KryptxDatabaseHelper(
             }
             val editor = prefs.edit()
             for ((key, value) in entries) {
-                editor.putString(key, value)
+                val stealthKey = stealthKeyMapping(key)
+                val storedValue = encryptFallbackValueIfNeeded(value)
+                editor.putString(stealthKey, storedValue)
+                if (stealthKey != key) {
+                    editor.remove(key)
+                }
             }
             val committed = editor.commit()
             if (!committed) {
@@ -404,7 +527,11 @@ open class KryptxDatabaseHelper(
             }
             val editor = prefs.edit()
             for (key in keys) {
-                editor.remove(key)
+                val stealthKey = stealthKeyMapping(key)
+                editor.remove(stealthKey)
+                if (stealthKey != key) {
+                    editor.remove(key)
+                }
             }
             val committed = editor.commit()
             if (!committed) {
@@ -1332,10 +1459,21 @@ open class KryptxDatabaseHelper(
         try {
             val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
             val metaFile = File(sharedPrefsDir, "kryptx_metadata_prefs.xml")
-            metadataFileDeleted = if (metaFile.exists()) {
-                secureOverwriteAndDeleteFile(metaFile)
-            } else {
-                true
+            val fallbackMetaFile = File(sharedPrefsDir, "kryptx_metadata_prefs_fallback.xml")
+            val metaDeleted = if (metaFile.exists()) secureOverwriteAndDeleteFile(metaFile) else true
+            val fallbackDeleted = if (fallbackMetaFile.exists()) secureOverwriteAndDeleteFile(fallbackMetaFile) else true
+            metadataFileDeleted = metaDeleted && fallbackDeleted
+
+            val filesDir = try { context.filesDir } catch (_: Throwable) { null }
+            if (filesDir != null) {
+                val keyFile = File(filesDir, ".sys_meta_k")
+                if (keyFile.exists()) {
+                    secureOverwriteAndDeleteFile(keyFile)
+                }
+            }
+            synchronized(this) {
+                softwareFallbackKey?.let { com.kryptx.app.core.crypto.SecureMemory.wipe(it) }
+                softwareFallbackKey = null
             }
         } catch (_: Throwable) {
             metadataFileDeleted = false

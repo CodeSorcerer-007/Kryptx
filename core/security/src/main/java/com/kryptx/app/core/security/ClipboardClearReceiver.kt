@@ -3,6 +3,7 @@ package com.kryptx.app.core.security
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -45,10 +46,36 @@ class ClipboardClearReceiver : BroadcastReceiver() {
                         else -> true
                     }
                 } else if (hashToClear != null || textToClear != null) {
-                    // On Android 10+ (API 29+), background apps cannot inspect primaryClip.
-                    // If the clipboard cannot be read because the app is backgrounded,
-                    // proceed with clearing to guarantee confidential credential security.
-                    shouldClear = true
+                    // On Android 10+ (API 29+), background apps cannot inspect primaryClip content.
+                    // Inspect primaryClipDescription to confirm ownership and avoid wiping
+                    // non-Kryptx user data copied in other applications.
+                    val desc = try {
+                        clipboardManager.primaryClipDescription
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (desc != null) {
+                        val extras = desc.extras
+                        val clipHash = extras?.getString("kryptx_clip_hash")
+                        val clipTag = extras?.getString("kryptx_clip_tag")
+                        val targetHashHex = hashToClear?.joinToString("") { "%02x".format(it) }
+
+                        shouldClear = when {
+                            clipHash != null && targetHashHex != null -> clipHash.equals(targetHashHex, ignoreCase = true)
+                            clipTag != null -> clipTag == "kryptx_secret"
+                            extras == null && !desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) -> {
+                                // User copied a non-text item (image/file/URI) in another app -> preserve user clipboard
+                                false
+                            }
+                            else -> {
+                                // Failsafe clearing when ownership cannot be definitively refuted
+                                true
+                            }
+                        }
+                    } else {
+                        // Clipboard is empty or inaccessible
+                        shouldClear = false
+                    }
                 }
 
                 if (shouldClear) {
