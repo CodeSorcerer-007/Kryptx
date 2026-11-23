@@ -18,7 +18,10 @@ data class BackupHeader(
     val isPostQuantum: Boolean = false,
     val pqcEncapsulationBase64: String? = null,
     val checksumSha256: String? = null,
-    val hmacSha256Base64: String? = null
+    val hmacSha256Base64: String? = null,
+    val pqcSignatureBase64: String? = null,
+    val pqcSignerPublicKeyBase64: String? = null,
+    val pqcEncryptedPrivateKeyBase64: String? = null
 ) {
     companion object {
         const val CURRENT_APP_NAME = "Kryptx"

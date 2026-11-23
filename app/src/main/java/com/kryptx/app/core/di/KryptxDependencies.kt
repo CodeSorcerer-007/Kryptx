@@ -30,5 +30,4 @@ interface KryptxDependencies {
     val dbHelper: KryptxDatabaseHelper
     val activityLogManager: ActivityLogManager
     val emergencyAutoDestructManager: com.kryptx.app.core.security.EmergencyAutoDestructManager
-    val hardwareKeyManager: com.kryptx.app.core.security.IHardwareSecurityKeyManager
 }

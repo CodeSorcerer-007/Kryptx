@@ -15,7 +15,7 @@ The following features require physical device testing before shipping to the Pl
 - Verify parallel ECDH P-256 key agreement wrapping initializes and authenticates cleanly
 
 **Devices recommended**
-- Pixel 6 or newer (StrongBox + FIDO2)
+- Pixel 6 or newer (StrongBox Keystore)
 - Samsung Galaxy S series (TEE fallback)
 - Any device running Android 8.0 (API 26, minSdk) to verify fallback paths
 
@@ -66,20 +66,11 @@ The following features require physical device testing before shipping to the Pl
 
 ---
 
-## 4. Hardware Security Keys (USB OTG HID & NFC)
+## 4. Proactive Memory Pressure & Zeroization
 
 **What to test**
-- **USB-C OTG YubiKey**: Connect a YubiKey via USB-C OTG cable or direct USB-C port
-  - Open Security Settings → Enroll Hardware Security Key
-  - Tap YubiKey button when prompted → verify slot-2 HMAC-SHA1 challenge-response (instruction `0x38`) completes enrollment
-  - Lock vault and unlock with hardware key challenge
-- **NFC Token**: Tap an enrolled NFC smart card or YubiKey NFC to the back of the device
-  - Verify IsoDep APDU challenge-response completes and unlocks the vault
-- **Disconnect / Cancel**: Disconnect USB key or cancel NFC prompt → verify app falls back gracefully to Master Password without crashing
-
-**Pass criteria**
-- Real physical hardware challenge-response unlocks the vault
-- Enrolled device UID hash prevents token spoofing
+- Trigger memory pressure events via ADB (`adb shell am send-trim-memory <pid> RUNNING_CRITICAL`)
+- Verify `CryptographicMemoryWatchdog` purges volatile caches and locks the vault defensively
 
 ---
 

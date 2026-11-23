@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -66,6 +67,7 @@ import com.kryptx.app.core.designsystem.components.atmosphericTopGlow
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxCyan
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
+import com.kryptx.app.core.designsystem.theme.KryptxPurple
 import com.kryptx.app.core.designsystem.theme.KryptxRed
 import com.kryptx.app.core.migration.AirGapQrFountainCodec
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +104,7 @@ fun BackupExportScreen(
 
     // Pending export bytes — held while waiting for SAF URI to be picked
     var pendingEncryptedBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingKpqcBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingCsvBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingHtmlBytes by remember { mutableStateOf<ByteArray?>(null) }
     // Import bytes — held while the password dialog is open
@@ -110,6 +113,7 @@ fun BackupExportScreen(
     DisposableEffect(Unit) {
         onDispose {
             pendingEncryptedBytes?.let { SecureMemory.wipe(it) }
+            pendingKpqcBytes?.let { SecureMemory.wipe(it) }
             pendingCsvBytes?.let { SecureMemory.wipe(it) }
             pendingHtmlBytes?.let { SecureMemory.wipe(it) }
             pendingImportBytes?.let { SecureMemory.wipe(it) }
@@ -141,6 +145,27 @@ fun BackupExportScreen(
     }
 
     // ── SAF launchers ──────────────────────────────────────────────────────────
+
+    // Post-Quantum Signed Vault Archive (.kpqc) launcher
+    val saveKpqcLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        app?.sessionManager?.setPickerActive(false)
+        val bytes = pendingKpqcBytes
+        pendingKpqcBytes = null
+        if (uri != null && bytes != null) {
+            scope.launch {
+                val written = writeToUri(context, uri, bytes)
+                SecureMemory.wipe(bytes)
+                snackbarHostState.showSnackbar(
+                    if (written) "Post-Quantum Signed Archive (.kpqc) saved successfully."
+                    else "Failed to write .kpqc file."
+                )
+            }
+        } else {
+            bytes?.let { SecureMemory.wipe(it) }
+        }
+    }
 
     // Encrypted backup: user picks where to save the .kryptx file
     val saveEncryptedLauncher = rememberLauncherForActivityResult(
@@ -297,7 +322,7 @@ fun BackupExportScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Saves all credentials to a file protected with AES-256-GCM using an export passphrase.",
+                                text = "Saves all credentials protected with post-quantum ML-KEM-768 hybrid encryption and ML-DSA-65 signature using an export passphrase.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -309,6 +334,60 @@ fun BackupExportScreen(
                         containerColor = KryptxBlue,
                         contentColor = Color.White,
                         onClick = { showEncryptedExportDialog = true }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Post-Quantum Signed Vault Archive (.kpqc)
+            KryptxCard {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = KryptxPurple,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Post-Quantum Signed Archive (.kpqc)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "NIST FIPS 203 (ML-KEM-768) encrypted & FIPS 204 (ML-DSA-65) digitally signed binary archive for quantum immunity.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    KryptxPrimaryButton(
+                        text = "Export Post-Quantum Archive (.kpqc)",
+                        containerColor = KryptxPurple,
+                        contentColor = Color.White,
+                        onClick = {
+                            scope.launch {
+                                val bytes = viewModel.exportSignedPostQuantumArchive()
+                                if (bytes != null) {
+                                    pendingKpqcBytes = bytes
+                                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                                    app?.sessionManager?.setPickerActive(true)
+                                    try {
+                                        saveKpqcLauncher.launch("Kryptx_Vault_PQC_$timestamp.kpqc")
+                                    } catch (e: Throwable) {
+                                        app?.sessionManager?.setPickerActive(false)
+                                        snackbarHostState.showSnackbar("Unable to open file saver: ${e.message}")
+                                    }
+                                } else {
+                                    snackbarHostState.showSnackbar("Export failed — vault may be locked.")
+                                }
+                            }
+                        }
                     )
                 }
             }

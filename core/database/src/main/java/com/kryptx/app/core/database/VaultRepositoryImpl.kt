@@ -30,7 +30,7 @@ class VaultRepositoryImpl(
         preferencesRepository: IPreferencesRepository? = null,
         onEmergencyWipe: (() -> com.kryptx.app.core.model.DestructionResult)? = null
     ) : this(
-        auditRepo = VaultAuditRepositoryImpl(dbHelper, sessionManager, decoyDbHelper),
+        auditRepo = VaultAuditRepositoryImpl(dbHelper, sessionManager, decoyDbHelper, preferencesRepository),
         dbHelper = dbHelper,
         decoyDbHelper = decoyDbHelper,
         sessionManager = sessionManager,

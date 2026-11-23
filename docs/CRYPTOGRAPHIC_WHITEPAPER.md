@@ -96,16 +96,7 @@ Kryptx enforces modern Authenticated Encryption with Associated Data (AEAD) acro
 
 ---
 
-## 4. Hardware Security Keys & Challenge-Response
-
-Kryptx integrates physical second-factor security tokens for multi-factor vault protection:
-1. **Physical USB OTG (YubiKey)**: Communicates directly over USB HID using the YubiKey OTP HID protocol. Sends a 64-byte frame with slot-2 challenge-response instruction (`0x38`) to receive a hardware-computed 20-byte HMAC-SHA1 response.
-2. **NFC IsoDep Tokens**: Sends challenge APDUs directly to enrolled NFC smart cards / YubiKeys.
-3. **Device-Bound Fallback**: In environments without native HID endpoints, performs keyed HMAC-SHA256 using hardware device identifiers.
-
----
-
-## 5. Physical RAM Locking & Anti-Forensics (`mlock`)
+## 4. Physical RAM Locking & Anti-Forensics (`mlock`)
 
 To protect volatile keys from cold-boot extraction, flash wear-leveling swapping, and core dumps:
 1. Direct `ByteBuffer` allocations in native code invoke `libc::mlock(address, capacity)` to pin pages in physical memory.
@@ -114,7 +105,7 @@ To protect volatile keys from cold-boot extraction, flash wear-leveling swapping
 
 ---
 
-## 6. Decoy Duress Architecture (Plausible Deniability)
+## 5. Decoy Duress Architecture (Plausible Deniability)
 
 Under physical coercion:
 1. The user inputs their separate **Duress PIN / Password**.
@@ -125,7 +116,7 @@ Under physical coercion:
 
 ---
 
-## 7. Air-Gapped Optical Sync & Offline Web Vault
+## 6. Air-Gapped Optical Sync & Offline Web Vault
 
 1. **Air-Gapped Optical Sync**: 100% camera-and-screen transmission utilizing animated Uniform Resource (UR) QR codes. Ephemeral session keys are negotiated using hybrid ECDH / ML-KEM-768 post-quantum key agreement and authenticated with 256-bit AES-GCM payloads. Requires zero RF, Wi-Fi, Bluetooth, or local socket connections.
 2. **Offline Single-File Web Vault (`.html`)**: Self-contained client-side HTML document embedding AES-256-GCM + PBKDF2-SHA256 decryption via W3C WebCrypto API. Operates 100% offline in any modern browser without network connectivity.

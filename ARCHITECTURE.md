@@ -20,7 +20,6 @@ graph TD
 
     subgraph Delegates ["Host Coordination & Delegates"]
         BioCoord[BiometricCoordinator]
-        NfcDisp[NfcDispatcher]
         DispConfig[DisplayConfigurator]
         CrashDef[CrashDefense & Immortal Looper]
     end
@@ -61,7 +60,6 @@ graph TD
     end
 
     Activity --> BioCoord
-    Activity --> NfcDisp
     Activity --> DispConfig
     Activity --> NavGraph
     NavGraph --> AuthUI
@@ -124,11 +122,7 @@ graph TD
 - High-density sequenced animated QR code codec (`AirGapQrFountainCodec`) enabling cross-device encrypted vault backups and Post-Quantum Archive transfers without network or radio protocols.
 - Sequenced multi-frame framing protocol (`kryptx:ur:meta/` metadata frame announcing session parameters followed by `kryptx:ur:part/` payload frames) with part-level CRC32 checksums, out-of-order reassembly, and full SHA-256 payload integrity verification.
 
-### 7. Dual-Token Hardware Security Key Redundancy
-- Implements `IHardwareSecurityKeyManager` with dual-token failover enrollment (Primary + Backup physical tokens).
-- Leverages the official YubiKit SDK for USB OTG (`UsbYubiKeyDevice`, `OtpConnection` / `SmartCardConnection`, `YubiOtpSession.calculateHmacSha1(Slot.TWO)`) alongside NFC IsoDep APDU slot-2 challenge-response, with device-bound HMAC fallback.
-
-### 8. Proactive Memory Pressure Resilience
+### 7. Proactive Memory Pressure Resilience
 - `CryptographicMemoryWatchdog` features multi-tiered memory pressure management.
 - Moderate memory pressure triggers non-essential cache pruning (identicon bitmaps, QR decoders) without disrupting the active vault session.
 - Critical memory pressure executes deep zeroization (`@MustBeWiped`), defensive vault locking, and memory compaction.

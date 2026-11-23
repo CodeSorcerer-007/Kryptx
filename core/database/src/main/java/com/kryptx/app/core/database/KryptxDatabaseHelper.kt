@@ -230,14 +230,12 @@ open class KryptxDatabaseHelper(
         const val KEY_DURESS_SALT = KryptxDbSchema.KEY_DURESS_SALT
         const val KEY_DURESS_TOKEN = KryptxDbSchema.KEY_DURESS_TOKEN
         const val KEY_HAS_DURESS = KryptxDbSchema.KEY_HAS_DURESS
-        const val KEY_HARDWARE_KEY_ENROLLED = KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED
-        const val KEY_HARDWARE_KEY_UID_HASH = KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH
-        const val KEY_HARDWARE_KEY_LABEL = KryptxDbSchema.KEY_HARDWARE_KEY_LABEL
-        const val KEY_HARDWARE_KEY_CHALLENGE = KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE
         const val KEY_ACTIVE_VAULT = KryptxDbSchema.KEY_ACTIVE_VAULT
         const val KEY_KDF_ALGORITHM = KryptxDbSchema.KEY_KDF_ALGORITHM
         const val KEY_PQC_IDENTITY_PUBLIC_KEY = KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY
         const val KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT = KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT
+        const val KEY_PQC_SIGNATURE_PUBLIC_KEY = KryptxDbSchema.KEY_PQC_SIGNATURE_PUBLIC_KEY
+        const val KEY_PQC_SIGNATURE_PRIVATE_KEY_CIPHERTEXT = KryptxDbSchema.KEY_PQC_SIGNATURE_PRIVATE_KEY_CIPHERTEXT
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -473,7 +471,7 @@ open class KryptxDatabaseHelper(
     }
 
     @com.kryptx.app.core.security.RequiresVaultKey
-    suspend fun loadAllItems(vaultKey: ByteArray): List<VaultItem> = withContext(Dispatchers.IO) {
+    open suspend fun loadAllItems(vaultKey: ByteArray): List<VaultItem> = withContext(Dispatchers.IO) {
         val activeItems = mutableListOf<VaultItem>()
         val trashItems = mutableListOf<VaultItem>()
         val expiredTrashIds = mutableListOf<String>()
@@ -634,7 +632,7 @@ open class KryptxDatabaseHelper(
     /**
      * Batch-inserts multiple vault items within a single atomic SQLite transaction.
      */
-    suspend fun saveItemsBatch(items: List<VaultItem>, vaultKey: ByteArray): Int = withContext(Dispatchers.IO) {
+    open suspend fun saveItemsBatch(items: List<VaultItem>, vaultKey: ByteArray): Int = withContext(Dispatchers.IO) {
         if (items.isEmpty()) return@withContext 0
 
         val db = writableDatabase

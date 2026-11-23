@@ -20,7 +20,6 @@ import com.kryptx.app.core.security.SecurityBootstrapper
 import com.kryptx.app.core.security.SecurityLogger
 import com.kryptx.app.core.util.DisplayConfigurator
 import com.kryptx.app.feature.auth.BiometricCoordinator
-import com.kryptx.app.feature.auth.NfcDispatcher
 import com.kryptx.app.feature.auth.SecurityCompromisedActivity
 import com.kryptx.app.feature.auth.UnlockViewModel
 import com.kryptx.app.feature.generator.GeneratorViewModel
@@ -49,7 +48,6 @@ class MainActivity : FragmentActivity() {
     private lateinit var searchViewModel: SearchViewModel
     private lateinit var settingsViewModel: SettingsViewModel
 
-    private lateinit var nfcDispatcher: NfcDispatcher
     private lateinit var biometricCoordinator: BiometricCoordinator
 
     private var hasAutoPromptedBiometrics = false
@@ -111,13 +109,6 @@ class MainActivity : FragmentActivity() {
             activityLogManager = app.activityLogManager,
             unlockViewModel = unlockViewModel
         )
-
-        nfcDispatcher = NfcDispatcher(this)
-
-        // Process physical NFC security key taps on cold start
-        nfcDispatcher.extractTag(intent)?.let { tag ->
-            unlockViewModel.handleNfcTag(tag, onSuccess = {})
-        }
 
         val dataUri = intent?.data
         pendingShortcutTarget = if (dataUri?.scheme == "kryptx" && dataUri.host == "recovery") {
@@ -218,11 +209,6 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
-        // Process physical NFC security key taps
-        nfcDispatcher.extractTag(intent)?.let { tag ->
-            unlockViewModel.handleNfcTag(tag, onSuccess = {})
-        }
-
         val dataUri = intent.data
         val target = if (dataUri?.scheme == "kryptx" && dataUri.host == "recovery") {
             val vaultId = dataUri.getQueryParameter("vault")
@@ -242,7 +228,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        nfcDispatcher.onResume()
 
         try {
             unlockViewModel.checkVaultStatus()
@@ -268,7 +253,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onPause() {
         super.onPause()
-        nfcDispatcher.onPause()
 
         try {
             contextualLockManager?.stopListening()

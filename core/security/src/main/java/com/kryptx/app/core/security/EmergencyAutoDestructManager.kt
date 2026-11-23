@@ -10,11 +10,19 @@ import java.io.File
 import java.security.SecureRandom
 
 /**
- * High-Security Emergency Auto-Destruct & Self-Wipe Engine.
+ * High-Security Emergency Auto-Destruct & Cryptographic Erasure Engine.
  *
- * Provides protection against physical extraction and forced brute-force attacks by
- * securely overwriting and purging the database, attachments sandbox, and Keystore keys
- * after a configurable threshold of consecutive failed authentication attempts.
+ * Implements sovereign data destruction protecting against physical device extraction and
+ * brute-force attacks via Cryptographic Erasure (ADR-010).
+ *
+ * The primary mathematical barrier against data recovery on modern mobile flash memory (UFS / eMMC)
+ * is Cryptographic Erasure: immediate zeroization of volatile in-memory session keys followed by
+ * permanent annihilation of all hardware-isolated Android Keystore keys (biometric, ECDH, and AndroidX
+ * metadata MasterKey). Because flash controllers utilize Flash Translation Layers (FTL) with wear-leveling
+ * algorithms, user-space overwrites do not physically overwrite existing NAND cells. Destroying the hardware
+ * wrapping keys renders residual flash ciphertext computationally undecryptable and indistinguishable from random noise.
+ * Multi-pass overwriting, journal flushing, zero-truncation, and unlinking are executed as a secondary defense-in-depth
+ * barrier against logical filesystem recovery.
  *
  * IMPORTANT: This class does NOT maintain its own failed attempt counter.
  * It registers a listener on [sessionManager]'s [VaultSessionManager.recordFailedAttempt]
@@ -26,7 +34,8 @@ class EmergencyAutoDestructManager(
     private val keystoreManager: KeystoreManager? = null,
     private var maxFailedAttempts: Int = 10,
     private var isEnabled: Boolean = false,
-    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null
+    private val preferencesRepository: com.kryptx.app.core.database.IPreferencesRepository? = null,
+    private val onBeforeWipeCallback: (() -> Unit)? = null
 ) {
     private val secureRandom = SecureRandom()
     private val localFailedAttempts = java.util.concurrent.atomic.AtomicInteger(0)
@@ -130,6 +139,13 @@ class EmergencyAutoDestructManager(
         val errorMessages = mutableListOf<String>()
 
         try {
+            // 0. Cleanly close open database connections and transaction journals before file-level sanitization
+            try {
+                onBeforeWipeCallback?.invoke()
+            } catch (t: Throwable) {
+                SecurityLogger.warn("EmergencyAutoDestruct", "onBeforeWipeCallback threw an exception", t)
+            }
+
             // 1. Instantaneous Cryptographic Erasure: Zeroize volatile in-memory session keys
             sessionManager?.lock()
 
@@ -326,7 +342,7 @@ class EmergencyAutoDestructManager(
             val length = file.length()
             if (length <= 0) return true
 
-            // 3-pass in-place overwrite: random -> zeros -> random directly on existing allocated sectors
+            // 3-pass overwrite: random -> zeros -> random (defense-in-depth logical file overwrite; physical block allocation is managed by UFS/eMMC FTL)
             repeat(3) { pass ->
                 java.io.RandomAccessFile(file, "rws").use { raf ->
                     raf.seek(0L)

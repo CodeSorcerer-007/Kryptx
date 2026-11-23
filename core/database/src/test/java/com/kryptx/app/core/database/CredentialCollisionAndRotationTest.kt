@@ -308,48 +308,6 @@ class CredentialCollisionAndRotationTest {
     }
 
     @Test
-    fun testHardwareKeyEnrollmentAndRemovalRequiresMasterPasswordAuthentication() = runBlocking {
-        val challenge = ByteArray(32) { 1 }
-        val hardwareSecret = ByteArray(32) { 2 }
-        val wrongPassword = "WrongPassword999!".toCharArray()
-
-        // Attempt enrollment with wrong master password
-        val enrollFail = repository.enrollHardwareKey(
-            label = "YubiKey 5C",
-            uidHash = "hash123",
-            challenge = challenge,
-            hardwareSecret = hardwareSecret,
-            masterPassword = wrongPassword
-        )
-        assertTrue("Enrollment with wrong password must fail", enrollFail is KryptxResult.Error)
-        assertEquals(KryptxErrorType.WRONG_PASSWORD, (enrollFail as KryptxResult.Error).type)
-        assertFalse(repository.isHardwareKeyEnrolled())
-
-        // Enrollment with correct master password
-        val enrollSuccess = repository.enrollHardwareKey(
-            label = "YubiKey 5C",
-            uidHash = "hash123",
-            challenge = challenge,
-            hardwareSecret = hardwareSecret,
-            masterPassword = masterPassword
-        )
-        assertTrue("Enrollment with correct password must succeed", enrollSuccess is KryptxResult.Success)
-        assertTrue(repository.isHardwareKeyEnrolled())
-        assertEquals("YubiKey 5C", repository.getHardwareKeyLabel())
-
-        // Attempt removal with wrong password
-        val removeFail = repository.removeHardwareKey(wrongPassword)
-        assertTrue("Removal with wrong password must fail", removeFail is KryptxResult.Error)
-        assertEquals(KryptxErrorType.WRONG_PASSWORD, (removeFail as KryptxResult.Error).type)
-        assertTrue("Hardware key must remain enrolled after failed removal", repository.isHardwareKeyEnrolled())
-
-        // Removal with correct password
-        val removeSuccess = repository.removeHardwareKey(masterPassword)
-        assertTrue("Removal with correct password must succeed", removeSuccess is KryptxResult.Success)
-        assertFalse("Hardware key must be removed", repository.isHardwareKeyEnrolled())
-    }
-
-    @Test
     fun testPqcIdentityKeyPairBatchingAndZeroization() = runBlocking {
         assertNull(repository.getPqcIdentityPublicKey())
 

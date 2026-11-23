@@ -39,9 +39,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.security.crypto)
-    implementation(libs.yubikit.android)
-    implementation(libs.yubikit.core)
-    implementation(libs.yubikit.yubiotp)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)

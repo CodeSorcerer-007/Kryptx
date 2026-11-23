@@ -45,7 +45,6 @@ Kryptx requests only the minimal, hardware-isolated permissions strictly require
 |---|---|
 | `USE_BIOMETRIC` | Hardware-backed biometric authentication via Android Keystore / StrongBox TEE. |
 | `CAMERA` | Real-time optical QR code scanning for TOTP two-factor setup. Decoded in volatile RAM only; no photos or video are saved to disk. |
-| `NFC` | Contactless communication with FIDO2 / OATH-TOTP hardware security keys (e.g., YubiKey IsoDep). |
 | `BIND_AUTOFILL_SERVICE` | Enables system-level credential autofill directly into apps and browsers when authenticated. |
 | `BIND_QUICK_SETTINGS_TILE` | Provides the optional Quick Settings tile to instantly lock the vault from the notification shade. |
 

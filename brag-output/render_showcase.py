@@ -212,7 +212,7 @@ def draw_icon_refresh(draw, xy, color):
     draw.polygon([(x + 5, y - 1), (x + 10, y + 1), (x + 7, y + 4)], fill=color)
 
 # ==============================================================================
-# AUTHENTIC SCREEN 1: UnlockScreen.kt (Biometrics, Dial, YubiKey, 0-Network)
+# AUTHENTIC SCREEN 1: UnlockScreen.kt (Biometrics, Dial, Master PIN, 0-Network)
 # ==============================================================================
 def render_screen_unlock(w, h, t):
     im = Image.new("RGBA", (w, h), (9, 13, 24, 255))
@@ -266,12 +266,12 @@ def render_screen_unlock(w, h, t):
     draw.text((44, fy + 7), "Master Password", fill=COLOR_TEXT_MUTED, font=font_phone_body)
     draw.text((44, fy + 20), "●  ●  ●  ●  ●  ●  ●  ●", fill=COLOR_CYAN, font=font_phone_mono)
     
-    # Hardware Key Notification Banner (YubiKey NFC / FIDO2)
+    # Biometric Sensor Ready Banner
     hy = fy + 48
     draw.rounded_rectangle([16, hy, w - 16, hy + 40], radius=8, fill=(14, 26, 46, 255), outline=(0, 212, 255, 90), width=1)
     draw.ellipse([26, hy + 16, 32, hy + 22], fill=COLOR_CYAN)
-    draw.text((38, hy + 8), "Hardware Key Ready", fill=COLOR_CYAN, font=font_phone_sub)
-    draw.text((38, hy + 22), "YubiKey NFC Slot-2 / FIDO2 BLE", fill=COLOR_TEXT_MUTED, font=font_phone_mono)
+    draw.text((38, hy + 8), "StrongBox Biometric Ready", fill=COLOR_CYAN, font=font_phone_sub)
+    draw.text((38, hy + 22), "Class-3 Fingerprint Sensor Active", fill=COLOR_TEXT_MUTED, font=font_phone_mono)
     
     # Primary Unlock Button
     by = hy + 50
@@ -613,7 +613,7 @@ def render_left_panel_overlay(scene_id, t, enter_offset=0):
         
         desc = ("Zero sockets. Zero telemetry. Zero servers to breach. The Android\n"
                 "Linux kernel physically blocks network sockets at system level.\n"
-                "StrongBox TEE biometrics and physical YubiKeys guard your vault.")
+                "StrongBox TEE biometrics and hardware Keystore guard your vault.")
         draw.text((lx, ly + 132), desc, fill=COLOR_TEXT_MUTED, font=font_card_body)
         
         # Spec Card 1
@@ -627,8 +627,8 @@ def render_left_panel_overlay(scene_id, t, enter_offset=0):
         c2_y = c1_y + 80
         draw.rounded_rectangle([lx, c2_y, lx + 540, c2_y + 68], radius=10, fill=COLOR_CARD_BG, outline=COLOR_CARD_BORDER, width=1)
         draw.ellipse([lx + 18, c2_y + 18, lx + 30, c2_y + 30], fill=COLOR_CYAN)
-        draw.text((lx + 42, c2_y + 12), "StrongBox TEE Biometrics & Hardware YubiKey", fill=COLOR_TEXT_WHITE, font=font_card_title)
-        draw.text((lx + 42, c2_y + 34), "Instant Class-3 fingerprint authentication with hardware-backed Keystore,\nplus physical YubiKey NFC (HMAC-SHA1 Slot 2) and FIDO2 BLE security keys.", fill=COLOR_TEXT_MUTED, font=font_card_body)
+        draw.text((lx + 42, c2_y + 12), "StrongBox TEE Biometrics & Hardware Keystore", fill=COLOR_TEXT_WHITE, font=font_card_title)
+        draw.text((lx + 42, c2_y + 34), "Instant Class-3 fingerprint authentication with hardware-backed Keystore\nand StrongBox TEE tamper-resistant cryptographic key isolation.", fill=COLOR_TEXT_MUTED, font=font_card_body)
 
     elif scene_id == 2:
         # Sovereign Vault Dashboard

@@ -50,10 +50,6 @@ object KryptxDbSchema {
     const val KEY_DURESS_SALT = "duress_kdf_salt"
     const val KEY_DURESS_TOKEN = "duress_verification_token"
     const val KEY_HAS_DURESS = "has_duress_setup"
-    const val KEY_HARDWARE_KEY_ENROLLED = "hardware_key_enrolled"
-    const val KEY_HARDWARE_KEY_UID_HASH = "hardware_key_uid_hash"
-    const val KEY_HARDWARE_KEY_LABEL = "hardware_key_label"
-    const val KEY_HARDWARE_KEY_CHALLENGE = "hardware_key_challenge"
     const val KEY_ACTIVE_VAULT = "active_vault_id"
     const val KEY_KDF_ALGORITHM = "kdf_algorithm"
     const val KEY_ARGON2_MEMORY_KB = "argon2_memory_kb"
@@ -61,11 +57,8 @@ object KryptxDbSchema {
     const val KEY_ARGON2_PARALLELISM = "argon2_parallelism"
     const val KEY_PQC_IDENTITY_PUBLIC_KEY = "pqc_identity_public_key"
     const val KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT = "pqc_identity_private_key_ct"
-
-    // Hardware-key-specific encrypted VEK — stored separately from the password-only token
-    // so that enrolling a hardware key never overwrites the password-only recovery path.
-    const val KEY_HW_SALT = "hw_kdf_salt"
-    const val KEY_HW_VERIFICATION_TOKEN = "hw_verification_token"
+    const val KEY_PQC_SIGNATURE_PUBLIC_KEY = "pqc_signature_public_key"
+    const val KEY_PQC_SIGNATURE_PRIVATE_KEY_CIPHERTEXT = "pqc_signature_private_key_ct"
 
     // Panic PIN metadata keys
     const val KEY_PANIC_SALT = "panic_salt"

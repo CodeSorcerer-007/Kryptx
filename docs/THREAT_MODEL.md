@@ -95,7 +95,6 @@ The architecture adheres to three foundational tenets:
   - **Auto-Lock Engine**: Immediate lock on app backgrounding, screen off, or inactivity timeout, with a 700ms debounce to absorb orientation and foldable device changes safely.
   - **Progressive Throttling**: Exponential backoff delay (10s after 3, 30s after 5, 2m after 8, 5m after 10, 10m after 15, and 15m hard cap after 20+ attempts) persisted across app restarts to halt manual and automated brute forcing.
   - **Decoy Duress Partition**: Entering the secondary Duress PIN/password unlocks an isolated `decoy_vault_items` table pre-provisioned with realistic decoy records (Netflix, Spotify, Amazon, Home Wi-Fi). The real vault is never referenced in memory.
-  - **Hardware Security Key / NFC & USB OTG**: Multi-factor authentication requiring an enrolled physical NFC tag (IsoDep) or USB OTG hardware token (YubiKey slot-2 HMAC-SHA1 challenge-response instruction `0x38`).
 - **Residual Risk**: A physical attacker who steals the device while unlocked and maintains foreground activity has access until the auto-lock timer elapses or the app is backgrounded.
 
 ---
@@ -110,6 +109,12 @@ The architecture adheres to three foundational tenets:
   - **AAD Tamper Binding**: The `itemId` is bound as Associated Authenticated Data, preventing ciphertext row-swapping.
   - **Defensive Row Overwrite**: Trashed items are overwritten with random bytes prior to SQLite `DELETE`.
   - **Encrypted Document Attachments**: Attachments are stored as `$UUID.enc` using chunked AES-256-GCM with opaque names on disk.
+  - **Cryptographic Erasure Over Physical Shredding (ADR-010)**:
+    - On modern Android devices with UFS/eMMC storage, the internal Flash Translation Layer (FTL) uses wear-leveling algorithms that redirect user-space writes to newly allocated flash blocks rather than physically overwriting existing NAND cells.
+    - Relying on physical file overwrite alone on modern NAND is an illusion.
+    - Kryptx enforces **Cryptographic Erasure** as the primary security barrier: immediate volatile key zeroization plus permanent annihilation of all hardware Android Keystore aliases (biometric wrapping, ECDH, and AndroidX Security MasterKey).
+    - Without the hardware keys, all residual ciphertext blocks scattered across the physical flash blocks remain computationally unbreakable and indistinguishable from random noise (AES-256-GCM / Argon2id).
+    - Multi-pass file overwriting (`RandomAccessFile("rws")`), sync, and unlinking operate as secondary defense-in-depth against logical filesystem recovery.
 - **Residual Risk & Platform Reality**: Raw flash filesystem dumps can inspect total database file size, SQLite freelist pages, and filesystem journal remnants. Plausible deniability is an application-level defense against coerced inspection, not a mathematical guarantee against deep wear-leveling flash-controller forensics.
 
 ---
@@ -124,8 +129,6 @@ The architecture adheres to three foundational tenets:
 | **Advanced KDF** | Argon2id (RFC 9106 v1.3) | 16 MB memory, 3 passes, 1 lane | Memory-hard ASIC/FPGA-resistant key derivation in bare-metal Rust |
 | **Biometric Key Wrapping (ECDH)** | ECDH P-256 + HKDF-SHA256 (RFC 5869) | secp256r1, 256-bit shared secret, AES-GCM | StrongBox-backed hardware key agreement for biometric VEK wrapping |
 | **Biometric Key Wrapping (Asymmetric)** | RSA-2048 OAEP SHA-256 (NIST SP 800-56B) | 2048-bit key, MGF1-SHA256 | Hardware-isolated asymmetric biometric key wrapping |
-| **Hardware Security Token (USB)** | YubiKey OTP HID Protocol (Slot 2) | 64-byte frame, HMAC-SHA1 (cmd 0x38) | Physical USB-C OTG challenge-response hardware authentication |
-| **Hardware Security Token (NFC)** | ISO/IEC 14443-4 (IsoDep) | APDU challenge-response, HMAC-SHA1 | Physical contactless NFC token challenge-response authentication |
 | **RAM Protection** | Linux `mlock()` & `MADV_DONTDUMP` | Native JNI page alignment | Memory-locked buffers preventing flash paging and core dump leaks |
 | **Post-Quantum KEM** | ML-KEM-768 / Kyber (NIST FIPS 203) | 768-bit security level, HKDF-SHA256 | Quantum-resistant hybrid key encapsulation for sync/backups |
 | **Post-Quantum Signature** | ML-DSA-65 / Dilithium (NIST FIPS 204) | Level 3 post-quantum signature | Quantum-resistant digital signatures |

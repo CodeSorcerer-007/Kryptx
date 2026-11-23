@@ -64,20 +64,12 @@ class SettingsViewModel(
     private val _exportStatus = MutableStateFlow<String?>(null)
     val exportStatus: StateFlow<String?> = _exportStatus.asStateFlow()
 
-    private val _isHardwareKeyEnrolled = MutableStateFlow(false)
-    val isHardwareKeyEnrolled: StateFlow<Boolean> = _isHardwareKeyEnrolled.asStateFlow()
-
-    private val _hardwareKeyLabel = MutableStateFlow<String?>(null)
-    val hardwareKeyLabel: StateFlow<String?> = _hardwareKeyLabel.asStateFlow()
-
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             _hasDuress.value = vaultRepository.hasDuressPassword()
             _hasPanic.value = vaultRepository.hasPanicPassword()
-            _isHardwareKeyEnrolled.value = vaultRepository.isHardwareKeyEnrolled()
-            _hardwareKeyLabel.value = vaultRepository.getHardwareKeyLabel()
         }
     }
 
@@ -93,8 +85,6 @@ class SettingsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _hasDuress.value = vaultRepository.hasDuressPassword()
             _hasPanic.value = vaultRepository.hasPanicPassword()
-            _isHardwareKeyEnrolled.value = vaultRepository.isHardwareKeyEnrolled()
-            _hardwareKeyLabel.value = vaultRepository.getHardwareKeyLabel()
         }
     }
 
@@ -295,33 +285,6 @@ class SettingsViewModel(
         }
     }
 
-    fun removeHardwareKey(masterPass: CharArray, onComplete: () -> Unit, onError: (String) -> Unit) {
-        val chars = masterPass.copyOf()
-        viewModelScope.launch {
-            val result = try {
-                vaultRepository.removeHardwareKey(chars)
-            } finally {
-                SecureMemory.wipe(chars)
-            }
-            if (result.isSuccess) {
-                _isHardwareKeyEnrolled.value = false
-                _hardwareKeyLabel.value = null
-                onComplete()
-            } else {
-                onError("Failed to remove hardware key")
-            }
-        }
-    }
-
-    fun removeHardwareKey(masterPass: String, onComplete: () -> Unit, onError: (String) -> Unit) {
-        val chars = masterPass.toCharArray()
-        try {
-            removeHardwareKey(chars, onComplete, onError)
-        } finally {
-            SecureMemory.wipe(chars)
-        }
-    }
-
     fun changeMasterPassword(
         currentPass: CharArray,
         newPass: CharArray,
@@ -430,6 +393,17 @@ class SettingsViewModel(
         }
     }
 
+    suspend fun exportSignedPostQuantumArchive(): ByteArray? {
+        return try {
+            val result = vaultRepository.exportSignedPostQuantumArchive()
+            result.getOrNull()?.also {
+                activityLogManager?.logEvent("Backup", "Exported Post-Quantum ML-KEM/ML-DSA Vault Archive (.kpqc)")
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun importContent(content: String, password: CharArray?, onResult: (count: Int) -> Unit) {
         val passCopy = password?.copyOf()
         viewModelScope.launch {
@@ -472,6 +446,24 @@ class SettingsViewModel(
     }
 
     fun importFromBytes(bytes: ByteArray, password: CharArray?, onResult: (count: Int) -> Unit) {
+        // Detect binary Post-Quantum Vault Archive (.kpqc) starting with "KPQC" magic bytes
+        if (bytes.size >= 4 &&
+            bytes[0] == 'K'.code.toByte() &&
+            bytes[1] == 'P'.code.toByte() &&
+            bytes[2] == 'Q'.code.toByte() &&
+            bytes[3] == 'C'.code.toByte()
+        ) {
+            viewModelScope.launch {
+                val result = vaultRepository.importSignedPostQuantumArchive(bytes)
+                val count = result.getOrDefault(0)
+                if (count > 0) {
+                    activityLogManager?.logEvent("Backup", "Imported $count items from Post-Quantum Vault Archive")
+                }
+                onResult(count)
+            }
+            return
+        }
+
         val content = bytes.toString(Charsets.UTF_8)
         importContent(content, password, onResult)
     }

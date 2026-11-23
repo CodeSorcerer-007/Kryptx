@@ -338,7 +338,7 @@ fun SecuritySettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 100% Offline Breach Analysis Card
+            // Sovereign Offline Breach & Pattern Inspector
             KryptxCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -352,7 +352,7 @@ fun SecuritySettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Instant 100% offline analysis against 200+ leaked dictionaries, keyboard walks, and weak patterns. Zero network requests.",
+                            text = "Instant 100% offline analysis against 100,000+ top compromised passwords via embedded high-capacity Bloom filter. Zero network footprint.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -515,7 +515,7 @@ fun SecuritySettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (hasPanic) "Configured (Entering panic PIN instantly wipes device data)" else "Not Configured (Tap to setup destruction PIN)",
+                                text = if (hasPanic) "Configured (Entering panic PIN triggers cryptographic erasure & wipes vault)" else "Not Configured (Tap to setup destruction PIN)",
                                 fontSize = 12.sp,
                                 color = if (hasPanic) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -563,7 +563,7 @@ fun SecuritySettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (autoDestructEnabled) "Armed (Wipes device data after $autoDestructMaxAttempts failed attempts)" else "Disabled (Self-destruct after failed attempts)",
+                                text = if (autoDestructEnabled) "Armed (Cryptographic erasure & vault wipe after $autoDestructMaxAttempts failed attempts)" else "Disabled (Cryptographic erasure after failed attempts)",
                                 fontSize = 12.sp,
                                 color = if (autoDestructEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                             )

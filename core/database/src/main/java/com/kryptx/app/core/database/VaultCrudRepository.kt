@@ -41,6 +41,8 @@ interface VaultCrudRepository {
 
     suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload>
     suspend fun importEncryptedBackup(payload: EncryptedBackupPayload, importPassword: CharArray): KryptxResult<Int>
+    suspend fun exportSignedPostQuantumArchive(): KryptxResult<ByteArray>
+    suspend fun importSignedPostQuantumArchive(archiveBytes: ByteArray): KryptxResult<Int>
     suspend fun importItems(items: List<VaultItem>): KryptxResult<Int>
     fun getDatabaseDiagnostics(): KryptxDatabaseHelper.DatabaseDiagnostics
     suspend fun vacuumDatabase(): KryptxResult<Unit>
@@ -160,6 +162,80 @@ class VaultCrudRepositoryImpl(
         return targetDb.queryByBlindIndex(query)
     }
 
+    private fun base64Decode(str: String): ByteArray {
+        return try {
+            val res: ByteArray? = Base64.decode(str, Base64.NO_WRAP)
+            res ?: java.util.Base64.getDecoder().decode(str)
+        } catch (_: Throwable) {
+            java.util.Base64.getDecoder().decode(str)
+        }
+    }
+
+    private fun base64Encode(bytes: ByteArray): String {
+        return try {
+            val res: String? = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            res ?: java.util.Base64.getEncoder().encodeToString(bytes)
+        } catch (_: Throwable) {
+            java.util.Base64.getEncoder().encodeToString(bytes)
+        }
+    }
+
+    private fun getOrGeneratePqcKemKeys(activeVek: ByteArray): Pair<ByteArray, ByteArray> {
+        val pubBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY)
+        val privCtBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT)
+        if (pubBase64 != null && privCtBase64 != null) {
+            try {
+                val pubBytes = base64Decode(pubBase64)
+                val privCtBytes = base64Decode(privCtBase64)
+                val privBytes = CryptoEngine.decrypt(privCtBytes, activeVek)
+                return Pair(pubBytes, privBytes)
+            } catch (_: Exception) {}
+        }
+        val newPair = PostQuantumEngine.generateKeyPair()
+        var encryptedPriv: ByteArray? = null
+        try {
+            encryptedPriv = CryptoEngine.encrypt(newPair.privateKey, activeVek)
+            val batch = mapOf(
+                KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY to base64Encode(newPair.publicKey),
+                KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT to base64Encode(encryptedPriv)
+            )
+            activeDbHelper.setMetadataBatch(batch)
+        } finally {
+            encryptedPriv?.let { SecureMemory.wipe(it) }
+        }
+        return Pair(newPair.publicKey.clone(), newPair.privateKey.clone()).also {
+            newPair.wipe()
+        }
+    }
+
+    private fun getOrGeneratePqcSigKeys(activeVek: ByteArray): Pair<ByteArray, ByteArray> {
+        val pubBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_SIGNATURE_PUBLIC_KEY)
+        val privCtBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_SIGNATURE_PRIVATE_KEY_CIPHERTEXT)
+        if (pubBase64 != null && privCtBase64 != null) {
+            try {
+                val pubBytes = base64Decode(pubBase64)
+                val privCtBytes = base64Decode(privCtBase64)
+                val privBytes = CryptoEngine.decrypt(privCtBytes, activeVek)
+                return Pair(pubBytes, privBytes)
+            } catch (_: Exception) {}
+        }
+        val newSigPair = PostQuantumEngine.generateSignatureKeyPair()
+        var encryptedPriv: ByteArray? = null
+        try {
+            encryptedPriv = CryptoEngine.encrypt(newSigPair.privateKey, activeVek)
+            val batch = mapOf(
+                KryptxDbSchema.KEY_PQC_SIGNATURE_PUBLIC_KEY to base64Encode(newSigPair.publicKey),
+                KryptxDbSchema.KEY_PQC_SIGNATURE_PRIVATE_KEY_CIPHERTEXT to base64Encode(encryptedPriv)
+            )
+            activeDbHelper.setMetadataBatch(batch)
+        } finally {
+            encryptedPriv?.let { SecureMemory.wipe(it) }
+        }
+        return Pair(newSigPair.publicKey.clone(), newSigPair.privateKey.clone()).also {
+            newSigPair.wipe()
+        }
+    }
+
     override suspend fun exportEncryptedBackup(exportPassword: CharArray): KryptxResult<EncryptedBackupPayload> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { activeVek ->
             try {
@@ -167,32 +243,54 @@ class VaultCrudRepositoryImpl(
                 val salt = KeyDerivation.generateSalt()
                 val encryptionKey = KeyDerivation.deriveKeyArgon2(exportPassword, salt)
 
-                val pqcPubKeyBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY)
-                val isPostQuantum = pqcPubKeyBase64 != null
+                val (kemPubKey, kemPrivKey) = getOrGeneratePqcKemKeys(activeVek)
+                val (sigPubKey, sigPrivKey) = getOrGeneratePqcSigKeys(activeVek)
 
-                val (ciphertextBase64, saltBase64, checksum, hmacBase64) = try {
-                    val plaintextBytes = json.encodeToString(items).toByteArray(Charsets.UTF_8)
-                    val ciphertext = try {
-                        CryptoEngine.encrypt(plaintextBytes, encryptionKey)
-                    } finally {
-                        SecureMemory.wipe(plaintextBytes)
-                    }
+                // 1. Post-Quantum Encapsulation: encapsulate hybrid secret against ML-KEM-768 public key
+                val encapsulated = PostQuantumEngine.encapsulate(kemPubKey, classicalSaltOrSecret = encryptionKey)
+                val pqcSharedSecret = encapsulated.sharedSecret
+                val encapsulation = encapsulated.encapsulation
 
-                    val sBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
-                    val cBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
-                    val chk = VaultExporter.computeSha256Checksum(cBase64)
+                // 2. Hybrid encryption key combining ML-KEM-768 shared secret and Argon2id derived key
+                val hybridKey = ByteArray(32) { i -> (pqcSharedSecret[i].toInt() xor encryptionKey[i].toInt()).toByte() }
 
-                    val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), encryptionKey)
-                    val hmacBytes = VaultExporter.computeHmacSha256(ciphertext, hmacKey)
-                    val hmBase64 = Base64.encodeToString(hmacBytes, Base64.NO_WRAP)
-                    SecureMemory.wipe(hmacKey)
-                    SecureMemory.wipe(ciphertext)
-
-                    listOf(cBase64, sBase64, chk, hmBase64)
+                // 3. Encrypt payload with hybrid key
+                val plaintextBytes = json.encodeToString(items).toByteArray(Charsets.UTF_8)
+                val ciphertext = try {
+                    CryptoEngine.encrypt(plaintextBytes, hybridKey)
                 } finally {
-                    SecureMemory.wipe(encryptionKey)
-                    SecureMemory.wipe(salt)
+                    SecureMemory.wipe(plaintextBytes)
+                    SecureMemory.wipe(pqcSharedSecret)
+                    SecureMemory.wipe(hybridKey)
                 }
+
+                // 4. Encrypt the KEM private key under the Argon2id key so the archive can be restored
+                // on a new/different device using only the export passphrase
+                val encryptedKemPrivKey = CryptoEngine.encrypt(kemPrivKey, encryptionKey)
+
+                // 5. ML-DSA-65 post-quantum digital signature over (encapsulation + ciphertext)
+                val payloadToSign = encapsulation + ciphertext
+                val pqcSignature = PostQuantumEngine.sign(payloadToSign, sigPrivKey)
+
+                val sBase64 = base64Encode(salt)
+                val cBase64 = base64Encode(ciphertext)
+                val encBase64 = base64Encode(encapsulation)
+                val sigBase64 = base64Encode(pqcSignature)
+                val sigPubBase64 = base64Encode(sigPubKey)
+                val encKemPrivBase64 = base64Encode(encryptedKemPrivKey)
+                val chk = VaultExporter.computeSha256Checksum(cBase64)
+
+                val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), encryptionKey)
+                val hmacBytes = VaultExporter.computeHmacSha256(ciphertext, hmacKey)
+                val hmBase64 = base64Encode(hmacBytes)
+
+                SecureMemory.wipe(hmacKey)
+                SecureMemory.wipe(ciphertext)
+                SecureMemory.wipe(encryptionKey)
+                SecureMemory.wipe(salt)
+                SecureMemory.wipe(kemPrivKey)
+                SecureMemory.wipe(sigPrivKey)
+                SecureMemory.wipe(encryptedKemPrivKey)
 
                 val header = BackupHeader(
                     app = BackupHeader.CURRENT_APP_NAME,
@@ -202,17 +300,20 @@ class VaultCrudRepositoryImpl(
                     isEncrypted = true,
                     kdfAlgorithm = "Argon2id",
                     kdfIterations = 0,
-                    saltBase64 = saltBase64,
+                    saltBase64 = sBase64,
                     ivBase64 = "",
-                    isPostQuantum = isPostQuantum,
-                    pqcEncapsulationBase64 = null,
-                    checksumSha256 = checksum,
-                    hmacSha256Base64 = hmacBase64
+                    isPostQuantum = true,
+                    pqcEncapsulationBase64 = encBase64,
+                    checksumSha256 = chk,
+                    hmacSha256Base64 = hmBase64,
+                    pqcSignatureBase64 = sigBase64,
+                    pqcSignerPublicKeyBase64 = sigPubBase64,
+                    pqcEncryptedPrivateKeyBase64 = encKemPrivBase64
                 )
 
-                KryptxResult.Success(EncryptedBackupPayload(header, ciphertextBase64))
+                KryptxResult.Success(EncryptedBackupPayload(header, cBase64))
             } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export encrypted backup", e)
+                KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export encrypted backup: ${e.message}", e)
             }
         } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
@@ -232,57 +333,109 @@ class VaultCrudRepositoryImpl(
                 }
             }
 
-            val salt = Base64.decode(payload.header.saltBase64, Base64.NO_WRAP)
-            val ciphertext = Base64.decode(payload.ciphertextBase64, Base64.NO_WRAP)
+            val salt = base64Decode(payload.header.saltBase64)
+            val ciphertext = base64Decode(payload.ciphertextBase64)
 
             var decryptedBytes: ByteArray? = null
 
-            // Strategy 1: Standard Argon2id derivation with HMAC integrity check
-            val argonKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
-            if (!payload.header.hmacSha256Base64.isNullOrBlank()) {
-                val expectedHmac = Base64.decode(payload.header.hmacSha256Base64, Base64.NO_WRAP)
-                val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), argonKey)
-                val hmacValid = VaultExporter.verifyHmacSha256(ciphertext, hmacKey, expectedHmac)
-                SecureMemory.wipe(hmacKey)
-                if (hmacValid) {
+            val pqcEncapsulation = payload.header.pqcEncapsulationBase64
+            val pqcSignature = payload.header.pqcSignatureBase64
+            val pqcSignerPub = payload.header.pqcSignerPublicKeyBase64
+            val pqcEncPrivKey = payload.header.pqcEncryptedPrivateKeyBase64
+            val hmacSha256 = payload.header.hmacSha256Base64
+
+            // Post-Quantum ML-KEM-768 & ML-DSA-65 Import Strategy (if post-quantum backup)
+            if (payload.header.isPostQuantum && !pqcEncapsulation.isNullOrBlank()) {
+                val encapsulationBytes = base64Decode(pqcEncapsulation)
+
+                // 1. If ML-DSA-65 signature is present, verify non-repudiation and archive integrity
+                if (!pqcSignature.isNullOrBlank() && !pqcSignerPub.isNullOrBlank()) {
+                    val sig = base64Decode(pqcSignature)
+                    val signerPub = base64Decode(pqcSignerPub)
+                    val payloadToVerify = encapsulationBytes + ciphertext
+                    val verified = PostQuantumEngine.verifySignature(payloadToVerify, sig, signerPub)
+                    if (!verified) {
+                        return@withContext KryptxResult.Error(
+                            KryptxErrorType.IMPORT_PARSE_FAILED,
+                            "Post-Quantum ML-DSA signature verification failed! Backup may be corrupted or tampered."
+                        )
+                    }
+                }
+
+                val argonKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
+                try {
+                    // Try portable decryption using the encrypted KEM private key in the header
+                    if (!pqcEncPrivKey.isNullOrBlank()) {
+                        val encryptedKemPrivKey = base64Decode(pqcEncPrivKey)
+                        val kemPrivKey = try {
+                            CryptoEngine.decrypt(encryptedKemPrivKey, argonKey)
+                        } catch (_: Exception) { null }
+
+                        if (kemPrivKey != null) {
+                            try {
+                                val pqcSharedSecret = PostQuantumEngine.decapsulate(
+                                    encapsulationBytes = encapsulationBytes,
+                                    privateKeyBytes = kemPrivKey,
+                                    classicalSaltOrSecret = argonKey
+                                )
+                                val hybridKey = ByteArray(32) { i -> (pqcSharedSecret[i].toInt() xor argonKey[i].toInt()).toByte() }
+                                decryptedBytes = CryptoEngine.decrypt(ciphertext, hybridKey)
+                                SecureMemory.wipe(pqcSharedSecret)
+                                SecureMemory.wipe(hybridKey)
+                            } catch (_: Exception) {}
+                            SecureMemory.wipe(kemPrivKey)
+                        }
+                    }
+
+                    // Fallback to local vault's stored PQC private key if available
+                    if (decryptedBytes == null) {
+                        sessionManager.withVaultKey { activeVek ->
+                            val privKeyCiphertext = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT)
+                            if (privKeyCiphertext != null) {
+                                try {
+                                    val encryptedPrivKey = base64Decode(privKeyCiphertext)
+                                    val privKeyBytes = CryptoEngine.decrypt(encryptedPrivKey, activeVek)
+                                    val pqcSharedSecret = PostQuantumEngine.decapsulate(
+                                        encapsulationBytes = encapsulationBytes,
+                                        privateKeyBytes = privKeyBytes,
+                                        classicalSaltOrSecret = argonKey
+                                    )
+                                    val hybridKey = ByteArray(32) { i -> (pqcSharedSecret[i].toInt() xor argonKey[i].toInt()).toByte() }
+                                    decryptedBytes = CryptoEngine.decrypt(ciphertext, hybridKey)
+                                    SecureMemory.wipe(privKeyBytes)
+                                    SecureMemory.wipe(pqcSharedSecret)
+                                    SecureMemory.wipe(hybridKey)
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    }
+                } finally {
+                    SecureMemory.wipe(argonKey)
+                }
+            }
+
+            // Fallback Strategy 1: Standard Argon2id derivation with HMAC integrity check (for classical backups)
+            if (decryptedBytes == null) {
+                val argonKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
+                if (!hmacSha256.isNullOrBlank()) {
+                    val expectedHmac = base64Decode(hmacSha256)
+                    val hmacKey = VaultExporter.computeHmacSha256("kryptx-backup-integrity-key".toByteArray(Charsets.UTF_8), argonKey)
+                    val hmacValid = VaultExporter.verifyHmacSha256(ciphertext, hmacKey, expectedHmac)
+                    SecureMemory.wipe(hmacKey)
+                    if (hmacValid) {
+                        try {
+                            decryptedBytes = CryptoEngine.decrypt(ciphertext, argonKey)
+                        } catch (_: Exception) {}
+                    }
+                } else {
                     try {
                         decryptedBytes = CryptoEngine.decrypt(ciphertext, argonKey)
                     } catch (_: Exception) {}
                 }
-            } else {
-                try {
-                    decryptedBytes = CryptoEngine.decrypt(ciphertext, argonKey)
-                } catch (_: Exception) {}
-            }
-            SecureMemory.wipe(argonKey)
-
-            // Strategy 2: Legacy PQC hybrid if same-device private key is available
-            if (decryptedBytes == null && payload.header.isPostQuantum && !payload.header.pqcEncapsulationBase64.isNullOrBlank()) {
-                sessionManager.withVaultKey { activeVek ->
-                    val privKeyCiphertext = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT)
-                    if (privKeyCiphertext != null) {
-                        try {
-                            val classicalKey = KeyDerivation.deriveKeyArgon2(importPassword, salt)
-                            val encryptedPrivKey = Base64.decode(privKeyCiphertext, Base64.NO_WRAP)
-                            val privKeyBytes = CryptoEngine.decrypt(encryptedPrivKey, activeVek)
-                            val encapsulationBytes = Base64.decode(payload.header.pqcEncapsulationBase64, Base64.NO_WRAP)
-                            val pqcSharedSecret = PostQuantumEngine.decapsulate(
-                                encapsulationBytes = encapsulationBytes,
-                                privateKeyBytes = privKeyBytes,
-                                classicalSaltOrSecret = classicalKey
-                            )
-                            val hybridKey = ByteArray(32) { i -> (pqcSharedSecret[i].toInt() xor classicalKey[i].toInt()).toByte() }
-                            decryptedBytes = CryptoEngine.decrypt(ciphertext, hybridKey)
-                            SecureMemory.wipe(privKeyBytes)
-                            SecureMemory.wipe(pqcSharedSecret)
-                            SecureMemory.wipe(classicalKey)
-                            SecureMemory.wipe(hybridKey)
-                        } catch (_: Exception) {}
-                    }
-                }
+                SecureMemory.wipe(argonKey)
             }
 
-            // Strategy 3: Legacy PBKDF2 iterations fallback
+            // Fallback Strategy 3: Legacy PBKDF2 iterations fallback
             if (decryptedBytes == null) {
                 val iters = if (payload.header.kdfIterations > 0) payload.header.kdfIterations else KeyDerivation.DEFAULT_ITERATIONS
                 val pbkdf2Key = KeyDerivation.deriveKey(importPassword, salt, iters)
@@ -309,8 +462,78 @@ class VaultCrudRepositoryImpl(
 
             importItems(items)
         } catch (e: Exception) {
-            KryptxResult.Error(KryptxErrorType.IMPORT_PARSE_FAILED, "Failed to import backup", e)
+            KryptxResult.Error(KryptxErrorType.IMPORT_PARSE_FAILED, "Failed to import backup: ${e.message}", e)
         }
+    }
+
+    override suspend fun exportSignedPostQuantumArchive(): KryptxResult<ByteArray> = withContext(Dispatchers.Default) {
+        sessionManager.withVaultKey { activeVek ->
+            try {
+                val items = activeDbHelper.loadAllItems(activeVek)
+                val vaultData = json.encodeToString(items).toByteArray(Charsets.UTF_8)
+
+                val (kemPubKey, _) = getOrGeneratePqcKemKeys(activeVek)
+                val (sigPubKey, sigPrivKey) = getOrGeneratePqcSigKeys(activeVek)
+
+                val archiveBytes = try {
+                    PostQuantumEngine.exportSignedVaultArchive(
+                        vaultData = vaultData,
+                        recipientMlkemPublicKey = kemPubKey,
+                        senderMldsaPrivateKey = sigPrivKey,
+                        senderMldsaPublicKey = sigPubKey
+                    )
+                } finally {
+                    SecureMemory.wipe(vaultData)
+                    SecureMemory.wipe(sigPrivKey)
+                }
+
+                KryptxResult.Success(archiveBytes)
+            } catch (e: Exception) {
+                KryptxResult.Error(KryptxErrorType.EXPORT_FAILED, "Failed to export post-quantum vault archive: ${e.message}", e)
+            }
+        } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
+    }
+
+    override suspend fun importSignedPostQuantumArchive(archiveBytes: ByteArray): KryptxResult<Int> = withContext(Dispatchers.Default) {
+        sessionManager.withVaultKey { activeVek ->
+            try {
+                val (_, kemPrivKey) = getOrGeneratePqcKemKeys(activeVek)
+
+                val decryptedVaultData = try {
+                    PostQuantumEngine.importSignedVaultArchive(
+                        archiveBytes = archiveBytes,
+                        recipientMlkemPrivateKey = kemPrivKey
+                    )
+                } catch (e: Exception) {
+                    return@withContext KryptxResult.Error(
+                        KryptxErrorType.IMPORT_PARSE_FAILED,
+                        "Failed to verify or decrypt post-quantum vault archive: ${e.message}",
+                        e
+                    )
+                } finally {
+                    SecureMemory.wipe(kemPrivKey)
+                }
+
+                val items = try {
+                    @OptIn(ExperimentalSerializationApi::class)
+                    java.io.ByteArrayInputStream(decryptedVaultData).use { stream ->
+                        json.decodeFromStream<List<VaultItem>>(stream)
+                    }
+                } catch (e: Exception) {
+                    return@withContext KryptxResult.Error(
+                        KryptxErrorType.IMPORT_PARSE_FAILED,
+                        "Decrypted post-quantum archive contains invalid vault data",
+                        e
+                    )
+                } finally {
+                    SecureMemory.wipe(decryptedVaultData)
+                }
+
+                importItems(items)
+            } catch (e: Exception) {
+                KryptxResult.Error(KryptxErrorType.IMPORT_PARSE_FAILED, "Failed to import post-quantum archive: ${e.message}", e)
+            }
+        } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault is locked")
     }
 
     override suspend fun importItems(items: List<VaultItem>): KryptxResult<Int> = withContext(Dispatchers.IO) {

@@ -87,7 +87,6 @@ import com.kryptx.app.core.designsystem.theme.KryptxAmber
 import com.kryptx.app.core.designsystem.theme.KryptxBlue
 import com.kryptx.app.core.designsystem.theme.KryptxEmerald
 import com.kryptx.app.core.designsystem.theme.KryptxShapes
-import com.kryptx.app.core.security.NfcHardwareKeyManager
 import com.kryptx.app.feature.onboarding.components.OnboardingStepIndicator
 import com.kryptx.app.feature.onboarding.components.SetupPermissionItemCard
 
@@ -152,10 +151,6 @@ fun SetupPermissionsScreen(
         )
         canAuth == BiometricManager.BIOMETRIC_SUCCESS || canAuth == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED
     }
-
-    val hasNfcHardware = remember { NfcHardwareKeyManager.hasNfc(context) }
-
-    var isNfcActive by remember { mutableStateOf(NfcHardwareKeyManager.isNfcEnabled(context)) }
 
     // ── Rationale dialog state (only for system settings that require external dispatch) ──
     var showAutofillRationale by remember { mutableStateOf(false) }
@@ -248,7 +243,6 @@ fun SetupPermissionsScreen(
 
                 isAutofillEnabled = context.getSystemService(AutofillManager::class.java)
                     ?.hasEnabledAutofillServices() == true
-                isNfcActive = NfcHardwareKeyManager.isNfcEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -284,14 +278,6 @@ fun SetupPermissionsScreen(
                 context.startActivity(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE))
             } catch (_: Exception) { app?.sessionManager?.setPickerActive(false) }
         }
-    }
-
-    val openNfcSettings: () -> Unit = {
-        try {
-            context.startActivity(Intent(Settings.ACTION_NFC_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-        } catch (_: Exception) {}
     }
 
     val isCameraPermanentlyDenied = cameraPermissionRequested && activity?.let {
@@ -653,34 +639,7 @@ fun SetupPermissionsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ── 5. NFC Hardware Security Keys ─────────────────────────────────
-            if (hasNfcHardware) {
-                SetupPermissionItemCard(
-                    title = "NFC Security Keys",
-                    badgeText = if (isNfcActive) "Active" else "Disabled",
-                    isPositive = isNfcActive,
-                    icon = Icons.Default.VpnKey,
-                    description = "Authenticate or unlock your vault by tapping physical YubiKey or FIDO2 NFC hardware tokens on your phone.",
-                    action = {
-                        if (!isNfcActive) {
-                            OutlinedButton(
-                                onClick = openNfcSettings,
-                                shape = RoundedCornerShape(19.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(38.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                            ) {
-                                Text("Turn On NFC in Settings", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // ── 6. Zero-Network Guarantee ─────────────────────────────────────
+            // ── 5. Zero-Network Guarantee ─────────────────────────────────────
             SetupPermissionItemCard(
                 title = "Zero-Network Security",
                 badgeText = "Air-Gapped",

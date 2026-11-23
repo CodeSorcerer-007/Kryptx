@@ -132,46 +132,7 @@ class FakeVaultRepository : VaultRepository {
         return com.kryptx.app.core.model.DestructionResult.Success
     }
 
-    private var hardwareKeyEnrolled = false
-    private var hardwareKeyLabel: String? = null
-    private var hardwareKeyUidHash: String? = null
-    private var hardwareKeyChallenge: ByteArray? = null
     private var activeVaultId: String = "personal"
-
-    override fun isHardwareKeyEnrolled(): Boolean = hardwareKeyEnrolled
-    override fun getHardwareKeyLabel(): String? = hardwareKeyLabel
-    override fun getHardwareKeyChallenge(): ByteArray? = hardwareKeyChallenge
-    override fun getHardwareKeyUidHash(): String? = hardwareKeyUidHash
-
-    override suspend fun enrollHardwareKey(
-        label: String,
-        uidHash: String,
-        challenge: ByteArray,
-        hardwareSecret: ByteArray,
-        masterPassword: CharArray
-    ): KryptxResult<Unit> {
-        hardwareKeyEnrolled = true
-        hardwareKeyLabel = label
-        hardwareKeyUidHash = uidHash
-        hardwareKeyChallenge = challenge
-        return KryptxResult.Success(Unit)
-    }
-
-    override suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit> {
-        hardwareKeyEnrolled = false
-        hardwareKeyLabel = null
-        hardwareKeyUidHash = null
-        hardwareKeyChallenge = null
-        return KryptxResult.Success(Unit)
-    }
-
-    override suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit> {
-        return if (hardwareKeyEnrolled && String(masterPassword) == storedPassword) {
-            KryptxResult.Success(Unit)
-        } else {
-            KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Hardware key or password mismatch")
-        }
-    }
 
     override fun getActiveVaultId(): String = activeVaultId
 
@@ -347,7 +308,29 @@ class FakeVaultRepository : VaultRepository {
 
     override fun getPqcIdentityPublicKey(): ByteArray? = null
 
+    override fun getPqcSignaturePublicKey(): ByteArray? = null
+
     override suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit> = KryptxResult.Success(Unit)
+
+    override suspend fun exportSignedPostQuantumArchive(): KryptxResult<ByteArray> {
+        val dummyKem = com.kryptx.app.core.crypto.PostQuantumEngine.generateKeyPair()
+        val dummySig = com.kryptx.app.core.crypto.PostQuantumEngine.generateSignatureKeyPair()
+        val items = _itemsFlow.value
+        val vaultData = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(VaultItem.serializer()), items).toByteArray(Charsets.UTF_8)
+        val archive = com.kryptx.app.core.crypto.PostQuantumEngine.exportSignedVaultArchive(
+            vaultData = vaultData,
+            recipientMlkemPublicKey = dummyKem.publicKey,
+            senderMldsaPrivateKey = dummySig.privateKey,
+            senderMldsaPublicKey = dummySig.publicKey
+        )
+        dummyKem.wipe()
+        dummySig.wipe()
+        return KryptxResult.Success(archive)
+    }
+
+    override suspend fun importSignedPostQuantumArchive(archiveBytes: ByteArray): KryptxResult<Int> {
+        return KryptxResult.Success(0)
+    }
 
     override suspend fun registerPasskey(
         rpId: String,

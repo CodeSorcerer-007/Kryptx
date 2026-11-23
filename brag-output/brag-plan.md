@@ -25,10 +25,10 @@
    Atmospheric cyber sub-bass drone, high-tech biometric chime, mechanical tactile click on key unlock, subtle laser sweep on post-quantum shield engagement, and clean triumphant outro pulse.
 
 8. **What should the share caption say?**  
-   "Zero servers. Zero cloud. Zero subscriptions. Kryptx brings post-quantum ML-KEM-768 cryptography, hardware YubiKey unlock, and 0-permission sovereign security to Android."
+   "Zero servers. Zero cloud. Zero subscriptions. Kryptx brings post-quantum ML-KEM-768 cryptography, StrongBox TEE biometrics, and 0-permission sovereign security to Android."
 
 9. **What's the user flow worth showing?**  
-   Touch Biometric / NFC YubiKey -> Instant hardware-unwrapped RAM vault access -> Dual-cipher item inspection -> 100% offline breach check & 1-tap autofill.
+   Touch Biometric / Master PIN -> Instant hardware-unwrapped RAM vault access -> Dual-cipher item inspection -> 100% offline breach check & 1-tap autofill.
 
 ---
 
@@ -57,8 +57,8 @@
 
 [3.5s - 7.5s] Scene 2: Hardware StrongBox & Biometric Unlock (4.0s)
   Visual: App hero mockup alongside glowing NFC wave & fingerprint scanner.
-  Text: "STRONGBOX TEE + NFC & BLE HARDWARE KEYS"
-  Subtext: "YubiKey HMAC-SHA1 Slot 2 • FIDO2 BLE • Class-3 Biometrics"
+  Text: "STRONGBOX TEE BIOMETRICS & PIN UNLOCK"
+  Subtext: "StrongBox Keystore • ECDH P-256 Key Wrapping • Class-3 Biometrics"
   Badge: "INSTANT ZERO-TRUST UNLOCK"
   Audio Cue: Biometric success chime + tactile physical click.
 
@@ -77,9 +77,9 @@
   Audio Cue: Snappy double-tick on autofill match.
 
 [15.5s - 17.5s] Scene 5: Anti-Coercion & Panic Self-Destruct (2.0s)
-  Visual: Decoy vault switch & sector overwrite shredder icon.
-  Text: "DURESS DECOY VAULT & FORENSIC DISK SHREDDER"
-  Subtext: "Secondary PIN opens decoy • CSPRNG multi-pass flash wipe"
+  Visual: Decoy vault switch & cryptographic erasure icon.
+  Text: "DURESS DECOY VAULT & CRYPTOGRAPHIC ERASURE"
+  Subtext: "Secondary PIN opens decoy • Hardware Keystore key annihilation"
   Badge: "ZERO FORENSIC TRACE"
   Audio Cue: Deep warning hum transitioning to clean purge silence.
 

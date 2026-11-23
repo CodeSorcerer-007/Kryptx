@@ -15,7 +15,7 @@ This directory contains the formal Architectural Decision Records for Kryptx. Ea
 | [ADR-007](007-crash-defense-architecture.md) | Crash Defense and Fail-Closed Immortal Looper | ✅ Accepted | Security | Guarantees instant cryptographic zeroization of in-memory keys and session lockout during uncaught JVM exceptions, preventing memory dump leakage on crashes. |
 | [ADR-008](008-incremental-multi-module-architecture.md) | Incremental Multi-Module Architecture | ✅ Accepted | Architecture | Establishes strict isolation boundaries (`:core:model`, `:core:crypto`, `:core:database`, `:core:security`, `:feature:*`) with unidirectional data flow and zero UI in security/crypto cores. |
 | [ADR-009](009-biometric-ecdh-migration.md) | Biometric Key Wrapping Migration (RSA to ECDH P-256) | ✅ Accepted | Crypto | Defines dual-path biometric unlocking supporting legacy RSA-2048 OAEP and forward-migrating to ECDH P-256 with HKDF-SHA256 for enhanced speed and StrongBox hardware efficiency. |
-| [ADR-010](010-flash-storage-overwrite-boundaries.md) | Flash Storage Overwrite and Zeroization Defense | ✅ Accepted | Security | Acknowledges wear-leveling constraints on NAND flash; establishes multi-pass zeroization for temporary files while making authenticated at-rest database encryption the primary guarantee. |
+| [ADR-010](010-flash-storage-overwrite-boundaries.md) | Flash Storage Overwrite and Cryptographic Erasure Boundaries | ✅ Accepted | Security | Acknowledges UFS/eMMC FTL wear-leveling constraints on NAND flash; establishes hardware Keystore key annihilation as the primary barrier and multi-pass file overwrite as defense in depth. |
 
 ---
 

@@ -265,11 +265,6 @@ dependencies {
     // Serialization
     implementation(libs.kotlinx.serialization.json)
 
-    // Hardware Security Keys (YubiKey)
-    implementation(libs.yubikit.android)
-    implementation(libs.yubikit.core)
-    implementation(libs.yubikit.yubiotp)
-
     // SQLCipher Database Encryption (16 KB page-size compatible)
     implementation(libs.sqlcipher.android)
     implementation(libs.androidx.sqlite)

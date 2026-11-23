@@ -1,5 +1,6 @@
 package com.kryptx.app.core.security
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -107,9 +108,7 @@ class BreachCheckerTest {
 
     @Test
     fun `blank password returns not-breached with Empty source`() {
-        // checkPassword is suspend, but we can test checkOffline directly for blank
         val status = BreachChecker.checkOffline("   ")
-        // Blank/whitespace-only would be trimmed, then empty — should not match dictionary
         assertFalse("Whitespace-only input must not be flagged as breached", status.isBreached)
     }
 
@@ -161,21 +160,56 @@ class BreachCheckerTest {
     @Test
     fun `sha1Hex of 'password' matches known HIBP prefix`() {
         // SHA-1("password") = 5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8
-        // This is the canonical known value used by HIBP
         val hash = BreachChecker.sha1Hex("password")
         assertEquals("SHA-1 of 'password' must match known value",
             "5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8", hash)
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Offline check does not mutate input
-    // ──────────────────────────────────────────────────────────────
-
     @Test
     fun `checkOffline does not modify or retain the password string`() {
         val original = "immutable-test-password"
         BreachChecker.checkOffline(original)
-        // String is immutable in Kotlin/JVM — just ensure method completes without side-effects
         assertEquals("Password string must remain unchanged", "immutable-test-password", original)
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Unified Sovereign 100% Offline checkPassword API
+    // ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `checkPassword flags breached dictionary password asynchronously`() = runBlocking {
+        val status = BreachChecker.checkPassword("admin123")
+        assertTrue(status.isBreached)
+        assertEquals("Offline Compromised Dictionary", status.source)
+    }
+
+    @Test
+    fun `checkPassword flags repeated character sequence asynchronously`() = runBlocking {
+        val status = BreachChecker.checkPassword("11111111")
+        assertTrue(status.isBreached)
+    }
+
+    @Test
+    fun `checkPassword flags keyboard walk asynchronously`() = runBlocking {
+        val status = BreachChecker.checkPassword("poiuytrewq")
+        assertTrue(status.isBreached)
+        assertEquals("Keyboard Walk Pattern", status.source)
+    }
+
+    @Test
+    fun `checkPassword returns Offline Clean for strong entropy password`() = runBlocking {
+        val status = BreachChecker.checkPassword("CleanPassphraseXYZ987!")
+        assertFalse(status.isBreached)
+        assertEquals("Offline Clean", status.source)
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // OfflineBreachDetector typealias compatibility
+    // ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `OfflineBreachDetector typealias behaves identically to BreachChecker`() {
+        val status = OfflineBreachDetector.checkOffline("password")
+        assertTrue("OfflineBreachDetector alias must flag 'password'", status.isBreached)
     }
 }

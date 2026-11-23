@@ -75,7 +75,7 @@ Kryptx uses an air-gapped multi-module architecture:
 - `:core:model`: Immutable domain models, vault payloads, activity events (zero dependencies).
 - `:core:crypto`: Sovereign cryptography (Argon2id, AES-256-GCM, XChaCha20-Poly1305, PQC, UniFFI).
 - `:core:database`: SQLCipher v4 encrypted persistence, HMAC search index, schema migrations.
-- `:core:security`: Biometric auth, hardware keys (YubiKey), clipboard sanitization, crash defense.
+- `:core:security`: Biometric auth (StrongBox TEE), clipboard sanitization, crash defense.
 - `:app`: Material 3 Compose UI, navigation, viewmodels, design system.
 
 ### Running Unit Tests Across All Modules

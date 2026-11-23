@@ -50,19 +50,12 @@ interface VaultAuthRepository {
     fun verifyMasterCredential(candidate: CharArray): Boolean = false
     fun isKeyRotationRecoveryRequired(): Boolean = false
 
-    fun isHardwareKeyEnrolled(): Boolean
-    fun getHardwareKeyLabel(): String?
-    fun getHardwareKeyChallenge(): ByteArray?
-    fun getHardwareKeyUidHash(): String?
-    suspend fun enrollHardwareKey(label: String, uidHash: String, challenge: ByteArray, hardwareSecret: ByteArray, masterPassword: CharArray): KryptxResult<Unit>
-    suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit>
-    suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit>
-
     fun getActiveVaultId(): String
     suspend fun switchVault(vaultId: String): KryptxResult<Unit>
     suspend fun resetVault(): KryptxResult<Unit>
 
     fun getPqcIdentityPublicKey(): ByteArray?
+    fun getPqcSignaturePublicKey(): ByteArray?
     suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit>
 }
 
@@ -1049,7 +1042,7 @@ class VaultAuthRepositoryImpl(
         val decoyDbPurged = decoyDbHelper.clearAllData()
         val databasesPurged = primaryDbPurged && decoyDbPurged
 
-        // 4. Central emergency self-destruct pipeline execution (multi-pass file overwrite & shred)
+        // 4. Central emergency self-destruct pipeline execution (cryptographic erasure & defense-in-depth file purge)
         val emergencyResult = onEmergencyWipe?.invoke() ?: DestructionResult.Incomplete(
             keystorePurged = keystorePurged,
             databasesPurged = false,
@@ -1085,186 +1078,6 @@ class VaultAuthRepositoryImpl(
             )
         }
         finalResult
-    }
-
-    override fun isHardwareKeyEnrolled(): Boolean {
-        return dbHelper.getMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED) == "true" &&
-                !dbHelper.getMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE).isNullOrBlank()
-    }
-
-    override fun getHardwareKeyLabel(): String? = dbHelper.getMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_LABEL)
-
-    override fun getHardwareKeyChallenge(): ByteArray? {
-        val challengeBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE) ?: return null
-        return try {
-            base64Decode(challengeBase64)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    override fun getHardwareKeyUidHash(): String? = dbHelper.getMetadata(KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH)
-
-    override suspend fun enrollHardwareKey(
-        label: String,
-        uidHash: String,
-        challenge: ByteArray,
-        hardwareSecret: ByteArray,
-        masterPassword: CharArray
-    ): KryptxResult<Unit> = withContext(Dispatchers.Default) {
-        sessionManager.withVaultKey { activeVek ->
-            var baseSalt: ByteArray? = null
-            var combinedSalt: ByteArray? = null
-            var argon2Salt: ByteArray? = null
-            var derivedKey: ByteArray? = null
-
-            try {
-                if (!verifyMasterCredential(masterPassword)) {
-                    return@withVaultKey KryptxResult.Error(
-                        KryptxErrorType.WRONG_PASSWORD,
-                        "Incorrect master password for hardware key enrollment"
-                    )
-                }
-
-                baseSalt = KeyDerivation.generateSalt()
-                val md = java.security.MessageDigest.getInstance("SHA-256")
-                md.update(baseSalt)
-                md.update(hardwareSecret)
-                combinedSalt = md.digest()
-
-                // Extend combinedSalt to 32 bytes for Argon2id minimum salt requirement
-                argon2Salt = combinedSalt.copyOf(32)
-                // Use Argon2id consistently with master password KDF — hardware key should
-                // have equal or greater brute-force resistance than the primary unlock path
-                derivedKey = KeyDerivation.deriveKeyArgon2(masterPassword, argon2Salt)
-                val encryptedVekPayload = CryptoEngine.encrypt(activeVek, derivedKey)
-
-                val tokenBase64 = base64Encode(encryptedVekPayload)
-                val saltBase64 = base64Encode(baseSalt)
-                val challengeBase64 = base64Encode(challenge)
-
-                // Write to HW-specific keys — never overwrite the master password's KEY_SALT /
-                // KEY_VERIFICATION_TOKEN so the password-only unlock path remains intact as a
-                // permanent recovery option even after hardware key enrollment.
-                val hwBatch = mapOf(
-                    KryptxDbSchema.KEY_HW_SALT to saltBase64,
-                    KryptxDbSchema.KEY_HW_VERIFICATION_TOKEN to tokenBase64,
-                    KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED to "true",
-                    KryptxDbSchema.KEY_HARDWARE_KEY_LABEL to label,
-                    KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH to uidHash,
-                    KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE to challengeBase64
-                )
-                if (!dbHelper.setMetadataBatch(hwBatch)) {
-                    throw IllegalStateException("Failed to commit hardware security key metadata batch")
-                }
-
-                KryptxResult.Success(Unit)
-            } catch (e: Exception) {
-                SecurityLogger.error("VaultAuthRepository", "Failed to enroll hardware security key", e)
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to enroll hardware security key: ${e.message}", e)
-            } finally {
-                SecureMemory.wipe(derivedKey)
-                SecureMemory.wipe(baseSalt)
-                SecureMemory.wipe(combinedSalt)
-                SecureMemory.wipe(argon2Salt)
-            }
-        } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault must be unlocked to enroll hardware key")
-    }
-
-    override suspend fun removeHardwareKey(masterPassword: CharArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
-        sessionManager.withVaultKey { _ ->
-            if (!verifyMasterCredential(masterPassword)) {
-                return@withVaultKey KryptxResult.Error(
-                    KryptxErrorType.WRONG_PASSWORD,
-                    "Incorrect master password to remove hardware security key"
-                )
-            }
-            try {
-                // Clear the hardware-key-specific token — the master password token
-                // (KEY_SALT / KEY_VERIFICATION_TOKEN) was never overwritten during enrollment
-                // and remains valid for password-only unlock.
-                val hwBatch = mapOf(
-                    KryptxDbSchema.KEY_HW_SALT to "",
-                    KryptxDbSchema.KEY_HW_VERIFICATION_TOKEN to "",
-                    KryptxDbSchema.KEY_HARDWARE_KEY_ENROLLED to "false",
-                    KryptxDbSchema.KEY_HARDWARE_KEY_LABEL to "",
-                    KryptxDbSchema.KEY_HARDWARE_KEY_UID_HASH to "",
-                    KryptxDbSchema.KEY_HARDWARE_KEY_CHALLENGE to ""
-                )
-                if (!dbHelper.setMetadataBatch(hwBatch)) {
-                    return@withVaultKey KryptxResult.Error(
-                        KryptxErrorType.DATABASE_ERROR,
-                        "Failed to commit hardware security key removal metadata"
-                    )
-                }
-                KryptxResult.Success(Unit)
-            } catch (e: Exception) {
-                KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove hardware key: ${e.message}", e)
-            }
-        } ?: KryptxResult.Error(KryptxErrorType.VAULT_LOCKED, "Vault must be unlocked to modify security keys")
-    }
-
-    override suspend fun unlockWithHardwareKey(masterPassword: CharArray, hardwareSecret: ByteArray): KryptxResult<Unit> = withContext(Dispatchers.Default) {
-        // Prefer the dedicated HW-key token (written by fixed enrollment code).
-        // Fall back to the legacy combined KEY_SALT / KEY_VERIFICATION_TOKEN for vaults
-        // enrolled before this fix, ensuring backward compatibility.
-        val hwSaltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_HW_SALT)
-        val hwTokenBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_HW_VERIFICATION_TOKEN)
-        val useDedicatedHwKeys = !hwSaltBase64.isNullOrBlank() && !hwTokenBase64.isNullOrBlank()
-
-        val saltBase64 = if (useDedicatedHwKeys) hwSaltBase64 else dbHelper.getMetadata(KryptxDbSchema.KEY_SALT)
-        val tokenBase64 = if (useDedicatedHwKeys) hwTokenBase64 else dbHelper.getMetadata(KryptxDbSchema.KEY_VERIFICATION_TOKEN)
-        val kdfAlgorithm = dbHelper.getMetadata(KryptxDbSchema.KEY_KDF_ALGORITHM)
-
-        if (saltBase64 != null && tokenBase64 != null) {
-            val baseSalt = base64Decode(saltBase64)
-            val tokenBytes = base64Decode(tokenBase64)
-
-            val md = java.security.MessageDigest.getInstance("SHA-256")
-            md.update(baseSalt)
-            md.update(hardwareSecret)
-            val combinedSalt = md.digest()
-
-            // Extend combinedSalt to 32 bytes for Argon2id minimum salt requirement
-            val argon2Salt = combinedSalt.copyOf(32)
-            // Use the stored KDF algorithm; new enrollments use Argon2id, legacy may use PBKDF2
-            val derivedMasterKey = if (kdfAlgorithm == KeyDerivation.KdfAlgorithm.ARGON2ID.identifier) {
-                KeyDerivation.deriveKeyArgon2(masterPassword, argon2Salt)
-            } else {
-                KeyDerivation.deriveKey(masterPassword, combinedSalt)
-            }
-
-            var vek: ByteArray? = null
-            try {
-                vek = CryptoEngine.decrypt(tokenBytes, derivedMasterKey)
-
-                val dbKey = deriveSqlCipherKey(vek)
-                try {
-                    dbHelper.setDatabaseKey(dbKey)
-                    decoyDbHelper.setDatabaseKey(dbKey)
-                } finally {
-                    SecureMemory.wipe(dbKey)
-                }
-
-                sessionManager.unlock(vek, isDecoy = false)
-                sessionManager.withVaultKey { activeKey ->
-                    dbHelper.loadAllItems(activeKey)
-                }
-                onAuditInvalidated?.invoke()
-                return@withContext KryptxResult.Success(Unit)
-            } catch (_: Exception) {
-                // Handled below with failed attempt recording
-            } finally {
-                vek?.let { SecureMemory.wipe(it) }
-                SecureMemory.wipe(derivedMasterKey)
-                SecureMemory.wipe(baseSalt)
-                SecureMemory.wipe(combinedSalt)
-                SecureMemory.wipe(argon2Salt)
-            }
-        }
-
-        sessionManager.recordFailedAttempt()
-        KryptxResult.Error(KryptxErrorType.WRONG_PASSWORD, "Hardware key validation or master password failed")
     }
 
     override fun getActiveVaultId(): String {
@@ -1334,6 +1147,15 @@ class VaultAuthRepositoryImpl(
         }
     }
 
+    override fun getPqcSignaturePublicKey(): ByteArray? {
+        val base64 = dbHelper.getMetadata(KryptxDbSchema.KEY_PQC_SIGNATURE_PUBLIC_KEY) ?: return null
+        return try {
+            base64Decode(base64)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     override suspend fun rotatePqcIdentityKeyPair(): KryptxResult<Unit> = withContext(Dispatchers.Default) {
         sessionManager.withVaultKey { activeVek ->
             try {
@@ -1347,19 +1169,26 @@ class VaultAuthRepositoryImpl(
 
     private fun generateAndStorePqcIdentityKeyPair(vek: ByteArray) {
         val pqcKeyPair = PostQuantumEngine.generateKeyPair()
+        val pqcSigKeyPair = PostQuantumEngine.generateSignatureKeyPair()
         var encryptedPrivKey: ByteArray? = null
+        var encryptedSigPrivKey: ByteArray? = null
         try {
             encryptedPrivKey = CryptoEngine.encrypt(pqcKeyPair.privateKey, vek)
+            encryptedSigPrivKey = CryptoEngine.encrypt(pqcSigKeyPair.privateKey, vek)
             val pqcBatch = mapOf(
                 KryptxDbSchema.KEY_PQC_IDENTITY_PUBLIC_KEY to base64Encode(pqcKeyPair.publicKey),
-                KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT to base64Encode(encryptedPrivKey)
+                KryptxDbSchema.KEY_PQC_IDENTITY_PRIVATE_KEY_CIPHERTEXT to base64Encode(encryptedPrivKey),
+                KryptxDbSchema.KEY_PQC_SIGNATURE_PUBLIC_KEY to base64Encode(pqcSigKeyPair.publicKey),
+                KryptxDbSchema.KEY_PQC_SIGNATURE_PRIVATE_KEY_CIPHERTEXT to base64Encode(encryptedSigPrivKey)
             )
             if (!dbHelper.setMetadataBatch(pqcBatch)) {
                 throw IllegalStateException("Failed to commit PQC identity key pair metadata batch")
             }
         } finally {
-            SecureMemory.wipe(pqcKeyPair.privateKey)
+            pqcKeyPair.wipe()
+            pqcSigKeyPair.wipe()
             encryptedPrivKey?.let { SecureMemory.wipe(it) }
+            encryptedSigPrivKey?.let { SecureMemory.wipe(it) }
         }
     }
 

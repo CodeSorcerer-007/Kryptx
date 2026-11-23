@@ -42,40 +42,6 @@ class MultiVaultRepositoryTest {
     }
 
     @Test
-    fun testHardwareKeyEnrollmentLifecycle() = runTest(testDispatcher) {
-        assertFalse(repository.isHardwareKeyEnrolled())
-
-        val challenge = byteArrayOf(0x01, 0x02, 0x03, 0x04)
-        val hardwareSecret = byteArrayOf(0xAA.toByte(), 0xBB.toByte(), 0xCC.toByte())
-
-        val enrollResult = repository.enrollHardwareKey(
-            label = "YubiKey 5C NFC",
-            uidHash = "mockHash123",
-            challenge = challenge,
-            hardwareSecret = hardwareSecret,
-            masterPassword = "MasterPassword123!".toCharArray()
-        )
-
-        assertTrue(enrollResult.isSuccess)
-        assertTrue(repository.isHardwareKeyEnrolled())
-        assertEquals("YubiKey 5C NFC", repository.getHardwareKeyLabel())
-        assertEquals("mockHash123", repository.getHardwareKeyUidHash())
-        assertNotNull(repository.getHardwareKeyChallenge())
-
-        // Test unlock with hardware key
-        val unlockSuccess = repository.unlockWithHardwareKey(
-            "MasterPassword123!".toCharArray(),
-            hardwareSecret
-        )
-        assertTrue(unlockSuccess.isSuccess)
-
-        // Test remove hardware key
-        val removeResult = repository.removeHardwareKey("MasterPassword123!".toCharArray())
-        assertTrue(removeResult.isSuccess)
-        assertFalse(repository.isHardwareKeyEnrolled())
-    }
-
-    @Test
     fun testDatabaseDiagnosticsReport() {
         val diagnostics = repository.getDatabaseDiagnostics()
         assertTrue(diagnostics.isIntegrityOk)

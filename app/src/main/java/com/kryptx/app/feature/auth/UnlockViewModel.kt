@@ -76,74 +76,16 @@ class UnlockViewModel(
             preferencesRepository.setBiometricEnabled(true)
         }
         val isBiometricConfigured = isRepoConfigured && preferencesRepository.biometricEnabled.value
-        val isHardwareKey = vaultRepository.isHardwareKeyEnrolled()
-        val keyLabel = vaultRepository.getHardwareKeyLabel()
         _uiState.update { current ->
             current.copy(
                 hasVault = hasVault,
-                isBiometricsAvailable = isBiometricConfigured,
-                isHardwareKeyRequired = isHardwareKey,
-                hardwareKeyLabel = keyLabel
+                isBiometricsAvailable = isBiometricConfigured
             )
         }
     }
 
     fun setErrorMessage(message: String?) {
         _uiState.value = _uiState.value.copy(errorMessage = message, isLoading = false)
-    }
-
-    private var pendingNfcTag: android.nfc.Tag? = null
-
-    fun handleNfcTag(tag: android.nfc.Tag, passwordChars: CharArray, onSuccess: () -> Unit) {
-        if (!_uiState.value.isHardwareKeyRequired) return
-        val challenge = vaultRepository.getHardwareKeyChallenge() ?: return
-        val expectedUidHash = vaultRepository.getHardwareKeyUidHash()
-
-        if (passwordChars.isEmpty()) {
-            pendingNfcTag = tag
-            _uiState.update { it.copy(isHardwareKeyDetected = true, errorMessage = null) }
-            return
-        }
-
-        val chars = passwordChars.copyOf()
-        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-        viewModelScope.launch {
-            val keyManager = com.kryptx.app.core.security.HardwareSecurityKeyManager()
-            val hardwareSecret = keyManager.processTagResponse(tag, expectedUidHash, challenge)
-
-            if (hardwareSecret == null) {
-                SecureMemory.wipe(chars)
-                _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = "Unrecognized or mismatched security key")
-                return@launch
-            }
-
-            val result = try {
-                vaultRepository.unlockWithHardwareKey(chars, hardwareSecret)
-            } finally {
-                SecureMemory.wipe(chars)
-                SecureMemory.wipe(hardwareSecret)
-            }
-
-            _uiState.value = _uiState.value.copy(isLoading = false)
-            when (result) {
-                is KryptxResult.Success -> {
-                    pendingNfcTag = null
-                    _uiState.value = _uiState.value.copy(isHardwareKeyDetected = false)
-                    applyKeepUnlockedOverride()
-                    _uiState.value = _uiState.value.copy(passwordLength = 0)
-                    activityLogManager?.logEvent("Unlock", "Vault unlocked via Hardware Key (NFC)")
-                    activityLogManager?.loadEvents()
-                    onSuccess()
-                }
-                is KryptxResult.Error -> {
-                    _uiState.value = _uiState.value.copy(errorMessage = "Hardware key unlock failed. Check password.")
-                }
-            }
-        }
-    }
-
-    fun handleNfcTag(tag: android.nfc.Tag, onSuccess: () -> Unit) {
-        handleNfcTag(tag, charArrayOf(), onSuccess)
     }
 
     fun onPasswordLengthChanged(length: Int) {
@@ -156,19 +98,6 @@ class UnlockViewModel(
     fun unlockWithPassword(passwordChars: CharArray, onSuccess: () -> Unit) {
         if (passwordChars.isEmpty()) {
             _uiState.value = _uiState.value.copy(errorMessage = "Please enter your master password")
-            return
-        }
-
-        if (_uiState.value.isHardwareKeyRequired) {
-            val pendingTag = pendingNfcTag
-            if (pendingTag != null) {
-                pendingNfcTag = null
-                _uiState.update { it.copy(isHardwareKeyDetected = false) }
-                handleNfcTag(pendingTag, passwordChars, onSuccess)
-                SecureMemory.wipe(passwordChars)
-                return
-            }
-            _uiState.value = _uiState.value.copy(errorMessage = "Please tap your paired NFC security key to complete 2FA unlock")
             return
         }
 
@@ -327,9 +256,6 @@ class UnlockViewModel(
 data class UnlockUiState(
     val hasVault: Boolean = false,
     val isBiometricsAvailable: Boolean = false,
-    val isHardwareKeyRequired: Boolean = false,
-    val isHardwareKeyDetected: Boolean = false,
-    val hardwareKeyLabel: String? = null,
     /**
      * Length of current entered master password for UI validation and visual indicators.
      * Raw passwords are never held as immutable String on the heap; SecureTextField

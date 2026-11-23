@@ -116,7 +116,11 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
         context = appContext,
         sessionManager = sessionManager,
         keystoreManager = keystoreManager,
-        preferencesRepository = preferencesRepository
+        preferencesRepository = preferencesRepository,
+        onBeforeWipeCallback = {
+            try { dbHelper.close() } catch (_: Throwable) {}
+            try { decoyDbHelper.close() } catch (_: Throwable) {}
+        }
     ).also { manager ->
         sessionManager.addFailedAttemptListener {
             manager.onFailedAttempt()
@@ -179,11 +183,6 @@ class AppContainer(context: Context) : KryptxDependencies, java.io.Closeable {
     // up the IO scope until it is actually needed.
     override val activityLogManager: ActivityLogManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         ActivityLogManager(dbHelper)
-    }
-
-    // ── Hardware Security Key ───────────────────────────────────────────────
-    override val hardwareKeyManager: com.kryptx.app.core.security.IHardwareSecurityKeyManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        com.kryptx.app.core.security.HardwareSecurityKeyManager(appContext)
     }
 
     /**

@@ -39,7 +39,6 @@ class KryptxApplication : Application(), KryptxDependencies {
     override val memoryWatchdog: com.kryptx.app.core.security.CryptographicMemoryWatchdog get() = container.memoryWatchdog
     override val activityLogManager: ActivityLogManager get() = container.activityLogManager
     override val emergencyAutoDestructManager: com.kryptx.app.core.security.EmergencyAutoDestructManager get() = container.emergencyAutoDestructManager
-    override val hardwareKeyManager: com.kryptx.app.core.security.IHardwareSecurityKeyManager get() = container.hardwareKeyManager
 
     /**
      * Staged credentials submitted via Autofill save requests while the vault was locked.

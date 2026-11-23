@@ -64,7 +64,7 @@
     public static int e(...);
 }
 
-# Suppress compile-only annotation warnings from Tink, Guava, and YubiKit
+# Suppress compile-only annotation warnings from Tink and Guava
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn javax.annotation.**
 

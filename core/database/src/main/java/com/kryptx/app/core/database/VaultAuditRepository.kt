@@ -20,7 +20,8 @@ interface VaultAuditRepository {
 class VaultAuditRepositoryImpl(
     private val dbHelper: KryptxDatabaseHelper,
     private val sessionManager: VaultSessionManager,
-    private val decoyDbHelper: KryptxDatabaseHelper? = null
+    private val decoyDbHelper: KryptxDatabaseHelper? = null,
+    private val preferencesRepository: IPreferencesRepository? = null
 ) : VaultAuditRepository {
 
     private val activeDbHelper: KryptxDatabaseHelper
@@ -215,11 +216,11 @@ class VaultAuditRepositoryImpl(
                 }
             }
 
-            // 6. Breach check against local Bloom Filter
+            // 6. Breach check against high-capacity local Bloom Filter (100% Offline Sovereign Engine)
             var compromisedCount = 0
             for (item in loginItems) {
-                val isPwned = BreachChecker.checkOffline(item.password).isBreached
-                if (isPwned) {
+                val breachStatus = BreachChecker.checkOffline(item.password)
+                if (breachStatus.isBreached) {
                     compromisedCount++
                     issues.add(
                         SecurityIssue(
@@ -229,8 +230,8 @@ class VaultAuditRepositoryImpl(
                             itemSubtitle = item.displaySubtitle,
                             severity = IssueSeverity.CRITICAL,
                             type = IssueType.COMPROMISED,
-                            title = "Password found in known data breaches",
-                            description = "This password appears in public credential dumps and is likely in automated attack dictionaries.",
+                            title = "Password found in known data breaches (${breachStatus.source})",
+                            description = "This password matches known compromised credentials (source: ${breachStatus.source}, ~${breachStatus.breachCount} occurrences) and is susceptible to credential stuffing.",
                             recommendation = "Change this password immediately on the corresponding service."
                         )
                     )

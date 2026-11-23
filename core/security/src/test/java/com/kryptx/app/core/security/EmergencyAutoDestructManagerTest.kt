@@ -268,4 +268,25 @@ class EmergencyAutoDestructManagerTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun testEmergencyWipeExecutesOnBeforeWipeCallback() {
+        val mockKeystoreManager = mock(com.kryptx.app.core.crypto.KeystoreManager::class.java)
+        `when`(mockKeystoreManager.wipeAllKeystoreAliases()).thenReturn(true)
+        var callbackExecuted = false
+
+        val manager = EmergencyAutoDestructManager(
+            context = mockContext,
+            sessionManager = null,
+            keystoreManager = mockKeystoreManager,
+            maxFailedAttempts = 1,
+            isEnabled = true,
+            onBeforeWipeCallback = {
+                callbackExecuted = true
+            }
+        )
+
+        manager.triggerEmergencyWipe()
+        assertTrue("onBeforeWipeCallback must be invoked during emergency wipe", callbackExecuted)
+    }
 }
