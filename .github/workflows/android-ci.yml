@@ -44,6 +44,25 @@ jobs:
       - name: Run Unit Tests Across All Modules
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
+      - name: Verify Test Count (702 Expected)
+        run: |
+          echo "Verifying test count across all modules..."
+          TOTAL=0
+          for module in app core/crypto core/database core/model core/security; do
+            if [ -d "$module/build/test-results/testDebugUnitTest" ]; then
+              COUNT=$(grep -h 'tests="[0-9]*"' $module/build/test-results/testDebugUnitTest/TEST-*.xml 2>/dev/null | sed 's/.*tests="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
+              echo "  $module: $COUNT tests"
+              TOTAL=$((TOTAL + COUNT))
+            fi
+          done
+          echo ""
+          echo "GRAND TOTAL: $TOTAL tests"
+          if [ "$TOTAL" -ne 702 ]; then
+            echo "ERROR: Expected 702 tests, found $TOTAL"
+            exit 1
+          fi
+          echo "✓ Test count verified: $TOTAL tests"
+
       - name: Roborazzi Screenshot Regression in CI
         continue-on-error: true
         run: |

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Modular Architecture**: Extracted physical Gradle subprojects (`:core:model`, `:core:crypto`, `:core:database`, `:core:security`) cleanly separating data models, cryptographic primitives, SQLCipher storage, and security management.
 - **Strict CI/CD Hardening**: Added top-level and job-level minimal permissions (`permissions: read-all`, `contents: read`, `actions: read`), job concurrency cancellation, fixed heredoc bash syntax in release workflows, and upgraded Renovate configuration to `config:recommended`.
 - **Zero-Network Air-Gap Documentation Alignment**: Audited all project documentation (`README.md`, `ARCHITECTURE.md`, `BUILD.md`, `TESTING.md`, `docs/privacy.html`, `docs/index.html`) to eliminate all false claims regarding network calls, HIBP k-Anonymity queries, local Wi-Fi socket servers, and wireless BLE scanning. Kryptx strictly operates 100% offline via local Bloom filter breach analysis and air-gapped camera-to-screen QR fountain sync.
-- **Comprehensive Verification**: 672 automated unit, fuzz, and property-based tests passing with 100% success rate (0 failures, 0 regressions).
+- **Comprehensive Verification**: 702 automated unit, fuzz, and property-based tests passing with 100% success rate (0 failures, 0 regressions).
 
 ---
 
@@ -60,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HMAC Blind Search Index Deduplication**: Optimized blind index candidate querying by separating structured prefix filters (`type:`, `tag:`, `is:`) from free-text tokens in `SearchViewModel`, and deduplicating tokens in `HmacSearchIndex` to eliminate redundant SQL lookups.
 - **Biometric Enrollment & Invalidation Lifecycle**: Restored automatic enrollment prompt when biometric credentials are added/changed, and hardened Keystore key invalidation auto-recovery.
 - **Runtime Permissions & Camera Auto-Prompt**: Added automatic runtime permission rationale prompting when launching the TOTP camera QR code scanner, and audited Android 13+ clipboard notification channels and Android 12+ exact alarm scheduling.
-- **Test Suite Perfection**: 546 unit tests passing with a 100% success rate (0 failures, 0 ignored), Android Lint passing with 0 errors and 0 warnings, and clean air-gapped zero-network build verification.
+- **Test Suite Perfection**: 702 unit, fuzz, and property-based tests passing with a 100% success rate (0 failures, 0 ignored), Android Lint passing with 0 errors and 0 warnings, and clean air-gapped zero-network build verification.
 
 ---
 
