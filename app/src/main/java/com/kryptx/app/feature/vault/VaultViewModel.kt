@@ -94,11 +94,11 @@ class VaultViewModel(
     }
 
     fun checkAndSavePendingAutofill(app: com.kryptx.app.KryptxApplication) {
-        if (app.pendingAutofillQueue.isEmpty()) return
+        if (!app.hasPendingAutofill()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                while (app.pendingAutofillQueue.isNotEmpty()) {
-                    val pending = app.pendingAutofillQueue.poll() ?: break
+                while (app.hasPendingAutofill()) {
+                    val pending = app.pollPendingAutofill() ?: break
                     val existingItems = vaultRepository.getItems().first()
                     val match = existingItems.firstOrNull { item ->
                         item.type == ItemType.LOGIN && (

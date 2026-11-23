@@ -448,12 +448,13 @@ class KryptxAutofillService : AutofillService() {
                     }
                     return
                 } else {
-                    // Vault locked: Stage credential safely in memory so it is saved automatically upon unlock
+                    // Vault locked: Stage credential safely with encrypted sensitive fields in memory
+                    // so it is saved automatically upon unlock without exposing plaintext secrets on the heap
                     com.kryptx.app.core.security.SecurityLogger.info(
                         "KryptxAutofillService",
-                        "Vault is locked during save request; staging pending credential for $formattedTitle"
+                        "Vault is locked during save request; staging encrypted pending credential for $formattedTitle"
                     )
-                    app.pendingAutofillQueue.offer(
+                    app.stagePendingAutofill(
                         VaultItem(
                             title = formattedTitle,
                             type = ItemType.LOGIN,

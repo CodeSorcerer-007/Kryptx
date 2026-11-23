@@ -154,54 +154,61 @@ class UnlockViewModel(
     }
 
     fun setupNewVault(passwordChars: CharArray, confirmChars: CharArray, enableBiometrics: Boolean, onSuccess: () -> Unit) {
-        if (passwordChars.size < 8) {
-            _uiState.value = _uiState.value.copy(errorMessage = "Master password must be at least 8 characters")
-            return
-        }
-        if (!passwordChars.contentEquals(confirmChars)) {
-            _uiState.value = _uiState.value.copy(errorMessage = "Passwords do not match")
-            return
-        }
-
         val chars = passwordChars.copyOf()
-        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-
-        viewModelScope.launch {
-            val result = try {
-                vaultRepository.setupNewVault(chars)
-            } finally {
+        try {
+            if (passwordChars.size < 8) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Master password must be at least 8 characters")
                 SecureMemory.wipe(chars)
+                return
+            }
+            if (!passwordChars.contentEquals(confirmChars)) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Passwords do not match")
+                SecureMemory.wipe(chars)
+                return
             }
 
-            when (result) {
-                is KryptxResult.Success -> {
-                    val bioConfigured = if (enableBiometrics) {
-                        val bioResult = vaultRepository.setupBiometrics()
-                        val success = bioResult.isSuccess
-                        preferencesRepository.setBiometricEnabled(success)
-                        success
-                    } else {
-                        preferencesRepository.setBiometricEnabled(false)
-                        false
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+
+            viewModelScope.launch {
+                val result = try {
+                    vaultRepository.setupNewVault(chars)
+                } finally {
+                    SecureMemory.wipe(chars)
+                }
+
+                when (result) {
+                    is KryptxResult.Success -> {
+                        val bioConfigured = if (enableBiometrics) {
+                            val bioResult = vaultRepository.setupBiometrics()
+                            val success = bioResult.isSuccess
+                            preferencesRepository.setBiometricEnabled(success)
+                            success
+                        } else {
+                            preferencesRepository.setBiometricEnabled(false)
+                            false
+                        }
+
+                        _uiState.value = _uiState.value.copy(
+                            hasVault = true,
+                            passwordLength = 0,
+                            isLoading = false,
+                            isBiometricsAvailable = bioConfigured
+                        )
+                        activityLogManager?.logEvent("Security", "New Vault created")
+                        activityLogManager?.loadEvents()
+                        onSuccess()
                     }
-
-                    _uiState.value = _uiState.value.copy(
-                        hasVault = true,
-                        passwordLength = 0,
-                        isLoading = false,
-                        isBiometricsAvailable = bioConfigured
-                    )
-                    activityLogManager?.logEvent("Security", "New Vault created")
-                    activityLogManager?.loadEvents()
-                    onSuccess()
-                }
-                is KryptxResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to create vault. Please try again."
-                    )
+                    is KryptxResult.Error -> {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to create vault. Please try again."
+                        )
+                    }
                 }
             }
+        } finally {
+            SecureMemory.wipe(passwordChars)
+            SecureMemory.wipe(confirmChars)
         }
     }
 

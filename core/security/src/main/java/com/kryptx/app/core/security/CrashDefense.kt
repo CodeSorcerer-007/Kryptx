@@ -17,8 +17,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * ## Architecture:
  * 1. **Global Default Exception Trap**: Catches all uncaught exceptions across every thread.
- * 2. **Main Looper Guardian (Immortal Loop)**: Intercepts unhandled UI-thread exceptions during
- *    Compose recomposition, measure/layout, and touch dispatch without terminating the process.
+ * 2. **Graceful Process Recovery & Fail-Closed Guardian**: Intercepts unhandled UI-thread exceptions,
+ *    guarantees immediate session locking and volatile key zeroization, and cleanly restarts the app
+ *    into a locked state with clean process lifecycle.
  * 3. **Activity Lifecycle Guardian**: Tracks the currently active top Activity to allow clean,
  *    graceful recovery if a fatal UI exception occurs.
  * 4. **Zero-Leak Crash Logging**: Sanitizes diagnostic logs to ensure cryptographic key material
@@ -153,8 +154,8 @@ object CrashDefense {
                     } catch (_: Throwable) {}
                 }
             } else {
-                // Background thread non-critical exception: notify registered observers and log
-                SecurityLogger.warn(TAG, "Suppressed non-critical crash on background thread '${thread.name}': ${throwable.message}")
+                // Background thread uncaught non-critical exception: notify registered observers, log, and recover
+                SecurityLogger.warn(TAG, "Uncaught exception on background thread '${thread.name}': executing graceful recovery", throwable)
                 for (listener in nonCriticalCrashListeners) {
                     try {
                         listener(thread, throwable)
@@ -162,6 +163,9 @@ object CrashDefense {
                         SecurityLogger.error(TAG, "Non-critical crash listener failed", t)
                     }
                 }
+                // Do not leave application in an undefined zombie state with dead background workers:
+                // Gracefully recover application state in locked mode
+                recoverApplicationGracefully()
             }
         }
     }
@@ -196,8 +200,8 @@ object CrashDefense {
     }
 
     /**
-     * Returns true if [throwable] is security-critical and must NOT be swallowed by the
-     * immortal looper. The following categories are treated as security-critical:
+     * Returns true if [throwable] is security-critical and must trigger immediate fail-closed termination.
+     * The following categories are treated as security-critical:
      * - Strongly-typed [SecurityCriticalException] instances
      * - Standard [SecurityException] instances
      * - Cryptographic failures: javax.crypto.*, java.security.*
@@ -291,20 +295,39 @@ object CrashDefense {
                 return
             }
 
-            val app = applicationContextRef?.get() ?: return
-            val activity = currentActivityRef?.get()
+            val app = applicationContextRef?.get()
+            if (app != null) {
+                val activity = currentActivityRef?.get()
+                activity?.finish()
 
-            activity?.finish()
-
-            val restartIntent = app.packageManager.getLaunchIntentForPackage(app.packageName)?.apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                putExtra("EXTRA_RECOVERY_MODE", true)
-            }
-            if (restartIntent != null) {
-                app.startActivity(restartIntent)
+                val restartIntent = app.packageManager.getLaunchIntentForPackage(app.packageName)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    putExtra("EXTRA_RECOVERY_MODE", true)
+                }
+                if (restartIntent != null) {
+                    try {
+                        val pendingIntent = android.app.PendingIntent.getActivity(
+                            app,
+                            1001,
+                            restartIntent,
+                            android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                        )
+                        val alarmManager = app.getSystemService(android.content.Context.ALARM_SERVICE) as? android.app.AlarmManager
+                        alarmManager?.set(
+                            android.app.AlarmManager.RTC,
+                            System.currentTimeMillis() + 200L,
+                            pendingIntent
+                        )
+                    } catch (_: Throwable) {
+                        try {
+                            app.startActivity(restartIntent)
+                        } catch (_: Throwable) {}
+                    }
+                }
             }
         } catch (t: Throwable) {
             SecurityLogger.error(TAG, "Graceful application recovery failed; executing fail-closed process kill", t)
+        } finally {
             try {
                 android.os.Process.killProcess(android.os.Process.myPid())
             } catch (_: Throwable) {}
@@ -313,8 +336,8 @@ object CrashDefense {
 }
 
 /**
- * Marker interface for exceptions that are strictly security-critical and MUST NOT
- * be intercepted or swallowed by the immortal looper.
+ * Marker interface for exceptions that are strictly security-critical and MUST trigger
+ * immediate fail-closed process termination.
  */
 sealed interface SecurityCriticalException
 

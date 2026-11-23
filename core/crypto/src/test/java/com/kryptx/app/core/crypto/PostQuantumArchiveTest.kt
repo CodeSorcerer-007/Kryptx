@@ -91,4 +91,49 @@ class PostQuantumArchiveTest {
             )
         }
     }
+
+    @Test
+    fun `test import fails closed when expected sender public key is null and untrusted signer not allowed`() {
+        val vaultData = "Secret confidential data".toByteArray(Charsets.UTF_8)
+        val recipientMlkem = PostQuantumEngine.generateKeyPair()
+        val senderMldsa = PostQuantumEngine.generateSignatureKeyPair()
+
+        val archiveBytes = PostQuantumEngine.exportSignedVaultArchive(
+            vaultData = vaultData,
+            recipientMlkemPublicKey = recipientMlkem.publicKey,
+            senderMldsaPrivateKey = senderMldsa.privateKey,
+            senderMldsaPublicKey = senderMldsa.publicKey
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            PostQuantumEngine.importSignedVaultArchive(
+                archiveBytes = archiveBytes,
+                recipientMlkemPrivateKey = recipientMlkem.privateKey,
+                expectedSenderMldsaPublicKey = null,
+                allowUntrustedSigner = false
+            )
+        }
+    }
+
+    @Test
+    fun `test import succeeds with null sender key if allowUntrustedSigner is explicitly enabled`() {
+        val vaultData = "Secret confidential data".toByteArray(Charsets.UTF_8)
+        val recipientMlkem = PostQuantumEngine.generateKeyPair()
+        val senderMldsa = PostQuantumEngine.generateSignatureKeyPair()
+
+        val archiveBytes = PostQuantumEngine.exportSignedVaultArchive(
+            vaultData = vaultData,
+            recipientMlkemPublicKey = recipientMlkem.publicKey,
+            senderMldsaPrivateKey = senderMldsa.privateKey,
+            senderMldsaPublicKey = senderMldsa.publicKey
+        )
+
+        val decrypted = PostQuantumEngine.importSignedVaultArchive(
+            archiveBytes = archiveBytes,
+            recipientMlkemPrivateKey = recipientMlkem.privateKey,
+            expectedSenderMldsaPublicKey = null,
+            allowUntrustedSigner = true
+        )
+        assertArrayEquals(vaultData, decrypted)
+    }
 }

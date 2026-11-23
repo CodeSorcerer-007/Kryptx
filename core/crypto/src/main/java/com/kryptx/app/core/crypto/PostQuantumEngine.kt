@@ -362,24 +362,38 @@ object PostQuantumEngine {
 
         companion object {
             fun fromSerializedBytes(bytes: ByteArray): SignedEncryptedVaultArchive {
+                require(bytes.size >= 20) { "Archive payload is too short to be valid KPQC archive" }
                 val buf = java.nio.ByteBuffer.wrap(bytes)
                 val magic = ByteArray(4)
                 buf.get(magic)
                 require(magic.contentEquals("KPQC".toByteArray(Charsets.US_ASCII))) {
                     "Invalid magic bytes in archive"
                 }
+
+                require(buf.remaining() >= 4) { "Archive truncated before encapsulation length" }
                 val encLen = buf.getInt()
+                require(encLen > 0 && encLen <= buf.remaining() - 12) { "Invalid encapsulation length: $encLen" }
                 val enc = ByteArray(encLen)
                 buf.get(enc)
+
+                require(buf.remaining() >= 4) { "Archive truncated before ciphertext length" }
                 val cipherLen = buf.getInt()
+                require(cipherLen > 0 && cipherLen <= buf.remaining() - 8) { "Invalid ciphertext length: $cipherLen" }
                 val cipher = ByteArray(cipherLen)
                 buf.get(cipher)
+
+                require(buf.remaining() >= 4) { "Archive truncated before signature length" }
                 val sigLen = buf.getInt()
+                require(sigLen > 0 && sigLen <= buf.remaining() - 4) { "Invalid signature length: $sigLen" }
                 val sig = ByteArray(sigLen)
                 buf.get(sig)
+
+                require(buf.remaining() >= 4) { "Archive truncated before signer public key length" }
                 val pubLen = buf.getInt()
+                require(pubLen > 0 && pubLen == buf.remaining()) { "Invalid signer public key length: $pubLen" }
                 val pub = ByteArray(pubLen)
                 buf.get(pub)
+
                 return SignedEncryptedVaultArchive(enc, cipher, sig, pub)
             }
         }
@@ -411,22 +425,28 @@ object PostQuantumEngine {
     /**
      * Imports and authenticates a post-quantum fortified vault archive.
      * Verifies the ML-DSA-65 digital signature and decapsulates the ML-KEM-768 shared secret to decrypt the vault.
+     * Fails closed if expectedSenderMldsaPublicKey is omitted unless allowUntrustedSigner is explicitly enabled.
      */
     fun importSignedVaultArchive(
         archiveBytes: ByteArray,
         recipientMlkemPrivateKey: ByteArray,
-        expectedSenderMldsaPublicKey: ByteArray? = null
+        expectedSenderMldsaPublicKey: ByteArray? = null,
+        allowUntrustedSigner: Boolean = false
     ): ByteArray {
         val archive = SignedEncryptedVaultArchive.fromSerializedBytes(archiveBytes)
         if (expectedSenderMldsaPublicKey != null) {
             require(archive.signerPublicKey.contentEquals(expectedSenderMldsaPublicKey)) {
                 "Signer public key does not match trusted sender public key"
             }
+        } else {
+            require(allowUntrustedSigner) {
+                "Untrusted archive signer: expectedSenderMldsaPublicKey must be provided to authenticate archive origin"
+            }
         }
         val payloadToVerify = archive.encapsulation + archive.ciphertext
         val isVerified = verifySignature(payloadToVerify, archive.signature, archive.signerPublicKey)
         require(isVerified) {
-            "Post-Quantum signature verification failed! Archive has been tampered with or sender is untrusted"
+            "Post-Quantum signature verification failed! Archive has been tampered with or signature is invalid"
         }
 
         return decryptHybrid(archive.encapsulation, archive.ciphertext, recipientMlkemPrivateKey)

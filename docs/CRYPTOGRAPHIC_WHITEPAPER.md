@@ -101,7 +101,7 @@ Kryptx enforces modern Authenticated Encryption with Associated Data (AEAD) acro
 To protect volatile keys from cold-boot extraction, flash wear-leveling swapping, and core dumps:
 1. Direct `ByteBuffer` allocations in native code invoke `libc::mlock(address, capacity)` to pin pages in physical memory.
 2. Pages are marked with `libc::madvise(address, capacity, MADV_DONTDUMP)` to exclude key material from Android core dumps.
-3. Plaintext strings are prohibited for secrets; `CryptoEngine.encryptString` is deprecated with `DeprecationLevel.ERROR`, compelling the use of mutable `CharArray` and `ByteArray` buffers that are immediately wiped via `SecureMemory.wipe()` and Rust `zeroize`.
+3. Master secrets, KDF keys, PIN buffers, and encryption payloads strictly prohibit persistent strings; `CryptoEngine.encryptString` is deprecated with `DeprecationLevel.ERROR`, compelling the use of mutable `CharArray` and `ByteArray` buffers that are immediately wiped via `SecureMemory.wipe()` and Rust `zeroize`. Decrypted domain items (`VaultItem`) are transiently held in memory during the active unlocked session; upon session lock (`VaultSessionManager.lock()`), all in-memory item flows are cleared to empty lists, database encryption keys are zeroized, and SQLCipher connections are closed. Intermediate serialization byte buffers during export and saving are wiped via `SecureMemory.wipe(plainBytes)` immediately following encryption.
 
 ---
 
@@ -110,9 +110,10 @@ To protect volatile keys from cold-boot extraction, flash wear-leveling swapping
 Under physical coercion:
 1. The user inputs their separate **Duress PIN / Password**.
 2. Key derivation derives a distinct **Decoy Vault Key**.
-3. Kryptx unlocks an isolated `decoy_vault_items` table pre-populated with realistic logins (Netflix, Spotify, Amazon, Home Wi-Fi).
-4. The UI, animations, and behaviors operate identically to normal mode.
-5. Zero metadata or references to the primary vault partition are accessible in memory or on screen.
+3. **Constant-Time Timing Parity**: All password unlock attempts (Master Password, Duress Password, and incorrect entries) execute uniform two-pass Argon2id derivations, ensuring an adversary monitoring elapsed execution time cannot distinguish a real master unlock from a duress unlock or failed attempt.
+4. Kryptx unlocks an isolated `decoy_vault_items` table pre-populated with realistic logins (Netflix, Spotify, Amazon, Home Wi-Fi).
+5. The UI, animations, and behaviors operate identically to normal mode.
+6. Zero metadata or references to the primary vault partition are accessible in memory or on screen.
 
 ---
 

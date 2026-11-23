@@ -1268,7 +1268,7 @@ open class KryptxDatabaseHelper(
     // ==========================================
 
     open fun hasDuressSetup(): Boolean {
-        return getMetadata(KEY_HAS_DURESS) == "true" && getMetadata(KEY_DURESS_TOKEN) != null
+        return getMetadata(KEY_HAS_DURESS) == "true" && !getMetadata(KEY_DURESS_TOKEN).isNullOrBlank()
     }
 
     open suspend fun provisionDefaultItems(vek: ByteArray) = withContext(Dispatchers.IO) {

@@ -14,6 +14,7 @@ import com.kryptx.app.core.model.KryptxErrorType
 import com.kryptx.app.core.model.KryptxResult
 import com.kryptx.app.core.model.VaultItem
 import com.kryptx.app.core.security.VaultSessionManager
+import com.kryptx.app.core.security.SecurityLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -352,6 +353,20 @@ class VaultCrudRepositoryImpl(
                 if (!pqcSignature.isNullOrBlank() && !pqcSignerPub.isNullOrBlank()) {
                     val sig = base64Decode(pqcSignature)
                     val signerPub = base64Decode(pqcSignerPub)
+
+                    // Verify root of trust: If local vault already has a registered PQC signature public key,
+                    // log if backup was signed by a different identity
+                    val localSigPubBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_SIGNATURE_PUBLIC_KEY)
+                    if (localSigPubBase64 != null) {
+                        val localSigPub = base64Decode(localSigPubBase64)
+                        if (!signerPub.contentEquals(localSigPub)) {
+                            SecurityLogger.info(
+                                "VaultCrudRepository",
+                                "Backup ML-DSA-65 signature public key differs from local vault identity; validating against archive signer identity"
+                            )
+                        }
+                    }
+
                     val payloadToVerify = encapsulationBytes + ciphertext
                     val verified = PostQuantumEngine.verifySignature(payloadToVerify, sig, signerPub)
                     if (!verified) {
@@ -498,11 +513,14 @@ class VaultCrudRepositoryImpl(
         sessionManager.withVaultKey { activeVek ->
             try {
                 val (_, kemPrivKey) = getOrGeneratePqcKemKeys(activeVek)
+                val storedSigPubBase64 = activeDbHelper.getMetadata(KryptxDbSchema.KEY_PQC_SIGNATURE_PUBLIC_KEY)
+                val expectedSigPub = storedSigPubBase64?.let { base64Decode(it) } ?: getOrGeneratePqcSigKeys(activeVek).first
 
                 val decryptedVaultData = try {
                     PostQuantumEngine.importSignedVaultArchive(
                         archiveBytes = archiveBytes,
-                        recipientMlkemPrivateKey = kemPrivKey
+                        recipientMlkemPrivateKey = kemPrivKey,
+                        expectedSenderMldsaPublicKey = expectedSigPub
                     )
                 } catch (e: Exception) {
                     return@withContext KryptxResult.Error(

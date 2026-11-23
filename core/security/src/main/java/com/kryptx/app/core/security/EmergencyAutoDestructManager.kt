@@ -146,8 +146,9 @@ class EmergencyAutoDestructManager(
                 SecurityLogger.warn("EmergencyAutoDestruct", "onBeforeWipeCallback threw an exception", t)
             }
 
-            // 1. Instantaneous Cryptographic Erasure: Zeroize volatile in-memory session keys
+            // 1. Instantaneous Cryptographic Erasure: Zeroize volatile in-memory session keys and autofill staging
             sessionManager?.lock()
+            AutofillStagingManager.clear()
 
             // 2. Instantaneous Cryptographic Erasure: Invalidate all hardware Keystore keys,
             // including biometric, ECDH migration keys, and the AndroidX Security MasterKey

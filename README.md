@@ -62,7 +62,7 @@
 | **Anti-Phishing Autofill Defense** | **Strict `DomainMatcher`**:<br/>Terminal segment validation rejects `evil-paypal.com` or spoofed subdomains | ⚠️ Standard domain matching | ⚠️ Standard domain matching | ❌ Manual copy-paste or third-party input helper | ⚠️ Standard domain matching |
 | **Credential Breach Checking** | **100% Offline Bloom Filter**:<br/>In-memory breach analysis with zero network leakage (100K+ entries, <0.5% FPR) | ⚠️ Cloud API query to HIBP (leaks partial hash range) | ⚠️ Cloud API query (Watchtower) | ❌ Requires third-party cloud plugins | ⚠️ Cloud API query |
 | **Anti-Coercion & Cryptographic Erasure** | **Duress Decoy Vault** (isolated fake vault) + **Cryptographic Erasure** (hardware key destruction + defense-in-depth file overwrite) | ❌ None (Unlocking reveals entire vault) | ❌ Travel Mode only (Requires pre-trip web setup) | ❌ None (Requires separate database file swap) | ❌ None |
-| **UI Engine & Frame Rate Lock** | **120 FPS Display Mode Lock** + Jetpack Compose Material 3 + `CrashDefense` Immortal Looper | ⚠️ Hybrid Xamarin/MAUI/Flutter | ⚠️ Electron / React Native wrapper | ⚠️ Legacy Views / XML | ⚠️ WebView / Legacy hybrid |
+| **UI Engine & Frame Rate Lock** | **120 FPS Display Mode Lock** + Jetpack Compose Material 3 + `CrashDefense` Graceful Process Recovery | ⚠️ Hybrid Xamarin/MAUI/Flutter | ⚠️ Electron / React Native wrapper | ⚠️ Legacy Views / XML | ⚠️ WebView / Legacy hybrid |
 | **Cost & Telemetry** | **100% Free & Open Source (Apache 2.0)**<br/>0 Ads • 0 Trackers • 0 Subscriptions | ⚠️ Freemium ($10/yr for TOTP & attachments) | ❌ $36–$60 / year recurring subscription | 🟢 Free Open Source (Donation funded) | ❌ $36 / year subscription + tracker SDKs |
 
 ---
@@ -75,9 +75,9 @@
 | **2. Post-Quantum Fortification** | **NIST FIPS 203 & 204** | Hybrid ML-KEM-768 & ML-DSA-65 Signed & Encrypted Vault Archives (`SignedEncryptedVaultArchive`). |
 | **3. Bare-Metal Rust Engine & Memory Safety** | **UniFFI JNI (4 ABIs)** | UniFFI JNI across arm64-v8a, armeabi-v7a, x86, x86_64; DirectBuffer Linux `mlock()` and `MADV_DONTDUMP` with fail-closed pinning (`allocateMandatorySecureBuffer`) + compile-time `@MustBeWiped` zeroization barriers. |
 | **4. Hardware Keystore & Biometrics** | **StrongBox TEE** | Class 3 strong biometrics, biometric enrollment invalidation, and StrongBox TEE key wrapping with ECDH P-256 forward migration. |
-| **5. Anti-Coercion & Anti-Forensics** | **Cryptographic Erasure** | Duress PIN opens isolated decoy vault; panic mode executes instantaneous cryptographic erasure of session & all hardware Keystore keys (including biometric, ECDH, and AndroidX metadata MasterKey) with defense-in-depth multi-pass file overwrite. |
-| **6. Fluidity & Crash Defense** | **120 FPS Lock** | 120 FPS high-refresh rate lock; `CrashDefense` UI looper with strict fail-closed security exception propagation and pre-restart vault locking. |
-| **7. Test Quality & Verification** | **689 / 689 Passing** | **689 automated unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
+| **5. Anti-Coercion & Anti-Forensics** | **Cryptographic Erasure** | Duress PIN opens isolated decoy vault with constant-time Argon2id timing parity; panic mode executes instantaneous cryptographic erasure of session & all hardware Keystore keys (including biometric, ECDH, and AndroidX metadata MasterKey) with defense-in-depth multi-pass file overwrite. |
+| **6. Fluidity & Crash Defense** | **120 FPS Lock** | 120 FPS high-refresh rate lock; `CrashDefense` graceful process recovery with AlarmManager-scheduled restart, strict fail-closed security exception propagation, and pre-restart vault locking. |
+| **7. Test Quality & Verification** | **702 / 702 Passing** | **702 automated unit & fuzz tests passing (100% pass rate, 0 failures, 0 regressions)** with JaCoCo verification. |
 | **8. UI/UX & Human Experience** | **WCAG 2.1 AA** | `AirGapQrFountainCodec` animated QR sequenced sync, accessibility semantics (`Role.Button`), offline identicons, and tactile haptics. |
 
 ---
@@ -107,7 +107,7 @@ Every technology listed below is 100% active and running in the production app:
 | **Post-Quantum** | **ML-KEM-768 (FIPS 203) & ML-DSA-65 (FIPS 204)** | Hybrid post-quantum key encapsulation and digital signature verification via BouncyCastle. |
 | **Persistence** | **SQLCipher 4 (Page-Level Encryption & WAL Mode)** | Page-level encrypted SQLite via SQLCipher 4 (`net.zetetic.database.sqlcipher`) with `cipher_memory_security = ON`, zero plaintext rows, HMAC blind search indexing, and dual-layer AES-256-GCM / XChaCha20 payload envelope encryption. |
 | **Memory Shield** | **Linux `mlock` & `MADV_DONTDUMP`** | Memory-locked physical RAM buffers via native JNI preventing flash storage paging and OS core dump leaks; compile-time `@MustBeWiped` zeroization contracts and two-pass zeroization (`Arrays.fill` + Rust `zeroize`). |
-| **Resilience Shield** | **Enterprise `CrashDefense`** | Immortal main looper (ADR-007) preventing UI thread termination during Compose recomposition/layout, thread-level sentinels, and sanitized zero-leak telemetry. |
+| **Resilience Shield** | **Enterprise `CrashDefense`** | Graceful process recovery (ADR-007) ensuring immediate session locking and volatile key zeroization, clean UI restart in locked state, and sanitized zero-leak telemetry. |
 | **Document Sandbox** | **Native `PdfRenderer` + `FileProvider`** | 100% offline hardware-accelerated PDF rendering with page navigation; safe read-only delegation to external viewers via secure `FileProvider`. |
 | **Scanning** | **CameraX API + ZXing** | Real-time TOTP QR code stream decoding in volatile RAM only; pre-prompt permission rationale. |
 | **Autofill** | **Phishing-Resistant Autofill** | Strict host, subdomain, and terminal-segment verification via `DomainMatcher`; dedicated `AutofillAuthActivity` protected with `FLAG_SECURE` and brute-force lockout throttle. |
@@ -139,7 +139,7 @@ graph TD;
     *   **Predictive Back Navigation**: Native `enableOnBackInvokedCallback="true"` integration across Android 16 (API 36).
     *   **Live Permissions & Integrations Dashboard**: Real-time Settings screen hub verifying Camera, Scoped Storage SAF, Android Autofill Service, and Hardware Keystore TEE / StrongBox isolation.
 7.  **Enterprise Anti-Crash & Self-Healing Sentinel (`CrashDefense`)**:
-    *   **Scoped Main Looper Recovery**: Traps unhandled non-security UI exceptions during Compose recomposition, measure/layout, and touch dispatch without terminating process execution. Guarantees that the vault session is immediately locked and volatile keys zeroed before any recovery restart occurs, with strict fail-closed propagation for all security, cryptographic, and biometric exceptions across both main and background threads, and fail-safe process termination if recovery fails.
+    *   **Graceful Process Recovery**: Traps unhandled non-security UI exceptions during Compose recomposition, measure/layout, and touch dispatch. Guarantees that the vault session is immediately locked and volatile keys zeroed before a clean restart occurs into the locked state, with strict fail-closed propagation for all security, cryptographic, and biometric exceptions across both main and background threads, and fail-safe process termination if recovery fails.
     *   **Foldable & Rotation Debounce**: 700ms debounce absorbs screen rotations and foldable transitions without triggering accidental auto-lock.
 8.  **Progressive Exponential Backoff & Brute-Force Throttling**:
     *   **Graduated Lockout Schedule**: 3 attempts (10s), 5 attempts (30s), 8 attempts (2m), 10 attempts (5m), 15 attempts (10m), and 20+ attempts (15m hard cap).
@@ -262,7 +262,7 @@ Kryptx is officially published on Google Play ([`com.kryptx.app`](https://play.g
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: End-to-end system architecture, Mermaid diagrams, delegate hierarchy, and cryptographic boundary definitions.
 - **[BUILD.md](BUILD.md)**: Step-by-step reproducible build guide, NDK targets, Rust JNI cross-compilation pipeline, and verification gates.
-- **[ADR-007: Crash Defense & Anti-Forensics](docs/adr/007-crash-defense-architecture.md)**: Immortal Looper pattern, sealed exception classification, and volatile memory wipe strategy.
+- **[ADR-007: Crash Defense & Anti-Forensics](docs/adr/007-crash-defense-architecture.md)**: Graceful process recovery pattern, sealed exception classification, and volatile memory wipe strategy.
 - **[ADR-008: Incremental Multi-Module Architecture](docs/adr/008-incremental-multi-module-architecture.md)**: Package boundary encapsulation and monolithic-to-modular migration thresholds.
 - **[ADR-009: Biometric ECDH Key Agreement](docs/adr/009-biometric-ecdh-migration.md)**: StrongBox P-256 ECDH forward key agreement and migration strategy from RSA-2048.
 - **[ADR-010: Flash Storage Overwrite Boundaries](docs/adr/010-flash-storage-overwrite-boundaries.md)**: Physical wear leveling limitations and dual-layer defense (AES/SQLCipher + volatile RAM zeroization).

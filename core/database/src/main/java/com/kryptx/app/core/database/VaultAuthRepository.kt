@@ -77,6 +77,11 @@ class VaultAuthRepositoryImpl(
     private val onEmergencyWipe: (() -> DestructionResult)? = null
 ) : VaultAuthRepository {
 
+    companion object {
+        private val DUMMY_DURESS_SALT = ByteArray(16) { (it xor 0x5A).toByte() }
+        private val secureRandom = java.security.SecureRandom()
+    }
+
     override fun hasVault(): Boolean = dbHelper.hasVaultSetup()
 
     override fun isBiometricsConfigured(): Boolean {
@@ -130,6 +135,17 @@ class VaultAuthRepositoryImpl(
             decoyDbHelper.setDatabaseKey(dbKey)
             SecureMemory.wipe(dbKey)
 
+            // Plausible Deniability: Pre-seed decoy database on disk and generate dummy duress metadata
+            // so kryptx_sys_cache.db and duress metadata rows exist from day 1 for all vaults.
+            try {
+                decoyDbHelper.setMetadata("cache_initialized", "true")
+            } catch (e: Exception) {
+                SecurityLogger.trace("VaultAuthRepository", "Initial decoy DB structure pre-seed", e)
+            }
+
+            val dummyDuressSalt = KeyDerivation.generateSalt()
+            val dummyDuressToken = ByteArray(48).also { secureRandom.nextBytes(it) }
+
             val setupMetadata = mapOf(
                 KryptxDbSchema.KEY_SALT to saltBase64,
                 KryptxDbSchema.KEY_KDF_ALGORITHM to KeyDerivation.KdfAlgorithm.ARGON2ID.identifier,
@@ -137,8 +153,14 @@ class VaultAuthRepositoryImpl(
                 KryptxDbSchema.KEY_ARGON2_ITERATIONS to argon2Params.iterations.toString(),
                 KryptxDbSchema.KEY_ARGON2_PARALLELISM to argon2Params.parallelism.toString(),
                 KryptxDbSchema.KEY_VERIFICATION_TOKEN to tokenBase64,
-                KryptxDbSchema.KEY_HAS_SETUP to "true"
+                KryptxDbSchema.KEY_HAS_SETUP to "true",
+                KryptxDbSchema.KEY_HAS_DURESS to "false",
+                KryptxDbSchema.KEY_DURESS_SALT to base64Encode(dummyDuressSalt),
+                KryptxDbSchema.KEY_DURESS_TOKEN to base64Encode(dummyDuressToken)
             )
+            SecureMemory.wipe(dummyDuressSalt)
+            SecureMemory.wipe(dummyDuressToken)
+
             if (!dbHelper.setMetadataBatch(setupMetadata)) {
                 throw IllegalStateException("Failed to commit vault setup metadata to secure storage")
             }
@@ -341,6 +363,16 @@ class VaultAuthRepositoryImpl(
             }
 
             if (success) {
+                // Constant-Time Timing Mitigation:
+                // Ensure Master Password unlock takes uniform 2x Argon2id derivation time,
+                // completely matching Duress unlock and failed unlock attempts.
+                val duressSaltBase64 = dbHelper.getMetadata(KryptxDbSchema.KEY_DURESS_SALT)
+                val secondarySalt = duressSaltBase64?.let { base64Decode(it) } ?: DUMMY_DURESS_SALT
+                val dummyKey = KeyDerivation.deriveKeyArgon2(masterPassword, secondarySalt)
+                SecureMemory.wipe(dummyKey)
+                if (duressSaltBase64 != null) {
+                    SecureMemory.wipe(secondarySalt)
+                }
                 return@withContext KryptxResult.Success(Unit)
             }
         }
@@ -379,6 +411,17 @@ class VaultAuthRepositoryImpl(
                 if (duressSuccess) {
                     return@withContext KryptxResult.Success(Unit)
                 }
+            }
+        } else {
+            // Anti-coercion constant-time mitigation:
+            // When duress is disabled, perform a dummy Argon2id derivation using the vault's salt
+            // (or a deterministic dummy salt) to ensure failed unlock attempts always take uniform 2x Argon2id time,
+            // preventing adversaries from timing failed unlock attempts to detect duress presence.
+            val dummySalt = saltBase64?.let { base64Decode(it) } ?: DUMMY_DURESS_SALT
+            val dummyKey = KeyDerivation.deriveKeyArgon2(masterPassword, dummySalt)
+            SecureMemory.wipe(dummyKey)
+            if (saltBase64 != null) {
+                SecureMemory.wipe(dummySalt)
             }
         }
 
@@ -849,11 +892,20 @@ class VaultAuthRepositoryImpl(
     }
 
     override suspend fun removeDuressPassword(): KryptxResult<Unit> = withContext(Dispatchers.IO) {
+        val dummyDuressSalt = KeyDerivation.generateSalt()
+        val dummyDuressToken = ByteArray(48).also { secureRandom.nextBytes(it) }
         val duressBatch = mapOf(
-            KryptxDbSchema.KEY_DURESS_SALT to "",
-            KryptxDbSchema.KEY_DURESS_TOKEN to "",
+            KryptxDbSchema.KEY_DURESS_SALT to base64Encode(dummyDuressSalt),
+            KryptxDbSchema.KEY_DURESS_TOKEN to base64Encode(dummyDuressToken),
             KryptxDbSchema.KEY_HAS_DURESS to "false"
         )
+        SecureMemory.wipe(dummyDuressSalt)
+        SecureMemory.wipe(dummyDuressToken)
+        try {
+            decoyDbHelper.clearAllData()
+            decoyDbHelper.setMetadata("cache_initialized", "true")
+        } catch (_: Exception) {}
+
         if (!dbHelper.setMetadataBatch(duressBatch)) {
             SecurityLogger.warn("VaultAuthRepository", "Failed to commit duress password removal metadata")
             KryptxResult.Error(KryptxErrorType.DATABASE_ERROR, "Failed to remove duress password from secure storage")

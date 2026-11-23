@@ -42,18 +42,32 @@ class KryptxApplication : Application(), KryptxDependencies {
 
     /**
      * Staged credentials submitted via Autofill save requests while the vault was locked.
-     * Safely queued in memory and committed to the vault once the user authenticates.
+     * Safely queued with encrypted sensitive fields in memory via AutofillStagingManager
+     * and committed to the vault once the user authenticates.
      */
     val pendingAutofillQueue = java.util.concurrent.ConcurrentLinkedQueue<com.kryptx.app.core.model.VaultItem>()
 
     var pendingAutofillSave: com.kryptx.app.core.model.VaultItem?
-        get() = pendingAutofillQueue.peek()
+        get() = com.kryptx.app.core.security.AutofillStagingManager.pollNext() ?: pendingAutofillQueue.peek()
         set(value) {
+            com.kryptx.app.core.security.AutofillStagingManager.clear()
             pendingAutofillQueue.clear()
             if (value != null) {
-                pendingAutofillQueue.offer(value)
+                com.kryptx.app.core.security.AutofillStagingManager.stage(value)
             }
         }
+
+    fun stagePendingAutofill(item: com.kryptx.app.core.model.VaultItem) {
+        com.kryptx.app.core.security.AutofillStagingManager.stage(item)
+    }
+
+    fun pollPendingAutofill(): com.kryptx.app.core.model.VaultItem? {
+        return com.kryptx.app.core.security.AutofillStagingManager.pollNext() ?: pendingAutofillQueue.poll()
+    }
+
+    fun hasPendingAutofill(): Boolean {
+        return com.kryptx.app.core.security.AutofillStagingManager.hasPending() || !pendingAutofillQueue.isEmpty()
+    }
 
     private val activeActivityCount = AtomicInteger(0)
 
